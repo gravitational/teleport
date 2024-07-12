@@ -18,6 +18,7 @@ package msgraph
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -71,19 +72,13 @@ type Config struct {
 
 // SetDefaults sets the default values for optional fields.
 func (cfg *Config) SetDefaults() {
-	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = http.DefaultClient
-	}
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
-	if cfg.RetryConfig == nil {
-		cfg.RetryConfig = &retryutils.RetryV2Config{
-			First:  1 * time.Second,
-			Driver: retryutils.NewExponentialDriver(1 * time.Second),
-			Max:    defaults.HighResPollingPeriod,
-		}
-	}
+	cfg.HTTPClient = cmp.Or(cfg.HTTPClient, http.DefaultClient)
+	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	cfg.RetryConfig = cmp.Or(cfg.RetryConfig, &retryutils.RetryV2Config{
+		First:  1 * time.Second,
+		Driver: retryutils.NewExponentialDriver(1 * time.Second),
+		Max:    defaults.HighResPollingPeriod,
+	})
 	if cfg.PageSize <= 0 {
 		cfg.PageSize = defaultPageSize
 	}
