@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-- Engineering: @rosstimothy && @lxea
+- Engineering: @rosstimothy && @lxea && @@espadolini
 
 ## What
 
