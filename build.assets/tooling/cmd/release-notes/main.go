@@ -20,6 +20,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer clFile.Close()
 
 	gen := &releaseNotesGenerator{
 		releaseVersion: *version,

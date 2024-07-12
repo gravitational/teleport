@@ -4,17 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"fmt"
 	"html/template"
-	"os"
+	"io"
 	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
-)
-
-var (
-	versionMatcher      = regexp.MustCompile(`\d+\.\d+\.\d+`)
-	doubleHeaderMatcher = regexp.MustCompile(`^##\s+`)
 )
 
 //go:embed template/release-notes.md.tmpl
@@ -26,6 +22,7 @@ type tmplInfo struct {
 }
 
 var (
+	doubleHeaderMatcher  = regexp.MustCompile(`^##\s+`)
 	releaseNotesTemplate = template.Must(template.New("release notes").Parse(tmpl))
 )
 
@@ -35,7 +32,7 @@ type releaseNotesGenerator struct {
 	releaseVersion string
 }
 
-func (r *releaseNotesGenerator) generateReleaseNotes(md *os.File) (string, error) {
+func (r *releaseNotesGenerator) generateReleaseNotes(md io.Reader) (string, error) {
 	desc, err := r.parseMD(md)
 	if err != nil {
 		return "", err
@@ -55,52 +52,40 @@ func (r *releaseNotesGenerator) generateReleaseNotes(md *os.File) (string, error
 // parseMD is a simple implementation of a parser to extract the description from a changelog.
 // Will scan for the first double header and pull the version from that.
 // Will pull all information between the first and second double header for the description.
-func (r *releaseNotesGenerator) parseMD(md *os.File) (string, error) {
+func (r *releaseNotesGenerator) parseMD(md io.Reader) (string, error) {
 	sc := bufio.NewScanner(md)
-	var buff bytes.Buffer
 
-	// Skip until first double header which should be version
+	// Extract the first second-level heading
+	var heading string
 	for sc.Scan() {
-		if isDoubleHeader(sc.Text()) {
+		if doubleHeaderMatcher.MatchString(sc.Text()) {
+			heading = doubleHeaderMatcher.Split(sc.Text(), 2)[1]
 			break
 		}
 	}
-
-	if err := r.checkVersion(sc.Text()); err != nil {
+	if err := sc.Err(); err != nil {
 		return "", trace.Wrap(err)
+	}
+	if heading == "" {
+		return "", trace.BadParameter("no second-level heading found in changelog")
+	}
+
+	// Expected heading would be something like "16.0.4 (MM/DD/YY)"
+	parts := strings.SplitN(heading, " ", 2)
+	if parts[0] != r.releaseVersion {
+		return "", trace.BadParameter("changelog version number did not match expected version number: %q != %q", parts[0], r.releaseVersion)
 	}
 
 	// Write everything until next header to buffer
-	for sc.Scan() && !isDoubleHeader(sc.Text()) {
-		if isEmpty(sc.Text()) { // skip empty lines
-			continue
-		}
-		if _, err := buff.Write(append([]byte(sc.Text()), '\n')); err != nil {
+	var buff bytes.Buffer
+	for sc.Scan() && !doubleHeaderMatcher.MatchString(sc.Text()) {
+		if _, err := fmt.Fprintln(&buff, sc.Text()); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}
-	return buff.String(), nil
-}
-
-// checkVersion will parse a version line from the changelog and ensure that it is correct.
-func (r *releaseNotesGenerator) checkVersion(text string) error {
-	v := versionMatcher.FindString(text)
-	if v == "" {
-		return trace.BadParameter("a correct version was not found in changelog")
+	if err := sc.Err(); err != nil {
+		return "", trace.Wrap(err)
 	}
 
-	if v != r.releaseVersion {
-		return trace.BadParameter("version in changelog does not match configured version")
-	}
-
-	return nil
-}
-
-func isDoubleHeader(line string) bool {
-	return doubleHeaderMatcher.MatchString(line)
-}
-
-// isEmpty checks whether a line is just whitespace
-func isEmpty(line string) bool {
-	return strings.TrimSpace(line) == ""
+	return strings.TrimSpace(buff.String()), nil
 }
