@@ -456,50 +456,51 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 		}
 	}
 
+	t.Run("required by cluster", func(t *testing.T) {
+		// Set cluster mode to required.
+		ap, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+		ap.SetDeviceTrust(&types.DeviceTrust{
+			Mode: constants.DeviceTrustModeRequired,
+		})
+		_, err = authServer.UpsertAuthPreference(ctx, ap)
+		require.NoError(t, err, "UpsertAuthPreference failed")
+
+		// Reset mode after testing.
+		t.Cleanup(func() {
+			ap.GetDeviceTrust().Mode = ""
+			_, err = authServer.UpsertAuthPreference(ctx, ap)
+			assert.NoError(t, err, "cleanup: UpsertAuthPreference failed")
+		})
+
+		webSession, err := authServer.AuthenticateWebUser(ctx, *makeValidReq(user1, pass1))
+		require.NoError(t, err, "AuthenticateWebUser failed unexpectedly")
+		assert.Equal(t,
+			types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
+			webSession.GetTrustedDeviceRequirement(),
+			"WebSession.TrustedDeviceRequirement mismatch",
+		)
+	})
+
 	tests := []struct {
-		name              string
-		clusterDeviceMode string
-		req               *authclient.AuthenticateUserRequest
-		want              types.TrustedDeviceRequirement
+		name string
+		req  *authclient.AuthenticateUserRequest
+		want types.TrustedDeviceRequirement
 	}{
 		{
-			name: `mode=""`, // Same as "optional" for Enterprise.
+			name: "not required",
 			req:  makeValidReq(user1, pass1),
 			want: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED,
 		},
 		{
-			name:              `mode="optional"`,
-			clusterDeviceMode: constants.DeviceTrustModeOptional,
-			req:               makeValidReq(user1, pass1),
-			want:              types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED,
-		},
-		{
-			name:              "required by cluster",
-			clusterDeviceMode: constants.DeviceTrustModeRequired,
-			req:               makeValidReq(user1, pass1),
-			want:              types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
-		},
-		{
-			name:              "required by role",
-			clusterDeviceMode: "",
-			req:               makeValidReq(user2, pass2), // user changed
-			want:              types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
+			name: "required by role",
+			req:  makeValidReq(user2, pass2), // user changed
+			want: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Set the cluster device mode.
-			ap, err := authServer.GetAuthPreference(ctx)
-			require.NoError(t, err, "GetAuthPreference failed")
-			switch dt := ap.GetDeviceTrust(); {
-			case dt == nil && test.clusterDeviceMode == "": // OK, equivalent
-			case dt == nil || dt.Mode != test.clusterDeviceMode:
-				ap.SetDeviceTrust(&types.DeviceTrust{
-					Mode: test.clusterDeviceMode,
-				})
-				ap, err = authServer.UpdateAuthPreference(ctx, ap)
-				require.NoError(t, err, "UpdateAuthPreference failed")
-			}
+			t.Parallel()
 
 			webSession, err := authServer.AuthenticateWebUser(ctx, *test.req)
 			require.NoError(t, err, "AuthenticateWebUser failed unexpectedly")
