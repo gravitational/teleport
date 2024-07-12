@@ -121,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -4598,6 +4599,7 @@ func TestGetWebConfig(t *testing.T) {
 		Questionnaire:                  false,
 		IsStripeManaged:                false,
 		PremiumSupport:                 false,
+		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.
@@ -4756,6 +4758,7 @@ func TestGetWebConfig_LegacyIdentityFeatureLimits(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: false},
 			string(entitlements.UsageReporting):         {Enabled: false},
 		},
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.

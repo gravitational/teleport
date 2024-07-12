@@ -800,6 +800,16 @@ const (
 	V3 = 3
 )
 
+var (
+	// SessionRecordingEvents is a list of events that are related to session
+	// recorings.
+	SessionRecordingEvents = []string{
+		SessionEndEvent,
+		WindowsDesktopSessionEndEvent,
+		DatabaseSessionEndEvent,
+	}
+)
+
 // ServerMetadataGetter represents interface
 // that provides information about its server id
 type ServerMetadataGetter interface {
