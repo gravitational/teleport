@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -96,6 +97,9 @@ type clusterDetailsConfig struct {
 	component KubeServiceType
 }
 
+const defaultRefreshPeriod = 5 * time.Minute
+const backoffRefreshStep = 10 * time.Second
+
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
 func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDetails, err error) {
 	creds := cfg.kubeCreds
@@ -144,23 +148,49 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		gvkSupportedResources: gvkSupportedRes,
 	}
 
+	// If cluster is online and there's no errors, we refresh details seldom (every 5 minutes),
+	// but if the cluster is offline, we try to refresh details more often to catch it getting back online earlier.
+	firstPeriod := defaultRefreshPeriod
+	if isClusterOffline {
+		firstPeriod = backoffRefreshStep
+	}
+	refreshDelay, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  firstPeriod,
+		Step:   backoffRefreshStep,
+		Max:    defaultRefreshPeriod,
+		Jitter: retryutils.NewSeventhJitter(),
+		Clock:  cfg.clock,
+	})
+	if err != nil {
+		k.Close()
+		return nil, trace.Wrap(err)
+	}
+
 	k.wg.Add(1)
 	// Start the periodic update of the codec factory and the list of supported types for RBAC.
 	go func() {
 		defer k.wg.Done()
-		ticker := cfg.clock.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.Chan():
+			case <-refreshDelay.After():
 				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 				if err != nil {
+					// If this is first time we get an error, we reset retry mechanism so it will start trying to refresh details quicker, with linear backoff.
+					if refreshDelay.First == defaultRefreshPeriod {
+						refreshDelay.First = backoffRefreshStep
+						refreshDelay.Reset()
+					} else {
+						refreshDelay.Inc()
+					}
 					cfg.log.WithError(err).Error("Failed to update cluster schema")
 					continue
 				}
 
+				// Restore details refresh delay to the default value, in case previously cluster was offline.
+				refreshDelay.First = defaultRefreshPeriod
 				k.rwMu.Lock()
 				k.kubeCodecs = codecFactory
 				k.rbacSupportedTypes = rbacSupportedTypes
