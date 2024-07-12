@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, Link, ButtonPrimary } from 'design';
+import { Text, Link, ButtonPrimary, Mark } from 'design';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
@@ -8,7 +8,6 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
   HeaderSubtitle,
   Header,
-  Mark,
   StepBox,
   ActionButtons,
 } from 'teleport/Discover/Shared';

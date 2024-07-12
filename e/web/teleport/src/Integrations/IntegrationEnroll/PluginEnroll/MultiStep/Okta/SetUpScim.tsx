@@ -1,10 +1,9 @@
 import React from 'react';
-import { Box, ButtonPrimary, Flex, Link, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Link, Text, Mark } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
 import styled from 'styled-components';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { PluginOktaSpec } from 'teleport/services/integrations';
-import { Mark } from 'teleport/Discover/Shared';
 import cfg from 'teleport/config';
 
 import { OutlineInfoIcon } from '../../OutlineInfoIcon';

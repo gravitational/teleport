@@ -149,14 +149,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   padding-bottom: 24px;
 }
 
-.c20 {
-  position: absolute;
-  padding: 0px 6px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
-}
-
 .c16 {
   color: inherit;
   text-decoration: none;
@@ -175,6 +167,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
 
 .c16:hover {
   background-color: rgba(255,255,255,0.13);
+}
+
+.c20 {
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
 }
 
 .c25 {
@@ -1288,14 +1288,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   padding-bottom: 24px;
 }
 
-.c20 {
-  position: absolute;
-  padding: 0px 6px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
-}
-
 .c16 {
   color: inherit;
   text-decoration: none;
@@ -1334,6 +1326,14 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
 
 .c21:hover {
   background-color: rgba(255,255,255,0.13);
+}
+
+.c20 {
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
 }
 
 .c27 {
@@ -2453,14 +2453,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   padding-bottom: 24px;
 }
 
-.c20 {
-  position: absolute;
-  padding: 0px 6px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
-}
-
 .c16 {
   color: inherit;
   text-decoration: none;
@@ -2499,6 +2491,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
 
 .c21:hover {
   background-color: rgba(255,255,255,0.13);
+}
+
+.c20 {
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
 }
 
 .c27 {

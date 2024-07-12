@@ -1,7 +1,7 @@
 import React from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { Mark } from 'design/Mark';
 
-import { Mark } from 'teleport/Discover/Shared';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import useTeleportE from 'e-teleport/useTeleportE';
