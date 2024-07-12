@@ -35,9 +35,9 @@ exports[`success state 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -108,7 +108,6 @@ exports[`success state 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
 .c24:focus-visible,
@@ -226,7 +225,6 @@ exports[`success state 1`] = `
   justify-content: center;
   color: rgba(255, 255, 255, 0.72);
   margin-left: 8px;
-  margin-right: -8px;
 }
 
 .c4 {
@@ -482,7 +480,7 @@ exports[`success state 1`] = `
       </div>
       <button
         class="c6"
-        fill="filled"
+        fill="border"
         width="240px"
       >
         Create New User
@@ -703,9 +701,8 @@ exports[`success state 1`] = `
             <button
               class="c24"
               fill="border"
-              height="24px"
             >
-              OPTIONS
+              Options
               <span
                 class="c25 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -778,9 +775,8 @@ exports[`success state 1`] = `
             <button
               class="c24"
               fill="border"
-              height="24px"
             >
-              OPTIONS
+              Options
               <span
                 class="c25 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -834,9 +830,8 @@ exports[`success state 1`] = `
             <button
               class="c24"
               fill="border"
-              height="24px"
             >
-              OPTIONS
+              Options
               <span
                 class="c25 icon icon-chevrondown"
                 color="text.slightlyMuted"

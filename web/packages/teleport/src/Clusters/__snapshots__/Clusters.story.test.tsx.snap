@@ -33,7 +33,6 @@ exports[`render clusters 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
 .c17:focus-visible,
@@ -80,7 +79,6 @@ exports[`render clusters 1`] = `
   justify-content: center;
   color: rgba(255, 255, 255, 0.72);
   margin-left: 8px;
-  margin-right: -8px;
 }
 
 .c5 {
@@ -394,9 +392,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -430,9 +427,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -466,9 +462,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -502,9 +497,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -538,9 +532,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -574,9 +567,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -610,9 +602,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -646,9 +637,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -682,9 +672,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -718,9 +707,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -754,9 +742,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -790,9 +777,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -826,9 +812,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -862,9 +847,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -898,9 +882,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -934,9 +917,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -970,9 +952,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1006,9 +987,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1042,9 +1022,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1078,9 +1057,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1114,9 +1092,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1150,9 +1127,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1186,9 +1162,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1222,9 +1197,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1258,9 +1232,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1294,9 +1267,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1330,9 +1302,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1366,9 +1337,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1402,9 +1372,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1438,9 +1407,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1474,9 +1442,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1510,9 +1477,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1546,9 +1512,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1582,9 +1547,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1618,9 +1582,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1654,9 +1617,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
@@ -1690,9 +1652,8 @@ exports[`render clusters 1`] = `
           <button
             class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
               class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"

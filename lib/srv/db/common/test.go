@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -185,9 +186,13 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Generate client certificate for the Teleport user.
 	cert, err := config.AuthServer.GenerateDatabaseTestCert(auth.DatabaseTestCertRequest{
-		PublicKey:       key.MarshalSSHPublicKey(),
+		PublicKey:       publicKeyPEM,
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,

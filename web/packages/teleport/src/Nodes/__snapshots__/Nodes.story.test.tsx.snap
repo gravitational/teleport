@@ -396,7 +396,6 @@ exports[`failed 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
 .c36:focus-visible,
@@ -514,7 +513,6 @@ exports[`failed 1`] = `
   justify-content: center;
   color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c5 {
@@ -1136,7 +1134,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1190,7 +1187,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1244,7 +1240,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1298,7 +1293,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1352,7 +1346,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1411,7 +1404,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1470,7 +1462,6 @@ exports[`failed 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1603,9 +1594,9 @@ exports[`loaded 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -1613,7 +1604,6 @@ exports[`loaded 1`] = `
   line-height: 16px;
   letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
 }
 
 .c7:focus-visible,
@@ -1676,7 +1666,6 @@ exports[`loaded 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
 .c36:focus-visible,
@@ -1794,7 +1783,6 @@ exports[`loaded 1`] = `
   justify-content: center;
   color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c5 {
@@ -2182,7 +2170,7 @@ exports[`loaded 1`] = `
     >
       <button
         class="c7"
-        fill="filled"
+        fill="border"
         title=""
         width="240px"
       >
@@ -2421,7 +2409,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2475,7 +2462,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2529,7 +2515,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2583,7 +2568,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2637,7 +2621,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2696,7 +2679,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2755,7 +2737,6 @@ exports[`loaded 1`] = `
           <button
             class="c36"
             fill="border"
-            height="24px"
           >
             Connect
             <span

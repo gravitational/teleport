@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -769,6 +770,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// join token handlers
+	h.PUT("/webapi/token/yaml", h.WithAuth(h.upsertTokenContent))
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
@@ -1094,14 +1096,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessMonitoringEnabled := pingResp.GetServerFeatures().GetAccessMonitoring().GetEnabled()
 
-	// DELETE IN 16.0
-	// If ServerFeatures.AccessMonitoring is nil, then that means the response came from a older auth
-	// where ServerFeatures.AccessMonitoring field does not exist.
-	if pingResp.GetServerFeatures().GetAccessMonitoring() == nil {
-		accessMonitoringEnabled = pingResp.ServerFeatures != nil && pingResp.ServerFeatures.GetIdentityGovernance()
-	}
+	features := pingResp.GetServerFeatures()
+	entitlement := modules.GetProtoEntitlement(features, entitlements.AccessMonitoring)
+	// ensure entitlement is set & feature is configured
+	accessMonitoringEnabled := entitlement.Enabled && features.GetAccessMonitoringConfigured()
 
 	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
@@ -1644,12 +1643,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	// TODO(mcbattirola): remove isTeam when it is no longer used
-	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
-
-	policy := clusterFeatures.GetPolicy()
-
-	// todo (michellescripts) entitlements phase 3: update webCfg
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -1662,27 +1655,30 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
-		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
-		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
-		IsPolicyEnabled:                policy != nil && policy.Enabled,
-		FeatureLimits: webclient.FeatureLimits{
-			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
-			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
-			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
-		},
-		Questionnaire:          clusterFeatures.GetQuestionnaire(),
-		IsStripeManaged:        clusterFeatures.GetIsStripeManaged(),
-		ExternalAuditStorage:   clusterFeatures.GetExternalAuditStorage(),
-		PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		AccessRequests:         clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
-		TrustedDevices:         clusterFeatures.GetDeviceTrust().GetEnabled(),
-		OIDC:                   clusterFeatures.GetOIDC(),
-		SAML:                   clusterFeatures.GetSAML(),
-		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
-		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
+		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
+		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
+		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		Entitlements:                   GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+
+		// Set legacy fields
 		// TODO(mcbattirola): remove isTeam when it is no longer used
-		IsTeam: isTeam,
+		IsTeam:                   clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
+		AccessRequests:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Enabled,
+		ExternalAuditStorage:     modules.GetProtoEntitlement(&clusterFeatures, entitlements.ExternalAuditStorage).Enabled,
+		HideInaccessibleFeatures: modules.GetProtoEntitlement(&clusterFeatures, entitlements.FeatureHiding).Enabled,
+		IsIGSEnabled:             modules.GetProtoEntitlement(&clusterFeatures, entitlements.Identity).Enabled,
+		IsPolicyEnabled:          modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
+		JoinActiveSessions:       modules.GetProtoEntitlement(&clusterFeatures, entitlements.JoinActiveSessions).Enabled,
+		MobileDeviceManagement:   modules.GetProtoEntitlement(&clusterFeatures, entitlements.MobileDeviceManagement).Enabled,
+		OIDC:                     modules.GetProtoEntitlement(&clusterFeatures, entitlements.OIDC).Enabled,
+		SAML:                     modules.GetProtoEntitlement(&clusterFeatures, entitlements.SAML).Enabled,
+		TrustedDevices:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.DeviceTrust).Enabled,
+		FeatureLimits: webclient.FeatureLimits{
+			AccessListCreateLimit:               int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessLists).Limit),
+			AccessMonitoringMaxReportRangeLimit: int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessMonitoring).Limit),
+			AccessRequestMonthlyRequestLimit:    int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Limit),
+		},
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1699,6 +1695,27 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
+}
+
+// GetWebCfgEntitlements takes a cloud entitlement set and returns a modules Entitlement set
+func GetWebCfgEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) map[string]webclient.EntitlementInfo {
+	all := entitlements.AllEntitlements
+	result := make(map[string]webclient.EntitlementInfo, len(all))
+
+	for _, e := range all {
+		al, ok := protoEntitlements[string(e)]
+		if !ok {
+			result[string(e)] = webclient.EntitlementInfo{}
+			continue
+		}
+
+		result[string(e)] = webclient.EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
+	}
+
+	return result
 }
 
 type JWKSResponse struct {

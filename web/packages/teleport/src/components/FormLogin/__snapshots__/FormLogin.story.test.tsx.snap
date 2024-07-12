@@ -63,10 +63,10 @@ exports[`auth2faType: off 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -376,10 +376,10 @@ exports[`auth2faType: optional rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -941,10 +941,10 @@ exports[`auth2faType: otp rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -1518,10 +1518,10 @@ exports[`auth2faType: webauthn rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -2154,10 +2154,10 @@ exports[`cloud auth2faType: on rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -2205,6 +2205,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c15:hover,
 .c15:focus {
   color: #33B1FF;
+  box-shadow: none;
 }
 
 .c15:active {
@@ -2854,10 +2855,10 @@ exports[`server error rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -3148,10 +3149,10 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 32px;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.15px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -3469,10 +3470,10 @@ exports[`sso providers rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 32px;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.15px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -3532,10 +3533,10 @@ exports[`sso providers rendering 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
@@ -3837,7 +3838,7 @@ exports[`sso providers rendering 1`] = `
                   </svg>
                 </span>
               </div>
-              github
+              GitHub
             </button>
             <button
               class="c7 c11"
@@ -3866,7 +3867,7 @@ exports[`sso providers rendering 1`] = `
                   </svg>
                 </span>
               </div>
-              google
+              Google
             </button>
             <button
               class="c7 c12"
@@ -3898,7 +3899,7 @@ exports[`sso providers rendering 1`] = `
                   </svg>
                 </span>
               </div>
-              bitbucket
+              Bitbucket
             </button>
             <button
               class="c7 c13"
@@ -3993,7 +3994,7 @@ exports[`sso providers rendering 1`] = `
               class="c19"
               fill="filled"
             >
-              Sign in with username and password
+              Sign in with Username and Password
             </button>
           </div>
         </div>

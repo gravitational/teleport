@@ -267,15 +267,7 @@ const FilterTypesMenu = ({
   return (
     <Flex textAlign="center" alignItems="center">
       <HoverTooltip tipContent={'Filter by resource type'}>
-        <ButtonSecondary
-          px={2}
-          css={`
-            border-color: ${props => props.theme.colors.spotBackground[0]};
-          `}
-          textTransform="none"
-          size="small"
-          onClick={handleOpen}
-        >
+        <ButtonSecondary size="small" onClick={handleOpen}>
           Types{' '}
           {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
@@ -446,7 +438,6 @@ const SortMenu: React.FC<SortMenuProps> = props => {
           onClick={onDirChange}
           textTransform="none"
           css={`
-            width: 0px; // remove extra width around the button icon
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
             border-color: ${props => props.theme.colors.spotBackground[2]};
