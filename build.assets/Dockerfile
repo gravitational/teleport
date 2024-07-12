@@ -245,7 +245,7 @@ RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo
     mkdir -p ${NODE_PATH} && \
     curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
-RUN corepack enable yarn
+RUN corepack enable
 
 # Install Go.
 ARG GOLANG_VERSION
