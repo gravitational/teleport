@@ -19,7 +19,10 @@ As an alternative to this guide, you can use the Teleport Web UI (Access Managem
 ## How it works
 Teleport is added as an [OpenID Connect identity provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to establish trust with your AWS account and assume a configured IAM role in order to access AWS resources.
 
-For this to work, the `openid-configuration` and public keys are automatically exposed in your cluster at `https://<Var name="teleport.example.com" />/.well-known/openid-configuration`.
+For this to work, the `openid-configuration` and public keys are automatically exposed in your cluster at:
+```code
+$ curl https://<Var name="teleport.example.com" />/.well-known/openid-configuration
+```
 The integration requires no extra configuration or services to run.
 
 Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
@@ -64,7 +67,7 @@ https://<Var name="teleport.example.com" />
 ```
 - Audience: `discover.teleport`
 
-You should also add the following tags to ensure you can easily track the resource in the future.
+You should also add the following tags to help you track the resource in the future:
 ```code
 teleport.dev/cluster      <Var name="cluster-name"/>
 teleport.dev/origin       integration_awsoidc
@@ -89,7 +92,7 @@ To achieve this, add the following Trust Relationship:
 			"Action": "sts:AssumeRoleWithWebIdentity",
 			"Condition": {
 				"StringEquals": {
-					<Var name="teleport.example.com" />:aud": "discover.teleport"
+					"<Var name="teleport.example.com" />:aud": "discover.teleport"
 				}
 			}
 		}
