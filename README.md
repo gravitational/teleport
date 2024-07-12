@@ -290,6 +290,19 @@ DEBUG=1 ./build/teleport start -d
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
+### Pre-Commit Hooks
+
+This project supports pre-commit hooks. For download instructions and  more documentation visit the [pre-commit website](https://pre-commit.com/).
+
+Once downloaded and setup you can run the following command to setup your git hooks.
+```console
+pre-commit install
+```
+
+The pre-commit hooks supported right now are:
+* git-leaks: Prevent accidental credential leaks
+
+
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
