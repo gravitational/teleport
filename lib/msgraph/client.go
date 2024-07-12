@@ -25,7 +25,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"time"
 
@@ -125,7 +124,7 @@ func NewClient(cfg Config) (Client, error) {
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
 func (c *client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
-	if payload != nil {
+	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
 	}
 
@@ -203,9 +202,9 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 }
 
 func (c *client) endpointURI(segments ...string) *url.URL {
-	uri := *c.baseURL
-	uri.Path = path.Join(append([]string{uri.Path}, segments...)...)
-	return &uri
+	uri := c.baseURL
+	uri = uri.JoinPath(segments...)
+	return uri
 }
 
 // roundtrip makes a request to the API,
