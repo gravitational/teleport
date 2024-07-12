@@ -45,6 +45,7 @@ typedef struct StartVnetRequest {
 typedef struct StartVnetResult {
   bool ok;
   const char *error_domain;
+  int error_code;
   const char *error_description;
 } StartVnetResult;
 
