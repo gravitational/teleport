@@ -263,7 +263,6 @@ func (auth registryAuthMiddleware) ServeHTTP(resp http.ResponseWriter, req *http
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Www-Authenticate", fmt.Sprintf("Bearer realm=%q,service=%q", realm, auth.service))
 	resp.WriteHeader(http.StatusUnauthorized)
-	return
 }
 
 // authorizationHeader returns the content of the Authorization header to authenticate a request.
