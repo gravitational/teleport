@@ -20,6 +20,7 @@ package testenv
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"net"
 	"time"
 
@@ -43,6 +44,25 @@ func WithAutoCreateDevice(b bool) Opt {
 	return func(e *E) {
 		e.Service.autoCreateDevice = b
 	}
+}
+
+// WithPreEnrolledDevice registers a device with the service without having to enroll it.
+// This is useful for testing device authentication flows.
+// [pub] is the public key of the macOS device and is used to verify the device. TPM devices
+// do not require a public key and should pass nil.
+func WithPreEnrolledDevice(dev *devicepb.Device, pub *ecdsa.PublicKey) Opt {
+	return func(e *E) {
+		e.Service.mu.Lock()
+		defer e.Service.mu.Unlock()
+		e.Service.devices = append(e.Service.devices,
+			storedDevice{
+				pb:          dev,
+				enrollToken: FakeEnrollmentToken,
+				pub:         pub,
+			},
+		)
+	}
+
 }
 
 // E is an integrated test environment for device trust.
