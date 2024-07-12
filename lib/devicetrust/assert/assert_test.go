@@ -85,8 +85,8 @@ func TestCeremony(t *testing.T) {
 			}))
 			require.NoError(t, err, "NewCeremony errored")
 
-			clientToServer := make(chan *devicepb.AssertDeviceRequest, 1)
-			serverToClient := make(chan *devicepb.AssertDeviceResponse, 1)
+			clientToServer := make(chan *devicepb.AssertDeviceRequest)
+			serverToClient := make(chan *devicepb.AssertDeviceResponse)
 
 			group, ctx := errgroup.WithContext(ctx)
 
