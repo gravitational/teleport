@@ -2685,9 +2685,9 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-// TestListSAMLIdPServiceProviderAndListAndListResources verifies
+// TestListSAMLIdPServiceProviderAndListResources verifies
 // RBAC and search filters when fetching SAML IdP service providers.
-func TestListSAMLIdPServiceProviderAndListAndListResources(t *testing.T) {
+func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -2713,8 +2713,7 @@ func TestListSAMLIdPServiceProviderAndListAndListResources(t *testing.T) {
 	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
 
-	numResources := len(testServiceProviders)
-	testResources := make([]types.ResourceWithLabels, numResources)
+	testResources := make([]types.ResourceWithLabels, len(testServiceProviders))
 	for i, sp := range testServiceProviders {
 		testResources[i] = sp
 	}
@@ -6407,7 +6406,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, errDeleteVerbDenied)
+				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
 		{

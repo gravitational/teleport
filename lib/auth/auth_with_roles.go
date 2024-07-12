@@ -1885,7 +1885,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				var serviceProviders []types.SAMLIdPServiceProvider
 				var startKey string
 				for {
-					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
+					sps, nextKey, err := a.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -6889,13 +6889,13 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
-// TODO(sshah): require MFA for SAML IdP admin actions?
+// TODO(sshah): set MFARequired for SAML IdP admin actions?
 func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 	return a.context.Checker.CheckAccess(
 		sp,
 		// MFA is not required for operations on SAML resources but
 		// will be enforced at the connection time.
-		services.AccessState{MFAVerified: true})
+		services.AccessState{})
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -6971,12 +6971,12 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err = a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Support reused MFA for bulk tctl create requests.
-	if err = a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7014,6 +7014,11 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	existingSP, err := a.authServer.GetSAMLIdPServiceProvider(ctx, sp.GetName())
 	if err != nil {
 		return trace.Wrap(err)
@@ -7022,11 +7027,6 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Support reused MFA for bulk tctl create requests.
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
