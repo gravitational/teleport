@@ -141,7 +141,6 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       build-packages: true
-      release-artifacts: true
       release-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
 
