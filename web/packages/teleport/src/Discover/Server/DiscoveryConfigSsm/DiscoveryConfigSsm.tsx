@@ -17,7 +17,14 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Box, Link as ExternalLink, Text, Flex, ButtonSecondary } from 'design';
+import {
+  Box,
+  Link as ExternalLink,
+  Text,
+  Flex,
+  ButtonSecondary,
+  Mark,
+} from 'design';
 import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
 import TextEditor from 'shared/components/TextEditor';
@@ -42,7 +49,7 @@ import {
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { ActionButtons, Header, Mark, StyledBox } from '../../Shared';
+import { ActionButtons, Header, StyledBox } from '../../Shared';
 
 import { SingleEc2InstanceInstallation } from '../Shared';
 
