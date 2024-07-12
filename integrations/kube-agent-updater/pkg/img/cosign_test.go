@@ -21,10 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/distribution/reference"
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,11 +28,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/distribution/reference"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/uuid"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
