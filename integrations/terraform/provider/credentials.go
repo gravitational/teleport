@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"strings"
+	"time"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -92,7 +93,15 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 			return nil, diags
 		}
 
-		// TODO: add credential expiry warning here when we will merge the credential expiry PR
+		now := time.Now()
+		if expiry, ok := creds.Expiry(); ok && !expiry.IsZero() && expiry.Before(now) {
+			diags.AddWarning(
+				fmt.Sprintf("Credential %s is expired", source.Name()),
+				fmt.Sprintf(`The credentials %s is expired. Expiration is %q while current time is %q).
+You might need to refresh them. The provider will still attempt to connect with them, but it will likely fail.`,
+					source.Name(), expiry.Local(), now.Local()),
+			)
+		}
 
 		clientCfg.Credentials = []client.Credentials{creds}
 		clt, err := client.New(ctx, clientCfg)
