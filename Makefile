@@ -1643,7 +1643,7 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else pnpm install --frozen-lockfile --ignore-scripts; fi
+	else pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
