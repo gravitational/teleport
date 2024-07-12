@@ -33,7 +33,7 @@ export function S3BucketConfiguration({
       <Flex alignItems="center" gap={1}>
         <Text>Amazon S3 Location</Text>
         <ToolTipInfo sticky={true} kind="warning">
-          Storing the OpenID configuration in a S3 bucket is now deprecated.
+          Deprecated.
         </ToolTipInfo>
       </Flex>
       <Flex gap={3}>

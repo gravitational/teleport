@@ -146,8 +146,8 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                     s3Prefix={s3Prefix}
                   />
                   <OutlineWarn>
-                    Reconfiguring is suggested to remove the deprecated S3
-                    fields from this integration.
+                    We suggest reconfiguring this integration to remove the
+                    deprecated s3 fields.
                   </OutlineWarn>
                 </>
               )}
