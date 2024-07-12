@@ -85,10 +85,11 @@ import (
 )
 
 type testPack struct {
-	bk          backend.Backend
-	clusterName types.ClusterName
-	a           *Server
-	mockEmitter *eventstest.MockRecorderEmitter
+	bk             backend.Backend
+	versionStorage VersionStorage
+	clusterName    types.ClusterName
+	a              *Server
+	mockEmitter    *eventstest.MockRecorderEmitter
 }
 
 func newTestPack(
@@ -109,9 +110,13 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
+	p.versionStorage = NewFakeTeleportVersion()
+
 	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &InitConfig{
+		DataDir:                dataDir,
 		Backend:                p.bk,
+		VersionStorage:         p.versionStorage,
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		Emitter:                p.mockEmitter,
@@ -1110,6 +1115,7 @@ func TestUpdateConfig(t *testing.T) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
+		VersionStorage:         s.versionStorage,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
