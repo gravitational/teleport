@@ -1276,10 +1276,6 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	if resourceKind == types.KindSAMLIdPServiceProvider {
-		return true, nil
-	}
-
 	// check access normally if base checker doesnt exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
@@ -6893,13 +6889,38 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
+// TODO(sshah): require MFA for SAML IdP admin actions?
+func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
+	return a.context.Checker.CheckAccess(
+		sp,
+		// MFA is not required for operations on SAML resources but
+		// will be enforced at the connection time.
+		services.AccessState{MFAVerified: true})
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+	sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Filter out service providers the caller doesn't have access to.
+	var filtered []types.SAMLIdPServiceProvider
+	for _, sp := range sps {
+		err := a.checkAccessToSAMLIdPServiceProvider(sp)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, "", trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, sp)
+		}
+
+	}
+	return filtered, nextKey, nil
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -6908,7 +6929,16 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sp, nil
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
@@ -6938,6 +6968,10 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}()
 
 	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6977,6 +7011,17 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}()
 
 	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	existingSP, err := a.authServer.GetSAMLIdPServiceProvider(ctx, sp.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = a.checkAccessToSAMLIdPServiceProvider(existingSP); err != nil {
+		return trace.Wrap(err)
+	}
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7037,6 +7082,10 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
 	name = sp.GetName()
 	entityID = sp.GetEntityID()
 
@@ -7046,6 +7095,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+// Returns without deleting any resource if user role denies access to any one of the listed resource.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
 	defer func() {
 		code := events.SAMLIdPServiceProviderDeleteAllCode
@@ -7072,6 +7122,23 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	var startKey string
+	for {
+		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, sp := range sps {
+			if err := a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 
 	err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
