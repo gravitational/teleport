@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-TODO
+- Engineering: @rosstimothy && @lxea
 
 ## What
 
@@ -16,7 +16,8 @@ of a Teleport user creating one when SSHing with the current host user creation.
 
 ## Why
 
-TODO
+Host users can be created and used (potentially by third-party services) without
+a Teleport user needing to log in first.
 
 ## Details
 
@@ -96,10 +97,11 @@ to true in their config) will ignore `static_host_user`s entirely.
 
 ### Deletion
 
-Delete events from the cache will signal the node to delete a created user. If the user is still in use (i.e. someone is logged
-in as it), it will be added to the `teleport-delete` group. Teleport
-will periodically delete `teleport-delete` users as it does with
-expired `teleport-system` users. Teleport users will not be able to log in as a host user if it is marked for deletion.
+Delete events from the cache will signal the node to delete a created user. If
+the user is still in use (i.e. someone is logged in as it), it will be added
+to the `teleport-delete` group. Teleport will periodically delete `teleport-delete`
+users as it does with expired `teleport-system` users. Teleport users will not
+be able to log in as a host user if it is marked for deletion.
 
 To facilitate deletion, `static_host_user`s will be keyed under their login in
 the backend, i.e. `hostUsers/<login>/<resource-name>`.
@@ -128,5 +130,6 @@ version, they will create static host users as normal.
 
 ### Future work
 
-Extend server heartbeats to include static host users. This will allow Teleport users to spot incorrect propagation of host users
-due to misconfiguration, nodes that don't support them, etc.
+Extend server heartbeats to include static host users. This will allow Teleport
+users to spot incorrect propagation of host users due to misconfiguration, nodes
+that don't support them, etc.
