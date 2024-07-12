@@ -164,6 +164,8 @@ func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
 }
 
 func TestIterateUsers_Empty(t *testing.T) {
+	t.Parallel()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /users", func(w http.ResponseWriter, r *http.Request) {
 		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
@@ -193,6 +195,8 @@ func TestIterateUsers_Empty(t *testing.T) {
 }
 
 func TestIterateUsers(t *testing.T) {
+	t.Parallel()
+
 	var sourceUsers []json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(usersPayload), &sourceUsers))
 	mux := http.NewServeMux()
@@ -270,6 +274,8 @@ func (f *failingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestRetry(t *testing.T) {
+	t.Parallel()
+
 	appID := uuid.NewString()
 	route := "POST /applications/" + appID + "/federatedIdentityCredentials"
 	name := "foo"
