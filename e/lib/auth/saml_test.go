@@ -63,10 +63,14 @@ func TestCreateSAMLUser(t *testing.T) {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, b.Close())
+	})
 
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
+		VersionStorage:         auth.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
@@ -210,10 +214,13 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
-
+	t.Cleanup(func() {
+		require.NoError(t, b.Close())
+	})
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
+		VersionStorage:         auth.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
@@ -310,9 +317,13 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		require.NoError(t, b.Close())
+	})
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
+		VersionStorage:         auth.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

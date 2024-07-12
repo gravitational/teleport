@@ -77,6 +77,7 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	require.NoError(t, err)
 
 	authConfig := &auth.InitConfig{
+		VersionStorage:         auth.NewFakeTeleportVersion(),
 		ClusterName:            clusterName,
 		Backend:                s.b,
 		Authority:              authority.New(),

@@ -352,6 +352,7 @@ func initService(t *testing.T) testServiceComponents {
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                backend,
+		VersionStorage:         auth.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		Clock:                  clock,
