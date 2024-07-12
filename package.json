@@ -2,28 +2,28 @@
   "name": "teleport-ui",
   "version": "1.0.0",
   "scripts": {
-    "build-ui": "yarn build-ui-oss && yarn build-ui-e",
-    "build-ui-oss": "yarn workspace @gravitational/teleport build",
-    "build-ui-e": "yarn workspace @gravitational/teleport.e build",
-    "build-wasm": "yarn workspace @gravitational/teleport build-wasm",
-    "start-teleport": "yarn workspace @gravitational/teleport start",
-    "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
-    "build-term": "yarn workspace @gravitational/teleterm build",
-    "start-term": "yarn workspace @gravitational/teleterm start",
-    "package-term": "yarn workspace @gravitational/teleterm package",
+    "build-ui": "pnpm build-ui-oss && pnpm build-ui-e",
+    "build-ui-oss": "pnpm --filter=@gravitational/teleport build",
+    "build-ui-e": "pnpm --filter=@gravitational/teleport.e build",
+    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm",
+    "start-teleport": "pnpm --filter=@gravitational/teleport start",
+    "start-teleport-e": "pnpm --filter=@gravitational/teleport.e start",
+    "build-term": "pnpm --filter=@gravitational/teleterm build",
+    "start-term": "pnpm --filter=@gravitational/teleterm start",
+    "package-term": "pnpm --filter=@gravitational/teleterm package",
     "storybook": "start-storybook -p 9002 -c web/.storybook -s web/.storybook/public",
-    "storybook-smoke-test": "yarn storybook --ci --smoke-test",
+    "storybook-smoke-test": "pnpm storybook --ci --smoke-test",
     "test": "jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
-    "test-update-snapshot": "yarn test --updateSnapshot",
+    "test-update-snapshot": "pnpm run test --updateSnapshot",
     "tdd": "jest --watch",
-    "lint": "yarn prettier-check && yarn eslint",
-    "lint-fix": "yarn prettier-write && yarn eslint --fix",
+    "lint": "pnpm prettier-check && pnpm eslint",
+    "lint-fix": "pnpm prettier-write && pnpm eslint --fix",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc",
-    "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "prettier-write": "yarn prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "node web/packages/design/src/Icon/script/script.js & yarn prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
+    "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
+    "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
+    "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
@@ -92,10 +92,5 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "workspaces": {
-    "packages": [
-      "web/packages/*",
-      "e/web/*"
-    ]
-  }
+  "packageManager": "pnpm@9.5.0"
 }

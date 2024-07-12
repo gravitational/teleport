@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "yarn build-wasm && vite",
+    "start": "pnpm build-wasm && vite",
     "build-wasm": "RUST_MIN_STACK=16777216 wasm-pack build ./src/ironrdp --target web",
-    "build": "yarn build-wasm && vite build"
+    "build": "pnpm build-wasm && vite build"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
@@ -16,8 +16,8 @@
     "directory": "packages/teleport"
   },
   "dependencies": {
-    "@gravitational/design": "1.0.0",
-    "@gravitational/shared": "1.0.0",
+    "@gravitational/design": "workspace:*",
+    "@gravitational/shared": "workspace:*",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/context-zone": "1.25.1",
     "@opentelemetry/core": "^1.8.0",
@@ -41,7 +41,8 @@
     "xterm-addon-webgl": "^0.16.0"
   },
   "devDependencies": {
-    "@gravitational/build": "^1.0.0",
+    "@gravitational/build": "workspace:*",
+    "@gravitational/teleport": "workspace:*",
     "babel-plugin-transform-import-meta": "^2.2.0",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "jest-canvas-mock": "^2.5.2",
