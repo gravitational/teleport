@@ -969,6 +969,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
+	play.Flag("skip-idle-time", "Quickly skip over idle time, applicable when streaming SSH or Kubernetes sessions.").BoolVar(&cf.NoWait)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
@@ -1877,6 +1878,11 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
+				return trace.Wrap(err)
+			}
+
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
 				return trace.Wrap(err)
 			}
 

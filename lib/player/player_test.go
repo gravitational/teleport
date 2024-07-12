@@ -277,17 +277,18 @@ func TestUseDatabaseTranslator(t *testing.T) {
 				count := 0
 				for evt := range p.C() {
 					// When using translator, the only returned events are
-					// session start/end and prints. Everything else indicates
-					// a translator was not used.
+					// prints. Everything else indicates a translator was not
+					// used.
 					switch evt.(type) {
-					case *apievents.DatabaseSessionStart, *apievents.DatabaseSessionEnd, *apievents.SessionPrint:
+					case *apievents.SessionPrint:
 					default:
 						require.Fail(t, "expected only session start/end and session print events but got %T", evt)
 					}
 					count++
 				}
 
-				require.Equal(t, queryEventCount, count)
+				// Queries + start/end
+				require.Equal(t, queryEventCount+2, count)
 				require.NoError(t, p.Err())
 			})
 		}

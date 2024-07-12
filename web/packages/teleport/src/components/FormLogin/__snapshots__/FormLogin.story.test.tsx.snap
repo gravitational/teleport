@@ -46,7 +46,8 @@ exports[`auth2faType: off 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -55,34 +56,54 @@ exports[`auth2faType: off 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -100,7 +121,7 @@ exports[`auth2faType: off 1`] = `
 
 .c11 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -117,7 +138,7 @@ exports[`auth2faType: off 1`] = `
 .c11:hover,
 .c11:focus,
 .c11:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c11::-ms-clear {
@@ -125,7 +146,7 @@ exports[`auth2faType: off 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -134,8 +155,8 @@ exports[`auth2faType: off 1`] = `
 }
 
 .c11:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c10 {
@@ -269,7 +290,7 @@ exports[`auth2faType: off 1`] = `
             </div>
             <button
               class="c13"
-              kind="primary"
+              fill="filled"
               type="submit"
               width="100%"
             >
@@ -337,7 +358,8 @@ exports[`auth2faType: optional rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -346,34 +368,54 @@ exports[`auth2faType: optional rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c17:hover,
-.c17:focus {
-  background: #B29DFF;
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c17:active {
-  background: #C5B6FF;
+.c17:hover,
+.teleport-button__force-hover .c17 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c17:active,
+.teleport-button__force-active .c17 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -391,7 +433,7 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c11 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -408,7 +450,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c11:hover,
 .c11:focus,
 .c11:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c11::-ms-clear {
@@ -416,7 +458,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -425,8 +467,8 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c11:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c10 {
@@ -522,20 +564,20 @@ exports[`auth2faType: optional rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c16 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c16 .react-select__control:hover,
 .c16 .react-select__control:focus,
 .c16 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -556,7 +598,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c16 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -570,7 +612,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c16 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c16 .react-select__multi-value {
@@ -616,7 +658,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c16 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 .react-select__clear-indicator:hover,
@@ -632,7 +674,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c16 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c16 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -649,17 +691,17 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c16 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__control--is-disabled .react-select__single-value,
 .c16 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__input {
@@ -806,7 +848,7 @@ exports[`auth2faType: optional rendering 1`] = `
             </div>
             <button
               class="c17"
-              kind="primary"
+              fill="filled"
               type="submit"
               width="100%"
             >
@@ -880,7 +922,8 @@ exports[`auth2faType: otp rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -889,34 +932,54 @@ exports[`auth2faType: otp rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c18:hover,
-.c18:focus {
-  background: #B29DFF;
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c18:active {
-  background: #C5B6FF;
+.c18:hover,
+.teleport-button__force-hover .c18 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c18:active,
+.teleport-button__force-active .c18 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -934,7 +997,7 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c11 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -951,7 +1014,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c11:hover,
 .c11:focus,
 .c11:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c11::-ms-clear {
@@ -959,7 +1022,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -968,8 +1031,8 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c11:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c10 {
@@ -1065,20 +1128,20 @@ exports[`auth2faType: otp rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c16 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c16 .react-select__control:hover,
 .c16 .react-select__control:focus,
 .c16 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1099,7 +1162,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c16 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1113,7 +1176,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c16 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c16 .react-select__multi-value {
@@ -1159,7 +1222,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c16 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 .react-select__clear-indicator:hover,
@@ -1175,7 +1238,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c16 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c16 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -1192,17 +1255,17 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c16 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__control--is-disabled .react-select__single-value,
 .c16 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__input {
@@ -1367,7 +1430,7 @@ exports[`auth2faType: otp rendering 1`] = `
             </div>
             <button
               class="c18"
-              kind="primary"
+              fill="filled"
               type="submit"
               width="100%"
             >
@@ -1435,7 +1498,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1444,34 +1508,54 @@ exports[`auth2faType: webauthn rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c17:hover,
-.c17:focus {
-  background: #B29DFF;
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c17:active {
-  background: #C5B6FF;
+.c17:hover,
+.teleport-button__force-hover .c17 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c17:active,
+.teleport-button__force-active .c17 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1489,7 +1573,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c11 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1506,7 +1590,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c11:hover,
 .c11:focus,
 .c11:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c11::-ms-clear {
@@ -1514,7 +1598,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -1523,8 +1607,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c11:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c10 {
@@ -1620,20 +1704,20 @@ exports[`auth2faType: webauthn rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c16 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c16 .react-select__control:hover,
 .c16 .react-select__control:focus,
 .c16 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1654,7 +1738,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c16 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1668,7 +1752,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c16 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c16 .react-select__multi-value {
@@ -1714,7 +1798,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c16 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 .react-select__clear-indicator:hover,
@@ -1730,7 +1814,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c16 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c16 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -1747,17 +1831,17 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c16 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__control--is-disabled .react-select__single-value,
 .c16 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 .react-select__input {
@@ -1904,7 +1988,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
             </div>
             <button
               class="c17"
-              kind="primary"
+              fill="filled"
               type="submit"
               width="100%"
             >
@@ -1987,7 +2071,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1996,28 +2081,48 @@ exports[`cloud auth2faType: on rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c16:hover,
-.c16:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c16 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c16:active {
-  background: #C5B6FF;
+.c16:active,
+.teleport-button__force-active .c16 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c16:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2028,7 +2133,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2037,29 +2143,49 @@ exports[`cloud auth2faType: on rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c22:hover,
-.c22:focus {
-  background: #B29DFF;
+.c22:focus-visible,
+.teleport-button__force-focus-visible .c22 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c22:active {
-  background: #C5B6FF;
+.c22:hover,
+.teleport-button__force-hover .c22 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c22:active,
+.teleport-button__force-active .c22 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c22:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2075,6 +2201,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c15:hover,
 .c15:focus {
   color: #33B1FF;
+  box-shadow: none;
 }
 
 .c15:active {
@@ -2088,7 +2215,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -2106,7 +2233,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c11 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2123,7 +2250,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c11:hover,
 .c11:focus,
 .c11:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c11::-ms-clear {
@@ -2131,7 +2258,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -2140,8 +2267,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c11:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c10 {
@@ -2237,20 +2364,20 @@ exports[`cloud auth2faType: on rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c21 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c21 .react-select__control:hover,
 .c21 .react-select__control:focus,
 .c21 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2271,7 +2398,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c21 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2285,7 +2412,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c21 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c21 .react-select__multi-value {
@@ -2331,7 +2458,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c21 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c21 .react-select__clear-indicator:hover,
@@ -2347,7 +2474,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c21 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c21 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -2364,17 +2491,17 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c21 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c21 .react-select__control--is-disabled .react-select__single-value,
 .c21 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c21 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c21 .react-select__input {
@@ -2450,7 +2577,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
               >
                 <a
                   class="c15 c16"
-                  kind="primary"
+                  fill="filled"
                   style="padding: 0px; min-height: 0;"
                 >
                   Forgot Password?
@@ -2531,7 +2658,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
               </div>
               <a
                 class="c15 c16"
-                kind="primary"
+                fill="filled"
                 style="padding: 0px; min-height: 0;"
               >
                 Lost Two-Factor Device?
@@ -2539,7 +2666,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
             </div>
             <button
               class="c22"
-              kind="primary"
+              fill="filled"
               type="submit"
               width="100%"
             >
@@ -2588,7 +2715,7 @@ exports[`no login enabled 1`] = `
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -2706,7 +2833,8 @@ exports[`server error rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2715,34 +2843,54 @@ exports[`server error rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c14:hover,
-.c14:focus {
-  background: #B29DFF;
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c14:active {
-  background: #C5B6FF;
+.c14:hover,
+.teleport-button__force-hover .c14 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c14:active,
+.teleport-button__force-active .c14 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c14:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -2760,7 +2908,7 @@ exports[`server error rendering 1`] = `
 
 .c12 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2777,7 +2925,7 @@ exports[`server error rendering 1`] = `
 .c12:hover,
 .c12:focus,
 .c12:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c12::-ms-clear {
@@ -2785,7 +2933,7 @@ exports[`server error rendering 1`] = `
 }
 
 .c12::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -2794,8 +2942,8 @@ exports[`server error rendering 1`] = `
 }
 
 .c12:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c11 {
@@ -2935,7 +3083,7 @@ exports[`server error rendering 1`] = `
             </div>
             <button
               class="c14"
-              kind="primary"
+              fill="filled"
               type="submit"
               width="100%"
             >
@@ -2978,7 +3126,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2987,29 +3136,49 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c7:hover,
-.c7:focus {
-  background: #B29DFF;
+.c7:focus-visible,
+.teleport-button__force-focus-visible .c7 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c7:active {
-  background: #C5B6FF;
+.c7:hover,
+.teleport-button__force-hover .c7 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c7:active,
+.teleport-button__force-active .c7 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c7:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3021,7 +3190,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -3100,8 +3269,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgb(61,61,61);
-  border: 1px solid rgb(142,142,142);
+  background: rgb(61, 61, 61);
+  border: 1px solid rgb(142, 142, 142);
 }
 
 .c8 svg {
@@ -3121,8 +3290,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 
 .c11:hover,
 .c11:focus {
-  background: rgb(198,67,51);
-  border: 1px solid rgb(234,147,136);
+  background: rgb(198, 67, 51);
+  border: 1px solid rgb(234, 147, 136);
 }
 
 .c11 svg {
@@ -3172,7 +3341,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
             <button
               class="c7 c8"
               color="#444444"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3201,7 +3370,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
             <button
               class="c7 c11"
               color="#dd4b39"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3262,7 +3431,7 @@ exports[`sso providers rendering 1`] = `
   margin-top: 16px;
   margin-bottom: 16px;
   border-bottom: 1px solid;
-  border-color: rgba(255,255,255,0.54);
+  border-color: rgba(255, 255, 255, 0.54);
 }
 
 .c18 {
@@ -3278,7 +3447,8 @@ exports[`sso providers rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3287,29 +3457,49 @@ exports[`sso providers rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c7:hover,
-.c7:focus {
-  background: #B29DFF;
+.c7:focus-visible,
+.teleport-button__force-focus-visible .c7 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c7:active {
-  background: #C5B6FF;
+.c7:hover,
+.teleport-button__force-hover .c7 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c7:active,
+.teleport-button__force-active .c7 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c7:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3320,7 +3510,8 @@ exports[`sso providers rendering 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3329,29 +3520,49 @@ exports[`sso providers rendering 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
   width: 100%;
 }
 
-.c19:hover,
-.c19:focus {
-  background: rgba(255,255,255,0.13);
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c19:active {
-  background: rgba(255,255,255,0.18);
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3363,7 +3574,7 @@ exports[`sso providers rendering 1`] = `
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -3449,8 +3660,8 @@ exports[`sso providers rendering 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgb(61,61,61);
-  border: 1px solid rgb(142,142,142);
+  background: rgb(61, 61, 61);
+  border: 1px solid rgb(142, 142, 142);
 }
 
 .c8 svg {
@@ -3470,8 +3681,8 @@ exports[`sso providers rendering 1`] = `
 
 .c11:hover,
 .c11:focus {
-  background: rgb(198,67,51);
-  border: 1px solid rgb(234,147,136);
+  background: rgb(198, 67, 51);
+  border: 1px solid rgb(234, 147, 136);
 }
 
 .c11 svg {
@@ -3491,8 +3702,8 @@ exports[`sso providers rendering 1`] = `
 
 .c12:hover,
 .c12:focus {
-  background: rgb(28,72,116);
-  border: 1px solid rgb(121,150,179);
+  background: rgb(28, 72, 116);
+  border: 1px solid rgb(121, 150, 179);
 }
 
 .c12 svg {
@@ -3512,8 +3723,8 @@ exports[`sso providers rendering 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: rgb(222,132,27);
-  border: 1px solid rgb(250,190,120);
+  background: rgb(222, 132, 27);
+  border: 1px solid rgb(250, 190, 120);
 }
 
 .c13 svg {
@@ -3533,8 +3744,8 @@ exports[`sso providers rendering 1`] = `
 
 .c14:hover,
 .c14:focus {
-  background: rgb(34,102,212);
-  border: 1px solid rgb(124,170,243);
+  background: rgb(34, 102, 212);
+  border: 1px solid rgb(124, 170, 243);
 }
 
 .c14 svg {
@@ -3597,7 +3808,7 @@ exports[`sso providers rendering 1`] = `
             <button
               class="c7 c8"
               color="#444444"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3621,12 +3832,12 @@ exports[`sso providers rendering 1`] = `
                   </svg>
                 </span>
               </div>
-              github
+              GitHub
             </button>
             <button
               class="c7 c11"
               color="#dd4b39"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3650,12 +3861,12 @@ exports[`sso providers rendering 1`] = `
                   </svg>
                 </span>
               </div>
-              google
+              Google
             </button>
             <button
               class="c7 c12"
               color="#205081"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3682,12 +3893,12 @@ exports[`sso providers rendering 1`] = `
                   </svg>
                 </span>
               </div>
-              bitbucket
+              Bitbucket
             </button>
             <button
               class="c7 c13"
               color="#f7931e"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3719,7 +3930,7 @@ exports[`sso providers rendering 1`] = `
             <button
               class="c7 c14"
               color="#2672ec"
-              kind="primary"
+              fill="filled"
             >
               <div
                 class="c9"
@@ -3775,9 +3986,9 @@ exports[`sso providers rendering 1`] = `
           >
             <button
               class="c19"
-              kind="secondary"
+              fill="filled"
             >
-              Sign in with username and password
+              Sign in with Username and Password
             </button>
           </div>
         </div>

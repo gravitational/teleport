@@ -25,7 +25,8 @@ exports[`rendering of Session Recordings 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -34,29 +35,49 @@ exports[`rendering of Session Recordings 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  font-size: 10px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 80px;
 }
 
-.c19:hover,
-.c19:focus {
-  background: #B29DFF;
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c19:active {
-  background: #C5B6FF;
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -109,20 +130,20 @@ exports[`rendering of Session Recordings 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c9 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c9 .react-select__control:hover,
 .c9 .react-select__control:focus,
 .c9 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -143,7 +164,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -157,7 +178,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c9 .react-select__multi-value {
@@ -203,7 +224,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 .react-select__clear-indicator:hover,
@@ -219,7 +240,7 @@ exports[`rendering of Session Recordings 1`] = `
 .c9 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c9 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -236,17 +257,17 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c9 .react-select__control--is-disabled .react-select__single-value,
 .c9 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 .react-select__input {
@@ -286,39 +307,39 @@ exports[`rendering of Session Recordings 1`] = `
   width: 100%;
 }
 
-.c16 > thead > tr > th,
-.c16 > tbody > tr > th,
-.c16 > tfoot > tr > th,
-.c16 > thead > tr > td,
-.c16 > tbody > tr > td,
-.c16 > tfoot > tr > td {
+.c16>thead>tr>th,
+.c16>tbody>tr>th,
+.c16>tfoot>tr>th,
+.c16>thead>tr>td,
+.c16>tbody>tr>td,
+.c16>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th:first-child,
-.c16 > tbody > tr > th:first-child,
-.c16 > tfoot > tr > th:first-child,
-.c16 > thead > tr > td:first-child,
-.c16 > tbody > tr > td:first-child,
-.c16 > tfoot > tr > td:first-child {
+.c16>thead>tr>th:first-child,
+.c16>tbody>tr>th:first-child,
+.c16>tfoot>tr>th:first-child,
+.c16>thead>tr>td:first-child,
+.c16>tbody>tr>td:first-child,
+.c16>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c16 > thead > tr > th:last-child,
-.c16 > tbody > tr > th:last-child,
-.c16 > tfoot > tr > th:last-child,
-.c16 > thead > tr > td:last-child,
-.c16 > tbody > tr > td:last-child,
-.c16 > tfoot > tr > td:last-child {
+.c16>thead>tr>th:last-child,
+.c16>tbody>tr>th:last-child,
+.c16>tfoot>tr>th:last-child,
+.c16>thead>tr>td:last-child,
+.c16>tbody>tr>td:last-child,
+.c16>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c16 > tbody > tr > td {
+.c16>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th {
+.c16>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -330,11 +351,11 @@ exports[`rendering of Session Recordings 1`] = `
   white-space: nowrap;
 }
 
-.c16 > thead > tr > th svg {
+.c16>thead>tr>th svg {
   height: 12px;
 }
 
-.c16 > tbody > tr > td {
+.c16>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -354,7 +375,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c16 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -364,7 +385,7 @@ exports[`rendering of Session Recordings 1`] = `
   height: 100%;
 }
 
-.c16 tbody tr:hover + tr {
+.c16 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -706,8 +727,8 @@ exports[`rendering of Session Recordings 1`] = `
           >
             <a
               class="c19"
+              fill="filled"
               href="/web/cluster/localhost/session/8efccedd-9633-473f-bfb3-fcc07e2af345?recordingType=k8s&durationMs=9477"
-              kind="primary"
               target="_blank"
               width="80px"
             >
@@ -842,8 +863,8 @@ exports[`rendering of Session Recordings 1`] = `
           >
             <a
               class="c19"
+              fill="filled"
               href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a?recordingType=ssh&durationMs=1161287"
-              kind="primary"
               target="_blank"
               width="80px"
             >
@@ -892,8 +913,8 @@ exports[`rendering of Session Recordings 1`] = `
           >
             <a
               class="c19"
+              fill="filled"
               href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a?recordingType=ssh&durationMs=21287"
-              kind="primary"
               target="_blank"
               width="80px"
             >

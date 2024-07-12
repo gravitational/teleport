@@ -156,7 +156,7 @@ func TestTrustedClusterResource(t *testing.T) {
 	err = CreateResources(ctx, tt.bk, foo, bar)
 	require.NoError(t, err)
 
-	s := NewPresenceService(tt.bk)
+	s := NewCAService(tt.bk)
 	_, err = s.GetTrustedCluster(ctx, "foo")
 	require.NoError(t, err)
 	_, err = s.GetTrustedCluster(ctx, "bar")

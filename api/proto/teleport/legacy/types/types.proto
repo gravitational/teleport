@@ -1086,12 +1086,7 @@ message CertAuthoritySpecV2 {
     (gogoproto.jsontag) = "type",
     (gogoproto.casttype) = "CertAuthType"
   ];
-  // DELETE IN(2.7.0) this field is deprecated,
-  // as resource name matches cluster name after migrations.
-  // and this property is enforced by the auth server code.
-  // ClusterName identifies cluster name this authority serves,
-  // for host authorities that means base hostname of all servers,
-  // for user authorities that means organization name
+  // ClusterName identifies the cluster name this authority serves.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -1105,15 +1100,23 @@ message CertAuthoritySpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "rotation,omitempty"
   ];
-  // SigningAlg is the algorithm used for signing new SSH certificates using
-  // SigningKeys.
+  // SigningAlgType is unused.
+  //
+  // Deprecated: SigningAlgType is unused.
   enum SigningAlgType {
+    option deprecated = true;
     UNKNOWN = 0;
     RSA_SHA1 = 1;
     RSA_SHA2_256 = 2;
     RSA_SHA2_512 = 3;
   }
-  SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
+  // SigningAlg is unused.
+  //
+  // Deprecated: SigningAlg is unused.
+  SigningAlgType SigningAlg = 9 [
+    (gogoproto.jsontag) = "signing_alg,omitempty",
+    deprecated = true
+  ];
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
@@ -1545,13 +1548,13 @@ message ProvisionTokenSpecV2GCP {
   // Rule is a set of properties the GCP-ussued token might have to be allowed
   // to use this ProvisionToken.
   message Rule {
-    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    // ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
     repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
     // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
     // "us-west1-b").
     repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
     // ServiceAccounts is a list of service account emails (e.g.
-    // "<project-number>-compute@developer.gserviceaccount.com").
+    // `<project-number>-compute@developer.gserviceaccount.com`).
     repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
@@ -2861,7 +2864,6 @@ message RoleOptions {
   // DeviceTrustMode is the device authorization mode used for the resources
   // associated with the role.
   // See DeviceTrust.Mode.
-  // Reserved for future use, not yet used by Teleport.
   string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
 
   // IDP is a set of options related to accessing IdPs within Teleport.
@@ -4498,7 +4500,7 @@ message SAMLConnectorSpecV2 {
   // SSO is the URL of the identity provider's SSO service.
   string SSO = 2 [(gogoproto.jsontag) = "sso"];
   // Cert is the identity provider certificate PEM.
-  // IDP signs <Response> responses using this certificate.
+  // IDP signs `<Response>` responses using this certificate.
   string Cert = 3 [(gogoproto.jsontag) = "cert"];
   // Display controls how this connector is displayed.
   string Display = 4 [(gogoproto.jsontag) = "display"];
@@ -4967,10 +4969,10 @@ message TrustedClusterSpecV2 {
   // Token is the authorization token provided by another cluster needed by this cluster to join.
   string Token = 3 [(gogoproto.jsontag) = "token"];
   // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-  // it is derived from <metadata.name>:<default web proxy server port>.
+  // it is derived from `<metadata.name>:<default web proxy server port>`.
   string ProxyAddress = 4 [(gogoproto.jsontag) = "web_proxy_addr"];
   // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-  // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+  // not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.
   string ReverseTunnelAddress = 5 [(gogoproto.jsontag) = "tunnel_addr"];
   // RoleMap specifies role mappings to remote roles.
   repeated RoleMapping RoleMap = 6 [
@@ -6596,7 +6598,15 @@ message AWSOIDCIntegrationSpecV1 {
   // > .well-known/jwks
   // Format: s3://<bucket>/<prefix>
   // Optional. The proxy's endpoint is used if it is not specified.
-  string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+  //
+  // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
+  // Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list.
+  // Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed.
+  // DELETE IN 18.0.
+  string IssuerS3URI = 2 [
+    (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
+    deprecated = true
+  ];
 }
 
 // AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.

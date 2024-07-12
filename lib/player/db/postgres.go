@@ -22,23 +22,38 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // PostgresTranslator is responsible for converting PostgreSQL session recording
 // events into their text representation.
 type PostgresTranslator struct {
-	sessionStartAt                 time.Time
-	preparedStatements             map[string]string
-	lastPreparedStatement          string
-	lastPreparedStatementArguments []string
-	expectingResult                bool
+	sessionStartAt time.Time
+	// preparedStatements is a map of parsed prepared statements.
+	preparedStatements map[string]string
+	// preparedStatementPortalBindings is a map of binded prepared statements
+	// portals and their arguments.
+	preparedStatementPortalBidings map[string]preparedStatementBind
+	// expectingResult determines if the translator is expecting a command
+	// result. This is used to skip commands and their results.
+	expectingResult bool
+}
+
+type preparedStatementBind struct {
+	stmtName string
+	params   []string
+}
+
+func newPreparedStatementBind(stmt string, params []string) preparedStatementBind {
+	return preparedStatementBind{stmt, params}
 }
 
 // NewPostgresTranslator constructs a new instance of PostgreSQL translator.
 func NewPostgresTranslator() *PostgresTranslator {
 	return &PostgresTranslator{
-		preparedStatements: make(map[string]string),
-		expectingResult:    false,
+		preparedStatements:             make(map[string]string),
+		preparedStatementPortalBidings: make(map[string]preparedStatementBind),
+		expectingResult:                false,
 	}
 }
 
@@ -58,19 +73,23 @@ func (p *PostgresTranslator) TranslateEvent(evt events.AuditEvent) *events.Sessi
 		p.preparedStatements[e.StatementName] = e.Query
 	case *events.PostgresBind:
 		p.expectingResult = false
-		p.lastPreparedStatement = e.StatementName
-		p.lastPreparedStatementArguments = e.Parameters
+		p.preparedStatementPortalBidings[e.PortalName] = newPreparedStatementBind(e.StatementName, e.Parameters)
 	case *events.PostgresExecute:
-		printEvent := p.generatePreparedStatementPrint(e.Metadata, e.DatabaseMetadata)
+		printEvent := p.generatePreparedStatementPrint(e.Metadata, e.DatabaseMetadata, e.PortalName)
 		p.expectingResult = printEvent != nil
-		p.lastPreparedStatement = ""
-		p.lastPreparedStatementArguments = nil
 		return printEvent
 	case *events.PostgresFunctionCall:
+		// Function calls are skipped on the playback since the lack of
+		// information to present informative/understandable messages. For
+		// example, we only have the function OID (not the string representation,
+		// or definition),  In addition, they are considered legacy/deprecated,
+		// function call is now done through queries (e.g., SELECT func()).
 		p.expectingResult = false
 	case *events.DatabaseSessionStart:
 		p.sessionStartAt = e.Time
+		return p.generatePrintEvent(e.Metadata, fmt.Sprintf("Session started to database %q at %s%s", e.DatabaseService, utils.HumanTimeFormat(e.Time), lineBreak))
 	case *events.DatabaseSessionEnd:
+		return p.generatePrintEvent(e.Metadata, lineBreak+"Session ended at "+utils.HumanTimeFormat(e.Time)+lineBreak)
 	}
 
 	return nil
@@ -82,27 +101,28 @@ func (p *PostgresTranslator) generateCommandPrint(metadata events.DatabaseMetada
 	return lineBreak + fmt.Sprintf("%s=> %s", metadata.DatabaseName, command) + lineBreak
 }
 
-func (p *PostgresTranslator) generatePreparedStatementPrint(metadata events.Metadata, databaseMetadata events.DatabaseMetadata) *events.SessionPrint {
-	// If there wasn't a bind before the execute, we don't know which prepared
-	// statement or arguments were executed. In this case, we skip the prepared
-	// statement, ignore any possible result too.
-	if p.lastPreparedStatement == "" {
+func (p *PostgresTranslator) generatePreparedStatementPrint(metadata events.Metadata, databaseMetadata events.DatabaseMetadata, portalName string) *events.SessionPrint {
+	bind, hasBind := p.preparedStatementPortalBidings[portalName]
+
+	// In case of an unbinded portal, we cannot present the execution properly,
+	// so we skip those executions.
+	if !hasBind {
 		return nil
 	}
 
 	var sb strings.Builder
-	if stmt, ok := p.preparedStatements[p.lastPreparedStatement]; ok {
+	if stmt, ok := p.preparedStatements[bind.stmtName]; ok {
 		sb.WriteString(stmt)
 	} else {
-		fmt.Fprintf(&sb, "EXECUTE %s", p.lastPreparedStatement)
+		fmt.Fprintf(&sb, "EXECUTE %s", bind.stmtName)
 	}
 
-	if len(p.lastPreparedStatementArguments) > 0 {
+	if len(bind.params) > 0 {
 		sb.WriteString(" (")
 
-		for i, param := range p.lastPreparedStatementArguments {
+		for i, param := range bind.params {
 			fmt.Fprintf(&sb, "$%d = %q", i+1, param)
-			if i != len(p.lastPreparedStatementArguments)-1 {
+			if i != len(bind.params)-1 {
 				sb.WriteString(", ")
 			}
 		}

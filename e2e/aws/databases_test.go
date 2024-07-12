@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -274,9 +275,12 @@ func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route
 	clusterName, err := authSrv.GetClusterName()
 	require.NoError(t, err)
 
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+
 	clientCert, err := authSrv.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       key.MarshalSSHPublicKey(),
+			PublicKey:       publicKeyPEM,
 			Cluster:         clusterName.GetClusterName(),
 			Username:        user,
 			RouteToDatabase: route,

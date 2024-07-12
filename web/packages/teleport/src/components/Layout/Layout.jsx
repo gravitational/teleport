@@ -17,7 +17,6 @@
  */
 
 import styled from 'styled-components';
-import { border } from 'styled-system';
 import { Flex, Text } from 'design';
 
 /**
@@ -31,7 +30,6 @@ const FeatureHeader = styled(Flex)`
   margin-right: -40px;
   padding-left: 40px;
   padding-right: 40px;
-  ${border}
 `;
 
 FeatureHeader.defaultProps = {
@@ -64,7 +62,7 @@ const FeatureBox = styled(Flex)`
     Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.
     It works in all major browsers.
   */
-  ::after {
+  &::after {
     content: ' ';
     padding-bottom: 24px;
   }

@@ -41,10 +41,11 @@ import (
 // Player is used to stream recorded sessions over a channel.
 type Player struct {
 	// read only config fields
-	clock     clockwork.Clock
-	log       logrus.FieldLogger
-	sessionID session.ID
-	streamer  Streamer
+	clock        clockwork.Clock
+	log          logrus.FieldLogger
+	sessionID    session.ID
+	streamer     Streamer
+	skipIdleTime bool
 
 	speed      atomic.Value // playback speed (1.0 for normal speed)
 	lastPlayed atomic.Int64 // timestamp of most recently played event
@@ -77,7 +78,7 @@ type Player struct {
 	err error
 
 	// translator is the current SessionPrintTranslator used.
-	translator SessionPrintTranslator
+	translator sessionPrintTranslator
 }
 
 const normalPlayback = math.MinInt64
@@ -92,12 +93,12 @@ type Streamer interface {
 	) (chan events.AuditEvent, chan error)
 }
 
-// NewSessionPrintTranslatorFunc defines a SessionPrintTranslator constructor.
-type NewSessionPrintTranslatorFunc func() SessionPrintTranslator
+// newSessionPrintTranslatorFunc defines a SessionPrintTranslator constructor.
+type newSessionPrintTranslatorFunc func() sessionPrintTranslator
 
-// SessionPrintTranslator provides a way to transform detailed protocol-specific
+// sessionPrintTranslator provides a way to transform detailed protocol-specific
 // audit events into a textual representation.
-type SessionPrintTranslator interface {
+type sessionPrintTranslator interface {
 	// TranslateEvent takes an audit event and converts it into a print event.
 	// The function might return `nil` in cases where there is no textual
 	// representation for the provided event.
@@ -106,10 +107,11 @@ type SessionPrintTranslator interface {
 
 // Config configures a session player.
 type Config struct {
-	Clock     clockwork.Clock
-	Log       logrus.FieldLogger
-	SessionID session.ID
-	Streamer  Streamer
+	Clock        clockwork.Clock
+	Log          logrus.FieldLogger
+	SessionID    session.ID
+	Streamer     Streamer
+	SkipIdleTime bool
 }
 
 func New(cfg *Config) (*Player, error) {
@@ -337,6 +339,9 @@ loop:
 		// will not apply until after the sleep completes
 		speed := p.speed.Load().(float64)
 		scaled := float64(currentDelay-lastDelay) / speed
+		if p.skipIdleTime {
+			scaled = min(scaled, 500.0*float64(time.Millisecond))
+		}
 
 		timer := p.clock.NewTimer(time.Duration(scaled) * time.Millisecond)
 		defer timer.Stop()
@@ -455,7 +460,7 @@ func (p *Player) LastPlayed() int64 {
 
 // translateEvent translates events if applicable and return if they should be
 // skipped.
-func (p *Player) translateEvent(evt events.AuditEvent) (events.AuditEvent, bool) {
+func (p *Player) translateEvent(evt events.AuditEvent) (translatedEvent events.AuditEvent, shouldSkip bool) {
 	// We can only define the translator when the first event arrives.
 	switch e := evt.(type) {
 	case *events.DatabaseSessionStart:
@@ -477,8 +482,8 @@ func (p *Player) translateEvent(evt events.AuditEvent) (events.AuditEvent, bool)
 }
 
 // databaseTranslators maps database protocol event translators.
-var databaseTranslators = map[string]NewSessionPrintTranslatorFunc{
-	defaults.ProtocolPostgres: func() SessionPrintTranslator { return db.NewPostgresTranslator() },
+var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
+	defaults.ProtocolPostgres: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
 }
 
 // SupportedDatabaseProtocols a list of database protocols supported by the

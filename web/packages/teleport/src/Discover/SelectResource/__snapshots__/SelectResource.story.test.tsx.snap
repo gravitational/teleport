@@ -78,7 +78,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c22 {
@@ -791,7 +791,7 @@ exports[`render with all access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 {
@@ -2792,7 +2792,7 @@ exports[`render with no access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c18 {
@@ -4941,7 +4941,7 @@ exports[`render with partial access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 {

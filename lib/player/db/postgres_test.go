@@ -19,20 +19,44 @@ package db
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func TestPostgresRecording(t *testing.T) {
+	fixedTime := time.Now()
+
 	for name, test := range map[string]struct {
 		events         []events.AuditEvent
 		expectedPrints [][]byte
 	}{
+		"session start": {
+			events: []events.AuditEvent{
+				&events.DatabaseSessionStart{
+					Metadata:         events.Metadata{Time: fixedTime},
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseService: "my-pg-instance"},
+				},
+			},
+			expectedPrints: [][]byte{
+				[]byte("Session started to database \"my-pg-instance\" at " + utils.HumanTimeFormat(fixedTime) + "\r\n"),
+			},
+		},
+		"session end": {
+			events: []events.AuditEvent{
+				&events.DatabaseSessionEnd{
+					Metadata: events.Metadata{Time: fixedTime},
+				},
+			},
+			expectedPrints: [][]byte{
+				[]byte("\r\nSession ended at " + utils.HumanTimeFormat(fixedTime) + "\r\n"),
+			},
+		},
 		"queries": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
 				&events.DatabaseSessionQuery{
 					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
 					DatabaseQuery:    "SELECT 1;",
@@ -53,7 +77,6 @@ func TestPostgresRecording(t *testing.T) {
 				},
 			},
 			expectedPrints: [][]byte{
-				nil,
 				[]byte("\r\ntest=> SELECT 1;\r\n"),
 				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
 				[]byte("\r\ntest=> SELECT * from events;\r\n"),
@@ -62,7 +85,6 @@ func TestPostgresRecording(t *testing.T) {
 		},
 		"queries with errors": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
 				&events.DatabaseSessionQuery{
 					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
 					DatabaseQuery:    "SELECT err;",
@@ -73,14 +95,12 @@ func TestPostgresRecording(t *testing.T) {
 				},
 			},
 			expectedPrints: [][]byte{
-				nil,
 				[]byte("\r\ntest=> SELECT err;\r\n"),
 				[]byte("ERROR: column error\r\n"),
 			},
 		},
 		"prepared statements": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
 				&events.PostgresParse{
 					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
 					StatementName:    "test",
@@ -114,7 +134,6 @@ func TestPostgresRecording(t *testing.T) {
 			expectedPrints: [][]byte{
 				nil,
 				nil,
-				nil,
 				[]byte("\r\ntest=> SELECT $1::varchar ($1 = \"hello world\")\r\n"),
 				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
 				nil,
@@ -127,7 +146,6 @@ func TestPostgresRecording(t *testing.T) {
 		},
 		"multiple parameters prepared statements": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
 				&events.PostgresParse{
 					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
 					StatementName:    "test",
@@ -149,14 +167,12 @@ func TestPostgresRecording(t *testing.T) {
 			expectedPrints: [][]byte{
 				nil,
 				nil,
-				nil,
 				[]byte("\r\ntest=> SELECT $1::varchar ($1 = \"hello\", $2 = \"world\")\r\n"),
 				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
 			},
 		},
 		"unknown prepared statements": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
 				&events.PostgresBind{
 					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
 					StatementName:    "random",
@@ -172,14 +188,12 @@ func TestPostgresRecording(t *testing.T) {
 			},
 			expectedPrints: [][]byte{
 				nil,
-				nil,
 				[]byte("\r\ntest=> EXECUTE random ($1 = \"hello world\")\r\n"),
 				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
 			},
 		},
 		"prepared statements without binding": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
 				&events.PostgresExecute{
 					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
 				},
@@ -191,12 +205,39 @@ func TestPostgresRecording(t *testing.T) {
 			expectedPrints: [][]byte{
 				nil,
 				nil,
-				nil,
 			},
 		},
-		"skip unexpected command results": {
+		"prepared statements with multiple portal bindings": {
 			events: []events.AuditEvent{
-				&events.DatabaseSessionStart{},
+				&events.PostgresParse{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Query:            "SELECT $1::varchar || ' ' || $2::varchar",
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello1",
+					Parameters:       []string{"hello", "first"},
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello2",
+					Parameters:       []string{"hello", "second"},
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello1",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello2",
+				},
 				&events.DatabaseSessionCommandResult{
 					Status:          events.Status{Success: true},
 					AffectedRecords: 1,
@@ -204,6 +245,102 @@ func TestPostgresRecording(t *testing.T) {
 			},
 			expectedPrints: [][]byte{
 				nil,
+				nil,
+				nil,
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"first\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"second\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+			},
+		},
+		"prepared statements mixed name and unnamed portals": {
+			events: []events.AuditEvent{
+				&events.PostgresParse{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Query:            "SELECT $1::varchar || ' ' || $2::varchar",
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello1",
+					Parameters:       []string{"hello", "first"},
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello2",
+					Parameters:       []string{"hello", "second"},
+				},
+				// unnamed bind
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Parameters:       []string{"hello", "unamed1"},
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				// named hello1
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello1",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				// unnamed 2 bind
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Parameters:       []string{"hello", "unamed2"},
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				// named hello2
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello2",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+			},
+			expectedPrints: [][]byte{
+				nil,
+				nil,
+				nil,
+				nil, // unnamed bind
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"unamed1\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"first\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				nil, // unnamed 2 bind
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"unamed2\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"second\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+			},
+		},
+		"skip unexpected command results": {
+			events: []events.AuditEvent{
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+			},
+			expectedPrints: [][]byte{
 				nil,
 			},
 		},
