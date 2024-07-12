@@ -487,6 +487,8 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 		// special handling for "not implemented" errors; these are very likely to occur and aren't as interesting.
 		if trace.IsNotImplemented(err) {
 			s.log.DebugContext(ctx, "Database object importer not implemented.", "database", database.GetName())
+		} else if match, reason := objects.IsErrFetcherDisabled(err); match {
+			s.log.DebugContext(ctx, "Database object importer cannot be started due to disabled fetcher", "reason", reason, "database", database.GetName())
 		} else {
 			s.log.WarnContext(ctx, "Failed to start database object importer.", "database", database.GetName(), "error", err)
 		}

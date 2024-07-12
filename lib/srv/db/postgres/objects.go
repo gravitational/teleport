@@ -39,7 +39,7 @@ var _ objects.ObjectFetcher = (*objectFetcher)(nil)
 
 func NewObjectFetcher(ctx context.Context, db types.Database, cfg objects.ObjectFetcherConfig) (objects.ObjectFetcher, error) {
 	if db.GetAdminUser().Name == "" {
-		return nil, trace.BadParameter("no admin user")
+		return nil, objects.NewErrFetcherDisabled("no admin user configured")
 	}
 	return &objectFetcher{cfg: cfg, db: db}, nil
 }
