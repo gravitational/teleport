@@ -73,7 +73,7 @@ func (s *StateV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// UnknownVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
+// UnknownLocalVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
 // state due to malformed input and InitialLocalVersion being missing due to the state having been created before
 // teleport started recording InitialLocalVersion.
 const UnknownLocalVersion = "unknown"

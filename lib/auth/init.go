@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -61,10 +62,21 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentAuth,
 })
 
+// VersionStorage local storage for saving the version.
+type VersionStorage interface {
+	// GetTeleportVersion reads the last known Teleport version from storage.
+	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	// WriteTeleportVersion writes the last known Teleport version to the storage.
+	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+}
+
 // InitConfig is auth server init config
 type InitConfig struct {
 	// Backend is auth backend to use
 	Backend backend.Backend
+
+	// VersionStorage is a version storage for local process
+	VersionStorage VersionStorage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
@@ -318,6 +330,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
 		return trace.Wrap(err)
 	}
 
