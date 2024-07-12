@@ -405,3 +405,67 @@ func TestDeployService(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
 	})
 }
+
+func TestListSubnets(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "test-cluster"
+	proxyPublicAddr := "127.0.0.1.nip.io"
+	integrationName := "my-awsoidc-integration"
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: integrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+		},
+	)
+	require.NoError(t, err)
+
+	ca := newCertAuthority(t, types.HostCA, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
+
+	_, err = localClient.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
+		IntegrationService:    resourceSvc,
+		Authorizer:            resourceSvc.authorizer,
+		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
+		Cache:                 &mockCache{},
+	})
+	require.NoError(t, err)
+
+	t.Run("fails when user doesn't have access to integration.use", func(t *testing.T) {
+		role := types.RoleSpecV6{
+			Allow: types.RoleConditions{Rules: []types.Rule{{
+				Resources: []string{types.KindIntegration},
+				Verbs:     []string{types.VerbRead},
+			}}},
+		}
+
+		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
+
+		_, err = awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
+			Integration: integrationName,
+			Region:      "my-region",
+			VpcId:       "vpc-1",
+		})
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
+	})
+	t.Run("calls awsoidc package when user has access to integration.use/read", func(t *testing.T) {
+		role := types.RoleSpecV6{
+			Allow: types.RoleConditions{Rules: []types.Rule{{
+				Resources: []string{types.KindIntegration},
+				Verbs:     []string{types.VerbRead, types.VerbUse},
+			}}},
+		}
+
+		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
+
+		_, err = awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
+			Integration: integrationName,
+			Region:      "my-region",
+			VpcId:       "",
+		})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
+	})
+}
