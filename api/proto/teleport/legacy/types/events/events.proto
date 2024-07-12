@@ -4300,6 +4300,7 @@ message OneOf {
     events.DiscoveryConfigUpdate DiscoveryConfigUpdate = 161;
     events.DiscoveryConfigDelete DiscoveryConfigDelete = 162;
     events.DiscoveryConfigDeleteAll DiscoveryConfigDeleteAll = 163;
+    events.AccessGraphSettingsUpdate AccessGraphSettingsUpdate = 164;
   }
 }
 
@@ -6472,5 +6473,36 @@ message SpannerRPC {
   google.protobuf.Struct Args = 7 [
     (gogoproto.jsontag) = "args,omitempty",
     (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// AccessGraphSettingsUpdate is emitted when the Access Graph Settings config is updated.
+message AccessGraphSettingsUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
