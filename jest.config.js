@@ -8,12 +8,14 @@ const esModules = [
   'd3-color',
   'd3-scale',
   'd3-interpolate',
+  'd3-time-format',
   'd3-array',
   'd3-format',
   'd3-time',
   'd3-shape',
   'd3-path',
   'internmap',
+  '@nivo/bar',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
@@ -27,7 +29,8 @@ module.exports = {
     // '**/packages/design/src/**/*.jsx',
     '**/packages/shared/components/**/*.jsx',
   ],
-  transformIgnorePatterns: [`/node_modules/(?!${esModules})`],
+  // https://jestjs.io/docs/configuration#transformignorepatterns-arraystring
+  transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e'],
   setupFilesAfterEnv: [
