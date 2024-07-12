@@ -29,7 +29,10 @@
 @interface VNEDaemonService () <NSXPCListenerDelegate, VNEDaemonProtocol>
 
 @property(nonatomic, strong, readwrite) NSXPCListener *listener;
+// started describes whether the XPC listener is listening for new connections.
 @property(nonatomic, readwrite) BOOL started;
+// gotConfig describes if the daemon received a VNet config from a client.
+@property(nonatomic, readwrite) BOOL gotConfig;
 
 @property(nonatomic, readwrite) NSString *socketPath;
 @property(nonatomic, readwrite) NSString *ipv6Prefix;
@@ -76,14 +79,31 @@
 
 #pragma mark - VNEDaemonProtocol
 
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(void))completion {
+- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *error))completion {
   @synchronized(self) {
+    // startVnet is expected to be called only once per daemon's lifetime.
+    // Between the process with the daemon client exiting and the admin process (which runs the
+    // daemon) noticing this and exiting as well, a new client can be spawned and startVnet might
+    // end up getting called again.
+    //
+    // In such scenarios, we want to return an error so that the client can wait for the daemon
+    // to exit and retry the call.
+    if (_gotConfig) {
+      NSError *error = [[NSError alloc] initWithDomain:VNEErrorDomain
+                                                  code:VNEAlreadyRunningError
+                                              userInfo:nil];
+      completion(error);
+      return;
+    }
+
+    _gotConfig = YES;
     _socketPath = @(vnetConfig->socket_path);
     _ipv6Prefix = @(vnetConfig->ipv6_prefix);
     _dnsAddr = @(vnetConfig->dns_addr);
     _homePath = @(vnetConfig->home_path);
+
     dispatch_semaphore_signal(_gotVnetConfigSema);
-    completion();
+    completion(nil);
   }
 }
 
