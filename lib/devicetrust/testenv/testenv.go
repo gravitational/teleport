@@ -21,6 +21,7 @@ package testenv
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"net"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -62,7 +64,6 @@ func WithPreEnrolledDevice(dev *devicepb.Device, pub *ecdsa.PublicKey) Opt {
 			},
 		)
 	}
-
 }
 
 // E is an integrated test environment for device trust.
@@ -169,4 +170,40 @@ type FakeDevice interface {
 	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge, debug bool) (*devicepb.TPMEnrollChallengeResponse, error)
 	SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error)
 	GetDeviceCredential() *devicepb.DeviceCredential
+}
+
+// CreateEnrolledDevice converts a FakeDevice into a [*devicepb.Device] whose EnrollStatus is
+// DEVICE_ENROLL_STATUS_ENROLLED and Id set to deviceID. It also returns the public key of the
+// device if the device is a macOS device, otherwise it returns nil.
+func CreateEnrolledDevice(deviceID string, d FakeDevice) (*devicepb.Device, *ecdsa.PublicKey, error) {
+	now := timestamppb.Now()
+	initReq, err := d.EnrollDeviceInit()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var pub *ecdsa.PublicKey
+	if d.GetDeviceOSType() == devicepb.OSType_OS_TYPE_MACOS {
+		pubKey, err := x509.ParsePKIXPublicKey(initReq.Macos.PublicKeyDer)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		var ok bool
+		pub, ok = pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, nil, trace.BadParameter("expected ECDSA public key, got %T", pubKey)
+		}
+	}
+
+	dev := &devicepb.Device{
+		ApiVersion:   "v1",
+		Id:           deviceID,
+		OsType:       d.GetDeviceOSType(),
+		AssetTag:     initReq.DeviceData.SerialNumber,
+		CreateTime:   now,
+		UpdateTime:   now,
+		Credential:   d.GetDeviceCredential(),
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+	}
+	return dev, pub, nil
 }
