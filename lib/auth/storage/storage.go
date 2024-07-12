@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,6 +46,10 @@ const (
 	statesPrefix = "states"
 	// idsPrefix is a key prefix for identities
 	idsPrefix = "ids"
+	// teleportPrefix is a key prefix to store internal data
+	teleportPrefix = "teleport"
+	// lastKnownVersion is a key for storing version of teleport
+	lastKnownVersion = "last-known-version"
 )
 
 // stateBackend implements abstraction over local or remote storage backend methods
@@ -201,6 +206,31 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 	}
 	_, err = p.stateStorage.Put(context.TODO(), item)
 	return trace.Wrap(err)
+}
+
+// GetTeleportVersion reads the last known Teleport version from storage.
+func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (*semver.Version, error) {
+	item, err := p.stateStorage.Get(ctx, backend.Key(teleportPrefix, lastKnownVersion))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return semver.NewVersion(string(item.Value))
+}
+
+// WriteTeleportVersion writes the last known Teleport version to the storage.
+func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semver.Version) error {
+	if version == nil {
+		return trace.BadParameter("wrong version parameter")
+	}
+	item := backend.Item{
+		Key:   backend.Key(teleportPrefix, lastKnownVersion),
+		Value: []byte(version.String()),
+	}
+	_, err := p.stateStorage.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
