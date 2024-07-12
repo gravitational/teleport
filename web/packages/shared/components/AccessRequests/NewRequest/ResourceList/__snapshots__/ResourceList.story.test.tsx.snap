@@ -25,8 +25,8 @@ exports[`render Apps 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -40,8 +40,8 @@ exports[`render Apps 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -63,7 +63,7 @@ exports[`render Apps 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -103,39 +103,39 @@ exports[`render Apps 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -147,11 +147,11 @@ exports[`render Apps 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -171,7 +171,7 @@ exports[`render Apps 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -181,7 +181,7 @@ exports[`render Apps 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -193,7 +193,7 @@ exports[`render Apps 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -342,8 +342,8 @@ exports[`render Databases 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -357,8 +357,8 @@ exports[`render Databases 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -380,7 +380,7 @@ exports[`render Databases 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -420,39 +420,39 @@ exports[`render Databases 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -464,11 +464,11 @@ exports[`render Databases 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -488,7 +488,7 @@ exports[`render Databases 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -498,7 +498,7 @@ exports[`render Databases 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -510,7 +510,7 @@ exports[`render Databases 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -679,8 +679,8 @@ exports[`render Desktops 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -694,8 +694,8 @@ exports[`render Desktops 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -717,7 +717,7 @@ exports[`render Desktops 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -757,39 +757,39 @@ exports[`render Desktops 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -801,11 +801,11 @@ exports[`render Desktops 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -825,7 +825,7 @@ exports[`render Desktops 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -835,7 +835,7 @@ exports[`render Desktops 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -847,7 +847,7 @@ exports[`render Desktops 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -968,8 +968,8 @@ exports[`render Kubes 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -983,8 +983,8 @@ exports[`render Kubes 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1006,7 +1006,7 @@ exports[`render Kubes 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1046,39 +1046,39 @@ exports[`render Kubes 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1090,11 +1090,11 @@ exports[`render Kubes 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1114,7 +1114,7 @@ exports[`render Kubes 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1124,7 +1124,7 @@ exports[`render Kubes 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1136,7 +1136,7 @@ exports[`render Kubes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -1249,8 +1249,8 @@ exports[`render Nodes 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1264,8 +1264,8 @@ exports[`render Nodes 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1287,7 +1287,7 @@ exports[`render Nodes 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1327,39 +1327,39 @@ exports[`render Nodes 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1371,11 +1371,11 @@ exports[`render Nodes 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1395,7 +1395,7 @@ exports[`render Nodes 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1405,7 +1405,7 @@ exports[`render Nodes 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1417,7 +1417,7 @@ exports[`render Nodes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -1549,8 +1549,8 @@ exports[`render Roles 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1564,8 +1564,8 @@ exports[`render Roles 1`] = `
 .c19:focus-visible,
 .teleport-button__force-focus-visible .c19 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1587,7 +1587,7 @@ exports[`render Roles 1`] = `
 
 .c19:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1616,7 +1616,7 @@ exports[`render Roles 1`] = `
 }
 
 .c13:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1651,7 +1651,7 @@ exports[`render Roles 1`] = `
 }
 
 .c16:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1699,39 +1699,39 @@ exports[`render Roles 1`] = `
   width: 100%;
 }
 
-.c17 > thead > tr > th,
-.c17 > tbody > tr > th,
-.c17 > tfoot > tr > th,
-.c17 > thead > tr > td,
-.c17 > tbody > tr > td,
-.c17 > tfoot > tr > td {
+.c17>thead>tr>th,
+.c17>tbody>tr>th,
+.c17>tfoot>tr>th,
+.c17>thead>tr>td,
+.c17>tbody>tr>td,
+.c17>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c17 > thead > tr > th:first-child,
-.c17 > tbody > tr > th:first-child,
-.c17 > tfoot > tr > th:first-child,
-.c17 > thead > tr > td:first-child,
-.c17 > tbody > tr > td:first-child,
-.c17 > tfoot > tr > td:first-child {
+.c17>thead>tr>th:first-child,
+.c17>tbody>tr>th:first-child,
+.c17>tfoot>tr>th:first-child,
+.c17>thead>tr>td:first-child,
+.c17>tbody>tr>td:first-child,
+.c17>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c17 > thead > tr > th:last-child,
-.c17 > tbody > tr > th:last-child,
-.c17 > tfoot > tr > th:last-child,
-.c17 > thead > tr > td:last-child,
-.c17 > tbody > tr > td:last-child,
-.c17 > tfoot > tr > td:last-child {
+.c17>thead>tr>th:last-child,
+.c17>tbody>tr>th:last-child,
+.c17>tfoot>tr>th:last-child,
+.c17>thead>tr>td:last-child,
+.c17>tbody>tr>td:last-child,
+.c17>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c17 > tbody > tr > td {
+.c17>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c17 > thead > tr > th {
+.c17>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1743,11 +1743,11 @@ exports[`render Roles 1`] = `
   white-space: nowrap;
 }
 
-.c17 > thead > tr > th svg {
+.c17>thead>tr>th svg {
   height: 12px;
 }
 
-.c17 > tbody > tr > td {
+.c17>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1767,7 +1767,7 @@ exports[`render Roles 1`] = `
 }
 
 .c17 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1777,7 +1777,7 @@ exports[`render Roles 1`] = `
   height: 100%;
 }
 
-.c17 tbody tr:hover + tr {
+.c17 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1851,7 +1851,7 @@ exports[`render Roles 1`] = `
   padding-left: 24px;
 }
 
-.c18 > tbody > tr > td {
+.c18>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -2065,8 +2065,8 @@ exports[`render UserGroups 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -2080,8 +2080,8 @@ exports[`render UserGroups 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -2103,7 +2103,7 @@ exports[`render UserGroups 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -2143,39 +2143,39 @@ exports[`render UserGroups 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -2187,11 +2187,11 @@ exports[`render UserGroups 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2211,7 +2211,7 @@ exports[`render UserGroups 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2221,7 +2221,7 @@ exports[`render UserGroups 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -2233,7 +2233,7 @@ exports[`render UserGroups 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 

@@ -128,7 +128,7 @@ const Container = styled(Box)`
   flex: 1;
   max-width: 1024px;
   height: fit-content;
-  ::after {
+  &::after {
     content: ' ';
     padding-bottom: 24px;
   }

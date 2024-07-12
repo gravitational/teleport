@@ -32,8 +32,8 @@ exports[`render clusters 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -45,8 +45,8 @@ exports[`render clusters 1`] = `
 .c18:focus-visible,
 .teleport-button__force-focus-visible .c18 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -68,7 +68,7 @@ exports[`render clusters 1`] = `
 
 .c18:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -84,7 +84,7 @@ exports[`render clusters 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 8px;
 }
 
@@ -152,39 +152,39 @@ exports[`render clusters 1`] = `
   width: 100%;
 }
 
-.c14 > thead > tr > th,
-.c14 > tbody > tr > th,
-.c14 > tfoot > tr > th,
-.c14 > thead > tr > td,
-.c14 > tbody > tr > td,
-.c14 > tfoot > tr > td {
+.c14>thead>tr>th,
+.c14>tbody>tr>th,
+.c14>tfoot>tr>th,
+.c14>thead>tr>td,
+.c14>tbody>tr>td,
+.c14>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c14 > thead > tr > th:first-child,
-.c14 > tbody > tr > th:first-child,
-.c14 > tfoot > tr > th:first-child,
-.c14 > thead > tr > td:first-child,
-.c14 > tbody > tr > td:first-child,
-.c14 > tfoot > tr > td:first-child {
+.c14>thead>tr>th:first-child,
+.c14>tbody>tr>th:first-child,
+.c14>tfoot>tr>th:first-child,
+.c14>thead>tr>td:first-child,
+.c14>tbody>tr>td:first-child,
+.c14>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c14 > thead > tr > th:last-child,
-.c14 > tbody > tr > th:last-child,
-.c14 > tfoot > tr > th:last-child,
-.c14 > thead > tr > td:last-child,
-.c14 > tbody > tr > td:last-child,
-.c14 > tfoot > tr > td:last-child {
+.c14>thead>tr>th:last-child,
+.c14>tbody>tr>th:last-child,
+.c14>tfoot>tr>th:last-child,
+.c14>thead>tr>td:last-child,
+.c14>tbody>tr>td:last-child,
+.c14>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c14 > tbody > tr > td {
+.c14>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c14 > thead > tr > th {
+.c14>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -196,11 +196,11 @@ exports[`render clusters 1`] = `
   white-space: nowrap;
 }
 
-.c14 > thead > tr > th svg {
+.c14>thead>tr>th svg {
   height: 12px;
 }
 
-.c14 > tbody > tr > td {
+.c14>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -220,7 +220,7 @@ exports[`render clusters 1`] = `
 }
 
 .c14 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -230,7 +230,7 @@ exports[`render clusters 1`] = `
   height: 100%;
 }
 
-.c14 tbody tr:hover + tr {
+.c14 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 

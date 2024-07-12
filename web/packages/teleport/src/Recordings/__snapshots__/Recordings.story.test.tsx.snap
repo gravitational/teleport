@@ -63,7 +63,7 @@ exports[`rendering of Session Recordings 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c19:active,
@@ -75,7 +75,7 @@ exports[`rendering of Session Recordings 1`] = `
 
 .c19:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -130,20 +130,20 @@ exports[`rendering of Session Recordings 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c9 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c9 .react-select__control:hover,
 .c9 .react-select__control:focus,
 .c9 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -164,7 +164,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -178,7 +178,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c9 .react-select__multi-value {
@@ -224,7 +224,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 .react-select__clear-indicator:hover,
@@ -240,7 +240,7 @@ exports[`rendering of Session Recordings 1`] = `
 .c9 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c9 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -257,17 +257,17 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c9 .react-select__control--is-disabled .react-select__single-value,
 .c9 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 .react-select__input {
@@ -307,39 +307,39 @@ exports[`rendering of Session Recordings 1`] = `
   width: 100%;
 }
 
-.c16 > thead > tr > th,
-.c16 > tbody > tr > th,
-.c16 > tfoot > tr > th,
-.c16 > thead > tr > td,
-.c16 > tbody > tr > td,
-.c16 > tfoot > tr > td {
+.c16>thead>tr>th,
+.c16>tbody>tr>th,
+.c16>tfoot>tr>th,
+.c16>thead>tr>td,
+.c16>tbody>tr>td,
+.c16>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th:first-child,
-.c16 > tbody > tr > th:first-child,
-.c16 > tfoot > tr > th:first-child,
-.c16 > thead > tr > td:first-child,
-.c16 > tbody > tr > td:first-child,
-.c16 > tfoot > tr > td:first-child {
+.c16>thead>tr>th:first-child,
+.c16>tbody>tr>th:first-child,
+.c16>tfoot>tr>th:first-child,
+.c16>thead>tr>td:first-child,
+.c16>tbody>tr>td:first-child,
+.c16>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c16 > thead > tr > th:last-child,
-.c16 > tbody > tr > th:last-child,
-.c16 > tfoot > tr > th:last-child,
-.c16 > thead > tr > td:last-child,
-.c16 > tbody > tr > td:last-child,
-.c16 > tfoot > tr > td:last-child {
+.c16>thead>tr>th:last-child,
+.c16>tbody>tr>th:last-child,
+.c16>tfoot>tr>th:last-child,
+.c16>thead>tr>td:last-child,
+.c16>tbody>tr>td:last-child,
+.c16>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c16 > tbody > tr > td {
+.c16>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th {
+.c16>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -351,11 +351,11 @@ exports[`rendering of Session Recordings 1`] = `
   white-space: nowrap;
 }
 
-.c16 > thead > tr > th svg {
+.c16>thead>tr>th svg {
   height: 12px;
 }
 
-.c16 > tbody > tr > td {
+.c16>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -375,7 +375,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c16 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -385,7 +385,7 @@ exports[`rendering of Session Recordings 1`] = `
   height: 100%;
 }
 
-.c16 tbody tr:hover + tr {
+.c16 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 

@@ -138,7 +138,7 @@ const Dropzone = styled.button`
   border-radius: ${props => props.theme.radii[2]}px;
   font-family: inherit;
 
-  :focus {
+  &:focus {
     border-color: ${props => props.theme.colors.spotBackground[1]};
   }
 `;

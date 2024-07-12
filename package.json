@@ -89,7 +89,7 @@
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
     "react-transition-group": "^4.4.5",
-    "styled-components": "5.3.11",
+    "styled-components": "6.1.11",
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },

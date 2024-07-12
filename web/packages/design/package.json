@@ -10,6 +10,7 @@
     "directory": "packages/design"
   },
   "dependencies": {
+    "@emotion/is-prop-valid": "1.2.2",
     "styled-system": "^3.1.11",
     "csstype": "^3.0.2"
   },
