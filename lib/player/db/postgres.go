@@ -80,10 +80,10 @@ func (p *PostgresTranslator) TranslateEvent(evt events.AuditEvent) *events.Sessi
 		return printEvent
 	case *events.PostgresFunctionCall:
 		// Function calls are skipped on the playback since the lack of
-		// information to present a informative/understanable messages. For
-		// example, we only have the function OID (not the string representaion,
-		// or definition),  In addition, they are cosidered legacy/deprecated,
-		// function calling is now done through queries (e.g. SELECT func()).
+		// information to present informative/understandable messages. For
+		// example, we only have the function OID (not the string representation,
+		// or definition),  In addition, they are considered legacy/deprecated,
+		// function call is now done through queries (e.g., SELECT func()).
 		p.expectingResult = false
 	case *events.DatabaseSessionStart:
 		p.sessionStartAt = e.Time
