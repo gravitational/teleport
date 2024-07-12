@@ -169,9 +169,7 @@ func TestIterateUsers_Empty(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /users", func(w http.ResponseWriter, r *http.Request) {
 		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
-		if err != nil {
-			assert.Fail(t, "expected to get $top parameter")
-		}
+		assert.NoError(t, err, "expected to get $top parameter")
 		w.Write([]byte(`{"value": []}`))
 	})
 
