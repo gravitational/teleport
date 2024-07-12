@@ -158,6 +158,16 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 	}
 }
 
+// DaemonStatus returns the status of the background item responsible for launching the daemon.
+func DaemonStatus() (ServiceStatus, error) {
+	bundlePath, err := bundlePath()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return daemonStatus(bundlePath), nil
+}
+
 func daemonStatus(bundlePath string) ServiceStatus {
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
