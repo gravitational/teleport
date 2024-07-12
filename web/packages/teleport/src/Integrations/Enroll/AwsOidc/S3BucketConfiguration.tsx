@@ -33,8 +33,7 @@ export function S3BucketConfiguration({
       <Flex alignItems="center" gap={1}>
         <Text>Amazon S3 Location</Text>
         <ToolTipInfo sticky={true} kind="warning">
-          Deprecated. We suggest to reconfigure this integration which will
-          remove the S3 bucket for you.
+          Storing the OpenID configuration in a S3 bucket is now deprecated.
         </ToolTipInfo>
       </Flex>
       <Flex gap={3}>

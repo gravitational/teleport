@@ -33,7 +33,7 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
-import { OutlineWarn } from 'design/Alert/Alert';
+import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -146,9 +146,8 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                     s3Prefix={s3Prefix}
                   />
                   <OutlineWarn>
-                    Next reconfiguration will remove this integrations S3 bucket
-                    automatically. Storing the OpenID configuration in a S3
-                    bucket is deprecated.
+                    Reconfiguring is suggested to remove the deprecated S3
+                    fields from this integration.
                   </OutlineWarn>
                 </>
               )}
@@ -165,7 +164,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                     and copy and paste the command that configures the
                     permissions for you:
                   </Text>
-                  <Box mb={3}>
+                  <Box mb={2}>
                     <TextSelectCopyMulti
                       lines={[
                         {
@@ -173,6 +172,27 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                         },
                       ]}
                     />
+                    {showReadonlyS3Fields && (
+                      <OutlineInfo mt={3} linkColor="buttons.link.default">
+                        <Box>
+                          After running the command, delete the previous{' '}
+                          <Link
+                            target="_blank"
+                            href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn({ s3Bucket, s3Prefix, roleArn: integration.spec.roleArn })}`}
+                          >
+                            identity provider
+                          </Link>{' '}
+                          along with its{' '}
+                          <Link
+                            target="_blank"
+                            href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
+                          >
+                            S3 bucket
+                          </Link>{' '}
+                          from your AWS console.
+                        </Box>
+                      </OutlineInfo>
+                    )}
                   </Box>
                 </Box>
               )}
@@ -233,3 +253,17 @@ const EditableBox = styled(Box)`
   border: 2px solid ${p => p.theme.colors.spotBackground[1]};
   background-color: ${p => p.theme.colors.spotBackground[0]};
 `;
+
+function getIdpArn({
+  s3Bucket,
+  s3Prefix,
+  roleArn,
+}: {
+  s3Bucket: string;
+  s3Prefix: string;
+  roleArn: string;
+}) {
+  const { awsAccountId } = splitAwsIamArn(roleArn);
+  const arn = `arn:aws:iam::${awsAccountId}:oidc-provider/${s3Bucket}.s3.amazonaws.com/${s3Prefix}`;
+  return encodeURIComponent(arn);
+}
