@@ -34,12 +34,14 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -715,17 +717,32 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := req.PublicKey
+	publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPublicKeyAttestationStatement := req.AttestationStatement
+	tlsPublicKeyAttestationStatement := req.AttestationStatement
+
 	certReq := certRequest{
-		user:                 user,
-		ttl:                  req.TTL,
-		publicKey:            req.PublicKey,
-		compatibility:        req.CompatibilityMode,
-		checker:              checker,
-		traits:               user.GetTraits(),
-		routeToCluster:       req.RouteToCluster,
-		kubernetesCluster:    req.KubernetesCluster,
-		loginIP:              clientIP,
-		attestationStatement: req.AttestationStatement,
+		user:                             user,
+		ttl:                              req.TTL,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		compatibility:                    req.CompatibilityMode,
+		checker:                          checker,
+		traits:                           user.GetTraits(),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		loginIP:                          clientIP,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
 	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.

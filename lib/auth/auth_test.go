@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -2337,6 +2338,42 @@ func contextWithGRPCClientUserAgent(ctx context.Context, userAgent string) conte
 	return metadata.NewIncomingContext(ctx, md)
 }
 
+// newSSHKeyPair generates a new Ed25519 keypair, and returns the PEM-encoded
+// private key and SSH authorized-key format public key.
+func newSSHKeyPair() ([]byte, []byte, error) {
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	privKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return privKeyPEM, ssh.MarshalAuthorizedKey(sshPub), nil
+}
+
+// newTLSKeyPair generates a new ECDSA keypair, and returns the PEM-encoded private
+// and public keys.
+func newTLSKeyPair() ([]byte, []byte, error) {
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	privKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return privKeyPEM, pubKeyPEM, nil
+}
+
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	t.Parallel()
 	ctx := contextWithGRPCClientUserAgent(context.Background(), "test-user-agent/1.0")
@@ -2362,13 +2399,16 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
-	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
+	_, sshPubKey, err := newSSHKeyPair()
 	require.NoError(t, err)
+	_, tlsPubKey, err := newTLSKeyPair()
+	require.NoError(t, err)
+
 	certReq := certRequest{
-		user:      user,
-		checker:   accessChecker,
-		publicKey: pub,
+		user:         user,
+		checker:      accessChecker,
+		sshPublicKey: sshPubKey,
+		tlsPublicKey: tlsPubKey,
 	}
 	certs, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
@@ -2475,14 +2515,18 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	const mfaID = "test-mfa-id"
 	const requestID = "test-access-request"
 	const deviceID = "deviceid1"
-	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
+
+	_, sshPublicKey, err := newSSHKeyPair()
 	require.NoError(t, err)
+	_, tlsPublicKey, err := newTLSKeyPair()
+	require.NoError(t, err)
+
 	certReq := certRequest{
 		user:           user,
 		checker:        accessChecker,
 		mfaVerified:    mfaID,
-		publicKey:      pub,
+		sshPublicKey:   sshPublicKey,
+		tlsPublicKey:   tlsPublicKey,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
 		deviceExtensions: DeviceExtensions{
 			DeviceID:     deviceID,
@@ -2580,16 +2624,18 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	accessInfo := services.AccessInfoFromUserState(userState)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
-	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
+	_, sshPubKey, err := newSSHKeyPair()
+	require.NoError(t, err)
+	_, tlsPubKey, err := newTLSKeyPair()
 	require.NoError(t, err)
 
 	// Generate cert with no user login state.
 	certReq := certRequest{
-		user:      user,
-		checker:   accessChecker,
-		publicKey: pub,
-		traits:    accessChecker.Traits(),
+		user:         user,
+		checker:      accessChecker,
+		sshPublicKey: sshPubKey,
+		tlsPublicKey: tlsPubKey,
+		traits:       accessChecker.Traits(),
 	}
 	resp, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
@@ -2643,10 +2689,11 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 
 	certReq = certRequest{
-		user:      user,
-		checker:   accessChecker,
-		publicKey: pub,
-		traits:    accessChecker.Traits(),
+		user:         user,
+		checker:      accessChecker,
+		sshPublicKey: sshPubKey,
+		tlsPublicKey: tlsPubKey,
+		traits:       accessChecker.Traits(),
 	}
 
 	resp, err = p.a.generateUserCert(ctx, certReq)
@@ -2688,16 +2735,17 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	_, sshPublicKey, err := newSSHKeyPair()
 	require.NoError(t, err)
-	key, err := keys.NewPrivateKey(priv, nil)
+	_, tlsPublicKey, err := newTLSKeyPair()
 	require.NoError(t, err)
 
 	require.NoError(t, err)
 	certReq := certRequest{
-		user:      user,
-		checker:   accessChecker,
-		publicKey: key.MarshalSSHPublicKey(),
+		user:         user,
+		checker:      accessChecker,
+		sshPublicKey: sshPublicKey,
+		tlsPublicKey: tlsPublicKey,
 	}
 
 	for _, tt := range []struct {

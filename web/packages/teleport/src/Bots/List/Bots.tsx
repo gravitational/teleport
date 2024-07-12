@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
 import { HoverTooltip } from 'shared/components/ToolTip';
-import { Alert, Box, ButtonPrimary, Indicator } from 'design';
+import { Alert, Box, Button, Indicator } from 'design';
 
 import {
   FeatureBox,
@@ -120,7 +120,13 @@ export function Bots() {
     to request bot creation permissions.`
             }
           >
-            <ButtonPrimary
+            <Button
+              intent="primary"
+              fill={
+                fetchAttempt.status === 'success' && bots.length === 0
+                  ? 'filled'
+                  : 'border'
+              }
               ml="auto"
               width="240px"
               as={Link}
@@ -128,7 +134,7 @@ export function Bots() {
               disabled={!hasAddBotPermissions}
             >
               Enroll New Bot
-            </ButtonPrimary>
+            </Button>
           </HoverTooltip>
         </Box>
       </FeatureHeader>

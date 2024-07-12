@@ -29,6 +29,7 @@ export function SlideTabs({
   size = 'xlarge',
   tabs,
   isProcessing = false,
+  disabled = false,
 }: props) {
   return (
     <Wrapper>
@@ -47,6 +48,7 @@ export function SlideTabs({
               key={`${tabName}-${tabIndex}`}
               className={tabIndex === activeIndex && 'selected'}
               processing={isProcessing}
+              disabled={disabled}
             >
               <Box>
                 {selected && isProcessing && <Spinner delay="none" size={25} />}
@@ -101,6 +103,10 @@ type props = {
    * Look into horizontal progress bar (connect has one in LinearProgress.tsx)
    */
   isProcessing?: boolean;
+  /**
+   * If true, disables pointer events.
+   */
+  disabled?: boolean;
 };
 
 export type TabComponent = {
@@ -112,7 +118,11 @@ const Wrapper = styled.div`
   position: relative;
 `;
 
-const TabLabel = styled.label<{ itemCount: number; processing?: boolean }>`
+const TabLabel = styled.label<{
+  itemCount: number;
+  processing?: boolean;
+  disabled?: boolean;
+}>`
   cursor: pointer;
   display: flex;
   justify-content: center;
@@ -120,7 +130,7 @@ const TabLabel = styled.label<{ itemCount: number; processing?: boolean }>`
   width: ${props => 100 / props.itemCount}%;
   z-index: 1; /* Ensures that the label is above the background slider. */
   opacity: ${p => (p.processing ? 0.5 : 1)};
-  pointer-events: ${p => (p.processing ? 'none' : 'auto')};
+  pointer-events: ${p => (p.processing || p.disabled ? 'none' : 'auto')};
 `;
 
 const TabInput = styled.input`

@@ -98,6 +98,35 @@ const cfg = {
     AccessRequestMonthlyRequestLimit: 0,
   },
 
+  // default entitlements to false
+  entitlements: {
+    hsm: { enabled: false, limit: 0 },
+    oidc: { enabled: false, limit: 0 },
+    assist: { enabled: false, limit: 0 },
+    app: { enabled: false, limit: 0 },
+    db: { enabled: false, limit: 0 },
+    desktop: { enabled: false, limit: 0 },
+    accessMonitoring: { enabled: false, limit: 0 },
+    customTheme: { enabled: false, limit: 0 },
+    featureHiding: { enabled: false, limit: 0 },
+    policy: { enabled: false, limit: 0 },
+    identity: { enabled: false, limit: 0 },
+    deviceTrust: { enabled: false, limit: 0 },
+    k8s: { enabled: false, limit: 0 },
+    usageReporting: { enabled: false, limit: 0 },
+    upsellAlert: { enabled: false, limit: 0 },
+    saml: { enabled: false, limit: 0 },
+    cloudAuditLogRetention: { enabled: false, limit: 0 },
+    externalAuditStorage: { enabled: false, limit: 0 },
+    joinActiveSessions: { enabled: false, limit: 0 },
+    mobileDeviceManagement: { enabled: false, limit: 0 },
+    accessRequests: { enabled: false, limit: 0 },
+    accessLists: { enabled: false, limit: 0 },
+    sessionLocks: { enabled: false, limit: 0 },
+    oktaUserSync: { enabled: false, limit: 0 },
+    oktaSCIM: { enabled: false, limit: 0 },
+  },
+
   ui: {
     scrollbackLines: 1000,
     showResources: 'requestable',
@@ -258,6 +287,7 @@ const cfg = {
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
+    joinTokenYamlPath: '/v1/webapi/token/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
@@ -500,6 +530,10 @@ const cfg = {
 
   getJoinTokenUrl() {
     return cfg.api.joinTokenPath;
+  },
+
+  getJoinTokenYamlUrl() {
+    return cfg.api.joinTokenYamlPath;
   },
 
   getNodeScriptUrl(token: string) {
