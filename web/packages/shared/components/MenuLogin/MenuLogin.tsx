@@ -201,7 +201,7 @@ const StyledMenuItem = styled(MenuItem)(
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
 
-  :last-child {
+  &:last-child {
     border-bottom: none;
     margin-bottom: 8px;
   }
@@ -223,7 +223,7 @@ const Input = styled.input<SpaceProps>(
     outline: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

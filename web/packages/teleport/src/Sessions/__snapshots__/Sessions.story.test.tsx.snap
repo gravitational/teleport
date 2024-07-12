@@ -86,7 +86,7 @@ exports[`active sessions CTA 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c10:active,
@@ -98,7 +98,7 @@ exports[`active sessions CTA 1`] = `
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -124,8 +124,8 @@ exports[`active sessions CTA 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -137,8 +137,8 @@ exports[`active sessions CTA 1`] = `
 .c32:focus-visible,
 .teleport-button__force-focus-visible .c32 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -160,7 +160,7 @@ exports[`active sessions CTA 1`] = `
 
 .c32:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -189,7 +189,7 @@ exports[`active sessions CTA 1`] = `
 }
 
 .c25:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -224,7 +224,7 @@ exports[`active sessions CTA 1`] = `
 }
 
 .c27:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -255,7 +255,7 @@ exports[`active sessions CTA 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
 }
 
@@ -340,39 +340,39 @@ exports[`active sessions CTA 1`] = `
   width: 100%;
 }
 
-.c28 > thead > tr > th,
-.c28 > tbody > tr > th,
-.c28 > tfoot > tr > th,
-.c28 > thead > tr > td,
-.c28 > tbody > tr > td,
-.c28 > tfoot > tr > td {
+.c28>thead>tr>th,
+.c28>tbody>tr>th,
+.c28>tfoot>tr>th,
+.c28>thead>tr>td,
+.c28>tbody>tr>td,
+.c28>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c28 > thead > tr > th:first-child,
-.c28 > tbody > tr > th:first-child,
-.c28 > tfoot > tr > th:first-child,
-.c28 > thead > tr > td:first-child,
-.c28 > tbody > tr > td:first-child,
-.c28 > tfoot > tr > td:first-child {
+.c28>thead>tr>th:first-child,
+.c28>tbody>tr>th:first-child,
+.c28>tfoot>tr>th:first-child,
+.c28>thead>tr>td:first-child,
+.c28>tbody>tr>td:first-child,
+.c28>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c28 > thead > tr > th:last-child,
-.c28 > tbody > tr > th:last-child,
-.c28 > tfoot > tr > th:last-child,
-.c28 > thead > tr > td:last-child,
-.c28 > tbody > tr > td:last-child,
-.c28 > tfoot > tr > td:last-child {
+.c28>thead>tr>th:last-child,
+.c28>tbody>tr>th:last-child,
+.c28>tfoot>tr>th:last-child,
+.c28>thead>tr>td:last-child,
+.c28>tbody>tr>td:last-child,
+.c28>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c28 > tbody > tr > td {
+.c28>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c28 > thead > tr > th {
+.c28>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -384,11 +384,11 @@ exports[`active sessions CTA 1`] = `
   white-space: nowrap;
 }
 
-.c28 > thead > tr > th svg {
+.c28>thead>tr>th svg {
   height: 12px;
 }
 
-.c28 > tbody > tr > td {
+.c28>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -408,7 +408,7 @@ exports[`active sessions CTA 1`] = `
 }
 
 .c28 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -418,7 +418,7 @@ exports[`active sessions CTA 1`] = `
   height: 100%;
 }
 
-.c28 tbody tr:hover + tr {
+.c28 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -492,7 +492,7 @@ exports[`active sessions CTA 1`] = `
   padding-left: 24px;
 }
 
-.c29 tbody > tr > td {
+.c29 tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -1267,8 +1267,8 @@ exports[`loaded 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1280,8 +1280,8 @@ exports[`loaded 1`] = `
 .c28:focus-visible,
 .teleport-button__force-focus-visible .c28 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1303,7 +1303,7 @@ exports[`loaded 1`] = `
 
 .c28:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1332,7 +1332,7 @@ exports[`loaded 1`] = `
 }
 
 .c20:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1367,7 +1367,7 @@ exports[`loaded 1`] = `
 }
 
 .c23:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1398,7 +1398,7 @@ exports[`loaded 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
 }
 
@@ -1471,39 +1471,39 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c24>thead>tr>th,
+.c24>tbody>tr>th,
+.c24>tfoot>tr>th,
+.c24>thead>tr>td,
+.c24>tbody>tr>td,
+.c24>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c24>thead>tr>th:first-child,
+.c24>tbody>tr>th:first-child,
+.c24>tfoot>tr>th:first-child,
+.c24>thead>tr>td:first-child,
+.c24>tbody>tr>td:first-child,
+.c24>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c24>thead>tr>th:last-child,
+.c24>tbody>tr>th:last-child,
+.c24>tfoot>tr>th:last-child,
+.c24>thead>tr>td:last-child,
+.c24>tbody>tr>td:last-child,
+.c24>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c24>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c24>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1515,11 +1515,11 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th svg {
+.c24>thead>tr>th svg {
   height: 12px;
 }
 
-.c24 > tbody > tr > td {
+.c24>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1539,7 +1539,7 @@ exports[`loaded 1`] = `
 }
 
 .c24 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1549,7 +1549,7 @@ exports[`loaded 1`] = `
   height: 100%;
 }
 
-.c24 tbody tr:hover + tr {
+.c24 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1623,7 +1623,7 @@ exports[`loaded 1`] = `
   padding-left: 24px;
 }
 
-.c25 tbody > tr > td {
+.c25 tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -2360,8 +2360,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -2373,8 +2373,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 .c28:focus-visible,
 .teleport-button__force-focus-visible .c28 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -2396,7 +2396,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 
 .c28:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -2425,7 +2425,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 }
 
 .c20:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2460,7 +2460,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 }
 
 .c23:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2491,7 +2491,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
 }
 
@@ -2564,39 +2564,39 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c24>thead>tr>th,
+.c24>tbody>tr>th,
+.c24>tfoot>tr>th,
+.c24>thead>tr>td,
+.c24>tbody>tr>td,
+.c24>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c24>thead>tr>th:first-child,
+.c24>tbody>tr>th:first-child,
+.c24>tfoot>tr>th:first-child,
+.c24>thead>tr>td:first-child,
+.c24>tbody>tr>td:first-child,
+.c24>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c24>thead>tr>th:last-child,
+.c24>tbody>tr>th:last-child,
+.c24>tfoot>tr>th:last-child,
+.c24>thead>tr>td:last-child,
+.c24>tbody>tr>td:last-child,
+.c24>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c24>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c24>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -2608,11 +2608,11 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th svg {
+.c24>thead>tr>th svg {
   height: 12px;
 }
 
-.c24 > tbody > tr > td {
+.c24>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2632,7 +2632,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 }
 
 .c24 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2642,7 +2642,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   height: 100%;
 }
 
-.c24 tbody tr:hover + tr {
+.c24 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -2716,7 +2716,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   padding-left: 24px;
 }
 
-.c25 tbody > tr > td {
+.c25 tbody>tr>td {
   vertical-align: middle;
 }
 

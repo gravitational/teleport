@@ -17,7 +17,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   align-items: center;
   background: none;
   border: none;
-  color: rgba(255,255,255,.56);
+  color: rgba(255, 255, 255, .56);
   cursor: pointer;
   display: inline-flex;
   font-size: 11px;
@@ -31,7 +31,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 .c2:hover {
-  background: rgba(255,255,255,.06);
+  background: rgba(255, 255, 255, .06);
 }
 
 .c2.active {

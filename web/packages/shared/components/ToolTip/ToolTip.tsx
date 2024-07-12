@@ -63,7 +63,7 @@ export const ToolTipInfo: React.FC<
         {...(trigger === 'hover' && triggerOnHoverProps)}
         {...(trigger === 'click' && triggerOnClickProps)}
         css={`
-          :hover {
+          &:hover {
             cursor: pointer;
           }
           vertical-align: middle;

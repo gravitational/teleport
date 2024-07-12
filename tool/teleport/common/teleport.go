@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -570,7 +571,7 @@ Examples:
   data from sqlite to dynamodb:
 
   # src is the configuration for the backend where data is cloned from.
-  src: 
+  src:
     type: sqlite
     path: /var/lib/teleport_data
   # dst is the configuration for the backend where data is cloned to.
@@ -619,6 +620,15 @@ Examples:
 		if err = config.Configure(&ccf, conf, command != appStartCmd.FullCommand()); err != nil {
 			utils.FatalError(err)
 		}
+
+		// Validate binary modules against the device trust configuration.
+		// Catches errors in file-based configs.
+		if conf.Auth.Enabled {
+			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+				utils.FatalError(err)
+			}
+		}
+
 		if !options.InitOnly {
 			err = OnStart(ccf, conf)
 		}
