@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/clientcache"
 )
 
 type osConfig struct {
@@ -42,6 +43,7 @@ type osConfig struct {
 
 type osConfigurator struct {
 	clientStore        *client.Store
+	clientCache        *clientcache.Cache
 	clusterConfigCache *ClusterConfigCache
 	tunName            string
 	tunIPv6            string
@@ -70,7 +72,24 @@ func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, er
 	}
 	configurator.clusterConfigCache = NewClusterConfigCache(clockwork.NewRealClock())
 
+	clientCache, err := clientcache.New(clientcache.Config{
+		NewClientFunc: configurator.getClient,
+		RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+			// osConfigurator is ran from a root process, so there's no way for it to relogin.
+			// Instead, osConfigurator depends on the user performing a relogin from another process.
+			return trace.Wrap(fn())
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	configurator.clientCache = clientCache
+
 	return configurator, nil
+}
+
+func (c *osConfigurator) close() error {
+	return trace.Wrap(c.clientCache.Clear())
 }
 
 func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
@@ -82,11 +101,16 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		return trace.Wrap(err, "listing user profiles")
 	}
 	for _, profileName := range profileNames {
-		rootClient, err := c.getClusterClient(ctx, profileName, "" /*leafClusterName*/)
+		rootClient, err := c.clientCache.Get(ctx, profileName, "" /*leafClusterName*/)
 		if err != nil {
 			slog.WarnContext(ctx,
-				"Failed to create root cluster client, profile may be expired, not configuring VNet for this cluster",
+				"Failed to get root cluster client from cache, profile may be expired, not configuring VNet for this cluster",
 				"profile", profileName, "error", err)
+
+			if err := c.clientCache.ClearForRoot(profileName); err != nil {
+				slog.ErrorContext(ctx, "Error while clearing client cache", "profile", profileName, "error", err)
+			}
+
 			continue
 		}
 		clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, rootClient)
@@ -94,6 +118,11 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 			slog.WarnContext(ctx,
 				"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
 				"profile", profileName, "error", err)
+
+			if err := c.clientCache.ClearForRoot(profileName); err != nil {
+				slog.ErrorContext(ctx, "Error while clearing client cache", "profile", profileName, "error", err)
+			}
+
 			continue
 		}
 
@@ -105,10 +134,15 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 			slog.WarnContext(ctx,
 				"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
 				"profile", profileName, "error", err)
+
+			if err := c.clientCache.ClearForRoot(profileName); err != nil {
+				slog.ErrorContext(ctx, "Error while clearing client cache", "profile", profileName, "error", err)
+			}
+
 			continue
 		}
 		for _, leafClusterName := range leafClusters {
-			clusterClient, err := c.getClusterClient(ctx, profileName, leafClusterName)
+			clusterClient, err := c.clientCache.Get(ctx, profileName, leafClusterName)
 			if err != nil {
 				slog.WarnContext(ctx,
 					"Failed to create leaf cluster client, not configuring VNet for this cluster",
@@ -174,7 +208,7 @@ func (c *osConfigurator) setTunIPv4FromCIDR(cidrRange string) error {
 	return nil
 }
 
-func (c *osConfigurator) getClusterClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error) {
+func (c *osConfigurator) getClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
 	// This runs in the root process, so obviously we don't have access to the client cache in the user
 	// process. This loads cluster profiles and credentials from TELEPORT_HOME.
 	clientConfig := &client.Config{
@@ -187,14 +221,5 @@ func (c *osConfigurator) getClusterClient(ctx context.Context, profileName, leaf
 		clientConfig.SiteName = leafClusterName
 	}
 	tc, err := client.NewClient(clientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new teleport client")
-	}
-
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "connecting to cluster")
-	}
-
-	return clt, nil
+	return tc, trace.Wrap(err)
 }

@@ -255,6 +255,11 @@ func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr strin
 	if err != nil {
 		return trace.Wrap(err, "creating OS configurator")
 	}
+	defer func() {
+		if err := osConfigurator.close(); err != nil {
+			slog.ErrorContext(ctx, "Error while closing OS configurator", "error", err)
+		}
+	}()
 
 	// Clean up any stale configuration left by a previous VNet instance that may have failed to clean up.
 	// This is necessary in case any stale /etc/resolver/<proxy address> entries are still present, we need to
