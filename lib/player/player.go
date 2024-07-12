@@ -182,7 +182,6 @@ func (p *Player) stream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var skip bool
 	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
 	lastDelay := int64(0)
 	for {
@@ -208,6 +207,7 @@ func (p *Player) stream() {
 				return
 			}
 
+			var skip bool
 			evt, skip = p.translateEvent(evt)
 			if skip {
 				continue
