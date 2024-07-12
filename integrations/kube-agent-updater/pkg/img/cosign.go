@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto"
 	"encoding/hex"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/distribution/reference"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -34,6 +33,7 @@ import (
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // hashAlgo is the Digest algorithm for OCI artfiacts:
