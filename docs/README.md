@@ -1,7 +1,7 @@
 # Teleport Docs
 
 Teleport docs are built using Next.js. Please see
-[the README in the docs repo](https://github.com/gravitational/docs/#readme)
+the [README in the docs repo](https://github.com/gravitational/docs/#readme)
 for details on how to make and test changes to Teleport docs.
 
 ## Linting and checking for bad links
