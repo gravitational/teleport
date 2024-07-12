@@ -23,7 +23,6 @@ import (
 	"encoding/base32"
 	"fmt"
 	"math/rand"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -42,7 +41,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/storage"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -79,20 +77,14 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
-
-	tempDir := t.TempDir()
-	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(tempDir, teleport.ComponentProcess))
-	require.NoError(t, err)
 	t.Cleanup(func() {
 		s.bk.Close()
-		processStorage.Close()
 	})
 
 	authConfig := &InitConfig{
-		DataDir:                tempDir,
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		VersionStorage:         processStorage,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

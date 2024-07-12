@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	insecurerand "math/rand"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/storage"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -400,10 +398,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 }
 
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
-	tempDir := t.TempDir()
 	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(tempDir, teleport.ComponentProcess))
 	require.NoError(t, err)
 
 	clusterName := "me.localhost"
@@ -416,10 +411,9 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	})
 	require.NoError(t, err)
 	authConfig := &InitConfig{
-		DataDir:                tempDir,
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
-		VersionStorage:         processStorage,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
@@ -428,7 +422,6 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 
 	t.Cleanup(func() {
 		bk.Close()
-		processStorage.Close()
 		a.Close()
 	})
 

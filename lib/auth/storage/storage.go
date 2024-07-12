@@ -219,6 +219,9 @@ func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (*semver.Versio
 
 // WriteTeleportVersion writes the last known Teleport version to the storage.
 func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semver.Version) error {
+	if version == nil {
+		return trace.BadParameter("wrong version parameter")
+	}
 	item := backend.Item{
 		Key:   backend.Key(teleportPrefix, lastKnownVersion),
 		Value: []byte(version.String()),

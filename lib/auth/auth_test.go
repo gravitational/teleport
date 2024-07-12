@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -66,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -87,7 +85,7 @@ import (
 
 type testPack struct {
 	bk             backend.Backend
-	processStorage *storage.ProcessStorage
+	versionStorage VersionStorage
 	clusterName    types.ClusterName
 	a              *Server
 	mockEmitter    *eventstest.MockRecorderEmitter
@@ -111,16 +109,13 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	p.processStorage, err = storage.NewProcessStorage(ctx, filepath.Join(dataDir, teleport.ComponentProcess))
-	if err != nil {
-		return p, trace.Wrap(err)
-	}
+	p.versionStorage = NewFakeTeleportVersion()
 
 	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &InitConfig{
 		DataDir:                dataDir,
 		Backend:                p.bk,
-		VersionStorage:         p.processStorage,
+		VersionStorage:         p.versionStorage,
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		Emitter:                p.mockEmitter,
@@ -204,7 +199,6 @@ func newAuthSuite(t *testing.T) *testPack {
 	t.Cleanup(func() {
 		if s.bk != nil {
 			s.bk.Close()
-			s.processStorage.Close()
 		}
 	})
 
@@ -983,7 +977,7 @@ func TestUpdateConfig(t *testing.T) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		VersionStorage:         s.processStorage,
+		VersionStorage:         s.versionStorage,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}

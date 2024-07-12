@@ -23,11 +23,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/auth/storage"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -282,15 +281,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(cfg.Dir, teleport.ComponentProcess))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	srv.AuthServer, err = NewServer(&InitConfig{
 		DataDir:                cfg.Dir,
 		Backend:                srv.Backend,
-		VersionStorage:         processStorage,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.NewWithClock(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,
@@ -1135,6 +1129,24 @@ func (t *TestTLSServer) Stop() error {
 		t.Listener.Close()
 	}
 	return err
+}
+
+// FakeTeleportVersion fake version storage implementation always return current version.
+type FakeTeleportVersion struct{}
+
+// NewFakeTeleportVersion creates fake version storage.
+func NewFakeTeleportVersion() *FakeTeleportVersion {
+	return &FakeTeleportVersion{}
+}
+
+// GetTeleportVersion returns current Teleport version.
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
+	return teleport.SemVersion, nil
+}
+
+// WriteTeleportVersion stub function for writing.
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+	return nil
 }
 
 // NewServerIdentity generates new server identity, used in tests
