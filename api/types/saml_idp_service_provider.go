@@ -362,7 +362,7 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 // preset can be either empty or one of the supported type.
 func (s *SAMLIdPServiceProviderV1) checkAndSetPresetDefaults(preset string) bool {
 	switch preset {
-	case "", "unspecified":
+	case "":
 		return true
 	case samlsp.GCPWorkforce:
 		if s.GetRelayState() == "" {
