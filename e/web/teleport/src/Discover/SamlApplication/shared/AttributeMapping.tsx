@@ -157,7 +157,7 @@ export function AttributeMapping({
                     options={nameFormats}
                     onChange={e =>
                       handleInputChange({
-                        option: e,
+                        option: e as Option,
                         labelField: 'name_format',
                         index: index,
                       })

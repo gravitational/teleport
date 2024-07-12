@@ -50,11 +50,11 @@ const itemStyles = css<{ disabled?: boolean }>`
   }
 `;
 
-const LinkItem = styled(Link)`
+const LinkItem = styled(Link)<{ disabled?: boolean }>`
   ${itemStyles};
 `;
 
-const Item = styled.div`
+const Item = styled.div<{ disabled?: boolean }>`
   ${itemStyles};
 
   user-select: none;

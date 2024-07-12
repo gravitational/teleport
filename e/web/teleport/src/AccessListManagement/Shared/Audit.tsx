@@ -165,7 +165,7 @@ const CalendarInput = styled(Flex)<{
   height: 40px;
   border: 1px solid ${p => p.theme.colors.text.muted};
   cursor: pointer;
-  :hover {
+  &:hover {
     background-color: ${p => p.theme.colors.spotBackground[0]};
     border: 1px solid ${p => p.theme.colors.text.slightlyMuted};
   }

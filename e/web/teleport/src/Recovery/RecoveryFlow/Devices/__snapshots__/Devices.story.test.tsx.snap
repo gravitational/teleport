@@ -63,7 +63,7 @@ exports[`render device list 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c12:active,
@@ -75,7 +75,7 @@ exports[`render device list 1`] = `
 
 .c12:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -101,8 +101,8 @@ exports[`render device list 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -114,8 +114,8 @@ exports[`render device list 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -137,7 +137,7 @@ exports[`render device list 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -150,7 +150,7 @@ exports[`render device list 1`] = `
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -162,7 +162,7 @@ exports[`render device list 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -182,7 +182,7 @@ exports[`render device list 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   text-align: center;
 }
 
@@ -200,39 +200,39 @@ exports[`render device list 1`] = `
   width: 100%;
 }
 
-.c7 > thead > tr > th,
-.c7 > tbody > tr > th,
-.c7 > tfoot > tr > th,
-.c7 > thead > tr > td,
-.c7 > tbody > tr > td,
-.c7 > tfoot > tr > td {
+.c7>thead>tr>th,
+.c7>tbody>tr>th,
+.c7>tfoot>tr>th,
+.c7>thead>tr>td,
+.c7>tbody>tr>td,
+.c7>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c7 > thead > tr > th:first-child,
-.c7 > tbody > tr > th:first-child,
-.c7 > tfoot > tr > th:first-child,
-.c7 > thead > tr > td:first-child,
-.c7 > tbody > tr > td:first-child,
-.c7 > tfoot > tr > td:first-child {
+.c7>thead>tr>th:first-child,
+.c7>tbody>tr>th:first-child,
+.c7>tfoot>tr>th:first-child,
+.c7>thead>tr>td:first-child,
+.c7>tbody>tr>td:first-child,
+.c7>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c7 > thead > tr > th:last-child,
-.c7 > tbody > tr > th:last-child,
-.c7 > tfoot > tr > th:last-child,
-.c7 > thead > tr > td:last-child,
-.c7 > tbody > tr > td:last-child,
-.c7 > tfoot > tr > td:last-child {
+.c7>thead>tr>th:last-child,
+.c7>tbody>tr>th:last-child,
+.c7>tfoot>tr>th:last-child,
+.c7>thead>tr>td:last-child,
+.c7>tbody>tr>td:last-child,
+.c7>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c7 > tbody > tr > td {
+.c7>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c7 > thead > tr > th {
+.c7>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -244,11 +244,11 @@ exports[`render device list 1`] = `
   white-space: nowrap;
 }
 
-.c7 > thead > tr > th svg {
+.c7>thead>tr>th svg {
   height: 12px;
 }
 
-.c7 > tbody > tr > td {
+.c7>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -268,7 +268,7 @@ exports[`render device list 1`] = `
 }
 
 .c7 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -278,26 +278,26 @@ exports[`render device list 1`] = `
   height: 100%;
 }
 
-.c7 tbody tr:hover + tr {
+.c7 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c8 {
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c8 > tbody > tr td {
+.c8>tbody>tr td {
   vertical-align: middle;
   height: 32px;
 }
 
-.c8 > tbody {
+.c8>tbody {
   background: #344179;
 }
 
-.c8 > thead > tr > th {
+.c8>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -598,7 +598,7 @@ exports[`render device removal dialog 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c10:active,
@@ -610,7 +610,7 @@ exports[`render device removal dialog 1`] = `
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -636,7 +636,7 @@ exports[`render device removal dialog 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -649,8 +649,8 @@ exports[`render device removal dialog 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -672,7 +672,7 @@ exports[`render device removal dialog 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -718,7 +718,7 @@ exports[`render device removal dialog 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -834,7 +834,7 @@ exports[`render failed state for device list 1`] = `
   word-break: break-word;
   line-height: 1.5;
   margin: 0px;
-  background: rgba(255,98,87,0.1);
+  background: rgba(255, 98, 87, 0.1);
   border: 2px solid #FF6257;
   border-radius: 8px;
   box-shadow: none;
@@ -907,7 +907,7 @@ exports[`render failed state for device list 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c8:active,
@@ -919,14 +919,14 @@ exports[`render failed state for device list 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -938,7 +938,7 @@ exports[`render failed state for device list 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -958,7 +958,7 @@ exports[`render failed state for device list 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   text-align: center;
 }
 

@@ -17,7 +17,7 @@ export const Description = styled(Text)`
 `;
 
 export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
-height: var(--feature-height);
+  height: var(--feature-height);
 
   line-height: 20px;
   padding: ${p => p.theme.space[3]}px;
@@ -38,7 +38,7 @@ height: var(--feature-height);
         return p.theme.colors.buttons.primary.default;
       }
       return p.$active ? p.theme.colors.buttons.primary.default : 'inherit';
-    }}};
+    }};
     transition: color 0.2s ease-in 0s;
   }
 

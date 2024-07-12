@@ -85,7 +85,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c24:active,
@@ -97,7 +97,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
 
 .c24:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -111,7 +111,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
 }
 
 .c13 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -159,7 +159,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c23 {
@@ -253,7 +253,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
       width="100%"
     >
       <div
-        class="c12 c4 sc-gEvEer c12 c13"
+        class="c12 c4 sc-gEvDqW c12 c13"
       >
         <div
           class="c14"
@@ -462,7 +462,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c24:active,
@@ -474,7 +474,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
 
 .c24:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -488,7 +488,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
 }
 
 .c13 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -536,7 +536,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c23 {
@@ -630,7 +630,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
       width="100%"
     >
       <div
-        class="c12 c4 sc-gEvEer c12 c13"
+        class="c12 c4 sc-gEvDqW c12 c13"
       >
         <div
           class="c14"
@@ -818,7 +818,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
 }
 
 .c21:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -853,7 +853,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
 }
 
 .c24:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -982,39 +982,39 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   width: 100%;
 }
 
-.c25 > thead > tr > th,
-.c25 > tbody > tr > th,
-.c25 > tfoot > tr > th,
-.c25 > thead > tr > td,
-.c25 > tbody > tr > td,
-.c25 > tfoot > tr > td {
+.c25>thead>tr>th,
+.c25>tbody>tr>th,
+.c25>tfoot>tr>th,
+.c25>thead>tr>td,
+.c25>tbody>tr>td,
+.c25>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th:first-child,
-.c25 > tbody > tr > th:first-child,
-.c25 > tfoot > tr > th:first-child,
-.c25 > thead > tr > td:first-child,
-.c25 > tbody > tr > td:first-child,
-.c25 > tfoot > tr > td:first-child {
+.c25>thead>tr>th:first-child,
+.c25>tbody>tr>th:first-child,
+.c25>tfoot>tr>th:first-child,
+.c25>thead>tr>td:first-child,
+.c25>tbody>tr>td:first-child,
+.c25>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c25 > thead > tr > th:last-child,
-.c25 > tbody > tr > th:last-child,
-.c25 > tfoot > tr > th:last-child,
-.c25 > thead > tr > td:last-child,
-.c25 > tbody > tr > td:last-child,
-.c25 > tfoot > tr > td:last-child {
+.c25>thead>tr>th:last-child,
+.c25>tbody>tr>th:last-child,
+.c25>tfoot>tr>th:last-child,
+.c25>thead>tr>td:last-child,
+.c25>tbody>tr>td:last-child,
+.c25>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c25 > tbody > tr > td {
+.c25>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th {
+.c25>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1026,11 +1026,11 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   white-space: nowrap;
 }
 
-.c25 > thead > tr > th svg {
+.c25>thead>tr>th svg {
   height: 12px;
 }
 
-.c25 > tbody > tr > td {
+.c25>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1050,7 +1050,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
 }
 
 .c25 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1060,7 +1060,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   height: 100%;
 }
 
-.c25 tbody tr:hover + tr {
+.c25 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1453,7 +1453,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c31:active,
@@ -1465,7 +1465,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 
 .c31:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1494,7 +1494,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 }
 
 .c21:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1529,7 +1529,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 }
 
 .c24:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1568,7 +1568,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c30 {
@@ -1682,39 +1682,39 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   width: 100%;
 }
 
-.c25 > thead > tr > th,
-.c25 > tbody > tr > th,
-.c25 > tfoot > tr > th,
-.c25 > thead > tr > td,
-.c25 > tbody > tr > td,
-.c25 > tfoot > tr > td {
+.c25>thead>tr>th,
+.c25>tbody>tr>th,
+.c25>tfoot>tr>th,
+.c25>thead>tr>td,
+.c25>tbody>tr>td,
+.c25>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th:first-child,
-.c25 > tbody > tr > th:first-child,
-.c25 > tfoot > tr > th:first-child,
-.c25 > thead > tr > td:first-child,
-.c25 > tbody > tr > td:first-child,
-.c25 > tfoot > tr > td:first-child {
+.c25>thead>tr>th:first-child,
+.c25>tbody>tr>th:first-child,
+.c25>tfoot>tr>th:first-child,
+.c25>thead>tr>td:first-child,
+.c25>tbody>tr>td:first-child,
+.c25>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c25 > thead > tr > th:last-child,
-.c25 > tbody > tr > th:last-child,
-.c25 > tfoot > tr > th:last-child,
-.c25 > thead > tr > td:last-child,
-.c25 > tbody > tr > td:last-child,
-.c25 > tfoot > tr > td:last-child {
+.c25>thead>tr>th:last-child,
+.c25>tbody>tr>th:last-child,
+.c25>tfoot>tr>th:last-child,
+.c25>thead>tr>td:last-child,
+.c25>tbody>tr>td:last-child,
+.c25>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c25 > tbody > tr > td {
+.c25>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th {
+.c25>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1726,11 +1726,11 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   white-space: nowrap;
 }
 
-.c25 > thead > tr > th svg {
+.c25>thead>tr>th svg {
   height: 12px;
 }
 
-.c25 > tbody > tr > td {
+.c25>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1750,7 +1750,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 }
 
 .c25 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1760,7 +1760,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   height: 100%;
 }
 
-.c25 tbody tr:hover + tr {
+.c25 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -2156,7 +2156,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
 }
 
 .c21:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2191,7 +2191,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
 }
 
 .c24:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2320,39 +2320,39 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   width: 100%;
 }
 
-.c25 > thead > tr > th,
-.c25 > tbody > tr > th,
-.c25 > tfoot > tr > th,
-.c25 > thead > tr > td,
-.c25 > tbody > tr > td,
-.c25 > tfoot > tr > td {
+.c25>thead>tr>th,
+.c25>tbody>tr>th,
+.c25>tfoot>tr>th,
+.c25>thead>tr>td,
+.c25>tbody>tr>td,
+.c25>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th:first-child,
-.c25 > tbody > tr > th:first-child,
-.c25 > tfoot > tr > th:first-child,
-.c25 > thead > tr > td:first-child,
-.c25 > tbody > tr > td:first-child,
-.c25 > tfoot > tr > td:first-child {
+.c25>thead>tr>th:first-child,
+.c25>tbody>tr>th:first-child,
+.c25>tfoot>tr>th:first-child,
+.c25>thead>tr>td:first-child,
+.c25>tbody>tr>td:first-child,
+.c25>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c25 > thead > tr > th:last-child,
-.c25 > tbody > tr > th:last-child,
-.c25 > tfoot > tr > th:last-child,
-.c25 > thead > tr > td:last-child,
-.c25 > tbody > tr > td:last-child,
-.c25 > tfoot > tr > td:last-child {
+.c25>thead>tr>th:last-child,
+.c25>tbody>tr>th:last-child,
+.c25>tfoot>tr>th:last-child,
+.c25>thead>tr>td:last-child,
+.c25>tbody>tr>td:last-child,
+.c25>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c25 > tbody > tr > td {
+.c25>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th {
+.c25>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -2364,11 +2364,11 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   white-space: nowrap;
 }
 
-.c25 > thead > tr > th svg {
+.c25>thead>tr>th svg {
   height: 12px;
 }
 
-.c25 > tbody > tr > td {
+.c25>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2388,7 +2388,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
 }
 
 .c25 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2398,7 +2398,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   height: 100%;
 }
 
-.c25 tbody tr:hover + tr {
+.c25 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 

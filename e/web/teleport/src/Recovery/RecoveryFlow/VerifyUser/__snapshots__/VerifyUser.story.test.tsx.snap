@@ -14,7 +14,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: rgba(255,98,87,0.1);
+  background: rgba(255, 98, 87, 0.1);
   border: 2px solid #FF6257;
   border-radius: 8px;
   box-shadow: none;
@@ -101,7 +101,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c15:active,
@@ -113,14 +113,14 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 
 .c15:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -132,7 +132,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -149,12 +149,12 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -171,7 +171,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 .c10:hover,
 .c10:focus,
 .c10:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c10::-ms-clear {
@@ -179,7 +179,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c10::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -188,8 +188,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c10:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 {
@@ -229,20 +229,20 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c14 .react-select__control:hover,
 .c14 .react-select__control:focus,
 .c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -263,7 +263,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -277,7 +277,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c14 .react-select__multi-value {
@@ -323,7 +323,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 .react-select__clear-indicator:hover,
@@ -339,7 +339,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 .c14 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -356,17 +356,17 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__control--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__input {
@@ -522,7 +522,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: rgba(255,98,87,0.1);
+  background: rgba(255, 98, 87, 0.1);
   border: 2px solid #FF6257;
   border-radius: 8px;
   box-shadow: none;
@@ -601,7 +601,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c11:active,
@@ -613,14 +613,14 @@ exports[`render failed state form for authenticating with password 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -632,7 +632,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -649,12 +649,12 @@ exports[`render failed state form for authenticating with password 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -671,7 +671,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 .c10:hover,
 .c10:focus,
 .c10:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c10::-ms-clear {
@@ -679,7 +679,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 }
 
 .c10::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -688,8 +688,8 @@ exports[`render failed state form for authenticating with password 1`] = `
 }
 
 .c10:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 {
@@ -798,7 +798,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: rgba(255,98,87,0.1);
+  background: rgba(255, 98, 87, 0.1);
   border: 2px solid #FF6257;
   border-radius: 8px;
   box-shadow: none;
@@ -891,7 +891,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c16:active,
@@ -903,14 +903,14 @@ exports[`render failed state form for authenticating with totp 1`] = `
 
 .c16:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -922,7 +922,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -939,12 +939,12 @@ exports[`render failed state form for authenticating with totp 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -961,7 +961,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 .c10:hover,
 .c10:focus,
 .c10:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c10::-ms-clear {
@@ -969,7 +969,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c10::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -978,8 +978,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c10:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 {
@@ -1019,20 +1019,20 @@ exports[`render failed state form for authenticating with totp 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c14 .react-select__control:hover,
 .c14 .react-select__control:focus,
 .c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1053,7 +1053,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1067,7 +1067,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c14 .react-select__multi-value {
@@ -1113,7 +1113,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 .react-select__clear-indicator:hover,
@@ -1129,7 +1129,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 .c14 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -1146,17 +1146,17 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__control--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__input {
@@ -1330,7 +1330,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: rgba(255,98,87,0.1);
+  background: rgba(255, 98, 87, 0.1);
   border: 2px solid #FF6257;
   border-radius: 8px;
   box-shadow: none;
@@ -1417,7 +1417,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c15:active,
@@ -1429,14 +1429,14 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 
 .c15:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1448,7 +1448,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -1465,12 +1465,12 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1487,7 +1487,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 .c10:hover,
 .c10:focus,
 .c10:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c10::-ms-clear {
@@ -1495,7 +1495,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c10::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -1504,8 +1504,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c10:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c9 {
@@ -1545,20 +1545,20 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c14 .react-select__control:hover,
 .c14 .react-select__control:focus,
 .c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1579,7 +1579,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1593,7 +1593,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c14 .react-select__multi-value {
@@ -1639,7 +1639,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 .react-select__clear-indicator:hover,
@@ -1655,7 +1655,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 .c14 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -1672,17 +1672,17 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__control--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 .react-select__input {
@@ -1900,7 +1900,7 @@ exports[`render form for authenticating with multi option 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c14:active,
@@ -1912,14 +1912,14 @@ exports[`render form for authenticating with multi option 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1931,7 +1931,7 @@ exports[`render form for authenticating with multi option 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -1948,12 +1948,12 @@ exports[`render form for authenticating with multi option 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1970,7 +1970,7 @@ exports[`render form for authenticating with multi option 1`] = `
 .c9:hover,
 .c9:focus,
 .c9:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c9::-ms-clear {
@@ -1978,7 +1978,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -1987,8 +1987,8 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c8 {
@@ -2028,20 +2028,20 @@ exports[`render form for authenticating with multi option 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c13 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c13 .react-select__control:hover,
 .c13 .react-select__control:focus,
 .c13 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2062,7 +2062,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c13 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2076,7 +2076,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c13 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c13 .react-select__multi-value {
@@ -2122,7 +2122,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c13 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c13 .react-select__clear-indicator:hover,
@@ -2138,7 +2138,7 @@ exports[`render form for authenticating with multi option 1`] = `
 .c13 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c13 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -2155,17 +2155,17 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c13 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__control--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__input {
@@ -2368,7 +2368,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c10:active,
@@ -2380,14 +2380,14 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -2399,7 +2399,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -2416,12 +2416,12 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2438,7 +2438,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 .c9:hover,
 .c9:focus,
 .c9:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c9::-ms-clear {
@@ -2446,7 +2446,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -2455,8 +2455,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c8 {
@@ -2626,7 +2626,7 @@ exports[`render form for authenticating with totp 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c15:active,
@@ -2638,14 +2638,14 @@ exports[`render form for authenticating with totp 1`] = `
 
 .c15:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -2657,7 +2657,7 @@ exports[`render form for authenticating with totp 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -2674,12 +2674,12 @@ exports[`render form for authenticating with totp 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2696,7 +2696,7 @@ exports[`render form for authenticating with totp 1`] = `
 .c9:hover,
 .c9:focus,
 .c9:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c9::-ms-clear {
@@ -2704,7 +2704,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -2713,8 +2713,8 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c8 {
@@ -2754,20 +2754,20 @@ exports[`render form for authenticating with totp 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c13 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c13 .react-select__control:hover,
 .c13 .react-select__control:focus,
 .c13 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2788,7 +2788,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c13 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2802,7 +2802,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c13 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c13 .react-select__multi-value {
@@ -2848,7 +2848,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c13 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c13 .react-select__clear-indicator:hover,
@@ -2864,7 +2864,7 @@ exports[`render form for authenticating with totp 1`] = `
 .c13 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c13 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -2881,17 +2881,17 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c13 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__control--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__input {
@@ -3120,7 +3120,7 @@ exports[`render form for authenticating with webauthn 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c14:active,
@@ -3132,14 +3132,14 @@ exports[`render form for authenticating with webauthn 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -3151,7 +3151,7 @@ exports[`render form for authenticating with webauthn 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
@@ -3168,12 +3168,12 @@ exports[`render form for authenticating with webauthn 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -3190,7 +3190,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 .c9:hover,
 .c9:focus,
 .c9:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c9::-ms-clear {
@@ -3198,7 +3198,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -3207,8 +3207,8 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c8 {
@@ -3248,20 +3248,20 @@ exports[`render form for authenticating with webauthn 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c13 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c13 .react-select__control:hover,
 .c13 .react-select__control:focus,
 .c13 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -3282,7 +3282,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c13 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -3296,7 +3296,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c13 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c13 .react-select__multi-value {
@@ -3342,7 +3342,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c13 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c13 .react-select__clear-indicator:hover,
@@ -3358,7 +3358,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 .c13 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c13 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -3375,17 +3375,17 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c13 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__control--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c13 .react-select__input {
