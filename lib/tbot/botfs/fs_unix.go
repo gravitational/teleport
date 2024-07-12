@@ -1,5 +1,5 @@
-//go:build !linux
-// +build !linux
+//go:build unix && !linux
+// +build unix,!linux
 
 /*
  * Teleport
@@ -24,8 +24,11 @@ package botfs
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os/user"
+	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/gravitational/trace"
 )
@@ -35,9 +38,7 @@ import (
 var unsupportedPlatformWarning sync.Once
 
 // Create attempts to create the given file or directory without
-// evaluating symlinks. This is only supported on recent Linux kernel versions
-// (5.6+). The resulting file permissions are unspecified; Chmod should be
-// called afterward.
+// evaluating symlinks.
 func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	if symlinksMode == SymlinksSecure {
 		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
@@ -132,4 +133,16 @@ func HasACLSupport() bool {
 // catch-all implementation just returns false.
 func HasSecureWriteSupport() bool {
 	return false
+}
+
+// IsOwnedBy checks that the file at the given path is owned by the given user.
+// Returns a trace.NotImplemented() on unsupported platforms.
+func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
+	info, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
+	}
+
+	// Our files are 0600, so don't bother checking gid.
+	return strconv.Itoa(int(info.Uid)) == user.Uid, nil
 }
