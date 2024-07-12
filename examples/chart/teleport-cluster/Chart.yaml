@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.gzdunek.12"
+.version: &version "17.0.0-dev.gzdunek.13"
 
 name: teleport-cluster
 apiVersion: v2
