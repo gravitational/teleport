@@ -61,6 +61,9 @@ export function UnifiedResourcesE() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const includeRequestable = cfg.ui.showResources === 'requestable';
 
+  const userSamlIdPServiceProviderPerm =
+    ctx.storeUser.getSamlIdPServiceProviderAccess();
+
   // TODO (avatus): extract the necessary parts of useNewRequest and useRequestCheckout
   // into a new hook that can be shared between web and Connect
   const {
@@ -79,6 +82,8 @@ export function UnifiedResourcesE() {
     });
   const showCheckout =
     numAddedResources > 0 || createAttempt.status === 'success';
+
+  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
 
   const getActionButton = (
     resource: UnifiedResource,
@@ -128,7 +133,7 @@ export function UnifiedResourcesE() {
     return (
       <ResourceActionButton
         resource={resource}
-        setResourceSpec={setResourceSpec}
+        setResourceSpec={userSamlIdPServiceProviderPerm.edit && setResourceSpec}
       />
     );
   };
@@ -159,8 +164,6 @@ export function UnifiedResourcesE() {
     preferences?.unifiedResourcePreferences?.availableResourceMode,
     cfg.ui.showResources === 'requestable'
   );
-
-  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
 
   return (
     <FeatureBox px={4}>
