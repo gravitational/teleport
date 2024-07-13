@@ -23,7 +23,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -559,26 +558,15 @@ func (h *appServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	return true
 }
 
-var (
-	minAppVersion15 = semver.New("15.3.4")
-	minAppVersion14 = semver.New("14.3.19")
-	minAppVersion13 = semver.New("13.4.25")
-)
-
 func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
-	authVersion, err := semver.NewVersion(sender.Hello().Version)
-	if err != nil {
-		return false
-	}
-
 	// AppServer heartbeats via inventory control stream were not introduced in a major version,
 	// so there is a chance that the Auth server is unable to process the request via the inventory
-	// control stream. If the Auth server is detected to be running an incompatible version, then use
-	// the fallback mechanism.
-	// TODO(tross) DELETE IN 16.0.0
-	if (authVersion.Major == 15 && authVersion.LessThan(*minAppVersion15)) ||
-		(authVersion.Major == 14 && authVersion.LessThan(*minAppVersion14)) ||
-		(authVersion.Major == 13 && authVersion.LessThan(*minAppVersion13)) {
+	// control stream. If the Auth server capabilities indicate as such, then use the fallback mechanism.
+	hello := sender.Hello()
+	switch {
+	case hello.Capabilities == nil:
+		return h.FallbackAnnounce(ctx)
+	case hello.Capabilities != nil && !hello.Capabilities.AppHeartbeats:
 		return h.FallbackAnnounce(ctx)
 	}
 
