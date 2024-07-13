@@ -52,12 +52,6 @@ then update the resource in Teleport with `tctl`:
 $ tctl create -f foo-dev.yaml
 ```
 
-To remove the resource and delete all host users associated with it, an admin will run:
-
-```code
-$ tctl rm host_user/foo-dev
-```
-
 ### Resource
 
 We will add a new resource to Teleport called `static_host_user`. This resource defines
@@ -90,21 +84,12 @@ On startup, nodes will apply all available `static_host_user`s in the cache,
 then watch the cache for new and updated users. Nodes will use the labels in the
 `static_host_user`s to filter out those that don't apply to them, with the same
 logic that currently determines access with roles. Updated `static_host_user`s
-override the existing user.
+override the existing user. When a `static_host_user` is deleted, any host users
+created by it are *not* deleted (same behavior as `keep` mode for current host
+user creation).
 
 Nodes that disable host user creation (by setting `ssh_service.disable_create_host_user`
 to true in their config) will ignore `static_host_user`s entirely.
-
-### Deletion
-
-Delete events from the cache will signal the node to delete a created user. If
-the user is still in use (i.e. someone is logged in as it), it will be added
-to the `teleport-delete` group. Teleport will periodically delete `teleport-delete`
-users as it does with expired `teleport-system` users. Teleport users will not
-be able to log in as a host user if it is marked for deletion.
-
-To facilitate deletion, `static_host_user`s will be keyed under their login in
-the backend, i.e. `hostUsers/<login>/<resource-name>`.
 
 ### Product usage
 
