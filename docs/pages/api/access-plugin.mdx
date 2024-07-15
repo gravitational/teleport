@@ -8,7 +8,7 @@ assign Teleport users to less privileged roles by default and allow them to
 temporarily escalate their privileges. Reviewers can grant or deny Access
 Requests within your organization's existing communication workflows (e.g.,
 Slack, email, and PagerDuty) using [Access Request
-plugins](../access-controls/access-request-plugins/index.mdx).
+plugins](../access-controls/access-request-plugins.mdx).
 
 You can use Teleport's API client library to build an Access Request plugin that
 integrates with your organization's unique workflows. 
@@ -52,12 +52,12 @@ plugin.
 
 The demo is a minimal working example, and you can see fully fledged plugins in
 the
-[`gravitational/teleport-plugins`](https://github.com/gravitational/teleport-plugins)
+[`gravitational/teleport`](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/integrations/access).
 repository on GitHub.
 
 </Admonition>
 
-## Step 1/7. Set up your Go project
+## Step 1/5. Set up your Go project
 
 Download the source code for our minimal Access Request plugin:
 
@@ -70,7 +70,7 @@ For the rest of this guide, we will show you how to set up this plugin and
 explore the way the plugin uses Teleport's API to integrate Access Requests with
 a particular workflow.
 
-## Step 2/7. Set up the Google Sheets API
+## Step 2/5. Set up the Google Sheets API
 
 Access Request plugins typically communicate with two APIs. They receive Access
 Request events from the Teleport Auth Service's gRPC API, and use the data to
@@ -145,7 +145,7 @@ Next, ensure that the following is true within your spreadsheet:
 After we write our Access Request plugin, it will populate the spreadsheet with
 data automatically.
 
-## Step 3/7. Set up Teleport RBAC
+## Step 3/5. Set up Teleport RBAC
 
 In this section, we will set up Teleport roles that enable creating and
 reviewing Access Requests, plus another Teleport role that can generate
@@ -188,7 +188,7 @@ to work, we will set up Role Access Requests in your cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 4/7. Write the Access Request plugin
+## Step 4/5. Write the Access Request plugin
 
 In this step, we will walk you through the structure of the Access Request
 plugin in `examples/access-plugin-minimal/main.go`. You can use the example here
@@ -407,7 +407,7 @@ Make sure that:
 
 </Admonition>
 
-## Step 7/7. Test your plugin
+## Step 5/5. Test your plugin
 
 Run the plugin to forward Access Requests from your Teleport cluster to Google
 Sheets. Execute the following command from within
@@ -456,7 +456,7 @@ package to make it easier for your Access Request plugin to do this.
 ### Consult the examples
 
 Explore the
-[`gravitational/teleport-plugins`](https://github.com/gravitational/teleport-plugins)
+[`gravitational/teleport`](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/integrations/access).
 repository on GitHub for examples of plugins developed at Teleport. You can see
 how these plugins use the packages we discuss in this guide, as well as how they
 add more complete functionality like configuration validation and state
@@ -467,6 +467,6 @@ management.
 In this example, we used the `tctl auth sign` command to fetch credentials for
 the plugin. For production usage, we recommend provisioning short-lived
 credentials via Machine ID, which reduces the risk of these credentials becoming
-stolen. View our [Machine ID documentation](../machine-id/introduction.mdx) to
+stolen. View our [Machine ID documentation](../enroll-resources/machine-id/introduction.mdx) to
 learn more.
 

@@ -17,14 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text } from 'design';
+import { Box, Text, Toggle, Mark } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
   RdsEngineIdentifier,
@@ -36,8 +36,22 @@ import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { Database } from 'teleport/services/databases';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
+import cfg from 'teleport/config';
+import {
+  DISCOVERY_GROUP_CLOUD,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+  DiscoveryConfig,
+  createDiscoveryConfig,
+} from 'teleport/services/discovery';
+import useTeleport from 'teleport/useTeleport';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { ActionButtons, Header } from '../../Shared';
+import {
+  AutoEnrollDialog,
+  ActionButtons,
+  Header,
+  SelfHostedAutoDiscoverDirections,
+} from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
@@ -76,8 +90,14 @@ export function EnrollRdsDatabase() {
     fetchDatabaseServers,
   } = useCreateDatabase();
 
-  const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
+  const ctx = useTeleport();
+  const clusterId = ctx.storeUser.getClusterId();
+
+  const { agentMeta, resourceSpec, updateAgentMeta, emitErrorEvent } =
+    useDiscover();
   const { attempt: fetchDbAttempt, setAttempt: setFetchDbAttempt } =
+    useAttempt('');
+  const { attempt: autoDiscoverAttempt, setAttempt: setAutoDiscoverAttempt } =
     useAttempt('');
 
   const [tableData, setTableData] = useState<TableData>({
@@ -86,6 +106,12 @@ export function EnrollRdsDatabase() {
     fetchStatus: 'disabled',
   });
   const [selectedDb, setSelectedDb] = useState<CheckedAwsRdsDatabase>();
+  const [wantAutoDiscover, setWantAutoDiscover] = useState(true);
+  const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
+  const [requiredVpcs, setRequiredVpcs] = useState<Record<string, string[]>>();
+  const [discoveryGroupName, setDiscoveryGroupName] = useState(() =>
+    cfg.isCloud ? '' : DEFAULT_DISCOVERY_GROUP_NON_CLOUD
+  );
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -174,6 +200,87 @@ export function EnrollRdsDatabase() {
     }
   }
 
+  function handleAndEmitRequestError(
+    err: Error,
+    cfg: { errorPrefix?: string; setAttempt?(attempt: Attempt): void }
+  ) {
+    const message = getErrMessage(err);
+    if (cfg.setAttempt) {
+      cfg.setAttempt({
+        status: 'failed',
+        statusText: `${cfg.errorPrefix}${message}`,
+      });
+    }
+    emitErrorEvent(`${cfg.errorPrefix}${message}`);
+  }
+
+  async function enableAutoDiscovery() {
+    setAutoDiscoverAttempt({ status: 'processing' });
+
+    let requiredVpcsAndSubnets = requiredVpcs;
+    if (!requiredVpcsAndSubnets) {
+      try {
+        const { spec, name: integrationName } = agentMeta.awsIntegration;
+        const { awsAccountId } = splitAwsIamArn(spec.roleArn);
+        requiredVpcsAndSubnets =
+          await integrationService.fetchAwsRdsRequiredVpcs(integrationName, {
+            region: tableData.currRegion,
+            accountId: awsAccountId,
+          });
+
+        setRequiredVpcs(requiredVpcsAndSubnets);
+      } catch (err) {
+        handleAndEmitRequestError(err, {
+          errorPrefix: 'failed to collect vpc ids and its subnets: ',
+          setAttempt: setAutoDiscoverAttempt,
+        });
+        return;
+      }
+    }
+
+    // Only create a discovery config after successfully fetching
+    // required vpcs. This is to avoid creating a unused auto discovery
+    // config if user quits in the middle of things not working.
+    let discoveryConfig = autoDiscoveryCfg;
+    if (!discoveryConfig) {
+      try {
+        discoveryConfig = await createDiscoveryConfig(clusterId, {
+          name: crypto.randomUUID(),
+          discoveryGroup: cfg.isCloud
+            ? DISCOVERY_GROUP_CLOUD
+            : discoveryGroupName,
+          aws: [
+            {
+              types: ['rds'],
+              regions: [tableData.currRegion],
+              tags: { '*': ['*'] },
+              integration: agentMeta.awsIntegration.name,
+            },
+          ],
+        });
+        setAutoDiscoveryCfg(discoveryConfig);
+      } catch (err) {
+        handleAndEmitRequestError(err, {
+          errorPrefix: 'failed to create discovery config: ',
+          setAttempt: setAutoDiscoverAttempt,
+        });
+        return;
+      }
+    }
+
+    setAutoDiscoverAttempt({ status: 'success' });
+    updateAgentMeta({
+      ...(agentMeta as DbMeta),
+      autoDiscovery: {
+        config: discoveryConfig,
+        requiredVpcsAndSubnets,
+      },
+      serviceDeployedMethod:
+        Object.keys(requiredVpcsAndSubnets).length > 0 ? undefined : 'skipped',
+      awsRegion: tableData.currRegion,
+    });
+  }
+
   function clear() {
     clearRegisterAttempt();
 
@@ -189,23 +296,66 @@ export function EnrollRdsDatabase() {
   }
 
   function handleOnProceed() {
-    registerDatabase(
-      {
-        name: selectedDb.name,
-        protocol: selectedDb.engine,
-        uri: selectedDb.uri,
-        labels: selectedDb.labels,
-        awsRds: selectedDb,
-        awsRegion: tableData.currRegion,
-      },
-      // Corner case where if registering db fails a user can:
-      //   1) change region, which will list new databases or
-      //   2) select a different database before re-trying.
-      selectedDb.name !== createdDb?.name
+    if (wantAutoDiscover) {
+      enableAutoDiscovery();
+    } else {
+      const isNewDb = selectedDb.name !== createdDb?.name;
+      registerDatabase(
+        {
+          name: selectedDb.name,
+          protocol: selectedDb.engine,
+          uri: selectedDb.uri,
+          labels: selectedDb.labels,
+          awsRds: selectedDb,
+          awsRegion: tableData.currRegion,
+        },
+        // Corner case where if registering db fails a user can:
+        //   1) change region, which will list new databases or
+        //   2) select a different database before re-trying.
+        isNewDb
+      );
+    }
+  }
+
+  let DialogComponent;
+  if (registerAttempt.status !== '') {
+    DialogComponent = (
+      <CreateDatabaseDialog
+        pollTimeout={pollTimeout}
+        attempt={registerAttempt}
+        next={nextStep}
+        close={clearRegisterAttempt}
+        retry={handleOnProceed}
+        dbName={selectedDb.name}
+      />
+    );
+  } else if (autoDiscoverAttempt.status !== '') {
+    DialogComponent = (
+      <AutoEnrollDialog
+        attempt={autoDiscoverAttempt}
+        next={nextStep}
+        close={() => setAutoDiscoverAttempt({ status: '' })}
+        retry={handleOnProceed}
+        region={tableData.currRegion}
+        notifyAboutDelay={
+          requiredVpcs && Object.keys(requiredVpcs).length === 0
+        }
+      />
     );
   }
 
   const hasIamPermError = isIamPermError(fetchDbAttempt);
+  const showContent = !hasIamPermError && tableData.currRegion;
+  const showAutoEnrollToggle = fetchDbAttempt.status === 'success';
+
+  // (Temp)
+  // Self hosted auto enroll is different from cloud.
+  // For cloud, we already run the discovery service for customer.
+  // For on-prem, user has to run their own discovery service.
+  // We hide the RDS table for on-prem if they are wanting auto discover
+  // because it takes up so much space to give them instructions.
+  // Future work will simply provide user a script so we can show the table then.
+  const showTable = cfg.isCloud || !wantAutoDiscover;
 
   return (
     <Box maxWidth="800px">
@@ -222,14 +372,28 @@ export function EnrollRdsDatabase() {
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
       />
-      {!hasIamPermError && tableData.currRegion && (
-        <DatabaseList
-          items={tableData.items}
-          fetchStatus={tableData.fetchStatus}
-          selectedDatabase={selectedDb}
-          onSelectDatabase={setSelectedDb}
-          fetchNextPage={fetchNextPage}
-        />
+      {showContent && (
+        <>
+          {showAutoEnrollToggle && (
+            <ToggleSection
+              wantAutoDiscover={wantAutoDiscover}
+              toggleWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
+              discoveryGroupName={discoveryGroupName}
+              setDiscoveryGroupName={setDiscoveryGroupName}
+              clusterPublicUrl={ctx.storeUser.state.cluster.publicURL}
+            />
+          )}
+          {showTable && (
+            <DatabaseList
+              wantAutoDiscover={wantAutoDiscover}
+              items={tableData.items}
+              fetchStatus={tableData.fetchStatus}
+              selectedDatabase={selectedDb}
+              onSelectDatabase={setSelectedDb}
+              fetchNextPage={fetchNextPage}
+            />
+          )}
+        </>
       )}
       {hasIamPermError && (
         <Box mb={5}>
@@ -240,24 +404,23 @@ export function EnrollRdsDatabase() {
           />
         </Box>
       )}
+      {showContent && showAutoEnrollToggle && wantAutoDiscover && (
+        <Text mt={4} mb={-3}>
+          <b>Note:</b> Auto-enroll will enroll <Mark>all</Mark> database engines
+          in this region (e.g. PostgreSQL, MySQL, Aurora).
+        </Text>
+      )}
       <ActionButtons
         onProceed={handleOnProceed}
         disableProceed={
           fetchDbAttempt.status === 'processing' ||
-          !selectedDb ||
-          hasIamPermError
+          (!wantAutoDiscover && !selectedDb) ||
+          hasIamPermError ||
+          fetchDbAttempt.status === 'failed' ||
+          (!cfg.isCloud && !discoveryGroupName)
         }
       />
-      {registerAttempt.status !== '' && (
-        <CreateDatabaseDialog
-          pollTimeout={pollTimeout}
-          attempt={registerAttempt}
-          next={nextStep}
-          close={clearRegisterAttempt}
-          retry={handleOnProceed}
-          dbName={selectedDb.name}
-        />
-      )}
+      {DialogComponent}
     </Box>
   );
 }
@@ -273,4 +436,40 @@ function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
     case DatabaseEngine.AuroraPostgres:
       return 'aurora-postgres';
   }
+}
+
+function ToggleSection({
+  wantAutoDiscover,
+  toggleWantAutoDiscover,
+  discoveryGroupName,
+  setDiscoveryGroupName,
+  clusterPublicUrl,
+}: {
+  wantAutoDiscover: boolean;
+  toggleWantAutoDiscover(): void;
+  discoveryGroupName: string;
+  setDiscoveryGroupName(n: string): void;
+  clusterPublicUrl: string;
+}) {
+  return (
+    <Box mb={2}>
+      <Toggle isToggled={wantAutoDiscover} onToggle={toggleWantAutoDiscover}>
+        <Box ml={2} mr={1}>
+          Auto-enroll all databases for selected region
+        </Box>
+        <ToolTipInfo>
+          Auto-enroll will automatically identify all RDS databases from the
+          selected region and register them as database resources in your
+          infrastructure.
+        </ToolTipInfo>
+      </Toggle>
+      {!cfg.isCloud && wantAutoDiscover && (
+        <SelfHostedAutoDiscoverDirections
+          clusterPublicUrl={clusterPublicUrl}
+          discoveryGroupName={discoveryGroupName}
+          setDiscoveryGroupName={setDiscoveryGroupName}
+        />
+      )}
+    </Box>
+  );
 }

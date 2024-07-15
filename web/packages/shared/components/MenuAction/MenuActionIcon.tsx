@@ -70,7 +70,7 @@ export default class MenuActionIcon extends React.Component<
           open={open}
           onClose={this.onClose}
           anchorOrigin={{
-            vertical: 'center',
+            vertical: 'bottom',
             horizontal: 'center',
           }}
           transformOrigin={{

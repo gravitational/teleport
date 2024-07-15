@@ -3,11 +3,14 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     -- Only drop if the user doesn't have other active sessions.
-    IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username) THEN
-        RAISE NOTICE 'User has active connections';
+    -- Update to pg_stat_activity is delayed for a few hundred ms. Use
+    -- stv_sessions instead:
+    -- https://docs.aws.amazon.com/redshift/latest/dg/r_STV_SESSIONS.html
+    IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
+        RAISE EXCEPTION 'TP000: User has active connections';
     ELSE
         BEGIN
-            EXECUTE 'DROP USER ' || QUOTE_IDENT(username);
+            EXECUTE 'DROP USER IF EXISTS ' || QUOTE_IDENT(username);
         EXCEPTION WHEN OTHERS THEN
             -- Redshift only support OTHERS as exception condition, so we handle
             -- any error that might happen.

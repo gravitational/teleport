@@ -54,6 +54,10 @@ func (mc *mockTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+func (mc *mockTLSCredentials) Expiry() (time.Time, bool) {
+	return time.Time{}, true
+}
+
 func TestCheckExpiredCredentials(t *testing.T) {
 	// Setup the CA and sign the client certs
 	ca := &x509.Certificate{
@@ -146,8 +150,8 @@ func TestCheckExpiredCredentials(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				aggregate, ok := trace.Unwrap(err).(trace.Aggregate)
-				require.True(t, ok)
+				var aggregate trace.Aggregate
+				require.ErrorAs(t, trace.Unwrap(err), &aggregate)
 				require.Len(t, aggregate.Errors(), tc.expectNumErrors, "check number of errors reported")
 			}
 		})

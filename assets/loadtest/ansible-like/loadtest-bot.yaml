@@ -1,0 +1,27 @@
+kind: bot
+version: v1
+metadata:
+  name: rob-the-bot
+spec:
+  roles:
+    - access
+  traits:
+    - name: logins
+      values:
+        - root
+---
+kind: token
+version: v2
+metadata:
+  name: rob-the-iam-token
+spec:
+  roles:
+    - Bot
+  bot_name: rob-the-bot
+
+  join_method: iam
+
+  allow:
+    - aws_account: "123456789012"
+      # if unset, all principals in the account are allowed
+      aws_arn: "arn:aws:sts::123456789012:assumed-role/instance-role-name-here/i-*"

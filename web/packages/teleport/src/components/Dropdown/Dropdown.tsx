@@ -31,23 +31,34 @@ export const Dropdown = styled.div<OpenProps>`
   display: flex;
   flex-direction: column;
   padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
-  background: ${({ theme }) => theme.colors.levels.elevated};
+  background: ${({ theme }) => theme.colors.levels.surface};
   box-shadow: ${({ theme }) => theme.boxShadow[1]};
   border-radius: ${p => p.theme.radii[2]}px;
   width: 265px;
-  right: 0;
-  top: 43px;
+  right: 20px;
   z-index: 999;
   opacity: ${p => (p.open ? 1 : 0)};
   visibility: ${p => (p.open ? 'visible' : 'hidden')};
   transform-origin: top right;
-  transition: opacity 0.2s ease, visibility 0.2s ease,
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s ease,
     transform 0.3s cubic-bezier(0.45, 0.6, 0.5, 1.25);
-  transform: ${p =>
-    p.open ? 'scale(1) translate(0, 12px)' : 'scale(.8) translate(0, 4px)'};
+  transform: ${p => (p.open ? 'scale(1)' : 'scale(.8)')};
+
+  top: ${p => p.theme.topBarHeight[0]}px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+    top: ${p => p.theme.topBarHeight[1]}px;
+  }
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    top: ${p => p.theme.topBarHeight[2]}px;
+  }
 `;
 
-export const DropdownItem = styled.div`
+export const DropdownItem = styled.div<{
+  open?: boolean;
+  $transitionDelay: number;
+}>`
   line-height: 1;
   font-size: ${p => p.theme.fontSizes[2]}px;
   color: ${props => props.theme.colors.text.main};
@@ -55,7 +66,9 @@ export const DropdownItem = styled.div`
   border-radius: ${p => p.theme.radii[2]}px;
   margin-bottom: ${p => p.theme.space[1]}px;
   opacity: ${p => (p.open ? 1 : 0)};
-  transition: transform 0.3s ease, opacity 0.7s ease;
+  transition:
+    transform 0.3s ease,
+    opacity 0.7s ease;
   transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
   transition-delay: ${p => p.$transitionDelay}ms;
 

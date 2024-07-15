@@ -39,7 +39,7 @@ describe('invite collaborators integration', () => {
         isFailed: false,
       },
       users: [],
-      roles: [],
+      fetchRoles: async () => [],
       operation: { type: 'invite-collaborators' },
 
       onStartCreate: () => undefined,
@@ -118,7 +118,7 @@ describe('email password reset integration', () => {
         isFailed: false,
       },
       users: [],
-      roles: [],
+      fetchRoles: () => Promise.resolve([]),
       operation: {
         type: 'reset',
         user: { name: 'alice@example.com', roles: ['foo'] },

@@ -87,5 +87,34 @@ teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
 {{/* In most places we want to use the FQDN instead of relying on Kubernetes ndots behaviour
      for performance reasons */}}
 {{- define "teleport-cluster.auth.serviceFQDN" -}}
-{{ include "teleport-cluster.auth.serviceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+{{ include "teleport-cluster.auth.serviceName" . }}.{{ .Release.Namespace }}.svc.{{ include "teleport-cluster.clusterDomain" . }}
+{{- end -}}
+
+{{/* Returns the cluster domain if set, otherwise fallback to "cluster.local" */}}
+{{- define "teleport-cluster.clusterDomain" -}}
+{{ default "cluster.local" .Values.global.clusterDomain }}
+{{- end -}}
+
+{{/* Matches the operator template "teleport-cluster.operator.fullname" but can be
+     evaluated in a "teleport-cluster" context. */}}
+{{- define "teleport-cluster.auth.operatorFullName" -}}
+{{- if .Values.operator.fullnameOverride }}
+    {{- .Values.operator.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+    {{- if .Values.operator.nameOverride }}
+        {{- printf "%s-%s" .Release.Name .Values.operator.nameOverride | trunc 63 | trimSuffix "-" }}
+    {{- else }}
+        {{- if contains "teleport-operator" .Release.Name }}
+            {{- .Release.Name | trunc 63 | trimSuffix "-" }}
+        {{- else }}
+            {{- printf "%s-%s" .Release.Name "teleport-operator" | trunc 63 | trimSuffix "-" }}
+        {{- end }}
+    {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/* Matches the operator template "teleport-cluster.operator.serviceAccountName"
+     but can be evaluated in a "teleport-cluster" context. */}}
+{{- define "teleport-cluster.auth.operatorServiceAccountName" -}}
+{{- coalesce .Values.operator.serviceAccount.name (include "teleport-cluster.auth.operatorFullName" .) -}}
 {{- end -}}

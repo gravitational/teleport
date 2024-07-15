@@ -55,18 +55,22 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
-func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
-	schedules := []string{}
-	for _, recipient := range recipients {
-		schedules = append(schedules, recipient.Name)
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedules []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
+	notificationSchedules := make([]string, 0, len(recipientSchedules))
+	for _, notifySchedule := range recipientSchedules {
+		notificationSchedules = append(notificationSchedules, notifySchedule.Name)
 	}
-	if len(recipients) == 0 {
-		schedules = append(schedules, b.client.DefaultSchedules...)
+	autoApprovalSchedules := []string{}
+	if annotationAutoApprovalSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]; ok {
+		autoApprovalSchedules = annotationAutoApprovalSchedules
+	}
+	if len(autoApprovalSchedules) == 0 {
+		autoApprovalSchedules = append(autoApprovalSchedules, b.client.DefaultSchedules...)
 	}
 	opsgenieReqData := RequestData{
 		User:          reqData.User,
@@ -79,7 +83,8 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []co
 			Reason: reqData.ResolutionReason,
 		},
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: schedules,
+			types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel: autoApprovalSchedules,
+			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel:  notificationSchedules,
 		},
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)
@@ -98,6 +103,11 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []co
 // PostReviewReply posts an alert note.
 func (b *Bot) PostReviewReply(ctx context.Context, _ string, alertID string, review types.AccessReview) error {
 	return trace.Wrap(b.client.PostReviewNote(ctx, alertID, review))
+}
+
+// NotifyUser will send users a direct message with the access request status
+func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	return trace.NotImplemented("notify user not implemented for plugin")
 }
 
 // UpdateMessages add notes to the alert containing updates to status.

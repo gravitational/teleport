@@ -41,6 +41,15 @@ type GCPSQLAdminClientMock struct {
 	DatabaseInstance *sqladmin.DatabaseInstance
 	// EphemeralCert is returned from GenerateEphemeralCert.
 	EphemeralCert *tls.Certificate
+	// DatabaseUser is returned from GetUser.
+	DatabaseUser *sqladmin.User
+}
+
+func (g *GCPSQLAdminClientMock) GetUser(ctx context.Context, db types.Database, dbUser string) (*sqladmin.User, error) {
+	if g.DatabaseUser == nil {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+	return g.DatabaseUser, nil
 }
 
 func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error {

@@ -3,7 +3,6 @@ proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
     DECLARE is_active INT DEFAULT 0;
     DECLARE is_same_user INT DEFAULT 0;
-    DECLARE are_roles_same INT DEFAULT FALSE;
     DECLARE role_index INT DEFAULT 0;
     DECLARE cur_role VARCHAR(128) DEFAULT '';
     DECLARE cur_roles TEXT DEFAULT '';
@@ -22,15 +21,23 @@ proc_label:BEGIN
 
         SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
         -- If the user has active connections, make sure the provided roles
-        -- match what the user currently has.
+        -- match what the user currently has. JSON_EQUALS was added in MariaDB
+        -- 10.7.0. Use loop and JSON_CONTAINS instead of JSON_EQUALS to support
+        -- older versions.
         IF is_active = 1 THEN
             SELECT JSON_ARRAYAGG(Role) INTO cur_roles FROM mysql.roles_mapping WHERE USER = @all_in_one_role AND Admin_option = 'N';
-            SELECT JSON_EQUALS(@roles, cur_roles) INTO are_roles_same;
-            IF are_roles_same THEN
-                LEAVE proc_label;
-            ELSE
+            IF JSON_LENGTH(@roles) != JSON_LENGTH(cur_roles) THEN
                 SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';
             END IF;
+            SET role_index = 0;
+            WHILE role_index < JSON_LENGTH(@roles) DO
+                SELECT JSON_EXTRACT(@roles, CONCAT('$[',role_index,']')) INTO cur_role;
+                SELECT role_index + 1 INTO role_index;
+                IF !JSON_CONTAINS(cur_roles, cur_role) THEN
+                    SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';
+                END IF;
+            END WHILE;
+            LEAVE proc_label;
         END IF;
 
         -- Ensure the user is unlocked. User is locked at deactivation.
@@ -63,6 +70,7 @@ proc_label:BEGIN
 
     -- Strip current roles and assign new roles to all-in-one role.
     CALL teleport_revoke_roles(username);
+    SET role_index = 0;
     WHILE role_index < JSON_LENGTH(@roles) DO
         SELECT JSON_EXTRACT(@roles, CONCAT('$[',role_index,']')) INTO cur_role;
         SELECT role_index + 1 INTO role_index;

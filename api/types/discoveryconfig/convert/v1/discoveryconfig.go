@@ -17,7 +17,10 @@ limitations under the License.
 package v1
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -66,10 +69,31 @@ func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.Discove
 			Azure:          azureMatchers,
 			GCP:            gcpMatchers,
 			Kube:           kubeMatchers,
+			AccessGraph:    msg.Spec.AccessGraph,
 		},
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	discoveryConfig.Status = StatusFromProto(msg.Status)
+	return discoveryConfig, nil
+}
 
-	return discoveryConfig, trace.Wrap(err)
+// StatusFromProto converts a v1 discovery config status into an internal discovery config status object.
+func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconfig.Status {
+	if msg == nil {
+		return discoveryconfig.Status{}
+	}
+	var lastSyncTime time.Time
+	if msg.LastSyncTime != nil {
+		lastSyncTime = msg.LastSyncTime.AsTime()
+	}
+	return discoveryconfig.Status{
+		State:               discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
+		ErrorMessage:        msg.ErrorMessage,
+		DiscoveredResources: msg.DiscoveredResources,
+		LastSyncTime:        lastSyncTime,
+	}
 }
 
 // ToProto converts an internal discovery config into a v1 discovery config object.
@@ -103,6 +127,23 @@ func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv
 			Azure:          azureMatchers,
 			Gcp:            gcpMatchers,
 			Kube:           kubeMatchers,
+			AccessGraph:    discoveryConfig.Spec.AccessGraph,
 		},
+		Status: StatusToProto(discoveryConfig.Status),
+	}
+}
+
+// StatusToProto converts a discovery config status into the protobuf discovery config status object.
+func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryConfigStatus {
+	var lastSyncTime *timestamppb.Timestamp
+	if !status.LastSyncTime.IsZero() {
+		lastSyncTime = timestamppb.New(status.LastSyncTime)
+	}
+
+	return &discoveryconfigv1.DiscoveryConfigStatus{
+		State:               discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[status.State]),
+		ErrorMessage:        status.ErrorMessage,
+		DiscoveredResources: status.DiscoveredResources,
+		LastSyncTime:        lastSyncTime,
 	}
 }

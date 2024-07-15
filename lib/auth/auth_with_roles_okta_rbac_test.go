@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -359,7 +360,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = authWithOktaRole.CreateResetPasswordToken(ctx,
-			CreateUserTokenRequest{Name: existing.GetName()})
+			authclient.CreateUserTokenRequest{Name: existing.GetName()})
 		requireAccessDenied(t, err)
 	})
 
@@ -371,7 +372,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = authWithOktaRole.CreateResetPasswordToken(ctx,
-			CreateUserTokenRequest{Name: existing.GetName()})
+			authclient.CreateUserTokenRequest{Name: existing.GetName()})
 		requireAccessDenied(t, err)
 	})
 
@@ -379,7 +380,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 		// Given a request to reset the password for a non-existent
 		// user, when I try to reset the token
 		_, err = authWithOktaRole.CreateResetPasswordToken(ctx,
-			CreateUserTokenRequest{Name: t.Name()})
+			authclient.CreateUserTokenRequest{Name: t.Name()})
 
 		// Expect the operation to fail with "access denied" rather
 		// than "not found", so as not to leak the existence of the

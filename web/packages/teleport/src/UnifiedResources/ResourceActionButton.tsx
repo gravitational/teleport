@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ButtonBorder } from 'design';
+import React, { useState, Dispatch, SetStateAction } from 'react';
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 
-import AwsLaunchButton from 'teleport/Apps/AppList/AwsLaunchButton';
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
@@ -35,16 +35,23 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
 
+import { ResourceKind } from 'teleport/Discover/Shared';
+
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+
 type Props = {
   resource: UnifiedResource;
+  setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
 };
 
-export const ResourceActionButton = ({ resource }: Props) => {
+export const ResourceActionButton = ({ resource, setResourceSpec }: Props) => {
   switch (resource.kind) {
     case 'node':
       return <NodeConnect node={resource} />;
     case 'app':
-      return <AppLaunch app={resource} />;
+      return <AppLaunch app={resource} setResourceSpec={setResourceSpec} />;
     case 'db':
       return <DatabaseConnect database={resource} />;
     case 'kube_cluster':
@@ -79,7 +86,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
       textTransform={'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -89,7 +96,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -119,7 +126,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
       textTransform="none"
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -129,15 +136,20 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
   );
 };
 
-const AppLaunch = ({ app }: { app: App }) => {
+type AppLaunchProps = {
+  app: App;
+  setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
+};
+const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
   const {
+    name,
     launchUrl,
     awsConsole,
     awsRoles,
@@ -147,14 +159,21 @@ const AppLaunch = ({ app }: { app: App }) => {
     isCloudOrTcpEndpoint,
     samlApp,
     samlAppSsoUrl,
+    samlAppPreset,
   } = app;
   if (awsConsole) {
     return (
       <AwsLaunchButton
+        width="123px"
         awsRoles={awsRoles}
-        fqdn={fqdn}
-        clusterId={clusterId}
-        publicAddr={publicAddr}
+        getLaunchUrl={arn =>
+          cfg.getAppLauncherRoute({
+            fqdn,
+            clusterId,
+            publicAddr,
+            arn,
+          })
+        }
       />
     );
   }
@@ -162,7 +181,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     return (
       <ButtonBorder
         disabled
-        width="90px"
+        width="123px"
         size="small"
         title="Cloud or TCP applications cannot be launched by the browser"
         textTransform="none"
@@ -171,25 +190,53 @@ const AppLaunch = ({ app }: { app: App }) => {
       </ButtonBorder>
     );
   }
+  function handleSamlAppEditButtonClick() {
+    setResourceSpec({
+      name: name,
+      event: DiscoverEventResource.SamlApplication,
+      kind: ResourceKind.SamlApplication,
+      samlMeta: { preset: samlAppPreset },
+      icon: 'Application',
+      keywords: 'saml',
+    });
+  }
   if (samlApp) {
-    return (
-      <ButtonBorder
-        as="a"
-        width="90px"
-        size="small"
-        target="_blank"
-        href={samlAppSsoUrl}
-        rel="noreferrer"
-        textTransform="none"
-      >
-        Login
-      </ButtonBorder>
-    );
+    if (setResourceSpec) {
+      return (
+        <ButtonWithMenu
+          text="Log In"
+          width="123px"
+          size="small"
+          target="_blank"
+          href={samlAppSsoUrl}
+          rel="noreferrer"
+          textTransform="none"
+          forwardedAs="a"
+          title="Log in to SAML application"
+        >
+          <MenuItem onClick={handleSamlAppEditButtonClick}>Edit</MenuItem>
+        </ButtonWithMenu>
+      );
+    } else {
+      return (
+        <ButtonBorder
+          as="a"
+          width="123px"
+          size="small"
+          target="_blank"
+          href={samlAppSsoUrl}
+          rel="noreferrer"
+          textTransform="none"
+        >
+          Login
+        </ButtonBorder>
+      );
+    }
   }
   return (
     <ButtonBorder
       as="a"
-      width="90px"
+      width="123px"
       size="small"
       target="_blank"
       href={launchUrl}
@@ -213,7 +260,7 @@ function DatabaseConnect({ database }: { database: Database }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="90px"
+        width="123px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -246,7 +293,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   return (
     <>
       <ButtonBorder
-        width="90px"
+        width="123px"
         textTransform="none"
         size="small"
         onClick={() => setOpen(true)}

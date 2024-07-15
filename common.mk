@@ -28,7 +28,6 @@ LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-12)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
 INCLUDES :=
 ER_BPF_BUILDDIR := lib/bpf/bytecode
-RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -41,7 +40,29 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-STATIC_LIBS += -L/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf -lelf -lzstd -lz
+# Include libbpf dependency. We don't use pkg-config here because we use specific version of libbpf
+# and we don't want to include the system libbpf.
+STATIC_LIBS += -L${SYSROOT}/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf
+
+# Check if pkgconf is installed
+PKGCONF := $(shell which pkgconf 2>/dev/null)
+ifeq ($(PKGCONF),)
+    PKGCONF := $(shell which pkg-config 2>/dev/null)
+endif
+
+# Check if libelf is available
+HAVE_LIBELF := $(shell $(PKGCONF) --exists libelf && echo 1 || echo 0)
+
+# If pkgconf and libelf are available, use them to get the static libraries
+# and all required dependencies for the Teleport build.
+# If not, use the default libraries (libelf, libz) and hope for the best.
+# This fallback used to work until Ubuntu 24.04 which compiles with libzstd by default.
+ifeq ($(HAVE_LIBELF),1)
+    STATIC_LIBS += $(shell $(PKGCONF) --static --libs libelf)
+else
+    STATIC_LIBS += -lelf -lz
+endif
+
 # Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
 CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I${SYSROOT}/usr/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"

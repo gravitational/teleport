@@ -30,10 +30,8 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -72,34 +70,6 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 			EntityID:         "sp2",
 		})
 	require.NoError(t, err)
-
-	// Try to create a service provider with an invalid acs.
-	invalidSP, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp3",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newInvalidACSEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		})
-	require.NoError(t, err)
-	err = service.CreateSAMLIdPServiceProvider(ctx, invalidSP)
-	assert.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
-
-	// Try to create a service provider with a http acs.
-	invalidSP, err = types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp3",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newHTTPACSEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		})
-	require.NoError(t, err)
-	err = service.CreateSAMLIdPServiceProvider(ctx, invalidSP)
-	assert.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
 
 	// Initially we expect no service providers.
 	out, nextToken, err := service.ListSAMLIdPServiceProviders(ctx, 200, "")
@@ -144,7 +114,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Fetch a paginated list of service providers
@@ -163,14 +133,14 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Fetch a specific service provider.
 	sp, err := service.GetSAMLIdPServiceProvider(ctx, sp2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(sp2, sp,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Try to fetch a service provider that doesn't exist.
@@ -189,7 +159,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	sp, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(sp1, sp,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Update a service provider to an existing entity ID.
@@ -200,20 +170,6 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	err = service.UpdateSAMLIdPServiceProvider(ctx, sp)
 	require.Error(t, err)
 
-	// Update a service provider with an invalid acs.
-	invalidSP, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
-	require.NoError(t, err)
-	invalidSP.SetEntityDescriptor(newInvalidACSEntityDescriptor(invalidSP.GetEntityID()))
-	err = service.UpdateSAMLIdPServiceProvider(ctx, invalidSP)
-	assert.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
-
-	// Update a service provider with a http acs.
-	invalidSP.SetEntityDescriptor(newHTTPACSEntityDescriptor(invalidSP.GetEntityID()))
-	err = service.UpdateSAMLIdPServiceProvider(ctx, invalidSP)
-	assert.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "UpdateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
-
 	// Delete a service provider.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
@@ -221,7 +177,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Try to delete a service provider that doesn't exist.
@@ -235,49 +191,6 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
-}
-
-func TestValidateSAMLIdPServiceProvider(t *testing.T) {
-	descriptor := newEntityDescriptor("IAMShowcase")
-
-	cases := []struct {
-		name         string
-		spec         types.SAMLIdPServiceProviderSpecV1
-		errAssertion require.ErrorAssertionFunc
-	}{
-		{
-			name: "valid provider",
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: descriptor,
-				EntityID:         "IAMShowcase",
-			},
-			errAssertion: require.NoError,
-		},
-		{
-			name: "invalid entity id",
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: descriptor,
-				EntityID:         uuid.NewString(),
-			},
-			errAssertion: require.Error,
-		},
-		{
-			name: "invalid acs",
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newInvalidACSEntityDescriptor("IAMShowcase"),
-				EntityID:         "IAMShowcase",
-			},
-			errAssertion: require.Error,
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{Name: "sp"}, test.spec)
-			require.NoError(t, err)
-			test.errAssertion(t, validateSAMLIdPServiceProvider(sp))
-		})
-	}
 }
 
 func newEntityDescriptor(entityID string) string {
@@ -295,38 +208,8 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 </md:EntityDescriptor>
 `
 
-func newInvalidACSEntityDescriptor(entityID string) string {
-	return fmt.Sprintf(invalidEntityDescriptor, entityID)
-}
-
-// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml with invalid ACS locations.
-const invalidEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
-   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="javascript://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
-   </md:SPSSODescriptor>
-</md:EntityDescriptor>
-`
-
-func newHTTPACSEntityDescriptor(entityID string) string {
-	return fmt.Sprintf(httpEntityDescriptor, entityID)
-}
-
-// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml with a http ACS locations.
-const httpEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
-   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="http://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
-   </md:SPSSODescriptor>
-</md:EntityDescriptor>
-`
-
 func newSAMLSPMetadata(entityID, acsURL string) string {
-	return fmt.Sprintf(samlSPMetadata, entityID, acsURL, acsURL)
+	return fmt.Sprintf(samlSPMetadata, entityID, acsURL)
 }
 
 // samlSPMetadata mimics metadata generated by saml.ServiceProvider.Metadata()
@@ -334,7 +217,6 @@ const samlSPMetadata = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:met
 <SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-09T23:43:58.16Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
   <NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</NameIDFormat>
   <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="%s" index="1"></AssertionConsumerService>
-  <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="%s" index="2"></AssertionConsumerService>
 </SPSSODescriptor>
 </EntityDescriptor>
 `
@@ -441,6 +323,8 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 		switch r.RequestURI {
 		case "/status-not-ok":
 			w.WriteHeader(http.StatusNotFound)
+		case "/status-302-found":
+			w.WriteHeader(http.StatusFound)
 		case "/invalid-metadata":
 			fmt.Fprintln(w, "test")
 		default:
@@ -460,6 +344,11 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 		{
 			name:     "status not ok",
 			entityID: fmt.Sprintf("%s/status-not-ok", testSPServer.URL),
+			wantErr:  true,
+		},
+		{
+			name:     "status 302 found",
+			entityID: fmt.Sprintf("%s/status-302-found", testSPServer.URL),
 			wantErr:  true,
 		},
 		{

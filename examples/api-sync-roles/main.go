@@ -103,7 +103,7 @@ func createTeleportRoleFromClusterRoleBinding(teleport *client.Client, k types.K
 	}
 	role.SetKubeGroups(types.Allow, g)
 	role.SetKubeUsers(types.Allow, u)
-	if err := teleport.UpsertRole(
+	if _, err := teleport.UpsertRole(
 		context.Background(),
 		&role,
 	); err != nil {
@@ -151,7 +151,7 @@ func createTeleportRoleFromRoleBinding(teleport *client.Client, k types.KubeClus
 	role.SetKubeGroups(types.Allow, g)
 	role.SetKubeUsers(types.Allow, u)
 
-	if err := teleport.UpsertRole(
+	if _, err := teleport.UpsertRole(
 		context.Background(),
 		&role,
 	); err != nil {

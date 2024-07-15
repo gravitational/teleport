@@ -172,6 +172,11 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 			continue
 		}
 
+		// If the service is marked with the ignore annotation, skip it.
+		if v := service.GetAnnotations()[types.DiscoveryAppIgnore]; v == "true" {
+			continue
+		}
+
 		g.Go(func() error {
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 
@@ -187,7 +192,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				case protoHTTPS, protoHTTP, protoTCP:
 					portProtocols[port] = protocolAnnotation
 				default:
-					if p := autoProtocolDetection(getServiceFQDN(service), port, f.ProtocolChecker); p != protoTCP {
+					if p := autoProtocolDetection(services.GetServiceFQDN(service), port, f.ProtocolChecker); p != protoTCP {
 						portProtocols[port] = p
 					}
 				}
@@ -267,16 +272,6 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 	}
 
 	return protoTCP
-}
-
-func getServiceFQDN(s v1.Service) string {
-	// If service type is ExternalName it points to external DNS name, to keep correct
-	// HOST for HTTP requests we return already final external DNS name.
-	// https://kubernetes.io/docs/concepts/services-networking/service/#externalname
-	if s.Spec.Type == v1.ServiceTypeExternalName {
-		return s.Spec.ExternalName
-	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
 }
 
 // ProtocolChecker is an interface used to check what protocol uri serves

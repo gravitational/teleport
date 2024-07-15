@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/service"
@@ -54,7 +55,8 @@ func testReloads(t *testing.T) {
 
 	authConfig := newAuthConfig(t, log)
 	auth := newTeleportService(t, authConfig, "auth")
-	require.NoError(t, auth.start(testCtx))
+	err := auth.start(testCtx)
+	require.NoError(t, err, trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, auth.close()) })
 
 	proxyConfig := newProxyConfig(t, auth.authAddr(t), log)

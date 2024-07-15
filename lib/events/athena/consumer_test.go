@@ -44,6 +44,7 @@ import (
 	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -576,7 +577,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &Config{
-		LogEntry: log.WithField(trace.Component, "test"),
+		LogEntry: log.WithField(teleport.ComponentKey, "test"),
 		metrics:  metrics,
 	}
 
@@ -833,8 +834,8 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 			},
 			wantCheck: func(t *testing.T, err error, mock *mockSQSDeleter) {
 				require.Error(t, err)
-				agg, ok := trace.Unwrap(err).(trace.Aggregate)
-				require.True(t, ok)
+				var agg trace.Aggregate
+				require.ErrorAs(t, trace.Unwrap(err), &agg)
 				for _, errFromAgg := range agg.Errors() {
 					require.ErrorContains(t, errFromAgg, "entry failed")
 				}

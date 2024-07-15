@@ -39,7 +39,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentKubeClient,
+	teleport.ComponentKey: teleport.ComponentKubeClient,
 })
 
 const (
@@ -250,9 +250,9 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		// Validate the provided credentials, to avoid partially-populated
 		// kubeconfig.
 
-		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
-		// private keys for kube credentials (if possible)
-		rsaKeyPEM, err := v.Credentials.PrivateKey.RSAPrivateKeyPEM()
+		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to
+		// use hardware private keys for kube credentials (if possible)
+		keyPEM, err := v.Credentials.PrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
 			if len(v.Credentials.TLSCert) == 0 {
 				return trace.BadParameter("TLS certificate missing in provided credentials")
@@ -260,7 +260,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 
 			config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 				ClientCertificateData: v.Credentials.TLSCert,
-				ClientKeyData:         rsaKeyPEM,
+				ClientKeyData:         keyPEM,
 			}
 			setContext(config.Contexts, contextName, clusterName, contextName, kubeClusterName, v.Namespace)
 			setSelectedExtension(config.Contexts, config.CurrentContext, clusterName)
@@ -268,7 +268,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		} else if !trace.IsBadParameter(err) {
 			return trace.Wrap(err)
 		}
-		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a non-rsa private key.")
+		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a hardware private key.")
 	}
 
 	return SaveConfig(path, *config, fs)
@@ -575,7 +575,7 @@ func setSelectedExtension(contexts map[string]*clientcmdapi.Context, prevCluster
 }
 
 // searchForSelectedCluster looks for contexts that were previously selected
-// in order to restore the the CurrentContext value.
+// in order to restore the CurrentContext value.
 // If no such key is found or multiple keys exist, it returns an empty selected
 // cluster.
 func searchForSelectedCluster(contexts map[string]*clientcmdapi.Context) string {

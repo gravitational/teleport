@@ -35,7 +35,7 @@ $ terraform version
 Terraform v1.5.6
 ```
 
-You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS and MacOS Homebrew
+You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS and macOS Homebrew
 as the `awscli` package.
 
 Fedora/CentOS: `yum -y install awscli`
@@ -61,7 +61,7 @@ You should also have a default region set under `~/.aws/config`:
 ```code
 $ cat ~/.aws/config
 # [default]
-# region = us-east-1
+# region = us-west-2
 ```
 
 As a result, you should be able to run a command like `aws ec2 describe-instances` to list running EC2 instances.
@@ -79,7 +79,7 @@ AWS services:
 - [IAM](https://aws.amazon.com/iam/)
 - [SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
 
-The Terraform deployment itself will create a new IAM role to be used by the Teleport instance which has appropriately
+The Terraform deployment itself will create a new IAM role to be used by the Teleport instance that has appropriately
 limited permission scopes for AWS services. However, the initial cluster setup must be done by a user with a high
 level of AWS permissions.
 
@@ -108,10 +108,8 @@ Initializing the backend...
 
 Initializing provider plugins...
 - Checking for available provider plugins...
-- Installing hashicorp/random v3.5.1...
-- Installed hashicorp/random v3.5.1 (signed by HashiCorp)
-- Installing hashicorp/aws v4.67.0...
-- Installed hashicorp/aws v4.67.0 (signed by HashiCorp)
+- Installing hashicorp/aws v5.31.0...
+- Installed hashicorp/aws v5.31.0 (signed by HashiCorp)
 
 Terraform has been successfully initialized!
 
@@ -154,7 +152,7 @@ $ export TF_VAR_region="<Var name="us-west-2" />"
 ```
 
 The AWS region to run in. You should pick from the supported list as detailed in the [README](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/README.md).
-These are regions which support [DynamoDB encryption at rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html).
+These are regions that support [DynamoDB encryption at rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html).
 
 ### cluster_name
 
@@ -170,35 +168,37 @@ cluster from scratch, so choose carefully. A good example might be something lik
 ### ami_name
 
 ```code
-$ export TF_VAR_ami_name="gravitational-teleport-ami-ent-(=teleport.version=)"
+$ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
-Gravitational automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
-release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
-where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `(=teleport.version=)`.
+Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
+release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
+where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
+and `<arch>` is either `x86_64` or `arm64`.
 
-FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix.
+FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix after `<arch>`,
+e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
 
-The AWS account ID which publishes these AMIs is `126027368216`. You can list the available AMIs with
+The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
 the example `awscli` commands below. The output is in JSON format by default.
 
 <Admonition
   type="tip"
-  title="List Gravitational AMIs"
+  title="List Teleport AMIs"
 >
   OSS AMIs<br/>
   ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss-(=teleport.version=)'
+  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-(=teleport.version=)-*'
   ```
 
   Enterprise AMIs<br/>
   ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent-(=teleport.version=)'
+  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*'
   ```
 
-  List Enterprise FIPS 140-2 AMIs<br/>
+  Enterprise FIPS 140-2 AMIs<br/>
   ```code
-  aws --region <Var name="us-west-2" /> ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent-(=teleport.version=)-fips'
+  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*-fips-*'
   ```
 </Admonition>
 
@@ -318,7 +318,7 @@ A `micro` instance is fine for testing, but if this server will need to support 
 $ export TF_VAR_email="support@example.com"
 ```
 
-LetsEncrypt requires an email address for every certificate registered which can be used to send notifications and
+Let's Encrypt requires an email address for every certificate registered which can be used to send notifications and
 useful information. We recommend a generic ops/support email address which the team deploying Teleport has access to.
 
 ### use_letsencrypt
@@ -327,7 +327,7 @@ useful information. We recommend a generic ops/support email address which the t
 $ export TF_VAR_use_letsencrypt="false"
 ```
 
-If set to the string `"true"`, Terraform will use [LetsEncrypt](https://letsencrypt.org/) to provision the public-facing
+If set to the string `"true"`, Terraform will use [Let's Encrypt](https://letsencrypt.org/) to provision the public-facing
 web UI certificate for the Teleport cluster ([`route53_domain`](#route53\_domain) - so [https://teleport.example.com](https://teleport.example.com) in this example).
 This uses an [AWS network load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
 to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by Teleport itself.
@@ -374,8 +374,8 @@ default authentication type across AMI upgrades when you have a SAML, OIDC or Gi
 The default is `local`.
 
 - Teleport Community Edition supports `local` or `github`
-- Teleport Enterprise Edition supports `local`, `github`, `oidc` or `saml`
-- Teleport Enterprise FIPS deployments have local authentication disabled, so should use `github`, `oidc` or `saml`
+- Teleport Enterprise Edition supports `local`, `github`, `oidc`, or `saml`
+- Teleport Enterprise FIPS deployments have local authentication disabled, so should use `github`, `oidc`, or `saml`
 
 See the [Teleport authentication reference](../../reference/authentication.mdx) for more information.
 
@@ -726,7 +726,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../agents/join-services-to-your-cluster.mdx)
+  cluster](../../enroll-resources/agents/join-services-to-your-cluster.mdx)
 
 ## Troubleshooting
 

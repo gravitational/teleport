@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Dispatch, SetStateAction } from 'react';
 import { useParams } from 'react-router';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { ButtonState } from 'teleport/lib/tdp';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
@@ -36,37 +37,53 @@ export default function useDesktopSession() {
   // tdpConnection tracks the state of the tdpClient's TDP connection
   // - 'processing' at first
   // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
-  // - 'failed' if a fatal error is encountered
+  // - 'failed' if a fatal error is encountered, should have a statusText
+  // - '' if the connection closed gracefully by the server, should have a statusText
   const { attempt: tdpConnection, setAttempt: setTdpConnection } =
     useAttempt('processing');
 
   // wsConnection track's the state of the tdpClient's websocket connection.
-  // 'closed' to start, 'open' when TdpClientEvent.WS_OPEN is encountered, then 'closed'
-  // again when TdpClientEvent.WS_CLOSE is encountered.
-  const [wsConnection, setWsConnection] = useState<'open' | 'closed'>('closed');
-
-  // disconnected tracks whether the user intentionally disconnected the client
-  const [disconnected, setDisconnected] = useState(false);
-
-  const [directorySharingState, setDirectorySharingState] = useState({
-    canShare: false,
-    isSharing: false,
+  // - 'init' to start
+  // - 'open' when TdpClientEvent.WS_OPEN is encountered
+  // - then 'closed' again when TdpClientEvent.WS_CLOSE is encountered.
+  // Once it's 'closed', it should have the message that came with the TdpClientEvent.WS_CLOSE event..
+  const [wsConnection, setWsConnection] = useState<WebsocketAttempt>({
+    status: 'init',
   });
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
   const [hostname, setHostname] = useState<string>('');
 
-  const isUsingChrome = navigator.userAgent.includes('Chrome');
+  const [directorySharingState, setDirectorySharingState] =
+    useState<DirectorySharingState>(defaultDirectorySharingState);
 
-  // Set by result of `user.acl.clipboardSharingEnabled && isUsingChrome` below.
-  const [clipboardSharingEnabled, setClipboardSharingEnabled] = useState(false);
+  const [clipboardSharingState, setClipboardSharingState] =
+    useState<ClipboardSharingState>(defaultClipboardSharingState);
+
+  useEffect(() => {
+    const clearReadListenerPromise = initClipboardPermissionTracking(
+      'clipboard-read',
+      setClipboardSharingState
+    );
+    const clearWriteListenerPromise = initClipboardPermissionTracking(
+      'clipboard-write',
+      setClipboardSharingState
+    );
+
+    return () => {
+      clearReadListenerPromise.then(clearReadListener => clearReadListener());
+      clearWriteListenerPromise.then(clearWriteListener =>
+        clearWriteListener()
+      );
+    };
+  }, []);
 
   const [showAnotherSessionActiveDialog, setShowAnotherSessionActiveDialog] =
     useState(false);
 
   document.title = useMemo(
-    () => `${clusterId} • ${username}@${hostname}`,
+    () => `${username}@${hostname} • ${clusterId}`,
     [clusterId, hostname, username]
   );
 
@@ -77,12 +94,13 @@ export default function useDesktopSession() {
           .fetchDesktop(clusterId, desktopName)
           .then(desktop => setHostname(desktop.name)),
         userService.fetchUserContext().then(user => {
-          setClipboardSharingEnabled(
-            user.acl.clipboardSharingEnabled && isUsingChrome
-          );
+          setClipboardSharingState(prevState => ({
+            ...prevState,
+            allowedByAcl: user.acl.clipboardSharingEnabled,
+          }));
           setDirectorySharingState(prevState => ({
             ...prevState,
-            canShare: user.acl.directorySharingEnabled,
+            allowedByAcl: user.acl.directorySharingEnabled,
           }));
         }),
         desktopService
@@ -92,7 +110,7 @@ export default function useDesktopSession() {
           }),
       ])
     );
-  }, [clusterId, desktopName, isUsingChrome, run]);
+  }, [clusterId, desktopName, run]);
 
   const [warnings, setWarnings] = useState<NotificationItem[]>([]);
   const onRemoveWarning = (id: string) => {
@@ -105,9 +123,9 @@ export default function useDesktopSession() {
     clusterId,
     setTdpConnection,
     setWsConnection,
-    setClipboardSharingEnabled,
+    setClipboardSharingState,
     setDirectorySharingState,
-    clipboardSharingEnabled,
+    clipboardSharingState,
     setWarnings,
   });
   const tdpClient = clientCanvasProps.tdpClient;
@@ -119,9 +137,10 @@ export default function useDesktopSession() {
       window
         .showDirectoryPicker()
         .then(sharedDirHandle => {
+          // Permissions granted and/or directory selected
           setDirectorySharingState(prevState => ({
             ...prevState,
-            isSharing: true,
+            directorySelected: true,
           }));
           tdpClient.addSharedDirectory(sharedDirHandle);
           tdpClient.sendSharedDirectoryAnnounce();
@@ -129,7 +148,7 @@ export default function useDesktopSession() {
         .catch(e => {
           setDirectorySharingState(prevState => ({
             ...prevState,
-            isSharing: false,
+            directorySelected: false,
           }));
           setWarnings(prevState => [
             ...prevState,
@@ -143,7 +162,7 @@ export default function useDesktopSession() {
     } catch (e) {
       setDirectorySharingState(prevState => ({
         ...prevState,
-        isSharing: false,
+        directorySelected: false,
       }));
       setWarnings(prevState => [
         ...prevState,
@@ -167,24 +186,31 @@ export default function useDesktopSession() {
     }
   };
 
+  const onCtrlAltDel = () => {
+    if (!tdpClient) {
+      return;
+    }
+    tdpClient.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
+    tdpClient.sendKeyboardInput('AltLeft', ButtonState.DOWN);
+    tdpClient.sendKeyboardInput('Delete', ButtonState.DOWN);
+  };
+
   return {
     hostname,
     username,
-    clipboardSharingEnabled,
-    setClipboardSharingEnabled,
+    clipboardSharingState,
+    setClipboardSharingState,
     directorySharingState,
     setDirectorySharingState,
-    isUsingChrome,
     fetchAttempt,
     tdpConnection,
     wsConnection,
-    disconnected,
-    setDisconnected,
     webauthn,
     setTdpConnection,
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,
     onShareDirectory,
+    onCtrlAltDel,
     warnings,
     onRemoveWarning,
     ...clientCanvasProps,
@@ -192,3 +218,151 @@ export default function useDesktopSession() {
 }
 
 export type State = ReturnType<typeof useDesktopSession>;
+
+type CommonFeatureState = {
+  /**
+   * Whether the feature is allowed by the acl.
+   *
+   * Undefined if it hasn't been queried yet.
+   */
+  allowedByAcl?: boolean;
+  /**
+   * Whether the feature is available in the browser.
+   */
+  browserSupported: boolean;
+};
+
+/**
+ * The state of the directory sharing feature.
+ */
+export type DirectorySharingState = CommonFeatureState & {
+  /**
+   * Whether the user is currently sharing a directory.
+   */
+  directorySelected: boolean;
+};
+
+/**
+ * The state of the clipboard sharing feature.
+ */
+export type ClipboardSharingState = CommonFeatureState & {
+  /**
+   * The current state of the 'clipboard-read' permission.
+   *
+   * Undefined if it hasn't been queried yet.
+   */
+  readState?: PermissionState;
+  /**
+   * The current state of the 'clipboard-write' permission.
+   *
+   * Undefined if it hasn't been queried yet.
+   */
+  writeState?: PermissionState;
+};
+
+export type Setter<T> = Dispatch<SetStateAction<T>>;
+
+async function initClipboardPermissionTracking(
+  name: 'clipboard-read' | 'clipboard-write',
+  setClipboardSharingState: Setter<ClipboardSharingState>
+) {
+  const handleChange = () => {
+    if (name === 'clipboard-read') {
+      setClipboardSharingState(prevState => ({
+        ...prevState,
+        readState: perm.state,
+      }));
+    } else {
+      setClipboardSharingState(prevState => ({
+        ...prevState,
+        writeState: perm.state,
+      }));
+    }
+  };
+
+  // Query the permission state
+  const perm = await navigator.permissions.query({
+    name: name as PermissionName,
+  });
+
+  // Set its change handler
+  perm.onchange = handleChange;
+  // Set the initial state
+  handleChange();
+
+  // Return a cleanup function that removes the change handler (for use by useEffect)
+  return () => {
+    perm.onchange = null;
+  };
+}
+
+/**
+ * Determines whether a feature is/should-be possible based on whether it's allowed by the acl
+ * and whether it's supported by the browser.
+ */
+function commonFeaturePossible(
+  commonFeatureState: CommonFeatureState
+): boolean {
+  return commonFeatureState.allowedByAcl && commonFeatureState.browserSupported;
+}
+
+/**
+ * Determines whether clipboard sharing is/should-be possible based on whether it's allowed by the acl
+ * and whether it's supported by the browser.
+ */
+export function clipboardSharingPossible(
+  clipboardSharingState: ClipboardSharingState
+): boolean {
+  return commonFeaturePossible(clipboardSharingState);
+}
+
+/**
+ * Returns whether clipboard sharing is active.
+ */
+export function isSharingClipboard(
+  clipboardSharingState: ClipboardSharingState
+): boolean {
+  return (
+    clipboardSharingState.allowedByAcl &&
+    clipboardSharingState.browserSupported &&
+    clipboardSharingState.readState === 'granted' &&
+    clipboardSharingState.writeState === 'granted'
+  );
+}
+
+/**
+ * Determines whether directory sharing is/should-be possible based on whether it's allowed by the acl
+ * and whether it's supported by the browser.
+ */
+export function directorySharingPossible(
+  directorySharingState: DirectorySharingState
+): boolean {
+  return commonFeaturePossible(directorySharingState);
+}
+
+/**
+ * Returns whether directory sharing is active.
+ */
+export function isSharingDirectory(
+  directorySharingState: DirectorySharingState
+): boolean {
+  return (
+    directorySharingState.allowedByAcl &&
+    directorySharingState.browserSupported &&
+    directorySharingState.directorySelected
+  );
+}
+
+export const defaultDirectorySharingState: DirectorySharingState = {
+  browserSupported: navigator.userAgent.includes('Chrome'),
+  directorySelected: false,
+};
+
+export const defaultClipboardSharingState: ClipboardSharingState = {
+  browserSupported: navigator.userAgent.includes('Chrome'),
+};
+
+export type WebsocketAttempt = {
+  status: 'init' | 'open' | 'closed';
+  statusText?: string;
+};

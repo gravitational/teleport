@@ -21,6 +21,8 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -59,7 +62,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -76,6 +81,7 @@ func init() {
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
+	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
 }
 
 // Config is the configuration for a database proxy server.
@@ -85,9 +91,9 @@ type Config struct {
 	// DataDir is the path to the data directory for the server.
 	DataDir string
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.DatabaseAccessPoint
+	AccessPoint authclient.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// NewAudit allows to override audit logger in tests.
@@ -170,10 +176,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
+	if c.CloudClients == nil {
+		cloudClients, err := clients.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
+	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
 			AuthClient: c.AuthClient,
 			Clock:      c.Clock,
+			Clients:    c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -199,13 +213,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing ConnectionMonitor")
-	}
-	if c.CloudClients == nil {
-		cloudClients, err := clients.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -291,8 +298,11 @@ type Server struct {
 	reconcileCh chan struct{}
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
-	// log is used for logging.
-	log *logrus.Entry
+	// logrusLogger is used for logging.
+	// Deprecated: use log (*slog.Logger) instead.
+	logrusLogger *logrus.Entry
+	// logger is used for logging.
+	log *slog.Logger
 	// activeConnections counts the number of database active connections.
 	activeConnections atomic.Int32
 	// connContext context used by connection resources. Canceling will cause
@@ -382,7 +392,8 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
-		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		logrusLogger:     logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase),
+		log:              slog.With(teleport.ComponentKey, teleport.ComponentDatabase),
 		closeContext:     closeCtx,
 		closeFunc:        closeCancelFunc,
 		dynamicLabels:    make(map[string]*labels.Dynamic),
@@ -403,6 +414,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
+		ctx,
 		server.cfg.TLSConfig,
 		server.cfg.AccessPoint,
 		server.log,
@@ -424,7 +436,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	// Update cloud metadata if it's a cloud hosted database on a best-effort
 	// basis.
 	if err := s.cfg.CloudMeta.Update(ctx, database); err != nil {
-		s.log.Warnf("Failed to fetch cloud metadata for %v: %v.", database, err)
+		s.log.WarnContext(ctx, "Failed to fetch cloud metadata.", "db", database.GetName(), "error", err)
 	}
 	// Attempts to fetch cloud metadata and configure IAM for cloud-hosted
 	// databases on a best-effort basis.
@@ -433,7 +445,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	// access denied error at connection time in case this fails or the policy
 	// gets removed off-band.
 	if err := s.cfg.CloudIAM.Setup(ctx, database); err != nil {
-		s.log.Warnf("Failed to auto-configure IAM for %v: %v.", database, err)
+		s.log.WarnContext(ctx, "Failed to auto-configure IAM.", "db", database.GetName(), "error", err)
 	}
 	// Start a goroutine that will be updating database's command labels (if any)
 	// on the defined schedule.
@@ -442,7 +454,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	if err := fetchMySQLVersion(ctx, database); err != nil {
 		// Log, but do not fail. We will fetch the version later.
-		s.log.Warnf("Failed to fetch the MySQL version for %s: %v", database.GetName(), err)
+		s.log.WarnContext(ctx, "Failed to fetch the MySQL version.", "db", database.GetName(), "error", err)
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
@@ -451,10 +463,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Setup managed users for database.
 	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
-		s.log.WithError(err).Warnf("Failed to setup users for %v.", database.GetName())
+		s.log.WarnContext(ctx, "Failed to setup users.", "database", database.GetName(), "error", err)
 	}
 
-	s.log.Debugf("Started %v.", database)
+	s.log.DebugContext(ctx, "Started database.", "db", database)
 	return nil
 }
 
@@ -464,7 +476,7 @@ func (s *Server) stopDatabase(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Stopped database %q.", name)
+	s.log.DebugContext(ctx, "Stopped database.", "db", name)
 	return nil
 }
 
@@ -557,7 +569,7 @@ func (s *Server) updateDatabase(ctx context.Context, database types.Database) er
 func (s *Server) unregisterDatabase(ctx context.Context, database types.Database) error {
 	// Deconfigure IAM for the cloud database.
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
-		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
+		s.log.WarnContext(ctx, "Failed to teardown IAM.", "db", database.GetName(), "error", err)
 	}
 	// Stop heartbeat, labels, etc.
 	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
@@ -615,13 +627,12 @@ func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
 	defer s.mu.RUnlock()
 	// don't call s.getProxiedDatabases() as this will call RLock and
 	// potentially deadlock.
-	for _, db := range s.proxiedDatabases {
-		if db.GetName() == name {
-			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
-		}
+	db, found := s.proxiedDatabases[name]
+	if !found {
+		return nil, trace.NotFound("%q not found among registered databases: %v",
+			name, s.proxiedDatabases)
 	}
-	return nil, trace.NotFound("%q not found among registered databases: %v",
-		name, s.proxiedDatabases)
+	return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
 }
 
 // copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
@@ -727,7 +738,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.cfg.GetRotation(types.RoleDatabase)
 	if err != nil && !trace.IsNotFound(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
+		s.log.WarnContext(s.closeContext, "Failed to get rotation state.", "error", err)
 	}
 	if rotation != nil {
 		return *rotation
@@ -746,7 +757,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
 	// Start heartbeating the Database Service itself.
-	if err := s.startServiceHeartbeat(); err != nil {
+	if err := s.startServiceHeartbeat(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -782,7 +793,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 }
 
 // startServiceHeartbeat sends the current DatabaseService server info.
-func (s *Server) startServiceHeartbeat() error {
+func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 	labels := make(map[string]string)
 	if metadata.AWSOIDCDeployServiceInstallMethod() {
 		labels[types.AWSOIDCAgentLabel] = types.True
@@ -823,7 +834,7 @@ func (s *Server) startServiceHeartbeat() error {
 
 	go func() {
 		if err := heartbeat.Run(); err != nil {
-			s.log.WithError(err).Error("Heartbeat ended with error")
+			s.log.ErrorContext(ctx, "Heartbeat ended with error.", "error", err)
 		}
 	}()
 	return nil
@@ -846,7 +857,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+	s.log.InfoContext(ctx, "Shutdown: waiting for active connections to finish.", "count", activeConnections)
 	lastReport := time.Now()
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
@@ -860,11 +871,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			}
 
 			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
-				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+				s.log.InfoContext(ctx, "Shutdown: waiting for active connections to finish.", "count", activeConnections)
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.log.Infof("Context canceled wait, returning.")
+			s.log.InfoContext(ctx, "Context canceled wait, returning.")
 			return trace.Wrap(err)
 		}
 	}
@@ -887,22 +898,22 @@ func (s *Server) close(ctx context.Context) error {
 		s.watcher.Close()
 	}
 	// Close all cloud clients.
-	errors = append(errors, s.cfg.Auth.Close())
+	errors = append(errors, s.cfg.CloudClients.Close())
 	return trace.NewAggregate(errors...)
 }
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	var errors []error
+	var errs []error
 	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
 		<-ctx.Done()
 
-		if err := ctx.Err(); err != nil && err != context.Canceled {
-			errors = append(errors, err)
+		if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
+			errs = append(errs, err)
 		}
 	}
 
-	return trace.NewAggregate(errors...)
+	return trace.NewAggregate(errs...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -910,7 +921,7 @@ func (s *Server) ForceHeartbeat() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for name, heartbeat := range s.heartbeats {
-		s.log.Debugf("Forcing heartbeat for %q.", name)
+		s.log.DebugContext(s.closeContext, "Forcing heartbeat.", "db", name)
 		if err := heartbeat.ForceSend(time.Second); err != nil {
 			return trace.Wrap(err)
 		}
@@ -926,8 +937,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.activeConnections.Add(1)
 	defer s.activeConnections.Add(-1)
 
-	log := s.log.WithField("addr", conn.RemoteAddr())
-	log.Debug("Accepted connection.")
+	s.log.DebugContext(s.closeContext, "Accepted connection.", "addr", conn.RemoteAddr())
 	// Upgrade the connection to TLS since the other side of the reverse
 	// tunnel connection (proxy) will initiate a handshake.
 	tlsConn := tls.Server(conn, s.cfg.TLSConfig)
@@ -937,23 +947,23 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
-	err := tlsConn.Handshake()
+	err := tlsConn.HandshakeContext(s.closeContext)
 	if err != nil {
-		log.WithError(err).Error("Failed to perform TLS handshake.")
+		s.log.ErrorContext(s.closeContext, "Failed to perform TLS handshake.", "error", err, "addr", conn.RemoteAddr())
 		return
 	}
 	// Now that the handshake has completed and the client has sent us a
 	// certificate, extract identity information from it.
 	ctx, err := s.middleware.WrapContextWithUser(s.connContext, tlsConn)
 	if err != nil {
-		log.WithError(err).Error("Failed to extract identity from connection.")
+		s.log.ErrorContext(s.closeContext, "Failed to extract identity from connection.", "error", err, "addr", conn.RemoteAddr())
 		return
 	}
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
 	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
-		log.WithError(err).Error("Failed to handle connection.")
+		s.log.ErrorContext(s.closeContext, "Failed to handle connection.", "error", err, "addr", conn.RemoteAddr())
 		return
 	}
 }
@@ -985,7 +995,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			// continues beyond the session lifetime.
 			err := rec.Close(s.closeContext)
 			if err != nil {
-				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
+				sessionCtx.Log.WarnContext(ctx, "Failed to close stream writer.", "error", err)
 			}
 		}()
 	}()
@@ -1004,7 +1014,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
+			s.log.WarnContext(ctx, "Recovered while handling DB connection.", "from", clientConn.RemoteAddr(), "to", r)
 			err = trace.BadParameter("failed to handle client connection")
 		}
 		if err != nil {
@@ -1015,7 +1025,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	// TODO(jakule): LoginIP should be required starting from 10.0.
 	clientIP := sessionCtx.Identity.LoginIP
 	if clientIP != "" {
-		s.log.Debugf("Real client IP %s", clientIP)
+		s.log.DebugContext(ctx, "Found real client IP.", "ip", clientIP)
 
 		var release func()
 		release, err = s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
@@ -1024,7 +1034,16 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		}
 		defer release()
 	} else {
-		s.log.Debug("LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+		s.log.DebugContext(ctx, "LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+	}
+
+	// Update database roles. It needs to be done here after engine is
+	// dispatched so the engine can propagate the error message to the client.
+	if sessionCtx.AutoCreateUserMode.IsEnabled() {
+		sessionCtx.DatabaseRoles, err = sessionCtx.Checker.CheckDatabaseRoles(sessionCtx.Database, sessionCtx.Identity.RouteToDatabase.Roles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = engine.HandleConnection(ctx, sessionCtx)
@@ -1057,6 +1076,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 		Emitter:  s.cfg.Emitter,
 		Recorder: rec,
 		Database: sessionCtx.Database,
+		Clock:    s.cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1077,7 +1097,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         s.cfg.Auth,
+		Auth:         common.NewAuthForSession(s.cfg.Auth, sessionCtx),
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
 		CloudClients: s.cfg.CloudClients,
@@ -1093,6 +1113,15 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Log:        sessionCtx.Log,
 				Clock:      s.cfg.Clock,
 			}
+		},
+		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			db, found := s.proxiedDatabases[name]
+			if !found {
+				return trace.NotFound("%q not found among registered databases", name)
+			}
+			return trace.Wrap(doUpdate(db))
 		},
 	})
 }
@@ -1115,7 +1144,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
-	s.log.Debugf("Client identity: %#v.", identity)
+	s.log.DebugContext(ctx, "Client identity authorized.", "identity", identity)
 
 	// Fetch the requested database server.
 	database, err := s.getProxiedDatabase(identity.RouteToDatabase.ServiceName)
@@ -1123,13 +1152,12 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
+	autoCreate, err := authContext.Checker.DatabaseAutoUserMode(database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
-		database.GetURI())
+	s.log.DebugContext(ctx, "Will connect to database.", "db", database.GetName(), "uri", database.GetURI())
 
 	id := uuid.New().String()
 	sessionCtx := &common.Session{
@@ -1141,18 +1169,15 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		AutoCreateUserMode: autoCreate,
 		DatabaseUser:       identity.RouteToDatabase.Username,
 		DatabaseName:       identity.RouteToDatabase.Database,
-		DatabaseRoles:      databaseRoles,
 		AuthContext:        authContext,
 		Checker:            authContext.Checker,
 		StartupParameters:  make(map[string]string),
-		Log: s.log.WithFields(logrus.Fields{
-			"id": id,
-			"db": database.GetName(),
-		}),
-		LockTargets: authContext.LockTargets(),
+		Log:                s.log.With("id", id, "db", database.GetName()),
+		LockTargets:        authContext.LockTargets(),
+		StartTime:          s.cfg.Clock.Now(),
 	}
 
-	s.log.Debugf("Session context: %+v.", sessionCtx)
+	s.log.DebugContext(ctx, "Created session context.", "session", sessionCtx)
 	return sessionCtx, nil
 }
 
@@ -1165,7 +1190,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 
 	// Try to extract the engine version for AWS metadata labels.
 	if database.IsRDS() || database.IsAzure() {
-		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
+		version := discoverycommon.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
 			return nil
@@ -1206,7 +1231,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		HostID:   sessionCtx.HostID,
 	}
 
-	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
+	s.log.DebugContext(ctx, "Creating session tracker.", "session", sessionCtx.ID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1214,14 +1239,14 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+			s.log.WarnContext(ctx, "Failed to update session tracker expiration.", "session", sessionCtx.ID, "error", err)
 		}
 	}()
 
 	go func() {
 		<-ctx.Done()
 		if err := tracker.Close(s.connContext); err != nil {
-			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
+			s.log.DebugContext(ctx, "Failed to close session tracker.", "session", sessionCtx.ID, "error", err)
 		}
 	}()
 

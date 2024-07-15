@@ -34,6 +34,7 @@ RUN apt-get -y update && \
     build-essential \
     ca-certificates \
     git \
+    golang \
     libc6-dev \
     libssl-dev \
     locales \
@@ -76,8 +77,9 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version && \
     rustup component add rustfmt clippy && \
+    rustup target add wasm32-unknown-unknown && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
 
 # Install wasm-pack for targeting WebAssembly from Rust.
 ARG WASM_PACK_VERSION
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}

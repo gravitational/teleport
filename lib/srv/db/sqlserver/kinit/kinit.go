@@ -213,7 +213,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 	}
 
 	certPEM, keyPEM, caCerts, err := windows.CertKeyPEM(ctx, &windows.GenerateCredentialsRequest{
-		CAType:      types.DatabaseCA,
+		CAType:      types.DatabaseClientCA,
 		Username:    d.UserName,
 		Domain:      d.RealmName,
 		TTL:         certTTL,

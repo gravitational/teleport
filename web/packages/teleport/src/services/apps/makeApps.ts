@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AwsRole } from 'shared/services/apps';
+
 import cfg from 'teleport/config';
 
 import { App } from './types';
@@ -32,6 +34,9 @@ export default function makeApp(json: any): App {
     awsConsole = false,
     samlApp = false,
     friendlyName = '',
+    requiresRequest,
+    integration = '',
+    samlAppPreset,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -40,7 +45,7 @@ export default function makeApp(json: any): App {
     : '';
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
-  const awsRoles = json.awsRoles || [];
+  const awsRoles: AwsRole[] = json.awsRoles || [];
   const userGroups = json.userGroups || [];
 
   const isTcp = uri && uri.startsWith('tcp://');
@@ -80,6 +85,9 @@ export default function makeApp(json: any): App {
     friendlyName,
     userGroups,
     samlApp,
+    samlAppPreset,
     samlAppSsoUrl,
+    requiresRequest,
+    integration,
   };
 }

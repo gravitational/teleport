@@ -20,9 +20,10 @@ Upgrading Teleport will not enable TLS routing by default and the cluster will
 keep working in backwards-compatibility mode. Follow this guide to migrate your
 Teleport installation to TLS routing.
 
-Teleport Team manages the Proxy Service's networking configuration for you. Get
-started with a [free trial](https://goteleport.com/signup?t_source=docs) of
-Teleport Team.
+Teleport Enterprise Cloud manages the Proxy Service's networking configuration
+for you. Get started with a [free
+trial](https://goteleport.com/signup?t_source=docs) of Teleport Enterprise
+Cloud.
 
 ## Prerequisites
 
@@ -105,7 +106,7 @@ to connect to nodes within your Teleport cluster, you need to regenerate the
 config.
 
 Run `tsh config` command again so it generates SSH config compatible with SSH
-routing setup. See our [OpenSSH guide](../../server-access/guides/openssh.mdx)
+routing setup. See our [OpenSSH guide](../../enroll-resources/server-access/openssh/openssh.mdx)
 docs for reference.
 
 ## Step 7/7. Disable legacy listeners

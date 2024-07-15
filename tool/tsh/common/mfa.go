@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
@@ -113,18 +114,18 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 
 	var devs []*types.MFADevice
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		pc, err := tc.ConnectToProxy(cf.Context)
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context)
+		defer clusterClient.Close()
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer aci.Close()
+		defer rootAuthClient.Close()
 
-		resp, err := aci.GetMFADevices(cf.Context, &proto.GetMFADevicesRequest{})
+		resp, err := rootAuthClient.GetMFADevices(cf.Context, &proto.GetMFADevicesRequest{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -313,16 +314,16 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 	var dev *types.MFADevice
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
-		pc, err := tc.ConnectToProxy(ctx)
+		clusterClient, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(ctx)
+		defer clusterClient.Close()
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer aci.Close()
+		defer rootAuthClient.Close()
 
 		// TODO(awly): mfa: move this logic somewhere under /lib/auth/, closer
 		// to the server logic. The CLI layer should ideally be thin.
@@ -334,7 +335,11 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 		// Issue the authn challenge.
 		// Required for the registration challenge.
-		authChallenge, err := aci.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
+		authChallenge, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+			},
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -356,7 +361,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		}
 
 		// Issue the registration challenge.
-		registerChallenge, err := aci.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		registerChallenge, err := rootAuthClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 			ExistingMFAResponse: authnResp,
 			DeviceType:          devTypePB,
 			DeviceUsage:         usage,
@@ -373,7 +378,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		}
 
 		// Complete registration and confirm new key.
-		addResp, err := aci.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+		addResp, err := rootAuthClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
 			NewDeviceName:  c.devName,
 			NewMFAResponse: registerResp,
 			DeviceUsage:    usage,
@@ -562,21 +567,21 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 
 	ctx := cf.Context
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
-		pc, err := tc.ConnectToProxy(ctx)
+		clusterClient, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(ctx)
+		defer clusterClient.Close()
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer aci.Close()
+		defer rootAuthClient.Close()
 
 		// Lookup device to delete.
 		// This lets us exit early if the device doesn't exist and enables the
 		// Touch ID cleanup at the end.
-		devicesResp, err := aci.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+		devicesResp, err := rootAuthClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -592,9 +597,12 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		}
 
 		// Issue and solve authn challenge.
-		authnChal, err := aci.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		authnChal, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
 		})
 		if err != nil {
@@ -606,7 +614,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		}
 
 		// Delete device.
-		if err := aci.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+		if err := rootAuthClient.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
 			DeviceName:          c.name,
 			ExistingMFAResponse: authnSolved,
 		}); err != nil {

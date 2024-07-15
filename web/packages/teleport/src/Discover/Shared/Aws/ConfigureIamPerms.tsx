@@ -28,7 +28,7 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
-type AwsResourceKind = 'rds' | 'ec2';
+type AwsResourceKind = 'rds' | 'ec2' | 'eks';
 
 export function ConfigureIamPerms({
   region,
@@ -72,6 +72,43 @@ export function ConfigureIamPerms({
         "iam:CreateServiceLinkedRole",
         "ec2-instance-connect:SendSSHPublicKey",
         "ec2-instance-connect:OpenTunnel"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`;
+
+      editor = (
+        <EditorWrapper $height={345}>
+          <TextEditor
+            readOnly={true}
+            data={[{ content: json, type: 'json' }]}
+            bg="levels.deep"
+          />
+        </EditorWrapper>
+      );
+      break;
+    }
+    case 'eks': {
+      iamPolicyName = 'EKSAccess';
+      msg = 'We were unable to list your EKS clusters.';
+      scriptUrl = cfg.getEksIamConfigureScriptUrl({
+        region,
+        iamRoleName,
+      });
+
+      const json = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "eks:ListAccessEntries",
+        "eks:CreateAccessEntry",
+        "eks:DeleteAccessEntry",
+        "eks:AssociateAccessPolicy",
       ],
       "Resource": "*"
     }
@@ -164,7 +201,7 @@ export function ConfigureIamPerms({
   );
 }
 
-const EditorWrapper = styled(Flex)`
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;

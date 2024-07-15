@@ -22,9 +22,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -38,6 +38,7 @@ func (h *Handler) desktopPlaybackHandle(
 	p httprouter.Params,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
@@ -49,39 +50,35 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.Wrap(err)
 	}
 
-	websocket.Handler(func(ws *websocket.Conn) {
-		ws.PayloadType = websocket.BinaryFrame
+	player, err := player.New(&player.Config{
+		Clock:     h.clock,
+		Log:       h.log,
+		SessionID: session.ID(sID),
+		Streamer:  clt,
+	})
+	if err != nil {
+		h.log.Errorf("couldn't create player for session %v: %v", sID, err)
+		ws.WriteMessage(websocket.BinaryMessage,
+			[]byte(`{"message": "error", "errorText": "Internal server error"}`))
+		return nil, nil
+	}
 
-		player, err := player.New(&player.Config{
-			Clock:     h.clock,
-			Log:       h.log,
-			SessionID: session.ID(sID),
-			Streamer:  clt,
-		})
-		if err != nil {
-			h.log.Errorf("couldn't create player for session %v: %v", sID, err)
-			ws.Write([]byte(`{"message": "error", "errorText": "Internal server error"}`))
-			return
-		}
+	defer player.Close()
 
-		defer player.Close()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
-		ctx, cancel := context.WithCancel(r.Context())
+	go func() {
 		defer cancel()
+		desktop.ReceivePlaybackActions(h.log, ws, player)
+	}()
 
-		go func() {
-			defer cancel()
-			desktop.ReceivePlaybackActions(h.log, ws, player)
-		}()
+	go func() {
+		defer cancel()
+		defer ws.Close()
+		desktop.PlayRecording(ctx, h.log, ws, player)
+	}()
 
-		go func() {
-			defer cancel()
-			defer ws.Close()
-			desktop.PlayRecording(ctx, h.log, ws, player)
-		}()
-
-		<-ctx.Done()
-	}).ServeHTTP(w, r)
-
+	<-ctx.Done()
 	return nil, nil
 }

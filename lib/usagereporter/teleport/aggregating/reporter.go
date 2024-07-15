@@ -20,6 +20,7 @@ package aggregating
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -30,15 +31,18 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
-	reportGranularity = 15 * time.Minute
-	rollbackGrace     = time.Minute
-	reportTTL         = 60 * 24 * time.Hour
+	userActivityReportGranularity = 15 * time.Minute
+	resourceReportGranularity     = time.Hour
+	rollbackGrace                 = time.Minute
+	reportTTL                     = 60 * 24 * time.Hour
 
 	checkInterval = time.Minute
 )
@@ -59,6 +63,8 @@ type ReporterConfig struct {
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
+	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
+	AnonymizationKey string
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -80,6 +86,9 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
+	if cfg.AnonymizationKey == "" {
+		return trace.BadParameter("missing AnonymizationKey")
+	}
 	return nil
 }
 
@@ -91,7 +100,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.ClusterName.GetClusterID())
+	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,11 +181,16 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	filtered := events[:0]
 	for _, event := range events {
 		// this should drop all events that we don't care about
+		// note: make sure this matches the set of all events handled in [*Reporter.run]
 		switch event.(type) {
 		case *usagereporter.UserLoginEvent,
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
-			*usagereporter.SFTPEvent:
+			*usagereporter.SFTPEvent,
+			*usagereporter.ResourceHeartbeatEvent,
+			*usagereporter.UserCertificateIssuedEvent,
+			*usagereporter.BotJoinEvent,
+			*usagereporter.SPIFFESVIDIssuedEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -186,6 +200,18 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 
 	// this function must not block
 	go r.anonymizeAndSubmit(filtered)
+}
+
+// convertUserKind converts a v1alpha UserKind to a v1 UserKind.
+func convertUserKind(v1AlphaUserKind prehogv1alpha.UserKind) prehogv1.UserKind {
+	switch v1AlphaUserKind {
+	case prehogv1alpha.UserKind_USER_KIND_BOT:
+		return prehogv1.UserKind_USER_KIND_BOT
+	case prehogv1alpha.UserKind_USER_KIND_HUMAN:
+		return prehogv1.UserKind_USER_KIND_HUMAN
+	default:
+		return prehogv1.UserKind_USER_KIND_UNSPECIFIED
+	}
 }
 
 func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
@@ -198,6 +224,10 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 	}
 }
 
+// run processes events incoming from r.ingest, keeping statistics of
+// users activity and resource usage per users, also collects cluster resource counts.
+// Every granularity time period, it sends accumulated stats to the prehog.
+// Runs perpetually in a goroutine until the context is canceled or reporter is closed.
 func (r *Reporter) run(ctx context.Context) {
 	defer r.baseCancel()
 	defer close(r.done)
@@ -205,19 +235,64 @@ func (r *Reporter) run(ctx context.Context) {
 	ticker := r.clock.NewTicker(checkInterval)
 	defer ticker.Stop()
 
-	startTime := r.clock.Now().UTC().Truncate(reportGranularity)
-	windowStart := startTime.Add(-rollbackGrace)
-	windowEnd := startTime.Add(reportGranularity)
+	userActivityStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
+	userActivityWindowStart := userActivityStartTime.Add(-rollbackGrace)
+	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
-	userRecord := func(userName string) *prehogv1.UserActivityRecord {
+	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
+		v1UserKind := convertUserKind(v1AlphaUserKind)
+
 		record := userActivity[userName]
 		if record == nil {
-			record = &prehogv1.UserActivityRecord{}
+			record = &prehogv1.UserActivityRecord{
+				UserKind: v1UserKind,
+			}
 			userActivity[userName] = record
 		}
+
+		// Attempt to sanely handle any changes to the record's UserKind that
+		// might occur after it's original creation.
+		if record.UserKind != v1UserKind {
+			recordUnspecified := record.UserKind == prehogv1.UserKind_USER_KIND_UNSPECIFIED
+			incomingUnspecified := v1UserKind == prehogv1.UserKind_USER_KIND_UNSPECIFIED
+
+			switch {
+			case incomingUnspecified:
+				// Ignore any incoming unspecified events.
+			case recordUnspecified && !incomingUnspecified:
+				// It's okay to discover the kind of a user later. This may
+				// indicate the first event that established a record came from
+				// an outdated node.
+				record.UserKind = v1UserKind
+			default:
+				// Otherwise, update and log a warning. Flipping between
+				// bot/human is a programming error.
+				r.log.WithFields(logrus.Fields{
+					"from": record.UserKind,
+					"to":   v1UserKind,
+				}).Warn("Record user_kind has changed unexpectedly")
+				record.UserKind = v1UserKind
+			}
+		}
+
 		return record
+	}
+
+	resourceUsageStartTime := r.clock.Now().UTC().Truncate(resourceReportGranularity)
+	resourceUsageWindowStart := resourceUsageStartTime.Add(-rollbackGrace)
+	resourceUsageWindowEnd := resourceUsageStartTime.Add(resourceReportGranularity)
+
+	// ResourcePresences is a map of resource kinds to sets of resource names.
+	// As there may be multiple heartbeats for the same resource, we use a set to count each once.
+	resourcePresences := make(map[prehogv1.ResourceKind]map[string]struct{})
+	resourcePresence := func(kind prehogv1.ResourceKind) map[string]struct{} {
+		record := resourcePresences[kind]
+		if record == nil {
+			resourcePresences[kind] = make(map[string]struct{})
+		}
+		return resourcePresences[kind]
 	}
 
 	var wg sync.WaitGroup
@@ -236,47 +311,80 @@ Ingest:
 			break Ingest
 		}
 
-		if now := r.clock.Now().UTC(); now.Before(windowStart) || !now.Before(windowEnd) {
+		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
 				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
 					defer wg.Done()
 					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, startTime, userActivity)
+				}(ctx, userActivityStartTime, userActivity)
 			}
 
-			startTime = now.Truncate(reportGranularity)
-			windowStart = startTime.Add(-rollbackGrace)
-			windowEnd = startTime.Add(reportGranularity)
+			userActivityStartTime = now.Truncate(userActivityReportGranularity)
+			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
+			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+		}
+
+		if now := r.clock.Now().UTC(); now.Before(resourceUsageWindowStart) || !now.Before(resourceUsageWindowEnd) {
+			if len(resourcePresences) > 0 {
+				wg.Add(1)
+				go func(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+					defer wg.Done()
+					r.persistResourcePresence(ctx, startTime, resourcePresences)
+				}(ctx, resourceUsageStartTime, resourcePresences)
+			}
+
+			resourceUsageStartTime = now.Truncate(resourceReportGranularity)
+			resourceUsageWindowStart = resourceUsageStartTime.Add(-rollbackGrace)
+			resourceUsageWindowEnd = resourceUsageStartTime.Add(resourceReportGranularity)
+			resourcePresences = make(map[prehogv1.ResourceKind]map[string]struct{}, len(resourcePresences))
 		}
 
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
-			userRecord(te.UserName).Logins++
+			// Bots never generate tp.user.login events.
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
-				userRecord(te.UserName).SshSessions++
+				userRecord(te.UserName, te.UserKind).SshSessions++
 			case string(types.AppSessionKind):
-				userRecord(te.UserName).AppSessions++
+				userRecord(te.UserName, te.UserKind).AppSessions++
 			case string(types.KubernetesSessionKind):
-				userRecord(te.UserName).KubeSessions++
+				userRecord(te.UserName, te.UserKind).KubeSessions++
 			case string(types.DatabaseSessionKind):
-				userRecord(te.UserName).DbSessions++
+				userRecord(te.UserName, te.UserKind).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
-				userRecord(te.UserName).DesktopSessions++
+				userRecord(te.UserName, te.UserKind).DesktopSessions++
 			case usagereporter.PortSSHSessionType:
-				userRecord(te.UserName).SshPortV2Sessions++
+				userRecord(te.UserName, te.UserKind).SshPortV2Sessions++
 			case usagereporter.PortKubeSessionType:
-				userRecord(te.UserName).KubePortSessions++
+				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
-				userRecord(te.UserName).AppTcpSessions++
+				userRecord(te.UserName, te.UserKind).AppTcpSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
-			userRecord(te.UserName).KubeRequests++
+			userRecord(te.UserName, te.UserKind).KubeRequests++
 		case *usagereporter.SFTPEvent:
-			userRecord(te.UserName).SftpEvents++
+			userRecord(te.UserName, te.UserKind).SftpEvents++
+		case *usagereporter.ResourceHeartbeatEvent:
+			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
+			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
+		case *usagereporter.SPIFFESVIDIssuedEvent:
+			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
+		case *usagereporter.BotJoinEvent:
+			botUserName := machineidv1.BotResourceName(te.BotName)
+			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
+		case *usagereporter.UserCertificateIssuedEvent:
+			// Note: kind is poorly defined for this event type, so we'll assume
+			// unspecified even though non-bot users are almost certainly human.
+			kind := prehogv1alpha.UserKind_USER_KIND_UNSPECIFIED
+			if te.IsBot {
+				kind = prehogv1alpha.UserKind_USER_KIND_BOT
+			}
+
+			userRecord(te.UserName, kind).CertificatesIssued++
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -285,7 +393,11 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, startTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
+	}
+
+	if len(resourcePresences) > 0 {
+		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
 	}
 
 	wg.Wait()
@@ -298,17 +410,16 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 		records = append(records, record)
 	}
 
-	for len(records) > 0 {
-		report, err := prepareUserActivityReport(r.clusterName, r.hostID, startTime, records)
-		if err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time":   startTime,
-				"lost_records": len(records),
-			}).Error("Failed to prepare user activity report, dropping data.")
-			return
-		}
-		records = records[len(report.Records):]
+	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time":   startTime,
+			"lost_records": len(records),
+		}).Error("Failed to prepare user activity report, dropping data.")
+		return
+	}
 
+	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,
@@ -323,5 +434,44 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 			"start_time":  startTime,
 			"records":     len(report.Records),
 		}).Debug("Persisted user activity report.")
+	}
+}
+
+func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+	records := make([]*prehogv1.ResourceKindPresenceReport, 0, len(resourcePresences))
+	for kind, set := range resourcePresences {
+		record := &prehogv1.ResourceKindPresenceReport{
+			ResourceKind: kind,
+			ResourceIds:  make([]uint64, 0, len(set)),
+		}
+		for name := range set {
+			anonymized := r.anonymizer.AnonymizeNonEmpty(name)
+			packed := binary.LittleEndian.Uint64(anonymized[:]) // only the first 8 bytes are used
+			record.ResourceIds = append(record.ResourceIds, packed)
+		}
+		records = append(records, record)
+	}
+
+	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time": startTime,
+		}).Error("Failed to prepare resource presence report, dropping data.")
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
+			r.log.WithError(err).WithFields(logrus.Fields{
+				"start_time": startTime,
+			}).Error("Failed to persist resource presence report, dropping data.")
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": reportUUID,
+			"start_time":  startTime,
+		}).Debug("Persisted resource presence report.")
 	}
 }

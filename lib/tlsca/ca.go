@@ -45,7 +45,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuthority,
+	teleport.ComponentKey: teleport.ComponentAuthority,
 })
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
@@ -71,7 +71,7 @@ func FromKeys(certPEM, keyPEM []byte) (*CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(keyPEM) != 0 {
-		ca.Signer, err = ParsePrivateKeyPEM(keyPEM)
+		ca.Signer, err = keys.ParsePrivateKey(keyPEM)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -181,6 +181,12 @@ type Identity struct {
 	Renewable bool
 	// Generation counts the number of times this certificate has been renewed.
 	Generation uint64
+	// BotName indicates the name of the Machine ID bot this identity was issued
+	// to, if any.
+	BotName string
+	// BotInstanceID is a unique identifier for Machine ID bots that is
+	// persisted through renewals.
+	BotInstanceID string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -243,12 +249,27 @@ type RouteToDatabase struct {
 	// Database is an optional database name to serve as a default
 	// database to connect to.
 	Database string
+	// Roles is an optional list of database roles to use for a database
+	// session.
+	// This list should be a subset of allowed database roles. If not
+	// specified, Database Service will use all allowed database roles for this
+	// database.
+	Roles []string
 }
 
 // String returns string representation of the database routing struct.
 func (r RouteToDatabase) String() string {
-	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v)",
-		r.ServiceName, r.Protocol, r.Username, r.Database)
+	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v, Roles=%v)",
+		r.ServiceName, r.Protocol, r.Username, r.Database, r.Roles)
+}
+
+// Empty returns true if RouteToDatabase is empty.
+func (r RouteToDatabase) Empty() bool {
+	return r.ServiceName == "" &&
+		r.Protocol == "" &&
+		r.Username == "" &&
+		r.Database == "" &&
+		len(r.Roles) == 0
 }
 
 // DeviceExtensions holds device-aware extensions for the identity.
@@ -289,12 +310,22 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
-	if id.RouteToDatabase != (RouteToDatabase{}) {
+	if !id.RouteToDatabase.Empty() {
 		routeToDatabase = &events.RouteToDatabase{
 			ServiceName: id.RouteToDatabase.ServiceName,
 			Protocol:    id.RouteToDatabase.Protocol,
 			Username:    id.RouteToDatabase.Username,
 			Database:    id.RouteToDatabase.Database,
+			Roles:       id.RouteToDatabase.Roles,
+		}
+	}
+
+	var devExts *events.DeviceExtensions
+	if id.DeviceExtensions != (DeviceExtensions{}) {
+		devExts = &events.DeviceExtensions{
+			DeviceId:     id.DeviceExtensions.DeviceID,
+			AssetTag:     id.DeviceExtensions.AssetTag,
+			CredentialId: id.DeviceExtensions.CredentialID,
 		}
 	}
 
@@ -325,6 +356,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
+		DeviceExtensions:        devExts,
 	}
 }
 
@@ -492,6 +524,17 @@ var (
 
 	// DesktopsLimitExceededOID is an extension OID used indicate if number of non-AD desktops exceeds the limit for OSS distribution.
 	DesktopsLimitExceededOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 17}
+
+	// BotASN1ExtensionOID is an extension OID used to indicate an identity is associated with a Machine ID bot.
+	BotASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 18}
+
+	// RequestedDatabaseRolesExtensionOID is an extension OID used when
+	// encoding/decoding requested database roles.
+	RequestedDatabaseRolesExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 19}
+
+	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
+	// instance identifier into a certificate.
+	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
 )
 
 // Device Trust OIDs.
@@ -707,6 +750,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.RouteToDatabase.Database,
 			})
 	}
+	for i := range id.RouteToDatabase.Roles {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  RequestedDatabaseRolesExtensionOID,
+				Value: id.RouteToDatabase.Roles[i],
+			})
+	}
 
 	// Encode allowed database names/users used when passing them
 	// to remote clusters as user traits.
@@ -757,6 +807,22 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: fmt.Sprint(id.Generation),
 			},
 		)
+	}
+
+	if id.BotName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotASN1ExtensionOID,
+				Value: id.BotName,
+			})
+	}
+
+	if id.BotInstanceID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInstanceASN1ExtensionOID,
+				Value: id.BotInstanceID,
+			})
 	}
 
 	if len(id.AllowedResourceIDs) > 0 {
@@ -953,6 +1019,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.RouteToDatabase.Database = val
 			}
+		case attr.Type.Equal(RequestedDatabaseRolesExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToDatabase.Roles = append(id.RouteToDatabase.Roles, val)
+			}
 		case attr.Type.Equal(DatabaseNamesASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -988,6 +1059,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 					return nil, trace.Wrap(err)
 				}
 				id.Generation = generation
+			}
+		case attr.Type.Equal(BotASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotName = val
+			}
+		case attr.Type.Equal(BotInstanceASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInstanceID = val
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
@@ -1043,6 +1124,11 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		}
 	}
 
+	userKind := events.UserKind_USER_KIND_HUMAN
+	if id.BotName != "" {
+		userKind = events.UserKind_USER_KIND_BOT
+	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1050,6 +1136,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AzureIdentity:     id.RouteToApp.AzureIdentity,
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		AccessRequests:    id.ActiveRequests,
+		UserKind:          userKind,
 		TrustedDevice:     device,
 	}
 }
@@ -1062,7 +1149,10 @@ func (id Identity) GetSessionMetadata(sid string) events.SessionMetadata {
 	}
 }
 
-// IsMFAVerified returns whether this identity is MFA verified.
+// IsMFAVerified returns whether this identity is MFA verified. This MFA
+// verification may or may not have taken place recently, so it should not
+// be treated as blanket MFA verification uncritically. For example, MFA
+// should be re-verified for login procedures or admin actions.
 func (id *Identity) IsMFAVerified() bool {
 	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
 }
@@ -1124,10 +1214,11 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	log.WithFields(logrus.Fields{
-		"not_after": req.NotAfter,
-		"dns_names": req.DNSNames,
-		"key_usage": req.KeyUsage,
-	}).Infof("Generating TLS certificate %v", req.Subject.String())
+		"not_after":   req.NotAfter,
+		"dns_names":   req.DNSNames,
+		"key_usage":   req.KeyUsage,
+		"common_name": req.Subject.CommonName,
+	}).Debug("Generating TLS certificate")
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

@@ -110,6 +110,8 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 			// We are not supporting liveness/readiness yet, but if we do it would make sense to use job's readiness
 			job.SetReady(false)
 
+			// Note: we must always return an error, even if everything went great and we're doing a graceful shutdown.
+			// The process library will trigger a complete shutdown only if the critical job exits with an error.
 			switch {
 			case trace.IsConnectionProblem(err):
 				if config.FailFast {
@@ -123,8 +125,7 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 				log.WithError(err).Error("Watcher stream closed. Attempting to reconnect.")
 			case lib.IsCanceled(err):
 				log.Debug("Watcher context is canceled")
-				// Context cancellation is not an error
-				return nil
+				return trace.Wrap(err)
 			default:
 				log.WithError(err).Error("Watcher event loop failed")
 				return trace.Wrap(err)
@@ -133,7 +134,7 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 			// To mitigate a potentially aggressive retry loop, we wait
 			if err := bk.Do(ctx); err != nil {
 				log.Debug("Watcher context was canceled while waiting before a reconnection")
-				return nil
+				return trace.Wrap(err)
 			}
 		}
 	})
@@ -172,7 +173,10 @@ func (job job) watchEvents(ctx context.Context) error {
 					return trace.Wrap(ctx.Err())
 				}
 			}
-			return trace.Wrap(watcher.Error())
+			if err := watcher.Error(); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Errorf("watcher closed without error")
 		}
 	}
 }

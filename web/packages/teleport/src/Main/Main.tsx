@@ -17,14 +17,17 @@
  */
 
 import React, {
+  createContext,
   ReactNode,
   Suspense,
+  useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react';
 import styled from 'styled-components';
-import { Indicator } from 'design';
+import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -32,6 +35,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { matchPath, useHistory } from 'react-router';
 
 import Dialog from 'design/Dialog';
+import { sharedStyles } from 'design/theme/themes/sharedStyles';
 
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
@@ -40,22 +44,16 @@ import useTeleport from 'teleport/useTeleport';
 import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
 import { storageService } from 'teleport/services/storageService';
-
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
-
-import { Navigation } from 'teleport/Navigation';
-
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
 import {
   getFirstRouteForCategory,
-  NavigationProps,
+  Navigation,
 } from 'teleport/Navigation/Navigation';
-
 import { NavigationCategory } from 'teleport/Navigation/categories';
-
+import { TopBarProps } from 'teleport/TopBar/TopBar';
+import { useUser } from 'teleport/User/UserContext';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
@@ -70,7 +68,7 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
-  navigationProps?: NavigationProps;
+  topBarProps?: TopBarProps;
   inviteCollaboratorsFeedback?: ReactNode;
 }
 
@@ -80,13 +78,15 @@ export function Main(props: MainProps) {
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
+  const { preferences } = useUser();
+
   useEffect(() => {
     if (ctx.storeUser.state) {
       setAttempt({ status: 'success' });
       return;
     }
 
-    run(() => ctx.init());
+    run(() => ctx.init(preferences));
   }, []);
 
   const featureFlags = ctx.getFeatureFlags();
@@ -95,13 +95,37 @@ export function Main(props: MainProps) {
     () => props.features.filter(feature => feature.hasAccess(featureFlags)),
     [featureFlags, props.features]
   );
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(f =>
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
+    );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  const [showOnboardDiscover, setShowOnboardDiscover] = useState(true);
+  // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
+  const [showOnboardDiscover, setShowOnboardDiscover] = useState(
+    !ctx.redirectUrl
+  );
   const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
     !!props.Questionnaire
   );
+
+  useEffect(() => {
+    if (
+      matchPath(history.location.pathname, {
+        path: ctx.redirectUrl,
+        exact: true,
+      })
+    ) {
+      // hide the onboarding popup if we're on the redirectUrl, just in case
+      setShowOnboardDiscover(false);
+      ctx.redirectUrl = null;
+    }
+  }, [ctx, history.location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -134,10 +158,13 @@ export function Main(props: MainProps) {
   if (
     matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
   ) {
-    const indexRoute = getFirstRouteForCategory(
-      features,
-      NavigationCategory.Resources
-    );
+    if (ctx.redirectUrl) {
+      return <Redirect to={ctx.redirectUrl} />;
+    }
+
+    const indexRoute = cfg.isDashboard
+      ? cfg.routes.downloadCenter
+      : getFirstRouteForCategory(features, NavigationCategory.Resources);
 
     return <Redirect to={indexRoute} />;
   }
@@ -165,27 +192,37 @@ export function Main(props: MainProps) {
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
   const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
+  const hasSidebar =
+    feature?.category === NavigationCategory.Management &&
+    !feature?.hideNavigation;
 
   return (
     <FeaturesContextProvider value={features}>
-      <BannerList
-        banners={banners}
-        customBanners={props.customBanners}
-        billingBanners={featureFlags.billing && props.billingBanners}
-        onBannerDismiss={dismissAlert}
-      >
+      <TopBar
+        CustomLogo={
+          props.topBarProps?.showPoweredByLogo
+            ? props.topBarProps.CustomLogo
+            : null
+        }
+      />
+      <Wrapper>
         <MainContainer>
-          <Navigation {...props.navigationProps} />
-          <HorizontalSplit>
+          <Navigation />
+          <HorizontalSplit hasSidebar={hasSidebar}>
             <ContentMinWidth>
+              <BannerList
+                banners={banners}
+                customBanners={props.customBanners}
+                billingBanners={featureFlags.billing && props.billingBanners}
+                onBannerDismiss={dismissAlert}
+              />
               <Suspense fallback={null}>
-                <TopBar />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
         </MainContainer>
-      </BannerList>
+      </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
@@ -265,21 +302,78 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   return <Switch>{routes}</Switch>;
 }
 
-export const ContentMinWidth = styled.div`
-  min-width: 1250px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
+// This context allows children components to disable this min-width in case they want to be able to shrink smaller.
+type MinWidthContextState = {
+  setEnforceMinWidth: (enforceMinWidth: boolean) => void;
+};
 
-export const HorizontalSplit = styled.div`
+const ContentMinWidthContext = createContext<MinWidthContextState>(null);
+
+/**
+ * @deprecated Use useNoMinWidth instead.
+ */
+export const useContentMinWidthContext = () =>
+  useContext(ContentMinWidthContext);
+
+export const useNoMinWidth = () => {
+  const { setEnforceMinWidth } = useContext(ContentMinWidthContext);
+
+  useLayoutEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
+};
+
+const ContentMinWidth = ({ children }: { children: ReactNode }) => {
+  const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+
+  return (
+    <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
+      <div
+        css={`
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          ${enforceMinWidth ? 'min-width: 1000px;' : ''}
+        `}
+      >
+        {children}
+      </div>
+    </ContentMinWidthContext.Provider>
+  );
+};
+
+function getWidth(hasSidebar?: boolean) {
+  const { sidebarWidth } = sharedStyles;
+  if (hasSidebar) {
+    return `max-width: calc(100% - ${sidebarWidth}px);`;
+  }
+  return 'max-width: 100%;';
+}
+
+export const HorizontalSplit = styled.div<{ hasSidebar?: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;
+  ${props => getWidth(props.hasSidebar)}
   overflow-x: auto;
 `;
 
 export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
+  position: absolute;
+  overflow: hidden;
+  top: 50%;
+  left: 50%;
+`;
+
+const Wrapper = styled(Box)`
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  width: 100vw;
 `;

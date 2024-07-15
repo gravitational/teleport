@@ -103,7 +103,6 @@ export const SelectSecurityGroups = ({
 
   return (
     <>
-      <Text bold>Step 3 (Optional)</Text>
       <Text bold>Select Security Groups</Text>
       <Text mb={2}>
         Select security groups to assign to the Fargate service that will be

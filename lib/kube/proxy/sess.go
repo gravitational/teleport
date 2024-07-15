@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -34,9 +33,19 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	kubeapitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/remotecommand"
+	watchtools "k8s.io/client-go/tools/watch"
 
 	"github.com/gravitational/teleport"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -180,7 +189,7 @@ func (p *kubeProxyClientStreams) Close() error {
 		p.sizeQueue.Close()
 	}
 	p.wg.Wait()
-	return trace.Wrap(p.proxy.Close())
+	return nil
 }
 
 // multiResizeQueue is a merged queue of multiple terminal size queues.
@@ -272,7 +281,7 @@ type party struct {
 	ID        uuid.UUID
 	Client    remoteClient
 	Mode      types.SessionParticipantMode
-	closeC    chan struct{}
+	closeC    chan error
 	closeOnce sync.Once
 }
 
@@ -283,13 +292,14 @@ func newParty(ctx authContext, mode types.SessionParticipantMode, client remoteC
 		ID:     uuid.New(),
 		Client: client,
 		Mode:   mode,
-		closeC: make(chan struct{}),
+		closeC: make(chan error, 1),
 	}
 }
 
 // InformClose informs the party that he must leave the session.
-func (p *party) InformClose() {
+func (p *party) InformClose(err error) {
 	p.closeOnce.Do(func() {
+		p.closeC <- err
 		close(p.closeC)
 	})
 }
@@ -335,7 +345,9 @@ type session struct {
 
 	emitter apievents.Emitter
 
-	podName string
+	podName      string
+	podNamespace string
+	container    string
 
 	started bool
 
@@ -361,9 +373,11 @@ type session struct {
 	// reason is the reason for the session.
 	reason string
 
-	// eventsWaiter is used to wait for events to be emitted and goroutines closed
+	// weakEventsWaiter is used to wait for events to be emitted and goroutines closed
 	// when a session is closed.
-	eventsWaiter sync.WaitGroup
+	// Note: this is a weakWaitGroup and doesn't have the same guarantees as sync.WaitGroup.
+	// Please see the documentation for [weakWaitGroup] for more information.
+	weakEventsWaiter weakWaitGroup
 
 	streamContext       context.Context
 	streamContextCancel context.CancelFunc
@@ -372,6 +386,8 @@ type session struct {
 	// decremented when he leaves - it waits until the session leave events
 	// are emitted for every party before returning.
 	partiesWg sync.WaitGroup
+	// terminationErr is set when the session is terminated.
+	terminationErr error
 }
 
 // newSession creates a new session in pending mode.
@@ -392,7 +408,13 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
+	namespace := params.ByName("podNamespace")
+	podName := params.ByName("podName")
+	container := q.Get("container")
 	s := &session{
+		podName:                        podName,
+		podNamespace:                   namespace,
+		container:                      container,
 		ctx:                            ctx,
 		forwarder:                      forwarder,
 		req:                            req,
@@ -403,7 +425,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		log:                            log,
 		io:                             io,
 		accessEvaluator:                accessEvaluator,
-		emitter:                        events.NewDiscardEmitter(),
 		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
@@ -417,6 +438,12 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		streamContext:                  streamContext,
 		streamContextCancel:            streamContextCancel,
 		partiesWg:                      sync.WaitGroup{},
+		// if session ever starts, emitter and recorder will be replaced
+		// by actual emitter and recorder.
+		emitter: events.NewDiscardEmitter(),
+		recorder: events.WithNoOpPreparer(
+			events.NewDiscardRecorder(),
+		),
 	}
 
 	s.io.OnWriteError = s.disconnectPartyOnErr
@@ -492,7 +519,7 @@ func (s *session) checkPresence() error {
 
 // launch waits until the session meets access requirements and then transitions the session
 // to a running state.
-func (s *session) launch() error {
+func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (returnErr error) {
 	defer func() {
 		err := s.Close()
 		if err != nil {
@@ -503,10 +530,13 @@ func (s *session) launch() error {
 	s.log.Debugf("Launching session: %v", s.id)
 
 	q := s.req.URL.Query()
+	namespace := s.params.ByName("podNamespace")
+	podName := s.params.ByName("podName")
+	container := q.Get("container")
 	request := &remoteCommandRequest{
-		podNamespace:       s.params.ByName("podNamespace"),
-		podName:            s.params.ByName("podName"),
-		containerName:      q.Get("container"),
+		podNamespace:       namespace,
+		podName:            podName,
+		containerName:      container,
 		cmd:                q["command"],
 		stdin:              utils.AsBool(q.Get("stdin")),
 		stdout:             utils.AsBool(q.Get("stdout")),
@@ -522,15 +552,20 @@ func (s *session) launch() error {
 
 	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
 
-	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
+	onFinished, err := s.lockedSetupLaunch(request, eventPodMeta)
+	defer func() {
+		if returnErr != nil {
+			s.setTerminationErr(returnErr)
+			s.reportErrorToSessionRecorder(returnErr)
+			s.log.WithError(returnErr).Warning("Executor failed while streaming.")
+		}
+		// call onFinished to emit the session.end and exec events.
+		// onFinished is never nil.
+		onFinished(returnErr)
+	}()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		// The closure captures the err variable pointer so that the variable can
-		// be changed by the code below, but when defer runs, it gets the last value.
-		onFinished(err)
-	}()
 
 	termParams := tsession.TerminalParams{
 		W: 100,
@@ -543,12 +578,7 @@ func (s *session) launch() error {
 			Code:        events.SessionStartCode,
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
-			ServerNamespace: s.forwarder.cfg.Namespace,
-			ServerHostname:  s.sess.teleportCluster.name,
-			ServerAddr:      s.sess.kubeAddress,
-		},
+		ServerMetadata:  s.sess.getServerMetadata(),
 		SessionMetadata: s.getSessionMetadata(),
 		UserMetadata:    s.ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -573,9 +603,9 @@ func (s *session) launch() error {
 		s.forwarder.log.WithError(err).Warn("Failed to set up session start event - event will not be recorded")
 	}
 
-	s.eventsWaiter.Add(1)
+	s.weakEventsWaiter.Add(1)
 	go func() {
-		defer s.eventsWaiter.Done()
+		defer s.weakEventsWaiter.Done()
 		t := time.NewTimer(time.Until(s.expires))
 		defer t.Stop()
 
@@ -611,12 +641,45 @@ func (s *session) launch() error {
 	}
 
 	s.io.On()
-	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
-		s.reportErrorToSessionRecorder(err)
-		s.log.WithError(err).Warning("Executor failed while streaming.")
+	// If the container is ephemeral and already terminated, we should
+	// retrieve the logs and return early.
+	if ephemeralContainerStatus != nil && ephemeralContainerStatus.State.Terminated != nil {
+		err := s.retrieveAlreadyStoppedPodLogs(
+			namespace,
+			podName,
+			container,
+		)
 		return trace.Wrap(err)
 	}
+
+	if streamErr := executor.StreamWithContext(s.streamContext, options); streamErr != nil {
+		// If the container isn't ephemeral, return the error.
+		if ephemeralContainerStatus == nil {
+			return trace.Wrap(streamErr)
+		}
+		fmt.Fprintf(s.io, "\r\nwarning: couldn't attach to pod/%s, falling back to streaming logs: %v\r\n", podName, streamErr)
+		err := s.retrieveAlreadyStoppedPodLogs(
+			namespace,
+			podName,
+			container,
+		)
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+func (s *session) setTerminationErr(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.setTerminationErrUnlocked(err)
+}
+
+func (s *session) setTerminationErrUnlocked(err error) {
+	if s.terminationErr != nil {
+		return
+	}
+	s.terminationErr = err
 }
 
 // reportErrorToSessionRecorder reports the error to the session recorder
@@ -626,11 +689,11 @@ func (s *session) reportErrorToSessionRecorder(err error) {
 		return
 	}
 	if s.recorder != nil {
-		fmt.Fprintf(s.recorder, "\n---\nSession exited with error: %v\n", err)
+		fmt.Fprintf(s.recorder, "\r\n---\r\nSession exited with error: %v\r\n", err)
 	}
 }
 
-func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
+func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -665,9 +728,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 					RemoteAddr: s.req.RemoteAddr,
 					Protocol:   events.EventProtocolKube,
 				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerNamespace: s.forwarder.cfg.Namespace,
-				},
+				ServerMetadata:            s.sess.getServerMetadata(),
 				SessionMetadata:           s.getSessionMetadata(),
 				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
@@ -688,76 +749,18 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	recorder, err := recorder.New(recorder.Config{
-		SessionID:    tsession.ID(s.id.String()),
-		ServerID:     s.forwarder.cfg.HostID,
-		Namespace:    s.forwarder.cfg.Namespace,
-		Clock:        s.forwarder.cfg.Clock,
-		ClusterName:  s.forwarder.cfg.ClusterName,
-		RecordingCfg: s.ctx.recordingConfig,
-		SyncStreamer: s.forwarder.cfg.AuthClient,
-		DataDir:      s.forwarder.cfg.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
-		// Session stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context: s.forwarder.ctx,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.recorder = recorder
-	s.emitter = s.forwarder.cfg.Emitter
-
-	s.io.AddWriter(sessionRecorderID, recorder)
-
-	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
-	if s.PresenceEnabled {
-		s.eventsWaiter.Add(1)
-		go func() {
-			defer s.eventsWaiter.Done()
-			ticker := time.NewTicker(PresenceVerifyInterval)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ticker.C:
-					err := s.checkPresence()
-					if err != nil {
-						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
-						err := s.Close()
-						if err != nil {
-							s.log.WithError(err).Error("Failed to close session")
-						}
-					}
-				case <-s.closeC:
-					return
-				}
-			}
-		}()
-	}
 	// If we get here, it means we are going to have a session.end event.
 	// This increments the waiter so that session.Close() guarantees that once called
 	// the events are emitted before closing the emitter/recorder.
 	// It might happen when a user disconnects or when a moderator forces an early
 	// termination.
-	s.eventsWaiter.Add(1)
-	// receive the exec error returned from API call to kube cluster
-	return func(errExec error) {
-		defer s.eventsWaiter.Done()
+	s.weakEventsWaiter.Add(1)
+	onFinish := func(errExec error) {
+		defer s.weakEventsWaiter.Done()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		for _, party := range s.parties {
-			if err := party.Client.sendStatus(errExec); err != nil {
-				s.forwarder.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-			}
-		}
-
-		serverMetadata := apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
-			ServerNamespace: s.forwarder.cfg.Namespace,
-		}
+		serverMetadata := s.sess.getServerMetadata()
 
 		sessionMetadata := s.getSessionMetadata()
 
@@ -843,7 +846,57 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		} else {
 			s.forwarder.log.WithError(err).Warn("Failed to set up session end event - event will not be recorded")
 		}
-	}, nil
+	}
+
+	recorder, err := recorder.New(recorder.Config{
+		SessionID:    tsession.ID(s.id.String()),
+		ServerID:     s.forwarder.cfg.HostID,
+		Namespace:    s.forwarder.cfg.Namespace,
+		Clock:        s.forwarder.cfg.Clock,
+		ClusterName:  s.forwarder.cfg.ClusterName,
+		RecordingCfg: s.ctx.recordingConfig,
+		SyncStreamer: s.forwarder.cfg.AuthClient,
+		DataDir:      s.forwarder.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: s.forwarder.ctx,
+	})
+	if err != nil {
+		return onFinish, trace.Wrap(err)
+	}
+
+	s.recorder = recorder
+	s.emitter = s.forwarder.cfg.Emitter
+
+	s.io.AddWriter(sessionRecorderID, recorder)
+
+	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
+	if s.PresenceEnabled {
+		s.weakEventsWaiter.Add(1)
+		go func() {
+			defer s.weakEventsWaiter.Done()
+			ticker := time.NewTicker(PresenceVerifyInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					err := s.checkPresence()
+					if err != nil {
+						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
+						if err := s.Close(); err != nil {
+							s.log.WithError(err).Error("Failed to close session")
+						}
+						return
+					}
+				case <-s.closeC:
+					return
+				}
+			}
+		}()
+	}
+	return onFinish, nil
 }
 
 // join attempts to connect a party to the session.
@@ -907,12 +960,13 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	if p.Mode == types.SessionModeratorMode {
-		s.eventsWaiter.Add(1)
+		s.weakEventsWaiter.Add(1)
 		go func() {
-			defer s.eventsWaiter.Done()
+			defer s.weakEventsWaiter.Done()
 			c := p.Client.forceTerminate()
 			select {
 			case <-c:
+				s.setTerminationErr(sessionTerminatedByModeratorErr)
 				go func() {
 					s.log.Debugf("Received force termination request")
 					err := s.Close()
@@ -933,8 +987,27 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 
 	if !s.started {
 		if canStart {
+			// create an ephemeral container if this session will be
+			// running in one now that the moderated session is approved
+			startedEphemeralCont, err := s.createEphemeralContainer()
+			if err != nil {
+				// if the ephemeral container creation fails, close the session
+				// and return the error. We need to close the session here because
+				// we must inform all parties that the session is closing.
+				s.setTerminationErrUnlocked(err)
+				s.reportErrorToSessionRecorder(err)
+				s.log.WithError(err).Warning("Executor failed while creating ephemeral pod.")
+				go func() {
+					err := s.Close()
+					if err != nil {
+						s.log.WithError(err).Error("Failed to close session")
+					}
+				}()
+				return trace.Wrap(err)
+			}
+
 			go func() {
-				if err := s.launch(); err != nil {
+				if err := s.launch(startedEphemeralCont); err != nil {
 					s.log.WithError(err).Warning("Failed to launch Kubernetes session.")
 				}
 			}()
@@ -962,6 +1035,48 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	}
 
 	return nil
+}
+
+// createEphemeralContainer creates an ephemeral container and waits for it to start.
+func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
+	initUser := s.parties[s.initiator]
+	username := initUser.Ctx.Identity.GetIdentity().Username
+	namespace := s.params.ByName("podNamespace")
+	podName := s.params.ByName("podName")
+	container := s.req.URL.Query().Get("container")
+
+	waitingCont, err := s.forwarder.cfg.CachingAuthClient.GetKubernetesWaitingContainer(
+		s.forwarder.ctx,
+		&kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+			Username:      username,
+			Cluster:       s.ctx.kubeClusterName,
+			Namespace:     namespace,
+			PodName:       podName,
+			ContainerName: container,
+		},
+	)
+	if trace.IsNotFound(err) {
+		return nil, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = s.forwarder.cfg.AuthClient.DeleteKubernetesWaitingContainer(
+		s.forwarder.ctx,
+		&kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+			Username:      username,
+			Cluster:       s.ctx.kubeClusterName,
+			Namespace:     namespace,
+			PodName:       podName,
+			ContainerName: container,
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.log.Debugf("Creating ephemeral container %s on pod %s", container, podName)
+	containerStatus, err := s.patchAndWaitForPodEphemeralContainer(s.forwarder.ctx, &initUser.Ctx, s.req.Header, waitingCont)
+	return containerStatus, trace.Wrap(err)
 }
 
 func (s *session) BroadcastMessage(format string, args ...any) {
@@ -1055,14 +1170,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	party.InformClose()
-	defer func() {
-		if err := party.Client.Close(); err != nil {
-			s.log.WithError(err).Error("Error closing party")
-			errs = append(errs, trace.Wrap(err))
-		}
-	}()
-
+	party.InformClose(s.terminationErr)
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
 			// Currently, Teleport closes the session when the initiator exits.
@@ -1163,9 +1271,10 @@ func (s *session) Close() error {
 			s.log.WithError(err).Debug("Failed to close session tracker")
 		}
 		s.mu.Lock()
+		terminationErr := s.terminationErr
 		// terminate all active parties in the session.
 		for _, party := range s.parties {
-			party.InformClose()
+			party.InformClose(terminationErr)
 		}
 		recorder := s.recorder
 		s.mu.Unlock()
@@ -1180,7 +1289,7 @@ func (s *session) Close() error {
 		if recorder != nil {
 			// wait for events to be emitted before closing the recorder/emitter.
 			// If we close it immediately we will lose session.end events.
-			s.eventsWaiter.Wait()
+			s.weakEventsWaiter.Wait()
 			recorder.Close(s.forwarder.ctx)
 		}
 	})
@@ -1207,6 +1316,11 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicySet) error {
+	ctx := s.req.Context()
+	command := s.req.URL.Query()["command"]
+	if len(command) == 0 {
+		command = s.retrieveEphemeralContainerCommand(ctx, p.Ctx.User.GetName(), s.req.URL.Query().Get("container"))
+	}
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:         s.id.String(),
 		Kind:              string(types.KubernetesSessionKind),
@@ -1221,13 +1335,11 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
 		HostID:            s.forwarder.cfg.HostID,
-		InitialCommand:    s.req.URL.Query()["command"],
+		InitialCommand:    command,
 	}
 
 	s.log.Debug("Creating session tracker")
 	sessionTrackerService := s.forwarder.cfg.AuthClient
-
-	ctx := s.req.Context()
 
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
 	switch {
@@ -1265,4 +1377,216 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 
 func (s *session) getSessionMetadata() apievents.SessionMetadata {
 	return s.ctx.Identity.GetIdentity().GetSessionMetadata(s.id.String())
+}
+
+// patchPodWithEphemeralContainer creates an ephemeral container and waits
+// for it to start.
+func (s *session) patchAndWaitForPodEphemeralContainer(
+	ctx context.Context,
+	authCtx *authContext,
+	headers http.Header,
+	waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer,
+) (containerStatus *corev1.ContainerStatus, err error) {
+	fmt.Fprintf(s.io, "\r\nCreating ephemeral container %s in pod %s/%s\r\n", waitingCont.Spec.ContainerName, waitingCont.Spec.Namespace, waitingCont.Spec.PodName)
+
+	clientSet, _, err := s.forwarder.impersonatedKubeClient(authCtx, headers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
+	result, err := podClient.Patch(ctx,
+		waitingCont.Spec.PodName,
+		kubeapitypes.StrategicMergePatchType,
+		waitingCont.Spec.Patch,
+		metav1.PatchOptions{},
+		"ephemeralcontainers")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Fprintf(s.io, "Pod %s/%s successfully patched. Waiting for container to become ready.\r\n",
+		waitingCont.Spec.Namespace,
+		waitingCont.Spec.PodName)
+
+	fieldSelector := fields.OneTermEqualSelector("metadata.name", waitingCont.Spec.PodName).String()
+	lw := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			options.FieldSelector = fieldSelector
+			options.ResourceVersion = result.GetResourceVersion()
+			options.ResourceVersionMatch = metav1.ResourceVersionMatchNotOlderThan
+			return podClient.List(ctx, options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			options.FieldSelector = fieldSelector
+			options.ResourceVersion = result.GetResourceVersion()
+			options.ResourceVersionMatch = metav1.ResourceVersionMatchNotOlderThan
+			return podClient.Watch(ctx, options)
+		},
+	}
+	_, err = watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, func(ev watch.Event) (bool, error) {
+		switch ev.Type {
+		case watch.Deleted:
+			return false, trace.NotFound("pod %s not found", waitingCont.Spec.PodName)
+		}
+
+		p, ok := ev.Object.(*corev1.Pod)
+		if !ok {
+			return false, trace.BadParameter("watch did not return a pod: %v", ev.Object)
+		}
+
+		s := getEphemeralContainerStatusByName(p, waitingCont.Spec.ContainerName)
+		if s == nil {
+			return false, nil
+		}
+		if s.State.Running != nil || s.State.Terminated != nil {
+			containerStatus = s
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Fprintf(s.io, "Ephemeral container %s is ready.\r\n", waitingCont.Spec.ContainerName)
+
+	return containerStatus, nil
+}
+
+// retrieveAlreadyStoppedPodLogs retrieves the logs of a stopped pod and writes them to the session's io writer.
+func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container string) error {
+	// If attaching to the container failed, check if the container
+	// is terminated. If it is, try to stream the logs. If it's not
+	// terminated or can't be found return the original error.
+	clientSet, _, err := s.forwarder.impersonatedKubeClient(&s.sess.authContext, s.req.Header)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	podClient := clientSet.CoreV1().Pods(namespace)
+
+	fmt.Fprintf(s.io, "Failed to attach to the container, attempting to stream logs instead...\r\n")
+	req := podClient.GetLogs(podName, &corev1.PodLogOptions{Container: container})
+	r, err := req.Stream(s.streamContext)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := io.Copy(s.io, r); err != nil {
+		_ = r.Close()
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.Close())
+}
+
+// retrieveEphemeralContainerCommand retrieves the command of an ephemeral container
+// if it exists.
+func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, username, containerName string) []string {
+	containers, err := s.forwarder.getUserEphemeralContainersForPod(ctx, username, s.ctx.kubeClusterName, s.podNamespace, s.podName)
+	if err != nil {
+		s.log.WithError(err).Warn("Failed to retrieve ephemeral containers")
+		return nil
+	}
+	if len(containers) == 0 {
+		return nil
+	}
+	for _, container := range containers {
+		if container.GetMetadata().GetName() != containerName {
+			continue
+		}
+
+		contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(container.Spec.PatchType))
+		if err != nil {
+			return nil
+		}
+		encoder, decoder, err := newEncoderAndDecoderForContentType(
+			contentType,
+			newClientNegotiator(s.sess.codecFactory),
+		)
+		if err != nil {
+			s.log.WithError(err).Warn("Failed to create encoder and decoder")
+			return nil
+		}
+		pod, _, err := s.forwarder.mergeEphemeralPatchWithCurrentPod(
+			ctx,
+			mergeEphemeralPatchWithCurrentPodConfig{
+				kubeCluster:   s.ctx.kubeClusterName,
+				kubeNamespace: s.podNamespace,
+				podName:       s.podName,
+				decoder:       decoder,
+				encoder:       encoder,
+				podPatch:      container.GetSpec().Patch,
+				patchType:     apimachinerytypes.PatchType(container.GetSpec().PatchType),
+			},
+		)
+		if err != nil {
+			s.log.WithError(err).Warn("Failed to merge ephemeral patch with current pod")
+			return nil
+		}
+		for _, ephemeral := range pod.Spec.EphemeralContainers {
+			if ephemeral.Name == containerName {
+				return ephemeral.Command
+			}
+		}
+
+	}
+	return nil
+}
+
+// weakWaitGroup is a specialized synchronization primitive similar to sync.WaitGroup
+// but with **relaxed** guarantees. Unlike sync.WaitGroup, weakWaitGroup does not ensure
+// that the Wait() method will wait for all Add() calls to reach completion through Done()
+// if they are called concurrently. This means that there is a potential leak in the
+// synchronization of goroutines that are added to the weakWaitGroup and may be started
+// after the Wait() method is called.
+//
+// Use Case:
+// This weakWaitGroup is intended for scenarios where goroutines are initiated from
+// various parts of the codebase concurrently and need to be awaited only if they started before
+// a certain point in time, specifically before session.Close() is called. If a goroutine
+// is initiated after session.Close() has been invoked, it will not be included in the wait process.
+// It's the caller responsibility to ensure that all goroutines started after Wait() returns end
+// up being a no-op.
+//
+// Important Considerations:
+//   - This implementation is UNSAFE as a general-purpose synchronization primitive.
+//   - It does not guarantee that Wait() will account for all Add() calls, leading to potential
+//     race conditions or goroutines that may not be properly awaited.
+//   - Due to these limitations, weakWaitGroup should be used with extreme caution and only
+//     in contexts where its relaxed guarantees are acceptable and safe.
+//
+// WARNING:
+// This is not a substitute for sync.WaitGroup in situations requiring strong synchronization
+// guarantees.
+type weakWaitGroup struct {
+	cond  sync.Cond
+	mu    sync.Mutex
+	count int
+}
+
+func (c *weakWaitGroup) Add(delta int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.count += delta
+}
+
+func (c *weakWaitGroup) Done() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.count--
+	if c.count == 0 && c.cond.L != nil {
+		c.cond.Broadcast()
+	}
+}
+
+func (c *weakWaitGroup) Wait() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.count == 0 {
+		return
+	}
+	if c.cond.L == nil {
+		c.cond.L = &c.mu
+	}
+	for c.count > 0 {
+		c.cond.Wait()
+	}
 }

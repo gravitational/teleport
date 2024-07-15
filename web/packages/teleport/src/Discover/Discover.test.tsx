@@ -22,8 +22,11 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { Discover } from 'teleport/Discover/Discover';
+import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
@@ -32,7 +35,6 @@ import {
   APPLICATIONS,
   KUBERNETES,
   SERVERS,
-  WINDOWS_DESKTOPS,
 } from 'teleport/Discover/SelectResource/resources';
 import {
   DATABASES,
@@ -40,14 +42,15 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from 'teleport/Discover/SelectResource/databases';
 
-import { ClusterResource } from 'teleport/services/userPreferences/types';
-
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { ResourceKind } from './Shared';
+import { useDiscover, DiscoverUpdateProps } from './useDiscover';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -55,7 +58,7 @@ beforeEach(() => {
 
 type createProps = {
   initialEntry?: string;
-  preferredResource?: ClusterResource;
+  preferredResource?: Resource;
 };
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
@@ -96,9 +99,6 @@ test('displays all resources by default', () => {
       .getAllByTestId(ResourceKind.Server)
       .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
   ).toHaveLength(SERVERS.length);
-  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-    WINDOWS_DESKTOPS.length
-  );
   expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
     DATABASES.length + DATABASES_UNGUIDED.length + DATABASES_UNGUIDED_DOC.length
   );
@@ -113,12 +113,8 @@ test('displays all resources by default', () => {
 test('location state applies filter/search', () => {
   create({
     initialEntry: 'desktop',
-    preferredResource: ClusterResource.RESOURCE_WEB_APPLICATIONS,
+    preferredResource: Resource.WEB_APPLICATIONS,
   });
-
-  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-    WINDOWS_DESKTOPS.length
-  );
 
   expect(
     screen.queryByTestId(ResourceKind.Application)
@@ -139,7 +135,7 @@ describe('location state', () => {
     ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
-    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);
+    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(4);
 
     expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
     expect(
@@ -152,10 +148,6 @@ describe('location state', () => {
 
   test('displays desktops when the location state is desktop', () => {
     create({ initialEntry: 'desktop' });
-
-    expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-      WINDOWS_DESKTOPS.length
-    );
 
     expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
     expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
@@ -215,4 +207,94 @@ describe('location state', () => {
       screen.queryByTestId(ResourceKind.Application)
     ).not.toBeInTheDocument();
   });
+});
+
+const renderUpdate = (props: DiscoverUpdateProps) => {
+  const defaultPref = makeDefaultUserPreferences();
+  defaultPref.onboard.preferredResources = [Resource.WEB_APPLICATIONS];
+
+  mockUserContextProviderWith(
+    makeTestUserContext({ preferences: defaultPref })
+  );
+
+  const userAcl = getAcl();
+  const ctx = createTeleportContext({ customAcl: userAcl });
+
+  const MockComponent1 = () => {
+    const { agentMeta } = useDiscover();
+    return (
+      <>
+        {agentMeta.resourceName === 'saml2' ? agentMeta.resourceName : 'saml1'}
+      </>
+    );
+  };
+
+  const testViews: ResourceViewConfig[] = [
+    {
+      kind: ResourceKind.SamlApplication,
+      views() {
+        return [
+          {
+            title: 'MockComponent1',
+            component: MockComponent1,
+          },
+        ];
+      },
+    },
+  ];
+
+  return render(
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: '' } },
+      ]}
+    >
+      <TeleportContextProvider ctx={ctx}>
+        <DiscoverComponent eViewConfigs={testViews} updateFlow={props} />
+      </TeleportContextProvider>
+    </MemoryRouter>
+  );
+};
+
+test('update flow: renders single component based on resourceSpec', () => {
+  const resourceSpec: ResourceSpec = {
+    name: 'Connect My Computer',
+    kind: ResourceKind.ConnectMyComputer,
+    event: null,
+    icon: 'Laptop',
+    keywords: '',
+    hasAccess: true,
+  };
+
+  renderUpdate({ resourceSpec: resourceSpec, agentMeta: { resourceName: '' } });
+
+  expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+
+  expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+
+  expect(
+    screen.queryByTestId(ResourceKind.Application)
+  ).not.toBeInTheDocument();
+
+  expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
+
+  expect(screen.getByText('Sign In & Connect My Computer')).toBeInTheDocument();
+});
+
+test('update flow: agentMeta is prepopulated based on agentMeta', () => {
+  const resourceSpec: ResourceSpec = {
+    name: 'MockComponent1',
+    kind: ResourceKind.SamlApplication,
+    event: null,
+    icon: 'Application',
+    keywords: '',
+    hasAccess: true,
+  };
+
+  renderUpdate({
+    resourceSpec: resourceSpec,
+    agentMeta: { resourceName: 'saml2' },
+  });
+
+  expect(screen.getByText('saml2')).toBeInTheDocument();
 });

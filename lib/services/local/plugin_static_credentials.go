@@ -58,12 +58,14 @@ func NewPluginStaticCredentialsService(backend backend.Backend) (*PluginStaticCr
 
 // CreatePluginStaticCredentials will create a new plugin static credentials resource.
 func (p *PluginStaticCredentialsService) CreatePluginStaticCredentials(ctx context.Context, pluginStaticCredentials types.PluginStaticCredentials) error {
-	return p.svc.CreateResource(ctx, pluginStaticCredentials)
+	_, err := p.svc.CreateResource(ctx, pluginStaticCredentials)
+	return trace.Wrap(err)
 }
 
 // GetPluginStaticCredentials will get a plugin static credentials resource by name.
 func (p *PluginStaticCredentialsService) GetPluginStaticCredentials(ctx context.Context, name string) (types.PluginStaticCredentials, error) {
-	return p.svc.GetResource(ctx, name)
+	creds, err := p.svc.GetResource(ctx, name)
+	return creds, trace.Wrap(err)
 }
 
 // GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
@@ -84,7 +86,7 @@ func (p *PluginStaticCredentialsService) GetPluginStaticCredentialsByLabels(ctx 
 
 // DeletePluginStaticCredentials will delete a plugin static credentials resource.
 func (p *PluginStaticCredentialsService) DeletePluginStaticCredentials(ctx context.Context, name string) error {
-	return p.svc.DeleteResource(ctx, name)
+	return trace.Wrap(p.svc.DeleteResource(ctx, name))
 }
 
 var _ services.PluginStaticCredentials = (*PluginStaticCredentialsService)(nil)

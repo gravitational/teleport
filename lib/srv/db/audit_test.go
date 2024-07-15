@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
@@ -41,7 +43,12 @@ import (
 // connections.
 func TestAuditPostgres(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	recorder := eventstest.NewChannelRecorder(100)
+	testCtx := setupTestContext(ctx, t)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: []types.Database{withSelfHostedPostgres("postgres")(t, ctx, testCtx)},
+		Recorder:  recorder,
+	})
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
@@ -60,6 +67,13 @@ func TestAuditPostgres(t *testing.T) {
 	_, err = psql.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	requireQueryEvent(t, testCtx, libevents.DatabaseSessionQueryCode, "select 1")
+	requireResultEvent(t, recorder, true, 1)
+
+	// Execute query with errors.
+	_, err = psql.Exec(ctx, postgres.TestErrorQuery).ReadAll()
+	require.Error(t, err)
+	requireQueryEvent(t, testCtx, libevents.DatabaseSessionQueryCode, postgres.TestErrorQuery)
+	requireResultEvent(t, recorder, false, 0)
 
 	// Execute unnamed prepared statement.
 	resultUnnamed := psql.ExecParams(ctx, "select now()", nil, nil, nil, nil).Read()
@@ -67,6 +81,7 @@ func TestAuditPostgres(t *testing.T) {
 	requireEvent(t, testCtx, libevents.PostgresParseCode)
 	requireEvent(t, testCtx, libevents.PostgresBindCode)
 	requireEvent(t, testCtx, libevents.PostgresExecuteCode)
+	requireResultEvent(t, recorder, true, 1)
 
 	// Execute named prepared statement.
 	_, err = psql.Prepare(ctx, "test-stmt", "select 1", nil)
@@ -76,6 +91,7 @@ func TestAuditPostgres(t *testing.T) {
 	requireEvent(t, testCtx, libevents.PostgresParseCode)
 	requireEvent(t, testCtx, libevents.PostgresBindCode)
 	requireEvent(t, testCtx, libevents.PostgresExecuteCode)
+	requireResultEvent(t, recorder, true, 1)
 
 	bindTests := []struct {
 		desc        string
@@ -136,6 +152,7 @@ func TestAuditPostgres(t *testing.T) {
 			event := requireBindEvent(t, testCtx)
 			require.Equal(t, test.wantParams, event.Parameters)
 			requireEvent(t, testCtx, libevents.PostgresExecuteCode)
+			requireResultEvent(t, recorder, true, 1)
 		})
 	}
 
@@ -167,7 +184,17 @@ func TestAuditMySQL(t *testing.T) {
 	// Simple query should trigger the query event.
 	_, err = mysql.Execute("select 1")
 	require.NoError(t, err)
-	requireQueryEvent(t, testCtx, libevents.DatabaseSessionQueryCode, "select 1")
+	requireQueryEventWithDBName(t, testCtx, libevents.DatabaseSessionQueryCode, "select 1", "")
+
+	// Switch to another database.
+	err = mysql.UseDB("foo")
+	require.NoError(t, err)
+	requireEvent(t, testCtx, libevents.MySQLInitDBCode)
+
+	// Check DatabaseName is updated.
+	_, err = mysql.Execute("select 2")
+	require.NoError(t, err)
+	requireQueryEventWithDBName(t, testCtx, libevents.DatabaseSessionQueryCode, "select 2", "foo")
 
 	// Closing connection should trigger session end event.
 	err = mysql.Close()
@@ -373,15 +400,51 @@ func requireQueryEvent(t *testing.T, testCtx *testContext, code, query string) {
 	require.Equal(t, query, event.(*events.DatabaseSessionQuery).DatabaseQuery)
 }
 
+func requireQueryEventWithDBName(t *testing.T, testCtx *testContext, code, query, dbName string) {
+	t.Helper()
+	event := waitForAnyEvent(t, testCtx)
+	require.Equal(t, code, event.GetCode())
+
+	queryEvent, ok := event.(*events.DatabaseSessionQuery)
+	require.True(t, ok)
+	require.Equal(t, query, queryEvent.DatabaseQuery)
+	require.Equal(t, dbName, queryEvent.DatabaseName)
+}
+
 func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	t.Helper()
 	select {
 	case event := <-testCtx.emitter.C():
 		return event
 	case <-time.After(time.Second):
-		t.Fatalf("didn't receive any event after 1 second")
+		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event after 1 second")
 	}
 	return nil
+}
+
+func requireResultEvent(t *testing.T, recorder *eventstest.ChannelRecorder, success bool, affectedRecords uint64) {
+	t.Helper()
+	evt := waitForRecordingEvent(t, recorder, libevents.DatabaseSessionCommandResultCode)
+	result, ok := evt.(*events.DatabaseSessionCommandResult)
+	require.True(t, ok, "expected type DatabaseSessionCommandResult but got %T", evt)
+	require.Equal(t, success, result.Status.Success)
+	require.Equal(t, affectedRecords, result.AffectedRecords)
+}
+
+func waitForRecordingEvent(t *testing.T, recorder *eventstest.ChannelRecorder, code string) events.AuditEvent {
+	t.Helper()
+	for {
+		select {
+		case event := <-recorder.C():
+			if event.GetCode() != code {
+				continue
+			}
+
+			return event
+		case <-time.After(time.Second):
+			require.FailNow(t, "timed out waiting for a recording event", "didn't receive any recording event after 1 second")
+		}
+	}
 }
 
 // waitForEvent waits for particular event code ignoring other events.
@@ -401,7 +464,16 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 			}
 			return event
 		case <-time.After(time.Second):
-			t.Fatalf("didn't receive %v event after 1 second", code)
+			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event after 1 second", code)
 		}
 	}
+}
+
+// requireSpannerRPCEvent waits for a spanner RPC audit event or fails the test.
+func requireSpannerRPCEvent(t *testing.T, testCtx *testContext) *events.SpannerRPC {
+	t.Helper()
+	evt := waitForEvent(t, testCtx, libevents.SpannerRPCCode)
+	rpcEvt, ok := evt.(*events.SpannerRPC)
+	require.True(t, ok)
+	return rpcEvt
 }

@@ -124,13 +124,25 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 func submitOnce(ctx context.Context, c SubmitterConfig) {
 	svc := reportService{c.Backend}
 
-	reports, err := svc.listUserActivityReports(ctx, submitBatchSize)
+	userActivityReports, err := svc.listUserActivityReports(ctx, submitBatchSize)
 	if err != nil {
 		c.Log.WithError(err).Error("Failed to load usage reports for submission.")
 		return
 	}
 
-	if len(reports) < 1 {
+	freeBatchSize := submitBatchSize - len(userActivityReports)
+	var resourcePresenceReports []*prehogv1.ResourcePresenceReport
+	if freeBatchSize > 0 {
+		resourcePresenceReports, err = svc.listResourcePresenceReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
+			return
+		}
+	}
+
+	totalReportCount := len(userActivityReports) + len(resourcePresenceReports)
+
+	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
 		if err == nil {
 			c.Log.Infof("Deleted cluster alert %v after successfully clearing usage report backlog.", alertName)
@@ -138,6 +150,25 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			c.Log.WithError(err).Errorf("Failed to delete cluster alert %v.", alertName)
 		}
 		return
+	}
+
+	oldest := time.Now()
+	newest := time.Time{}
+	if len(userActivityReports) > 0 {
+		if t := userActivityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := userActivityReports[len(userActivityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
+	if len(resourcePresenceReports) > 0 {
+		if t := resourcePresenceReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := resourcePresenceReports[len(resourcePresenceReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
 	}
 
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
@@ -154,16 +185,17 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity: reports,
+		UserActivity:     userActivityReports,
+		ResourcePresence: resourcePresenceReports,
 	})
 	if err != nil {
 		c.Log.WithError(err).WithFields(logrus.Fields{
-			"reports":       len(reports),
-			"oldest_report": reports[0].GetStartTime().AsTime(),
-			"newest_report": reports[len(reports)-1].GetStartTime().AsTime(),
+			"reports":       totalReportCount,
+			"oldest_report": oldest,
+			"newest_report": newest,
 		}).Error("Failed to send usage reports.")
 
-		if time.Since(reports[0].StartTime.AsTime()) <= alertGraceDuration {
+		if time.Since(oldest) <= alertGraceDuration {
 			return
 		}
 		alert, err := types.NewClusterAlert(
@@ -186,13 +218,19 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 
 	c.Log.WithFields(logrus.Fields{
 		"batch_uuid":    batchUUID,
-		"reports":       len(reports),
-		"oldest_report": reports[0].GetStartTime().AsTime(),
+		"reports":       totalReportCount,
+		"oldest_report": oldest,
+		"newest_report": newest,
 	}).Info("Successfully sent usage reports.")
 
 	var lastErr error
-	for _, report := range reports {
+	for _, report := range userActivityReports {
 		if err := svc.deleteUserActivityReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range resourcePresenceReports {
+		if err := svc.deleteResourcePresenceReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}

@@ -7,10 +7,11 @@ You can use Teleport's API to automatically register resources in your
 infrastructure with your Teleport cluster.
 
 Teleport already supports the automatic discovery of [Kubernetes
-clusters](../kubernetes-access/discovery.mdx) in AWS, Azure, and Google Cloud,
-as well as [servers](../server-access/guides/ec2-discovery.mdx) on Amazon EC2.
-To support other resources and cloud providers, you can use the API to write
-your own workflow.
+clusters](../enroll-resources/auto-discovery/kubernetes.mdx) in AWS, Azure, and
+Google Cloud, as well as
+[servers](../enroll-resources/auto-discovery/servers/ec2-discovery.mdx) on
+Amazon EC2.  To support other resources and cloud providers, you can use the API
+to write your own workflow.
 
 In this guide, we will demonstrate some libraries you can use to automatically
 register resources with Teleport. We will use an example you can run locally on
@@ -59,7 +60,7 @@ services with your Teleport cluster.
 Download the source code for our minimal API client:
 
 ```code
-$ git clone https://github.com/gravitational/teleport
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
 $ cd examples/service-discovery-api-client
 ```
 
@@ -955,12 +956,11 @@ Discovery Service, and you can [consult its
 source](https://github.com/gravitational/teleport/tree/master/lib/srv/discovery)
 to see how Teleport implements its discovery logic.
 
-The
-[`gravitational/teleport-plugins`](https://github.com/gravitational/teleport-plugins)
-repository contains examples of production-ready Teleport API clients. While we
-currently do not maintain plugins that auto-discover resources, you can use
-these examples to see how to implement configuration parsing, retries, and other
-tasks.
+The Teleport code repository contains [examples of production-ready Teleport API
+clients](https://github.com/gravitational/teleport/tree/(=teleport.version=)/examples/).
+While we currently do not maintain plugins that auto-discover resources, you
+can use these examples to see how to implement configuration parsing, retries,
+and other tasks.
 
 ### Provision the client application with short-lived credentials
 
@@ -968,5 +968,5 @@ In this example, we used the `tctl auth sign` command to fetch credentials for
 the program you wrote. For production usage, we recommend provisioning
 short-lived credentials via Machine ID, which reduces the risk of these
 credentials becoming stolen. View our [Machine ID
-documentation](../machine-id/introduction.mdx) to learn more.
+documentation](../enroll-resources/machine-id/introduction.mdx) to learn more.
 

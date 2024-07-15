@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
+import { DebouncedFunc } from 'shared/utils/highbar';
 
-import { TdpClientEvent } from 'teleport/lib/tdp';
+import { TdpClientEvent, TdpClient } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
 
 import type { CSSProperties } from 'react';
@@ -27,41 +28,48 @@ import type {
   ClientScreenSpec,
   ClipboardData,
 } from 'teleport/lib/tdp/codec';
-import type { TdpClient } from 'teleport/lib/tdp';
 
-export default function TdpClientCanvas(props: Props) {
+function TdpClientCanvas(props: Props) {
   const {
     client,
     clientShouldConnect = false,
-    clientScreenSpec,
+    clientScreenSpecToRequest,
     clientOnPngFrame,
     clientOnBmpFrame,
     clientOnClipboardData,
     clientOnTdpError,
     clientOnTdpWarning,
+    clientOnTdpInfo,
     clientOnWsClose,
     clientOnWsOpen,
     clientOnClientScreenSpec,
     canvasOnKeyDown,
     canvasOnKeyUp,
+    canvasOnFocusOut,
     canvasOnMouseMove,
     canvasOnMouseDown,
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
+    windowOnResize,
     style,
+    updatePointer,
   } = props;
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  if (canvasRef.current) {
-    // Make the canvas a focusable keyboard listener
-    // https://stackoverflow.com/a/51267699/6277051
-    // https://stackoverflow.com/a/16492878/6277051
-    canvasRef.current.tabIndex = -1;
-    canvasRef.current.style.outline = 'none';
-    canvasRef.current.focus();
-  }
+  useEffect(() => {
+    // Empty dependency array ensures this runs only once after initial render.
+    // This code will run after the component has been mounted and the canvasRef has been assigned.
+    const canvas = canvasRef.current;
+    if (canvas) {
+      // Make the canvas a focusable keyboard listener
+      // https://stackoverflow.com/a/51267699/6277051
+      // https://stackoverflow.com/a/16492878/6277051
+      canvas.tabIndex = -1;
+      canvas.style.outline = 'none';
+      canvas.focus();
+    }
+  }, []);
 
   useEffect(() => {
     if (client && clientOnPngFrame) {
@@ -94,6 +102,51 @@ export default function TdpClientCanvas(props: Props) {
   }, [client, clientOnPngFrame]);
 
   useEffect(() => {
+    if (client && updatePointer) {
+      const canvas = canvasRef.current;
+      const updatePointer = (pointer: {
+        data: ImageData | boolean;
+        hotspot_x?: number;
+        hotspot_y?: number;
+      }) => {
+        if (typeof pointer.data === 'boolean') {
+          canvas.style.cursor = pointer.data ? 'default' : 'none';
+          return;
+        }
+        let cursor = document.createElement('canvas');
+        cursor.width = pointer.data.width;
+        cursor.height = pointer.data.height;
+        cursor
+          .getContext('2d', { colorSpace: pointer.data.colorSpace })
+          .putImageData(pointer.data, 0, 0);
+        if (pointer.data.width > 32 || pointer.data.height > 32) {
+          // scale the cursor down to at most 32px - max size fully supported by browsers
+          const resized = document.createElement('canvas');
+          let scale = Math.min(32 / cursor.width, 32 / cursor.height);
+          resized.width = cursor.width * scale;
+          resized.height = cursor.height * scale;
+
+          let context = resized.getContext('2d', {
+            colorSpace: pointer.data.colorSpace,
+          });
+          context.scale(scale, scale);
+          context.drawImage(cursor, 0, 0);
+          cursor = resized;
+        }
+        canvas.style.cursor = `url(${cursor.toDataURL()}) ${
+          pointer.hotspot_x
+        } ${pointer.hotspot_y}, auto`;
+      };
+
+      client.addListener(TdpClientEvent.POINTER, updatePointer);
+
+      return () => {
+        client.removeListener(TdpClientEvent.POINTER, updatePointer);
+      };
+    }
+  }, [client, updatePointer]);
+
+  useEffect(() => {
     if (client && clientOnBmpFrame) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
@@ -103,7 +156,9 @@ export default function TdpClientCanvas(props: Props) {
       const renderBuffer = () => {
         if (bitmapBuffer.length) {
           for (let i = 0; i < bitmapBuffer.length; i++) {
-            clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            if (bitmapBuffer[i].image_data.data.length != 0) {
+              clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            }
           }
           bitmapBuffer = [];
         }
@@ -184,6 +239,16 @@ export default function TdpClientCanvas(props: Props) {
   }, [client, clientOnTdpWarning]);
 
   useEffect(() => {
+    if (client && clientOnTdpInfo) {
+      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+
+      return () => {
+        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+      };
+    }
+  }, [client, clientOnTdpInfo]);
+
+  useEffect(() => {
     if (client && clientOnWsClose) {
       client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
 
@@ -226,8 +291,9 @@ export default function TdpClientCanvas(props: Props) {
     }
 
     return () => {
-      if (canvasOnMouseMove)
+      if (canvasOnMouseMove) {
         canvas.removeEventListener('mousemove', _onmousemove);
+      }
     };
   }, [client, canvasOnMouseMove]);
 
@@ -303,10 +369,50 @@ export default function TdpClientCanvas(props: Props) {
     };
   }, [client, canvasOnKeyUp]);
 
-  // Call init after all listeners have been registered
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const _onfocusout = () => {
+      canvasOnFocusOut(client);
+    };
+    if (canvasOnFocusOut) {
+      canvas.addEventListener('focusout', _onfocusout);
+    }
+
+    return () => {
+      if (canvasOnFocusOut) canvas.removeEventListener('focusout', _onfocusout);
+    };
+  }, [client, canvasOnFocusOut]);
+
+  useEffect(() => {
+    if (client && windowOnResize) {
+      const _onresize = () => windowOnResize(client);
+      window.addEventListener('resize', _onresize);
+      return () => {
+        windowOnResize.cancel();
+        window.removeEventListener('resize', _onresize);
+      };
+    }
+  }, [client, windowOnResize]);
+
+  useEffect(() => {
+    if (client) {
+      const canvas = canvasRef.current;
+      const _clearCanvas = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+      client.on(TdpClientEvent.RESET, _clearCanvas);
+
+      return () => {
+        client.removeListener(TdpClientEvent.RESET, _clearCanvas);
+      };
+    }
+  }, [client]);
+
+  // Call connect after all listeners have been registered
   useEffect(() => {
     if (client && clientShouldConnect) {
-      client.connect(clientScreenSpec);
+      client.connect(clientScreenSpecToRequest);
       return () => {
         client.shutdown();
       };
@@ -321,9 +427,9 @@ export type Props = {
   // clientShouldConnect determines whether the TdpClientCanvas
   // will try to connect to the server.
   clientShouldConnect?: boolean;
-  // clientScreenSpec will be passed to client.connect() if
+  // clientScreenSpecToRequest will be passed to client.connect() if
   // clientShouldConnect is true.
-  clientScreenSpec?: ClientScreenSpec;
+  clientScreenSpecToRequest?: ClientScreenSpec;
   clientOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
@@ -335,7 +441,8 @@ export type Props = {
   clientOnClipboardData?: (clipboardData: ClipboardData) => void;
   clientOnTdpError?: (error: Error) => void;
   clientOnTdpWarning?: (warning: string) => void;
-  clientOnWsClose?: () => void;
+  clientOnTdpInfo?: (info: string) => void;
+  clientOnWsClose?: (message: string) => void;
   clientOnWsOpen?: () => void;
   clientOnClientScreenSpec?: (
     cli: TdpClient,
@@ -344,6 +451,7 @@ export type Props = {
   ) => void;
   canvasOnKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
   canvasOnKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
+  canvasOnFocusOut?: (cli: TdpClient) => void;
   canvasOnMouseMove?: (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
@@ -353,5 +461,9 @@ export type Props = {
   canvasOnMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
+  windowOnResize?: DebouncedFunc<(cli: TdpClient) => void>;
   style?: CSSProperties;
+  updatePointer?: boolean;
 };
+
+export default memo(TdpClientCanvas);

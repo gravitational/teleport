@@ -1,8 +1,14 @@
 {{- if .Values.rbac.create -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.clusterRole }}
+    {{- toYaml $auth.extraLabels.clusterRole | nindent 4 }}
+    {{- end }}
 rules:
 - apiGroups:
   - ""

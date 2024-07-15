@@ -8,7 +8,7 @@ In this guide, we'll use Teleport Helm charts to set up a high-availability Tele
 <Admonition type="tip" title="Have an existing Teleport cluster?">
 If you are already running Teleport on another platform, you can use your
 existing Teleport deployment to access your Kubernetes cluster. [Follow our
-guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+guide](../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 </Admonition>
 
@@ -16,7 +16,7 @@ cluster to Teleport.
 
 ## Prerequisites
 
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 
 ### Choose a Kubernetes namespace and Helm release name
 
@@ -33,11 +33,11 @@ cluster to Teleport.
 
 ## Step 1/7. Install Helm
 
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-install.mdx!)
 
 ## Step 2/7. Add the Teleport Helm chart repository
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 ## Step 3/7. Set up AWS IAM configuration
 
@@ -184,6 +184,7 @@ $ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
 --set installCRDs=true \
+--set global.leaderElection.namespace=cert-manager \
 --set extraArgs="{--issuer-ambient-credentials}" # required to automount ambient AWS credentials when using an Issuer
 ```
 
@@ -338,11 +339,11 @@ podSecurityPolicy:
   enabled: false
 ```
 <Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to 
+If using an AWS PCA with cert-manager, you will need to
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
-upload the full certificate chain to a secret, and 
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
+upload the full certificate chain to a secret, and
 [reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
 with `tls.existingCASecretName` in the values file.
 </Admonition>
@@ -428,11 +429,11 @@ podSecurityPolicy:
   enabled: false
 ```
 <Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to 
+If using an AWS PCA with cert-manager, you will need to
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
-upload the full certificate chain to a secret, and 
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
+upload the full certificate chain to a secret, and
 [reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
 with `tls.existingCASecretName` in the values file.
 </Admonition>
@@ -449,7 +450,7 @@ aws:
   backendTable: <Var name="teleport-helm-backend" /> # DynamoDB table to use for the Teleport backend
   auditLogTable: <Var name="teleport-helm-events" />             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings 
+  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings
   backups: true                                   # Whether or not to turn on DynamoDB backups
   dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
@@ -689,7 +690,7 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users c
 </TabItem>
 <TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
-$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor,reviewer
+$ kubectl --namespace <Var name="namespace" /> exec deploy/<Var name="release-name" />-auth -- tctl users add test --roles=access,editor,reviewer
 
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
@@ -697,7 +698,6 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
 </TabItem>
-
 </Tabs>
 
 Load the user creation link to create a password and set up multi-factor authentication for the Teleport user via the web UI.
@@ -714,13 +714,13 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
 version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
 
-Here's an example where we set the chart to use 3 replicas:
+Here's an example where we set the chart to use 2 replicas:
 
 Edit your `aws-values.yaml` file from above and make the appropriate changes:
 
 ```yaml
 highAvailability:
-  replicaCount: 3
+  replicaCount: 2
 ```
 
 Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
@@ -734,33 +734,6 @@ $ helm upgrade <Var name="release-name" /> teleport/teleport-cluster \
 <Admonition type="note">
   To change `chartMode`, `clusterName`, or any `aws` settings, you must first uninstall the existing chart and then install a new version with the appropriate values.
 </Admonition>
-
-### Autoscaling
-
-In order to reduce DynamoDB costs you might want to enable DynamoDB autoscaling.
-This step is usually done after a successful Teleport deployment, once you have gathered some data
-about Teleport's DynamoDB usage and know what regular usage looks like and how autoscaling should be tuned.
-You must know the desired read/write minimum, maximum and target capacity for your DynamoDB instance in order to enable autoscaling.
-
-You can delegate your autoscaling configuration to Teleport or manage it by creating an AWS Application Auto Scaling policy.
-The following steps will set up Teleport-configured DynamoDB autoscaling.
-
-You must grant autoscaling configuration rights to Teleport, as documented in
-[the DynamoDB autoscaling section](../../reference/backends.mdx#dynamodb-autoscaling).
-
-Set the following fields in your existing `aws-values.yaml` file and replace the numeric values with yours:
-
-```yaml
-aws:
-  # [...] already present values under `aws`
-  dynamoAutoScaling: true
-  readMinCapacity: 5     # integer
-  readMaxCapacity: 100   # integer
-  readTargetValue: 50.0  # float
-  writeMinCapacity: 5    # integer
-  writeMaxCapacity: 100  # integer
-  writeTargetValue: 50.0 # float
-```
 
 Then perform a cluster upgrade with the new values:
 

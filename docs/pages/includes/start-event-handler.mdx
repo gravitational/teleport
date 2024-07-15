@@ -1,8 +1,14 @@
-Start the Teleport Teleport Event Handler by following the instructions below. 
+Start the Teleport Teleport Event Handler by following the instructions below.
 
 <Tabs>
 <TabItem label="Linux server">
-On your Linux server, create a systemd service definition at the path
+Copy the `teleport-event-handler.toml` file to `/etc` on your Linux server.
+Update the settings within the `toml` file to match your environment. Make sure to
+use absolute paths on settings such as `identity` and `storage`. Files
+and directories in use should only be accessible to the system user executing
+the `teleport-event-handler` service such as `/var/lib/teleport-event-handler`.
+
+Next, create a systemd service definition at the path
 `/usr/lib/systemd/system/teleport-event-handler.service` with the following
 content:
 
@@ -13,8 +19,8 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=on-failure
-ExecStart=/usr/local/bin/teleport-event-handler start --config=/etc/teleport-event-handler.toml --teleport-refresh-enabled true
+Restart=always
+ExecStart=/usr/local/bin/teleport-event-handler start --config=/etc/teleport-event-handler.toml --teleport-refresh-enabled=true
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport-event-handler.pid
 
@@ -39,7 +45,7 @@ exporting events when you run the `start` command. This example will start
 exporting from May 5th, 2021:
 
 ```code
-$ teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
+$ teleport-event-handler start --config /etc/teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
 ```
 
 You can only determine the start time once, when first running the Teleport

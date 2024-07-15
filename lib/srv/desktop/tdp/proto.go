@@ -48,37 +48,40 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec              = MessageType(1)
-	TypePNGFrame                      = MessageType(2)
-	TypeMouseMove                     = MessageType(3)
-	TypeMouseButton                   = MessageType(4)
-	TypeKeyboardButton                = MessageType(5)
-	TypeClipboardData                 = MessageType(6)
-	TypeClientUsername                = MessageType(7)
-	TypeMouseWheel                    = MessageType(8)
-	TypeError                         = MessageType(9)
-	TypeMFA                           = MessageType(10)
-	TypeSharedDirectoryAnnounce       = MessageType(11)
-	TypeSharedDirectoryAcknowledge    = MessageType(12)
-	TypeSharedDirectoryInfoRequest    = MessageType(13)
-	TypeSharedDirectoryInfoResponse   = MessageType(14)
-	TypeSharedDirectoryCreateRequest  = MessageType(15)
-	TypeSharedDirectoryCreateResponse = MessageType(16)
-	TypeSharedDirectoryDeleteRequest  = MessageType(17)
-	TypeSharedDirectoryDeleteResponse = MessageType(18)
-	TypeSharedDirectoryReadRequest    = MessageType(19)
-	TypeSharedDirectoryReadResponse   = MessageType(20)
-	TypeSharedDirectoryWriteRequest   = MessageType(21)
-	TypeSharedDirectoryWriteResponse  = MessageType(22)
-	TypeSharedDirectoryMoveRequest    = MessageType(23)
-	TypeSharedDirectoryMoveResponse   = MessageType(24)
-	TypeSharedDirectoryListRequest    = MessageType(25)
-	TypeSharedDirectoryListResponse   = MessageType(26)
-	TypePNG2Frame                     = MessageType(27)
-	TypeNotification                  = MessageType(28)
-	TypeRDPFastPathPDU                = MessageType(29)
-	TypeRDPResponsePDU                = MessageType(30)
-	TypeRDPChannelIDs                 = MessageType(31)
+	TypeClientScreenSpec                = MessageType(1)
+	TypePNGFrame                        = MessageType(2)
+	TypeMouseMove                       = MessageType(3)
+	TypeMouseButton                     = MessageType(4)
+	TypeKeyboardButton                  = MessageType(5)
+	TypeClipboardData                   = MessageType(6)
+	TypeClientUsername                  = MessageType(7)
+	TypeMouseWheel                      = MessageType(8)
+	TypeError                           = MessageType(9)
+	TypeMFA                             = MessageType(10)
+	TypeSharedDirectoryAnnounce         = MessageType(11)
+	TypeSharedDirectoryAcknowledge      = MessageType(12)
+	TypeSharedDirectoryInfoRequest      = MessageType(13)
+	TypeSharedDirectoryInfoResponse     = MessageType(14)
+	TypeSharedDirectoryCreateRequest    = MessageType(15)
+	TypeSharedDirectoryCreateResponse   = MessageType(16)
+	TypeSharedDirectoryDeleteRequest    = MessageType(17)
+	TypeSharedDirectoryDeleteResponse   = MessageType(18)
+	TypeSharedDirectoryReadRequest      = MessageType(19)
+	TypeSharedDirectoryReadResponse     = MessageType(20)
+	TypeSharedDirectoryWriteRequest     = MessageType(21)
+	TypeSharedDirectoryWriteResponse    = MessageType(22)
+	TypeSharedDirectoryMoveRequest      = MessageType(23)
+	TypeSharedDirectoryMoveResponse     = MessageType(24)
+	TypeSharedDirectoryListRequest      = MessageType(25)
+	TypeSharedDirectoryListResponse     = MessageType(26)
+	TypePNG2Frame                       = MessageType(27)
+	TypeNotification                    = MessageType(28)
+	TypeRDPFastPathPDU                  = MessageType(29)
+	TypeRDPResponsePDU                  = MessageType(30)
+	TypeRDPConnectionInitialized        = MessageType(31)
+	TypeSyncKeys                        = MessageType(32)
+	TypeSharedDirectoryTruncateRequest  = MessageType(33)
+	TypeSharedDirectoryTruncateResponse = MessageType(34)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -121,8 +124,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeRDPFastPathPDU(in)
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
-	case TypeRDPChannelIDs:
-		return decodeRDPChannelIDs(in)
+	case TypeRDPConnectionInitialized:
+		return decodeConnectionActivated(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -131,6 +134,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
 		return decodeKeyboardButton(in)
+	case TypeSyncKeys:
+		return decodeSyncKeys(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
 	case TypeClipboardData:
@@ -173,6 +178,10 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryMoveRequest(in)
 	case TypeSharedDirectoryMoveResponse:
 		return decodeSharedDirectoryMoveResponse(in)
+	case TypeSharedDirectoryTruncateRequest:
+		return decodeSharedDirectoryTruncateRequest(in)
+	case TypeSharedDirectoryTruncateResponse:
+		return decodeSharedDirectoryTruncateResponse(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -357,28 +366,61 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// RDPChannelIDs are the IO and user channel IDs negotiated during the RDP connection.
+// ConnectionActivated is sent to the browser when an RDP session is fully activated.
+// This includes after the RDP connection is first initialized, or after executing a
+// Deactivation-Reactivation Sequence.
+//
+// It contains data that the browser needs in order to correctly handle the session.
 //
 // See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+// Also see 1.3.1.3 Deactivation-Reactivation Sequence: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
 //
-// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-type RDPChannelIDs struct {
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+type ConnectionActivated struct {
 	IOChannelID   uint16
 	UserChannelID uint16
+	ScreenWidth   uint16
+	ScreenHeight  uint16
 }
 
-func (c RDPChannelIDs) Encode() ([]byte, error) {
+func (c ConnectionActivated) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeRDPChannelIDs))
+	buf.WriteByte(byte(TypeRDPConnectionInitialized))
 	writeUint16(buf, c.IOChannelID)
 	writeUint16(buf, c.UserChannelID)
+	writeUint16(buf, c.ScreenWidth)
+	writeUint16(buf, c.ScreenHeight)
 	return buf.Bytes(), nil
 }
 
-func decodeRDPChannelIDs(in byteReader) (RDPChannelIDs, error) {
-	var ids RDPChannelIDs
+func decodeConnectionActivated(in byteReader) (ConnectionActivated, error) {
+	var ids ConnectionActivated
 	err := binary.Read(in, binary.BigEndian, &ids)
 	return ids, trace.Wrap(err)
+}
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+type SyncKeys struct {
+	ScrollLockState ButtonState
+	NumLockState    ButtonState
+	CapsLockState   ButtonState
+	KanaLockState   ButtonState
+}
+
+func (k SyncKeys) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSyncKeys))
+	buf.WriteByte(byte(k.ScrollLockState))
+	buf.WriteByte(byte(k.NumLockState))
+	buf.WriteByte(byte(k.CapsLockState))
+	buf.WriteByte(byte(k.KanaLockState))
+	return buf.Bytes(), nil
+}
+
+func decodeSyncKeys(in byteReader) (SyncKeys, error) {
+	var k SyncKeys
+	err := binary.Read(in, binary.BigEndian, &k)
+	return k, trace.Wrap(err)
 }
 
 // MouseMove is the mouse movement message.
@@ -509,8 +551,11 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 }
 
 // Error is used to send a fatal error message to the browser.
+//
 // In Teleport 12 and up, Error is deprecated and Notification
-// should be preferred.
+// should be preferred. Nevertheless, IT SHOULD NOT BE DELETED
+// in order for older session recordings to continue to work.
+//
 // | message type (9) | message_length uint32 | message []byte |
 type Error struct {
 	Message string
@@ -1513,6 +1558,74 @@ func (s SharedDirectoryMoveResponse) Encode() ([]byte, error) {
 
 func decodeSharedDirectoryMoveResponse(in io.Reader) (SharedDirectoryMoveResponse, error) {
 	var res SharedDirectoryMoveResponse
+	err := binary.Read(in, binary.BigEndian, &res)
+	return res, err
+}
+
+// | message type (33) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | end_of_file uint32 |
+type SharedDirectoryTruncateRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+	EndOfFile    uint32
+}
+
+func (s SharedDirectoryTruncateRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryTruncateRequest))
+	writeUint32(buf, s.CompletionID)
+	writeUint32(buf, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	writeUint32(buf, s.EndOfFile)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryTruncateRequest(in io.Reader) (SharedDirectoryTruncateRequest, error) {
+	var completionID, directoryID, endOfFile uint32
+	err := binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &endOfFile)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	return SharedDirectoryTruncateRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		Path:         path,
+		EndOfFile:    endOfFile,
+	}, nil
+}
+
+// SharedDirectoryTruncateResponse is sent from the TDP client to the server
+// to acknowledge a SharedDirectoryTruncateRequest was executed.
+// | message type (34) | completion_id uint32 | err_code uint32 |
+type SharedDirectoryTruncateResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryTruncateResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryTruncateResponse))
+	writeUint32(buf, s.CompletionID)
+	writeUint32(buf, s.ErrCode)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncateResponse, error) {
+	var res SharedDirectoryTruncateResponse
 	err := binary.Read(in, binary.BigEndian, &res)
 	return res, err
 }

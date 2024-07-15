@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -45,6 +46,7 @@ type ProxyConfig struct {
 	PinnedIP            string
 	KubeUsers           []string
 	KubeGroups          []string
+	KubeCluster         string
 	Impersonation       *rest.ImpersonationConfig
 	RouteToCluster      string
 	CustomTLSServerName string
@@ -90,18 +92,25 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	priv, err := tlsca.ParsePrivateKeyPEM(privPEM)
+	priv, err := keys.ParsePrivateKey(privPEM)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
+	kubeServers, _ := authServer.GetKubernetesServers(ctx)
+	kubeCluster := cfg.KubeCluster
+	if cfg.KubeCluster == "" && len(kubeServers) > 0 {
+		kubeCluster = kubeServers[0].GetCluster().GetName()
+	}
+
 	id := tlsca.Identity{
-		Username:         cfg.Username,
-		Groups:           user.GetRoles(),
-		KubernetesUsers:  cfg.KubeUsers,
-		KubernetesGroups: cfg.KubeGroups,
-		RouteToCluster:   cfg.RouteToCluster,
-		PinnedIP:         cfg.PinnedIP,
+		Username:          cfg.Username,
+		Groups:            user.GetRoles(),
+		KubernetesUsers:   cfg.KubeUsers,
+		KubernetesGroups:  cfg.KubeGroups,
+		RouteToCluster:    cfg.RouteToCluster,
+		KubernetesCluster: kubeCluster,
+		PinnedIP:          cfg.PinnedIP,
 	}
 	subj, err := id.Subject()
 	if err != nil {

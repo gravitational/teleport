@@ -20,6 +20,9 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import makeNode from '../nodes/makeNode';
+import auth from '../auth/auth';
+import { App } from '../apps';
+import makeApp from '../apps/makeApps';
 
 import {
   Integration,
@@ -32,7 +35,6 @@ import {
   ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
   AwsOidcDeployServiceRequest,
-  AwsOidcDeployServiceResponse,
   ListEc2InstancesRequest,
   ListEc2InstancesResponse,
   Ec2InstanceConnectEndpoint,
@@ -43,6 +45,11 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
+  ListEksClustersResponse,
+  EnrollEksClustersResponse,
+  EnrollEksClustersRequest,
+  ListEksClustersRequest,
+  AwsOidcDeployDatabaseServicesRequest,
 } from './types';
 
 export const integrationService = {
@@ -139,11 +146,71 @@ export const integrationService = {
       });
   },
 
-  deployAwsOidcService(
+  async deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest
-  ): Promise<AwsOidcDeployServiceResponse> {
-    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
+  ): Promise<string> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api
+      .post(
+        cfg.getAwsDeployTeleportServiceUrl(integrationName),
+        req,
+        null,
+        webauthnResponse
+      )
+      .then(resp => resp.serviceDashboardUrl);
+  },
+
+  async createAwsAppAccess(integrationName): Promise<App> {
+    return api
+      .post(cfg.getAwsAppAccessUrl(integrationName), null)
+      .then(makeApp);
+  },
+
+  async deployDatabaseServices(
+    integrationName,
+    req: AwsOidcDeployDatabaseServicesRequest
+  ): Promise<string> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api
+      .post(
+        cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
+        req,
+        null,
+        webauthnResponse
+      )
+      .then(resp => resp.clusterDashboardUrl);
+  },
+
+  async enrollEksClusters(
+    integrationName: string,
+    req: EnrollEksClustersRequest
+  ): Promise<EnrollEksClustersResponse> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api.post(
+      cfg.getEnrollEksClusterUrl(integrationName),
+      req,
+      null,
+      webauthnResponse
+    );
+  },
+
+  fetchEksClusters(
+    integrationName: string,
+    req: ListEksClustersRequest
+  ): Promise<ListEksClustersResponse> {
+    return api
+      .post(cfg.getListEKSClustersUrl(integrationName), req)
+      .then(json => {
+        const eksClusters = json?.clusters ?? [];
+        return {
+          clusters: eksClusters,
+          nextToken: json?.nextToken,
+        };
+      });
   },
 
   // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.
@@ -175,18 +242,21 @@ export const integrationService = {
         return {
           endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
           nextToken: json?.nextToken,
+          dashboardLink: json?.dashboardLink,
         };
       });
   },
 
   // Deploys an EC2 Instance Connect Endpoint.
-  deployAwsEc2InstanceConnectEndpoint(
+  deployAwsEc2InstanceConnectEndpoints(
     integrationName,
     req: DeployEc2InstanceConnectEndpointRequest
   ): Promise<DeployEc2InstanceConnectEndpointResponse> {
     return api
       .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
-      .then(json => ({ name: json?.name }));
+      .then(resp => {
+        return resp ?? [];
+      });
   },
 
   // Returns a list of VPC Security Groups using the ListSecurityGroups action of the AWS OIDC Integration.
@@ -221,6 +291,8 @@ function makeIntegration(json: any): Integration {
     kind: subKind,
     spec: {
       roleArn: awsoidc?.roleArn,
+      issuerS3Bucket: awsoidc?.issuerS3Bucket,
+      issuerS3Prefix: awsoidc?.issuerS3Prefix,
     },
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
@@ -251,7 +323,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
 
 function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
   json = json ?? {};
-  const { name, state, stateMessage, dashboardLink, subnetId } = json;
+  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
 
   return {
     name,
@@ -259,6 +331,7 @@ function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
     stateMessage,
     dashboardLink,
     subnetId,
+    vpcId,
   };
 }
 

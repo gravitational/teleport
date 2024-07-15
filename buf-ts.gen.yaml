@@ -1,0 +1,13 @@
+version: v1
+plugins:
+  - name: typescript
+    out: gen/proto/ts
+    opt: eslint_disable,add_pb_suffix,server_grpc1,ts_nocheck
+    path:
+      - npm
+      - exec
+      - --yes
+      - --package=@protobuf-ts/plugin@2.9.3
+      - --
+      - protoc-gen-ts
+    strategy: all

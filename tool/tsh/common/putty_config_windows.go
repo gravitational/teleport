@@ -287,11 +287,11 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// connect to proxy to fetch cluster info
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	// parse out proxy details
 	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
@@ -300,10 +300,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// get root cluster name and set keypaths
-	rootClusterName, err := proxyClient.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	rootClusterName := clusterClient.RootClusterName()
 	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
 	ppkFilePath := keypaths.PPKFilePath(keysDir, proxyHost, tc.Config.Username)
 	certificateFilePath := keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName)

@@ -136,19 +136,6 @@ resource "aws_security_group_rule" "proxy_ingress_allow_web" {
   security_group_id = aws_security_group.proxy.id
 }
 
-// Ingress traffic to grafana port 8443 is allowed from all directions (ACM)
-// tfsec:ignore:aws-ec2-no-public-ingress-sgr
-resource "aws_security_group_rule" "proxy_ingress_allow_grafana_acm" {
-  description       = "Ingress traffic to grafana port 8443 is allowed from all directions (ACM)"
-  type              = "ingress"
-  from_port         = 8443
-  to_port           = 8443
-  protocol          = "tcp"
-  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
-  security_group_id = aws_security_group.proxy_acm[0].id
-  count             = var.use_acm ? 1 : 0
-}
-
 // Egress traffic is allowed everywhere
 // tfsec:ignore:aws-ec2-no-public-egress-sgr
 resource "aws_security_group_rule" "proxy_egress_allow_all_traffic" {
@@ -193,13 +180,14 @@ resource "aws_lb" "proxy" {
 
 // Application load balancer for proxy server TLS listener (using ACM)
 resource "aws_lb" "proxy_acm" {
-  name               = "${var.cluster_name}-proxy-acm"
-  internal           = false
-  subnets            = aws_subnet.public.*.id
-  load_balancer_type = "application"
-  idle_timeout       = 3600
-  security_groups    = [aws_security_group.proxy_acm[0].id]
-  count              = var.use_acm ? 1 : 0
+  name                       = "${var.cluster_name}-proxy-acm"
+  internal                   = false
+  subnets                    = aws_subnet.public.*.id
+  load_balancer_type         = "application"
+  idle_timeout               = 3600
+  drop_invalid_header_fields = true
+  security_groups            = [aws_security_group.proxy_acm[0].id]
+  count                      = var.use_acm ? 1 : 0
   tags = {
     TeleportCluster = var.cluster_name
   }
@@ -212,6 +200,9 @@ resource "aws_lb_target_group" "proxy_proxy" {
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
   count    = var.use_tls_routing ? 0 : 1
+  // required to allow the use of IP pinning
+  // this can only be enabled when ACM is not being used
+  proxy_protocol_v2 = var.use_acm ? false : true
 }
 
 resource "aws_lb_listener" "proxy_proxy" {
@@ -227,7 +218,7 @@ resource "aws_lb_listener" "proxy_proxy" {
 }
 
 // Tunnel endpoint/listener on LB - this is only used with ACM (as
-// Teleport web/tunnel multiplexing can be used with Letsencrypt)
+// Teleport web/tunnel multiplexing can be used with Let's Encrypt)
 resource "aws_lb_target_group" "proxy_tunnel" {
   name     = "${var.cluster_name}-proxy-tunnel"
   port     = 3024
@@ -235,6 +226,9 @@ resource "aws_lb_target_group" "proxy_tunnel" {
   protocol = "TCP"
   // only create this if TLS routing is disabled
   count = var.use_tls_routing ? 0 : 1
+  // required to allow the use of IP pinning
+  // this can only be enabled when ACM is not being used
+  proxy_protocol_v2 = var.use_acm ? false : true
 }
 
 resource "aws_lb_listener" "proxy_tunnel" {
@@ -257,6 +251,9 @@ resource "aws_lb_target_group" "proxy_kube" {
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
   count    = var.use_tls_routing ? 0 : 1
+  // required to allow the use of IP pinning
+  // this can only be enabled when ACM is not being used
+  proxy_protocol_v2 = var.use_acm ? false : true
 }
 
 resource "aws_lb_listener" "proxy_kube" {
@@ -337,16 +334,18 @@ resource "aws_lb_listener" "proxy_mongodb" {
 // This is address used for remote clusters to connect to and the users
 // accessing web UI.
 
-// Proxy web target group (using letsencrypt)
+// Proxy web target group (using Let's Encrypt)
 resource "aws_lb_target_group" "proxy_web" {
   name     = "${var.cluster_name}-proxy-web"
   port     = 3080
   vpc_id   = aws_vpc.teleport.id
   count    = var.use_acm ? 0 : 1
   protocol = "TCP"
+  // required to allow the use of IP pinning
+  proxy_protocol_v2 = "true"
 }
 
-// Proxy web listener (using letsencrypt)
+// Proxy web listener (using Let's Encrypt)
 resource "aws_lb_listener" "proxy_web" {
   load_balancer_arn = aws_lb.proxy[0].arn
   port              = "443"
@@ -383,51 +382,6 @@ resource "aws_lb_listener" "proxy_web_acm" {
 
   default_action {
     target_group_arn = aws_lb_target_group.proxy_web_acm[0].arn
-    type             = "forward"
-  }
-}
-
-// This is a small hack to expose grafana over web port 8443
-// feel free to remove it or replace with something else
-// Let's Encrypt
-resource "aws_lb_target_group" "proxy_grafana" {
-  name     = "${var.cluster_name}-proxy-grafana"
-  port     = 8443
-  vpc_id   = aws_vpc.teleport.id
-  protocol = "TCP"
-  count    = var.use_acm ? 0 : 1
-}
-
-resource "aws_lb_listener" "proxy_grafana" {
-  load_balancer_arn = aws_lb.proxy[0].arn
-  port              = "8443"
-  protocol          = "TCP"
-  count             = var.use_acm ? 0 : 1
-
-  default_action {
-    target_group_arn = aws_lb_target_group.proxy_grafana[0].arn
-    type             = "forward"
-  }
-}
-
-// ACM
-resource "aws_lb_target_group" "proxy_grafana_acm" {
-  name     = "${var.cluster_name}-proxy-grafana"
-  port     = 8444
-  vpc_id   = aws_vpc.teleport.id
-  protocol = "HTTP"
-  count    = var.use_acm ? 1 : 0
-}
-
-resource "aws_lb_listener" "proxy_grafana_acm" {
-  load_balancer_arn = aws_lb.proxy_acm[0].arn
-  port              = "8443"
-  protocol          = "HTTPS"
-  certificate_arn   = aws_acm_certificate_validation.cert[0].certificate_arn
-  count             = var.use_acm ? 1 : 0
-
-  default_action {
-    target_group_arn = aws_lb_target_group.proxy_grafana_acm[0].arn
     type             = "forward"
   }
 }

@@ -19,7 +19,7 @@ spec:
     ssh_file_copy: false
     # client_idle_timeout determines if SSH sessions to cluster nodes are
     # forcefully terminated after no activity from a client (idle client).
-    # it overrides the global cluster setting. examples: "30m", "1h" or "1h30m"
+    # it overrides the global cluster setting. examples: '30m', '1h' or '1h30m'
     client_idle_timeout: never
     # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active session.
@@ -37,19 +37,19 @@ spec:
     # permit_x11_forwarding allows users to use X11 forwarding with openssh
     # clients and servers through the proxy
     permit_x11_forwarding: true
-    # device_trust_mode enforces authenticated device access for the owner of this role.
+    # device_trust_mode enforces authenticated device access for assigned user of this role.
     device_trust_mode: optional|required|off
-    # require_session_mfa require per-session MFA for any owner of this role
+    # require_session_mfa require per-session MFA for any assigned user of this role
     require_session_mfa: true
     # lock sets locking mode for user of this role,
-    # valid values are "strict" or "best_effort"
+    # valid values are 'strict' or 'best_effort'
     lock: strict
-    # enterprise-only request_access field is either 'always' or 'reason'. If set to always, it instructs
-    # tsh or the web UI clients to always create an Access Request on login. If it is
+    # enterprise-only request_access field is 'optional', 'always' or 'reason'. If set to always or reason,
+    # it instructs tsh or the web UI clients to always create an Access Request. If it is
     # set to 'reason', the user will be required to indicate why they are
     # generating the Access Request.
     request_access: reason
-    # the `request_prompt` field can be used to tell the user what should
+    # the 'request_prompt' field can be used to tell the user what should
     # be supplied in the request reason field.
     request_prompt: Please provide your ticket ID
     # enterprise-only max_connections field sets a limit of concurrent sessions within a
@@ -59,10 +59,10 @@ spec:
     # limit number of concurrent Kubernetes sessions per user
     max_kubernetes_connections: 1
     # Define how Teleport deals with session recording failures, such as a full
-    # disk error. The value can be set to either `best_effort` or `strict`. If
-    # set to `strict`, the session will terminate immediately. If set to
-    # `best_effort`, the session won’t be terminated, and the recording will be
-    # disabled. The configuration is done per service (currently, only `ssh` is
+    # disk error. The value can be set to either 'best_effort' or 'strict'. If
+    # set to 'strict', the session will terminate immediately. If set to
+    # 'best_effort', the session won’t be terminated, and the recording will be
+    # disabled. The configuration is done per service (currently, only 'ssh' is
     # supported).
     record_session:
       # Specify whether or not to record the user's desktop sessions.
@@ -88,18 +88,18 @@ spec:
     # network. The default is false.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.
-    # The key type can only be "ssh" and the mode can only be "extension".
+    # The key type can only be 'ssh' and the mode can only be 'extension'.
     # The name and value fields can be arbitrary strings and the value field
     # supports variable interpolation.
     cert_extensions:
      - type: ssh
        mode: extension
        name: login@github.com
-       value: "{{ external.github_login }}"
+       value: '{{ external.github_login }}'
     # Controls whether this role supports auto provisioning of SSH users.
-    # Options: drop (remove user on session end), keep (keep users at session end)
+    # Options: keep (keep users at session end), insecure-drop (remove user on session end),
     #          and off (disable host user creation)
-    create_host_user_mode: drop
+    create_host_user_mode: keep
     # Controls whether this role requires automatic database user provisioning.
     # Options: off (disable database user auto-provisioning), keep (disables the
     # user at session end, removing the roles and locking it), and
@@ -129,7 +129,7 @@ spec:
     node_labels:
       # literal strings:
       'env': 'test'
-      # the wildcard ('*') means "any node"
+      # the wildcard ('*') means any node
       '*': '*'
       # a list of alternative options:
       'region': ['us-west-1', 'eu-central-1']
@@ -141,9 +141,9 @@ spec:
       'reg': '^us-west-1|eu-central-1$'
 
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
-    # You can refer to a SAML/OIDC trait via the "external" property bag.
+    # You can refer to a SAML/OIDC trait via the 'external' property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]
+    kubernetes_groups: ['system:masters', '{{external.trait_name}}']
 
     # kubernetes_users is an optional field that specifies kubernetes users
     # this role can assume.
@@ -191,16 +191,16 @@ spec:
         # - ingress
       - kind: '*'
         # The name of the Kubernetes namespace in which to allow access the
-        # resources you specify with "name" and "kind".
-        # The wildcard character "*" matches any sequence of characters.
-        # If the value begins with "^" and ends with "$", the Kubernetes
+        # resources you specify with 'name' and 'kind'.
+        # The wildcard character '*' matches any sequence of characters.
+        # If the value begins with '^' and ends with '$', the Kubernetes
         # Service will treat it as a regular expression.
-        namespace: "*"
+        namespace: '*'
         # The name of the resource to allow access to.
-        # The wildcard character "*" matches any sequence of characters.
-        # If the value begins with "^" and ends with "$", the Kubernetes
+        # The wildcard character '*' matches any sequence of characters.
+        # If the value begins with '^' and ends with '$', the Kubernetes
         # Service will treat it as a regular expression.
-        name: "^nginx-[a-z0-9-]+$"
+        name: '^nginx-[a-z0-9-]+$'
         # The verbs that the user is allowed to perform on the resource.
         # Teleport currently supports:
         # - * (all verbs)
@@ -219,9 +219,25 @@ spec:
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
     db_names: ['{{external.db_names}}']
-    db_roles: ['{{external.db_roles}}']
     db_labels:
       'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
+
+    # List of database roles to grant. Mutually exclusive with 'db_permissions'.
+    db_roles: ['{{external.db_roles}}']
+    
+    # Grant all possible Postgres permissions for all tables.
+    # List of database permissions to grant. Mutually exclusive with 'db_roles'.
+    db_permissions:
+    - match:
+        object_kind: table
+      permissions:
+	    - SELECT
+	    - INSERT
+	    - UPDATE
+	    - DELETE
+	    - TRUNCATE
+	    - REFERENCES
+	    - TRIGGER
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
@@ -299,10 +315,10 @@ spec:
     # request allows a user user request roles matching
     # expressions below
     request:
-      # the `roles` list can be a mixture of literals and wildcard matchers
+      # the 'roles' list can be a mixture of literals and wildcard matchers
       roles: ['common', 'dev-*']
 
-      # `search_as_roles` allows users to search for and request access to
+      # 'search_as_roles' allows users to search for and request access to
       # resources accessible by the listed roles (enterprise-only)
       search_as_roles: ['access']
 
@@ -319,17 +335,17 @@ spec:
       # The maximum duration is 7 days.
       max_duration: 7d
 
-      # the `claims_to_roles` mapping works the same as it does in
+      # the 'claims_to_roles' mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
       # can also be matchers.
       #
       # This example leverages Teleport's regular expression support, which allows
       # for dynamic mapping from claims. The below mapping says that users with
-      # claims that match "projects: product-(.*)" can request roles that match
-      # "$1-admin", where "$1" is the first capture group in the
+      # claims that match 'projects: product-(.*)' can request roles that match
+      # '$1-admin', where '$1' is the first capture group in the
       # regular expression.
-      # Example: the "projects: product-foo" claim allows a user to request the
-      # "foo-admin" role
+      # Example: the 'projects: product-foo' claim allows a user to request the
+      # 'foo-admin' role
       claims_to_roles:
         - claim: 'projects'
           # matches all group names with a leading 'product-'
@@ -352,7 +368,7 @@ spec:
       - name: Auditor oversight
         # Specifies an RBAC predicate that is used to define
         # which users count against the required user count of the policy.
-        filter: 'contains(user.spec.roles, "auditor")'
+        filter: 'contains(user.spec.roles, 'auditor')'
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # A list of session participant modes that a participant must have
@@ -362,8 +378,8 @@ spec:
         # in order to satisfy the policy.
         count: 1
         # The action to take if a moderator leaves a session, causing the policy to no longer be satisfied.
-        # This may be either "terminate" or "pause". An empty or unknown value will default to "terminate".
-        on_leave: "terminate"
+        # This may be either 'terminate' or 'pause'. An empty or unknown value will default to 'terminate'.
+        on_leave: 'terminate'
 
     # Moderated Sessions policy that dictates the ability to join sessions
     join_sessions:
@@ -376,6 +392,27 @@ spec:
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
         modes: ['moderator', 'observer']
+
+    # spiffe is a list of SPIFFE IDs that the role holder is allowed to request
+    # SVIDs for. As long as the request matches one of the blocks within the
+    # spiffe list, the certificate will be issued.
+    spiffe:
+        # The path of the SPIFFE ID that can be requested. This field is
+        # required for each block. It must begin with a preceding slash and
+        # should not contain a trailing slash.
+      - path: "/svc/foo"
+        # IP SANs that the user can request be included in a SVID along with the
+        # SPIFFE ID in this block. This field is optional and if omitted,
+        # the user will not be able to request a SVID with IP SANs.
+        ip_sans: ["10.0.0.100/32"]
+        # DNS SANs that the user can request be included in a SVID along with
+        # the SPIFFE ID in this block. This field is optional and if omitted,
+        # the user will not be able to request a SVID with DNS SANs.
+        #
+        # The '*' wildcard character is supported to indicated one or more of
+        # any character. For example, '*.example.com' would match
+        # 'foo.example.com'.
+        dns_sans: ["foo.svc.example.com"]
 
     # rules allow a user holding this role to modify other resources
     # matching the expressions below

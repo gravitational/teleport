@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -57,14 +56,14 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 
 	var databases types.Databases
 	for _, cluster := range clusters {
-		if !services.IsRedshiftClusterAvailable(cluster) {
+		if !libcloudaws.IsRedshiftClusterAvailable(cluster) {
 			cfg.Log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.ClusterIdentifier),
 				aws.StringValue(cluster.ClusterStatus))
 			continue
 		}
 
-		database, err := services.NewDatabaseFromRedshiftCluster(cluster)
+		database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 		if err != nil {
 			cfg.Log.Infof("Could not convert Redshift cluster %q to database resource: %v.",
 				aws.StringValue(cluster.ClusterIdentifier), err)

@@ -67,6 +67,96 @@ message RegisterUsingAzureMethodResponse {
   Certs certs = 2;
 }
 
+// The enrollment challenge response containing the solution returned by
+// calling the TPM2.0 `ActivateCredential` command on the client with the
+// parameters provided in `TPMEncryptedCredential`.
+message RegisterUsingTPMMethodChallengeResponse {
+  // The client's solution to `TPMEncryptedCredential` included in
+  // `TPMEncryptedCredential` using ActivateCredential.
+  bytes solution = 1;
+}
+
+// The initial payload sent from the client to the server during a TPM join
+// request.
+message RegisterUsingTPMMethodInitialRequest {
+  // Holds the registration parameters shared by all join methods.
+  types.RegisterUsingTokenRequest join_request = 1;
+  oneof ek {
+    // The device's endorsement certificate in X509, ASN.1 DER form. This
+    // certificate contains the public key of the endorsement key. This is
+    // preferred to ek_key.
+    bytes ek_cert = 2;
+    // The device's public endorsement key in PKIX, ASN.1 DER form. This is
+    // used when a TPM does not contain any endorsement certificates.
+    bytes ek_key = 3;
+  }
+  // The attestation key and the parameters necessary to remotely verify it as
+  // related to the endorsement key.
+  TPMAttestationParameters attestation_params = 4;
+}
+
+// RegisterUsingTPMMethodRequest is the streaming request type for the
+// RegisterUsingTPMMethod RPC.
+message RegisterUsingTPMMethodRequest {
+  oneof payload {
+    // Initial information sent from the client to the server.
+    RegisterUsingTPMMethodInitialRequest init = 1;
+    // The challenge response required to complete the TPM join process. This is
+    // sent in response to the servers challenge.
+    RegisterUsingTPMMethodChallengeResponse challenge_response = 2;
+  }
+}
+
+// RegisterUsingTPMMethodResponse is the streaming response type for the
+// RegisterUsingTPMMethod RPC.
+message RegisterUsingTPMMethodResponse {
+  oneof payload {
+    // The challenge required to complete the TPM join process. This is sent to
+    // the client in response to the initial request.
+    TPMEncryptedCredential challenge_request = 1;
+    // The signed certificates resulting from the join process.
+    Certs certs = 2;
+  }
+}
+
+// The attestation key and the parameters necessary to remotely verify it as
+// related to the endorsement key.
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
+// This message excludes the `UseTCSDActivationFormat` field from the link above
+// as it is TMP 1.x specific and always false.
+message TPMAttestationParameters {
+  // The encoded TPMT_PUBLIC structure containing the attestation public key
+  // and signing parameters.
+  bytes public = 1;
+  // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+  // structure.
+  bytes create_data = 2;
+  // An assertion as to the details of the key, encoded as a TPMS_ATTEST
+  // structure.
+  bytes create_attestation = 3;
+  // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+  bytes create_signature = 4;
+}
+
+// These values are used by the TPM2.0 `ActivateCredential` command to produce
+// the solution which proves possession of the EK and AK.
+//
+// For a more in-depth description see:
+// - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
+// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
+// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
+// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
+message TPMEncryptedCredential {
+  // The `credential_blob` parameter to be used with the `ActivateCredential`
+  // command. This is used with the decrypted value of `secret` in a
+  // cryptographic process to decrypt the solution.
+  bytes credential_blob = 1;
+  // The `secret` parameter to be used with `ActivateCredential`. This is a
+  // seed which can be decrypted with the EK. The decrypted seed is then used
+  // when decrypting `credential_blob`.
+  bytes secret = 2;
+}
+
 // JoinService provides methods which allow Teleport nodes, proxies, and other
 // services to join the Teleport cluster by fetching signed cluster
 // certificates. It is implemented on both the Auth and Proxy servers to serve
@@ -79,4 +169,7 @@ service JoinService {
   // RegisterUsingAzureMethod is used to register a new node to the cluster
   // using the Azure join method.
   rpc RegisterUsingAzureMethod(stream RegisterUsingAzureMethodRequest) returns (stream RegisterUsingAzureMethodResponse);
+  // RegisterUsingTPMMethod allows registration of a new agent or Bot to the
+  // cluster using a known TPM.
+  rpc RegisterUsingTPMMethod(stream RegisterUsingTPMMethodRequest) returns (stream RegisterUsingTPMMethodResponse);
 }

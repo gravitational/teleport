@@ -61,6 +61,7 @@ APP_INSTALL_MODE='{{.appInstallMode}}'
 APP_NAME='{{.appName}}'
 APP_URI='{{.appURI}}'
 DB_INSTALL_MODE='{{.databaseInstallMode}}'
+DISCOVERY_INSTALL_MODE='{{.discoveryInstallMode}}'
 
 # usage message
 # shellcheck disable=SC2086
@@ -480,6 +481,39 @@ db_service:
 {{end}}
 EOF
 }
+
+# installs the provided teleport config (for Discovery Service)
+install_teleport_discovery_config() {
+    log "Writing Teleport discovery service config to ${TELEPORT_CONFIG_PATH}"
+    CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
+    cat << EOF > ${TELEPORT_CONFIG_PATH}
+version: v3
+teleport:
+  nodename: ${NODENAME}
+  auth_token: ${JOIN_TOKEN}
+${CA_PINS_CONFIG}
+  proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: no
+proxy_service:
+  enabled: no
+discovery_service:
+  enabled: "yes"
+  discovery_group: "{{.discoveryGroup}}"
+EOF
+}
+
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
@@ -775,7 +809,7 @@ fi
 install_from_file() {
     # select correct URL/installation method based on distro
     if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+        URL="https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
 
         # check that needed tools are installed
         check_exists_fatal curl tar
@@ -800,7 +834,7 @@ install_from_file() {
         elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
             DEB_ARCH="arm64"
         fi
-        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
+        URL="https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
         check_deb_not_already_installed
         # check that needed tools are installed
         check_exists_fatal curl dpkg
@@ -822,7 +856,7 @@ install_from_file() {
         elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
             RPM_ARCH="arm64"
         fi
-        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+        URL="https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
         check_rpm_not_already_installed
         # check for package managers
         if check_exists dnf; then
@@ -956,7 +990,7 @@ is_repo_available() {
 
     # The following distros+version have a Teleport repository to install from.
     case "${ID}-${VERSION_ID}" in
-        ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
+        ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | ubuntu-24.04* |\
         debian-9* | debian-10* | debian-11* | debian-12* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
@@ -991,6 +1025,8 @@ if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
     install_teleport_app_config
 elif [[ "${DB_INSTALL_MODE}" == "true" ]]; then
     install_teleport_database_config
+elif [[ "${DISCOVERY_INSTALL_MODE}" == "true" ]]; then
+    install_teleport_discovery_config
 else
     install_teleport_node_config
 fi

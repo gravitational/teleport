@@ -103,8 +103,7 @@ function generateIconExportsFile() {
     return exportTemplate.replace(/{ICON_NAME}/g, iconName);
   });
 
-  const output = `/*
-/*
+  const output = `/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *

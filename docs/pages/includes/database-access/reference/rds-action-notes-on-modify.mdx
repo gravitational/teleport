@@ -1,0 +1,5 @@
+Teleport uses `rds:ModifyDBInstance` and `rds:ModifyDBCluster` to automatically
+enable [IAM
+authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
+on the RDS instance and the Aurora cluster, respectively. You can omit these
+permissions if IAM authentication is already enabled.

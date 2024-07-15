@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,7 +41,7 @@ import (
 
 type subcommand interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
-	tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
+	tryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error)
 }
 
 // Command implements all commands under "tctl login_rule".
@@ -64,7 +64,7 @@ func (t *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 
 // TryRun calls tryRun for each subcommand, and if none of them match returns
 // (false, nil)
-func (t *Command) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+func (t *Command) TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error) {
 	for _, subcommand := range t.subcommands {
 		match, err = subcommand.tryRun(ctx, selectedCommand, c)
 		if err != nil {
@@ -112,7 +112,7 @@ Examples:
   > echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml`)
 }
 
-func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error) {
 	if selectedCommand != t.cmd.FullCommand() {
 		return false, nil
 	}
@@ -124,7 +124,7 @@ func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, c auth
 	return true, trace.Wrap(t.run(ctx, c))
 }
 
-func (t *testCommand) run(ctx context.Context, c auth.ClientI) error {
+func (t *testCommand) run(ctx context.Context, c *authclient.Client) error {
 	loginRules, err := parseLoginRuleFiles(t.inputResourceFiles)
 	if err != nil {
 		return trace.Wrap(err)

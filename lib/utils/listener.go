@@ -29,9 +29,11 @@ import (
 func GetListenerFile(listener net.Listener) (*os.File, error) {
 	switch t := listener.(type) {
 	case *net.TCPListener:
-		return t.File()
+		f, err := t.File()
+		return f, trace.Wrap(err)
 	case *net.UnixListener:
-		return t.File()
+		f, err := t.File()
+		return f, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("unsupported listener: %T", listener)
 }

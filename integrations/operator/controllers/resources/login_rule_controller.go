@@ -26,6 +26,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // loginRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile login_rules
@@ -61,15 +63,15 @@ func (l loginRuleClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewLoginRuleReconciler instantiates a new Kubernetes controller reconciling login_rule resources
-func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule] {
+func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	loginRuleClient := &loginRuleClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
 		client,
 		loginRuleClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }

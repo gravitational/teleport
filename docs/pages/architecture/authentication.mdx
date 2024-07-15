@@ -141,9 +141,9 @@ services and rotates SSH and X.509 certificates.
 
 ### Internal certificates
 
-Teleport internal services - Auth, Proxy and Nodes use certificates to identify themselves
-within a cluster. To join proxies and nodes to the cluster and receive certificates, admins should use
-[short-lived tokens or cloud identity services](../agents/join-services-to-your-cluster/join-token.mdx).
+Teleport internal services - the Auth Service, Proxy Service, Agents, and Machine ID Bots - use certificates to identify themselves
+within a cluster. To join services to the cluster and receive certificates, admins should use
+[short-lived tokens or cloud identity services](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 Unlike users and services, internal services receive long-lived certificates.
 
@@ -163,5 +163,5 @@ cluster certificates, use node [session and identity locking](../access-controls
 
 - [Architecture Overview](../core-concepts.mdx)
 - [Authorization](authorization.mdx)
-- [Teleport Nodes](nodes.mdx)
+- [Teleport Agents](agents.mdx)
 - [Teleport Proxy](proxy.mdx)

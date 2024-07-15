@@ -16,10 +16,24 @@ on:
     paths-ignore:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
   merge_group:
     paths-ignore:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
 
 jobs:
   lint:

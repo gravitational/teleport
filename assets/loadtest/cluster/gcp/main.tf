@@ -9,11 +9,6 @@ terraform {
 }
 
 
-data "google_compute_network" "default" {
-  name = var.network
-}
-
-
 #trivy:ignore:AVD-GCP-0047
 #trivy:ignore:AVD-GCP-0049
 #trivy:ignore:AVD-GCP-0051

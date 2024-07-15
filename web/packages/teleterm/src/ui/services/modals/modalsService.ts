@@ -17,6 +17,7 @@
  */
 
 import { useStore } from 'shared/libs/stores';
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import * as types from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -141,13 +142,19 @@ export interface DialogClusterConnect {
 
 export interface ClusterConnectReasonGatewayCertExpired {
   kind: 'reason.gateway-cert-expired';
-  targetUri: string;
+  targetUri: uri.GatewayTargetUri;
   // The original RPC message passes gatewayUri but we might not always be able to resolve it to a
   // gateway, hence the use of undefined.
   gateway: types.Gateway | undefined;
 }
 
-export type ClusterConnectReason = ClusterConnectReasonGatewayCertExpired;
+export type ClusterConnectReasonVnetCertExpired = {
+  kind: 'reason.vnet-cert-expired';
+} & tshdEventsApi.VnetCertExpired;
+
+export type ClusterConnectReason =
+  | ClusterConnectReasonGatewayCertExpired
+  | ClusterConnectReasonVnetCertExpired;
 
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
@@ -161,6 +168,13 @@ export interface DialogDocumentsReopen {
   numberOfDocuments: number;
   onConfirm?(): void;
   onCancel?(): void;
+}
+
+export interface DialogDeviceTrustAuthorize {
+  kind: 'device-trust-authorize';
+  rootClusterUri: RootClusterUri;
+  onAuthorize(): Promise<void>;
+  onCancel(): void;
 }
 
 export interface DialogUsageData {
@@ -193,12 +207,28 @@ export interface DialogHeadlessAuthentication {
   onCancel(): void;
 }
 
+export interface DialogReAuthenticate {
+  kind: 'reauthenticate';
+  promptMfaRequest: tshdEventsApi.PromptMFARequest;
+  onSuccess(totpCode: string): void;
+  onCancel(): void;
+}
+
+export interface DialogChangeAccessRequestKind {
+  kind: 'change-access-request-kind';
+  onConfirm(): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
   | DialogDocumentsReopen
+  | DialogDeviceTrustAuthorize
   | DialogUsageData
   | DialogUserJobRole
   | DialogResourceSearchErrors
   | DialogHeadlessAuthentication
+  | DialogReAuthenticate
+  | DialogChangeAccessRequestKind
   | DialogNone;

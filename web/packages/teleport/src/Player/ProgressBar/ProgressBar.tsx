@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import styled from 'styled-components';
+
 import * as Icons from 'design/Icon';
 
 import Slider from './Slider';
@@ -25,18 +26,27 @@ import Slider from './Slider';
 export default function ProgressBar(props: ProgressBarProps) {
   const Icon = props.isPlaying ? Icons.CirclePause : Icons.CirclePlay;
   return (
-    <StyledProgessBar style={props.style} id={props.id}>
-      <ActionButton onClick={props.toggle}>
+    <StyledProgessBar
+      style={props.style}
+      id={props.id}
+      disabled={props.disabled}
+    >
+      <ActionButton onClick={props.toggle} disabled={props.disabled}>
         <Icon />
       </ActionButton>
-      <PlaySpeedSelector onChange={props.onPlaySpeedChange} />
+      <PlaySpeedSelector
+        onChange={props.onPlaySpeedChange}
+        disabled={props.disabled}
+      />
       <TimeText>{props.time}</TimeText>
       <SliderContainer>
         <Slider
           min={props.min}
           max={props.max}
           value={props.current}
-          onChange={props.move}
+          disabled={props.disabled}
+          onBeforeChange={props.onStartMove}
+          onAfterChange={props.move}
           defaultValue={1}
           withBars
           className="grv-slider"
@@ -67,38 +77,46 @@ function Restart(props: { onRestart?: () => void }) {
 export type ProgressBarProps = {
   max: number;
   min: number;
-  time: any;
+  time: string;
   isPlaying: boolean;
+  disabled?: boolean;
   current: number;
   move: (value: any) => void;
   toggle: () => void;
   style?: React.CSSProperties;
   id?: string;
+  onStartMove?: () => void;
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
 };
 
-function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
-  if (!props.onChange) {
-    return null;
+const PlaySpeedSelector = memo(
+  (props: { disabled?: boolean; onChange?: (speed: number) => void }) => {
+    if (!props.onChange) {
+      return null;
+    }
+
+    const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+      props.onChange(parseFloat(event.target.value));
+    };
+
+    return (
+      <PlaySpeedSelectorItem
+        disabled={props.disabled}
+        onChange={handleChange}
+        defaultValue={'1.0'}
+      >
+        <option value="0.25">0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1.0">1.0x</option>
+        <option value="2.0">2.0x</option>
+        <option value="4.0">4.0x</option>
+        <option value="8.0">8.0x</option>
+        <option value="16.0">16.0x</option>
+      </PlaySpeedSelectorItem>
+    );
   }
-
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    props.onChange(parseFloat(event.target.value));
-  };
-
-  return (
-    <PlaySpeedSelectorItem onChange={handleChange} defaultValue={'1.0'}>
-      <option value="0.25">0.25x</option>
-      <option value="0.5">0.5x</option>
-      <option value="1.0">1.0x</option>
-      <option value="2.0">2.0x</option>
-      <option value="4.0">4.0x</option>
-      <option value="8.0">8.0x</option>
-      <option value="16.0">16.0x</option>
-    </PlaySpeedSelectorItem>
-  );
-}
+);
 
 const PlaySpeedSelectorItem = styled.select`
   margin-left: 8px;
@@ -140,11 +158,17 @@ const ActionButton = styled.button`
     color: ${props => props.theme.colors.text.main};
   }
 
-  &:hover {
+  &:disabled {
+    .icon {
+      color: ${props => props.theme.colors.text.disabled};
+    }
+  }
+
+  &:hover:enabled {
     opacity: 1;
 
     .icon {
-      color: ${props => props.theme.colors.success};
+      color: ${props => props.theme.colors.success.main};
     }
   }
 
@@ -154,7 +178,7 @@ const ActionButton = styled.button`
   }
 `;
 
-const StyledProgessBar = styled.div`
+const StyledProgessBar = styled.div<{ disabled?: boolean }>`
   background: ${props => props.theme.colors.levels.surface};
   display: flex;
   color: ${props => props.theme.colors.text.main};
@@ -173,9 +197,15 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .handle {
-    background-color: ${props => props.theme.colors.text.main};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.main
+        : props.theme.colors.success.main};
+
     border-radius: 200px;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
+    box-shadow:
+      0 0 4px rgba(0, 0, 0, 0.12),
+      0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
     height: 16px;
     left: -8px;
@@ -183,11 +213,17 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${props => props.theme.colors.success};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.success.main};
     box-shadow: none;
   }
 
   .grv-slider .bar-1 {
-    background-color: ${props => props.theme.colors.spotBackground[2]};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.spotBackground[2]};
   }
 `;

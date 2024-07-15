@@ -6,6 +6,11 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-proxy-test
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+    {{- if $proxy.extraLabels.config }}
+    {{- toYaml $proxy.extraLabels.config | nindent 4 }}
+    {{- end }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "4"

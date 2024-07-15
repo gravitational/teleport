@@ -17,6 +17,6 @@ plugins:
     path:
       - go
       - run
-      - github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go
+      - connectrpc.com/connect/cmd/protoc-gen-connect-go
     out: .
     opt: module=github.com/gravitational/teleport

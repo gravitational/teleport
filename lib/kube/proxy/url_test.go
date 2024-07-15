@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -79,6 +80,9 @@ func Test_getResourceFromRequest(t *testing.T) {
 	bodyFunc := func(t, api string) io.ReadCloser {
 		return io.NopCloser(strings.NewReader(`{"kind":"` + t + `","apiVersion":"` + api + `","metadata":{"name":"foo-create"}}`))
 	}
+	bodyFuncWithoutGVK := func() io.ReadCloser {
+		return io.NopCloser(strings.NewReader(`{"metadata":{"name":"foo-create"}}`))
+	}
 	tests := []struct {
 		path string
 		body io.ReadCloser
@@ -116,6 +120,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
 
 		// Secrets
 		{path: "/api/v1/secrets", want: nil},
@@ -123,6 +128,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
 		{path: "/api/v1/namespaces/default/secrets", body: bodyFunc("Secret", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/secrets", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
 
 		// Configmaps
 		{path: "/api/v1/configmaps", want: nil},
@@ -130,12 +136,14 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
 		{path: "/api/v1/namespaces/default/configmaps", body: bodyFunc("ConfigMap", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/configmaps", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
 
 		// Namespaces
 		{path: "/api/v1/namespaces", want: nil},
 		{path: "/api/v1/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"watch"}}},
 		{path: "/api/v1/namespaces", body: bodyFunc("Namespace", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}}},
 
 		// Nodes
 		{path: "/api/v1/nodes", want: nil},
@@ -171,6 +179,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/v1/watch/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
 		{path: "/apis/apps/v1beta2/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1beta2"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
 
 		// Statefulsets
 		{path: "/apis/apps/v1/statefulsets", want: nil},
@@ -218,6 +227,53 @@ func Test_getResourceFromRequest(t *testing.T) {
 			got, _, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
 				kubeCodecs:         globalKubeCodecs,
 				rbacSupportedTypes: defaultRBACResources,
+				gvkSupportedResources: map[gvkSupportedResourcesKey]*schema.GroupVersionKind{
+					{
+						apiGroup: "",
+						version:  "v1",
+						name:     "pods",
+					}: {
+						Group:   "",
+						Version: "v1",
+						Kind:    "Pod",
+					},
+					{
+						apiGroup: "",
+						version:  "v1",
+						name:     "secrets",
+					}: {
+						Group:   "",
+						Version: "v1",
+						Kind:    "Secret",
+					},
+					{
+						apiGroup: "",
+						version:  "v1",
+						name:     "configmaps",
+					}: {
+						Group:   "",
+						Version: "v1",
+						Kind:    "ConfigMap",
+					},
+					{
+						apiGroup: "",
+						version:  "v1",
+						name:     "namespaces",
+					}: {
+						Group:   "",
+						Version: "v1",
+						Kind:    "Namespace",
+					},
+					{
+						apiGroup: "apps",
+						version:  "v1",
+						name:     "deployments",
+					}: {
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+				},
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got, "parsing path %q", tt.path)

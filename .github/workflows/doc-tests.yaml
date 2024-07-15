@@ -5,7 +5,6 @@ on:
 
   merge_group:
 
-
 jobs:
   changes:
     name: Check for relevant changes
@@ -14,15 +13,17 @@ jobs:
       pull-requests: read
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
+      changed_files: ${{ steps.changes.outputs.changed_files }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v4
-      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          list-files: csv
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
@@ -78,6 +79,7 @@ jobs:
           echo "" > .gitmodules
           rm -rf content/*
           cd content
+          # Add a submodule at docs/content/teleport
           git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
           cd $GITHUB_WORKSPACE/docs
           echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
@@ -92,3 +94,30 @@ jobs:
 
       - name: Test the docs build
         run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
+
+  stylecheck:
+    name: Lint docs prose style
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Check out the teleport repo
+        uses: actions/checkout@v4
+        with:
+          repository: "gravitational/teleport"
+
+      - name: Run the linter
+        uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
+        with:
+          version: 2.30.0
+          # Take the comma-separated list of files returned by the "Check for
+          # relevant changes" job.
+          separator: ","
+          files: ${{ needs.changes.outputs.changed_files }}
+          # Restrict the linter to lines modified/added by a PR, not entire
+          # changed files.
+          filter_mode: added
+          fail_on_error: true
+

@@ -40,10 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -63,7 +66,7 @@ func TestAdminActionMFA(t *testing.T) {
 
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
-	t.Run("AuthSign", s.testAuthSign)
+	t.Run("Auth", s.testAuth)
 	t.Run("Roles", s.testRoles)
 	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
@@ -179,7 +182,7 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	})
 }
 
-func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
+func (s *adminActionTestSuite) testAuth(t *testing.T) {
 	ctx := context.Background()
 
 	user, err := types.NewUser("teleuser")
@@ -194,12 +197,24 @@ func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
 	identityFilePath := filepath.Join(t.TempDir(), "identity")
 
 	t.Run("AuthCommands", func(t *testing.T) {
-		t.Run("Impersonation", func(t *testing.T) {
-			s.testCommand(t, ctx, adminActionTestCase{
+		for name, tc := range map[string]adminActionTestCase{
+			"auth sign --user=impersonate": {
 				command:    fmt.Sprintf("auth sign --out=%v --user=%v --overwrite", identityFilePath, user.GetName()),
 				cliCommand: &tctl.AuthCommand{},
+			},
+			"auth export": {
+				command:    "auth export --keys",
+				cliCommand: &tctl.AuthCommand{},
+			},
+			"auth export --type": {
+				command:    "auth export --keys --type=user",
+				cliCommand: &tctl.AuthCommand{},
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				s.testCommand(t, ctx, tc)
 			})
-		})
+		}
 
 		// Renewing certs for yourself should not require admin MFA.
 		t.Run("RenewCerts", func(t *testing.T) {
@@ -372,6 +387,11 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 				cliCommand: &tctl.TokensCommand{},
 				setup:      createToken,
 				cleanup:    deleteToken,
+			}, {
+				command:    "tokens ls",
+				cliCommand: &tctl.TokensCommand{},
+				setup:      createToken,
+				cleanup:    deleteToken,
 			},
 		} {
 			t.Run(tc.command, func(t *testing.T) {
@@ -385,6 +405,7 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 			resource:        token,
 			resourceCreate:  createToken,
 			resourceCleanup: deleteToken,
+			testGetList:     true,
 		})
 	})
 
@@ -464,6 +485,7 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		resource:        ca,
 		resourceCreate:  createCertAuthority,
 		resourceCleanup: deleteCertAuthority,
+		testGetList:     true,
 	})
 
 	s.testEditCommand(t, ctx, editCommandTestCase{
@@ -680,7 +702,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 			return trace.Wrap(err)
 		}
 		authPref.SetOrigin(types.OriginDynamic)
-		return s.authServer.SetAuthPreference(ctx, authPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		return trace.Wrap(err)
 	}
 
 	getAuthPref := func() (types.Resource, error) {
@@ -688,7 +711,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 	}
 
 	resetAuthPref := func() error {
-		return s.authServer.SetAuthPreference(ctx, originalAuthPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+		return trace.Wrap(err)
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -751,7 +775,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	netConfig.SetOrigin(types.OriginDynamic)
 
 	createNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return err
 	}
 
 	getNetConfig := func() (types.Resource, error) {
@@ -759,7 +784,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	}
 
 	resetNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -787,7 +813,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	sessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
 	createSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, sessionRecordingConfig)
+		return err
 	}
 
 	getSessionRecordingConfig := func() (types.Resource, error) {
@@ -795,7 +822,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	}
 
 	resetSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -820,6 +848,10 @@ type resourceCommandTestCase struct {
 	resource        types.Resource
 	resourceCreate  func() error
 	resourceCleanup func() error
+
+	// Tests get/list resource, for privileged resources
+	// like tokens that should require MFA to be seen.
+	testGetList bool
 }
 
 func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
@@ -854,6 +886,26 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			cleanup:    tc.resourceCleanup,
 		})
 	})
+
+	if tc.testGetList {
+		t.Run("tctl get", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("get --with-secrets %v", getResourceRef(tc.resource)),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
+		})
+
+		t.Run("tctl list", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("get --with-secrets %v", tc.resource.GetKind()),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
+		})
+	}
 }
 
 type editCommandTestCase struct {
@@ -891,10 +943,10 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 type adminActionTestSuite struct {
 	authServer *auth.Server
 	// userClientWithMFA supports MFA prompt for admin actions.
-	userClientWithMFA auth.ClientI
+	userClientWithMFA *authclient.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA  auth.ClientI
-	localAdminClient *auth.Client
+	userClientNoMFA  *authclient.Client
+	localAdminClient *authclient.Client
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
@@ -903,14 +955,16 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			OIDC: true,
-			SAML: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 		},
 	})
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorWebauthn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -990,15 +1044,21 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	require.NoError(t, err)
 
-	userClientNoMFA, err := auth.NewClient(client.Config{
+	userClientNoMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
 		},
+		MFAPromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				// return MFA not required to gracefully skip the MFA prompt.
+				return nil, &mfa.ErrMFANotRequired
+			})
+		},
 	})
 	require.NoError(t, err)
 
-	userClientWithMFA, err := auth.NewClient(client.Config{
+	userClientWithMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1009,9 +1069,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
 	require.NoError(t, err)
-	localAdmin, err := auth.ReadLocalIdentity(
+	localAdmin, err := storage.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
-		auth.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)
 	require.NoError(t, err)
 	localAdminTLS, err := localAdmin.TLSConfig(nil)
@@ -1058,9 +1118,11 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 
-		require.NoError(t, s.authServer.SetAuthPreference(ctx, authPref))
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, s.authServer.SetAuthPreference(ctx, originalAuthPref))
+			_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+			require.NoError(t, err)
 		})
 
 		err = runTestCase(t, ctx, s.userClientNoMFA, tc)
@@ -1068,7 +1130,7 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	})
 }
 
-func runTestCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
+func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, tc adminActionTestCase) error {
 	t.Helper()
 
 	if tc.setup != nil {
@@ -1116,7 +1178,7 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -1129,8 +1191,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	})
 	require.NoError(t, err)
 	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
-
-	userWebID := res.GetWebauthn().PublicKey.User.Id
 
 	ccr, err := device.SignCredentialCreation(origin, cc)
 	require.NoError(t, err)
@@ -1149,7 +1209,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 		if err != nil {
 			return nil, "", err
 		}
-		car.AssertionResponse.UserHandle = userWebID
 
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{

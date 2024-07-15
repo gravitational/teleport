@@ -14,7 +14,7 @@ work with Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../database-access/guides.mdx) for how to set up the Teleport
+  [guides](../enroll-resources/database-access/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ### Get connection information
@@ -422,3 +422,59 @@ Use the SQL Server Authentication option and keep the Password field empty:
 
 Click OK to connect.
 
+## Cloud Spanner DataGrip
+
+(!docs/pages/includes/database-access/gui-clients/spanner-local-proxy.mdx!)
+
+From the DataGrip menu, click "File > New > Data Source from URL", then copy and
+paste the JDBC URL that was output by `tsh proxy db`:
+
+![Create DataGrip Spanner Data Source From JDBC URL](../../img/database-access/spanner-gui/datagrip-data-source-from-jdbc-url@2x.png)
+
+The "Google Cloud Spanner" driver should be automatically selected.
+Click "Ok".
+
+DataGrip does not need GCP credentials - those are already provided by Teleport.
+On the "General" tab of the new data source, select the "Authentication"
+dropdown setting and choose "No auth":
+
+![Choose No Auth For DataGrip Spanner Data Source](../../img/database-access/spanner-gui/datagrip-choose-no-auth@2x.png)
+
+Click "Test connection" to ensure the connection is configured correctly, then
+click "Ok" to create the data source.
+
+(!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+## Cloud Spanner DBeaver
+
+(!docs/pages/includes/database-access/gui-clients/spanner-local-proxy.mdx!)
+
+From the menu, click "Database > Driver Manager":
+
+![Open DBeaver Driver Manager](../../img/database-access/spanner-gui/dbeaver-open-driver-manager@2x.png)
+
+Search for the "Google Cloud Spanner" driver, select it, and click the "Copy"
+button to make a custom driver configuration:
+
+![Copy DBeaver Google Spanner Driver](../../img/database-access/spanner-gui/dbeaver-copy-spanner-driver@2x.png)
+
+Give the custom driver a name, e.g. "Teleport Spanner", then set "URL Template"
+to this pattern string:
+
+```code
+jdbc:cloudspanner://127.0.0.1:{port}/projects/{server}/instances/{host}/databases/{database};usePlainText=true
+```
+
+![Create Custom DBeaver Google Spanner Driver](../../img/database-access/spanner-gui/dbeaver-create-spanner-driver@2x.png)
+
+Click "Ok", then click "Close"
+
+From the menu, click "Database > New Connection from JDBC URL":
+
+Now copy the JDBC URL that was output by `tsh proxy db` and paste it:
+
+![Create DBeaver Spanner Connection From JDBC URL](../../img/database-access/spanner-gui/dbeaver-connection-from-jdbc-url@2x.png)
+
+Click "Proceed", then click "Finish".
+
+(!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)

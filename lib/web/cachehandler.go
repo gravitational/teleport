@@ -20,15 +20,26 @@ package web
 
 import (
 	"net/http"
+	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
 // makeCacheHandler adds support for gzip compression for given handler.
-func makeCacheHandler(handler http.Handler) http.Handler {
+func makeCacheHandler(handler http.Handler, etag string) http.Handler {
+	cachedFileTypes := []string{".woff", ".woff2", ".ttf"}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		httplib.SetCacheHeaders(w.Header(), time.Hour*24*365 /* one year */)
+		// We can cache fonts "permanently" because we don't expect them to change. The rest of our
+		// assets will have an ETag associated with them (teleport version) that will allow us
+		// to conditionally send the updated assets or a 304 status (Not Modified) response
+		if slices.Contains(cachedFileTypes, filepath.Ext(r.URL.Path)) {
+			httplib.SetCacheHeaders(w.Header(), time.Hour*24*365 /* one year */)
+		} else {
+			httplib.SetEntityTagCacheHeaders(w.Header(), etag)
+		}
 
 		handler.ServeHTTP(w, r)
 	})

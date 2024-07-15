@@ -51,13 +51,15 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | [user](#user) | A user record in the internal Teleport user DB. |
 | [role](#role) | A role assumed by interactive and non-interactive users. |
 | connector | Authentication connectors for [Single Sign-On](../access-controls/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
-| node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
+| node | A registered SSH node. The same record is displayed via `tctl nodes ls`. |
 | windows_desktop | A registered Windows desktop. |
 | cluster | A trusted cluster. See [here](../management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
 | [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../access-controls/login-rules.mdx) for more info. |
 | [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../access-controls/device-trust/guide.mdx) for more info. |
-| [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service |
+| [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service. |
+| [vnet_config](#vnet-config) | Configuration for the cluster's VNet options. |
 | [cluster_auth_preference](#cluster-auth-preferences) | Configuration for the cluster's auth preferences. |
+| [database_object_import_rule](#database-object-import-rule) | Database object import rules. |
 
 ## User
 
@@ -103,6 +105,38 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 
 (!docs/pages/includes/role-spec.mdx!)
 
+### Role versions
+
+Versions 5, 6 and 7 of the Teleport role resource have different behaviors when
+accessing Kubernetes resources.
+{/*lint ignore messaging*/}
+Roles not [granting Kubernetes access](../enroll-resources/kubernetes-access/introduction.mdx) are
+equivalent in the three versions.
+
+Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
+Role v7 supports restricting all common resource kinds (
+see [the `kubernetes_resource` documentation](../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources)
+for a complete list).
+
+When no `kubernetes_resource` is set:
+- Roles v5 and v7 grant all access by default
+- Roles v6 blocks pod execution by default, this was reverted by roles v7 to improve the user experience.
+
+{/* This table is cursed. Our current docs engine doesn't support HTML tables
+(due to SSR and the rehydration process). We have dto do everything inlined in
+markdown. Some HTML character codes are used to render specific chars like {}
+or to avoid line breaks in the middle fo the YAML. Whitespaces before br tags
+are required.*/}
+
+| Allow rule                                                                                                                                                                                                                                                                | Role v5                                                                                                           | Role v6                                                                                                           | Role v7                                                                                                                                                                                               |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: &#123;&#125; <br/>kubernetes_resources:&nbsp;[]<br/></pre>                                                                                                                                      | ❌ no access                                                                                                       | ❌ no access                                                                                                       | ❌ no access                                                                                                                                                                                           |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources:&nbsp;[]<br/></pre>                                                                                                                               | ✅ full access to `dev` clusters                                                                                   | ❌ cannot exec in pods <br/> ✅ can access other <br/>resources like `secrets`                                      | ✅ full access to `dev` clusters                                                                                                                                                                       |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pod <br/>    namespace: "foo"</pre>                                                                        | ✅ can exec in pods in `foo` <br/>✅ can access `secrets` in all namespaces. <br/>❌ cannot exec in other namespaces | ✅ can exec in pods in `foo` <br/>✅ can access `secrets` in all namespaces. <br/>❌ cannot exec in other namespaces | ✅ can exec in pods in `foo` <br/>❌ cannot access `secrets` in all namespaces <br/>❌ cannot exec in other namespaces                                                                                   |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pod <br/>    namespace: "foo" <br/>  - name: "&ast;" <br/>    kind: secret <br/>    namespace: "foo"</pre> | ⚠️ not supported                                                                                                  | ⚠️ not supported                                                                                                  | ✅ can exec in pods in `foo` <br/>✅ can access `secrets` in `foo` <br/>❌ cannot exec in other namespaces <br/>❌ cannot access `secrets` in other namespaces <br/>❌ cannot access `configmaps` in `foo` |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - kind: "namespace" <br/>    name: "foo"</pre>                                                                                            | ⚠️ not supported                                                                                                  | ⚠️ not supported                                                                                                  | ✅ full access in namespace `foo` <br/>❌ cannot access other namespaces                                                                                                                                |
+
+
 ## Windows desktop
 
 In most cases, Teleport will register `windows_desktop` resources automatically
@@ -122,7 +156,7 @@ desktops this way:
    connections to the host. If you have multiple such services, you can create
    multiple `windows_desktop` resources with different `host_id` values.
 1. If you intend to log in to the desktop with local Windows users you must set
-   `non_ad: true`. If you intent to log in with Active Directory users, leave
+   `non_ad: true`. If you intend to log in with Active Directory users, leave
    `non_ad` unset (or false), and specify the Active Directory domain in the
    `domain` field.
 
@@ -138,6 +172,13 @@ spec:
   addr: 192.168.1.153:3389
   domain: ""
   non_ad: true
+
+  # Optional - ensures that all sessions use the same screen size,
+  # no matter what the size of the browser window is.
+  # Leave blank to use the size of the browser window.
+  screen_size:
+    width: 1024
+    height: 768
 version: v3
 ```
 
@@ -146,6 +187,14 @@ version: v3
 Login rules contain logic to transform SSO user traits during login.
 
 (!docs/pages/includes/login-rule-spec.mdx!)
+
+## Database object import rule
+
+Database object import rule define the labels to be applied to database objects imported into Teleport. 
+
+See [Database Access Controls](../enroll-resources/database-access/rbac.mdx) for more details.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/database-object-import-rule-spec.mdx!)
 
 ## Device
 
@@ -158,6 +207,30 @@ Device contains information identifying a trusted device.
 Global configuration options for the Web UI served by the Proxy Service. This resource is not set by default, which means a `tctl get ui` will result in an error if used before this resource has been set.
 
 (!docs/pages/includes/ui-config-spec.mdx!)
+
+## VNet config
+
+Cluster-specific options VNet should use when setting up connections to resources from this cluster.
+
+See [VNet](../enroll-resources/application-access/guides/vnet.mdx) for more details.
+
+```yaml
+kind: vnet_config
+version: v1
+metadata:
+  name: vnet-config
+spec:
+  # The range to use when assigning IP addresses to resources.
+  # It can be changed in case of conflicts with other software
+  # deployed on end user devices. Defaults to "100.64.0.0/10".
+  ipv4_cidr_range: "100.64.0.0/10"
+  # Extra DNS zones that VNet should capture DNS queries for.
+  # Set them if your TCP apps use custom public_addr.
+  # Requires DNS TXT record to be set on the domains,
+  # see the guide linked above. Empty by default.
+  custom_dns_zones:
+  - suffix: company.test
+```
 
 ## Cluster maintenance config
 
@@ -174,7 +247,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   # Sets the type of second factor to use.
-  # Possible values: "on", "off", "otp", "webauthn" and "optional".
+  # Possible values: "on", "otp" and "webauthn"
   # If "on" is set, all MFA protocols are supported.
   second_factor: "otp"
 
@@ -258,6 +331,6 @@ version: v2
 Bot resources define a Machine ID Bot identity and its access.
 
 Find out more on the
-[Machine ID configuration reference](../machine-id/reference/configuration.mdx).
+[Machine ID configuration reference](../enroll-resources/machine-id/reference/configuration.mdx).
 
 (!docs/pages/includes/machine-id/bot-spec.mdx!)

@@ -29,7 +29,7 @@ export default function createMfaOptions(opts: Options) {
   const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
 
   if (auth2faType === 'webauthn' || mfaEnabled) {
-    mfaOptions.push({ value: 'webauthn', label: 'Hardware Key' });
+    mfaOptions.push({ value: 'webauthn', label: 'Passkey or Security Key' });
   }
 
   if (auth2faType === 'otp' || mfaEnabled) {

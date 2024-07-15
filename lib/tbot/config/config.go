@@ -19,6 +19,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -57,11 +58,10 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodKubernetes),
 	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
+	string(types.JoinMethodTPM),
 }
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // RemainingArgsList is a custom kingpin parser that consumes all remaining
 // arguments.
@@ -100,6 +100,7 @@ type CLIConf struct {
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case
 	// a tunneled auth connection will be established.
+	// Prefer using Address() to pick an address.
 	AuthServer string
 
 	// DataDir stores the bot's internal data.
@@ -154,9 +155,10 @@ type CLIConf struct {
 	// should be written to
 	ConfigureOutput string
 
-	// Proxy is the teleport proxy address. Unlike `AuthServer` this must
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
-	Proxy string
+	// Example: "example.teleport.sh:443"
+	ProxyServer string
 
 	// Cluster is the name of the Teleport cluster on which resources should
 	// be accessed.
@@ -187,6 +189,27 @@ type CLIConf struct {
 	// TraceExporter is a manually provided URI to send traces to instead of
 	// forwarding them to the Auth service.
 	TraceExporter string
+
+	// User is the os login to use for ssh connections.
+	User string
+	// Host is the target ssh machine to connect to.
+	Host string
+	// Post is the post of the ssh machine to connect on.
+	Port string
+
+	// EnableResumption turns on automatic session resumption to prevent connections from
+	// being dropped if Proxy connectivity is lost.
+	EnableResumption bool
+
+	// TLSRoutingEnabled indicates whether the cluster has TLS routing enabled.
+	TLSRoutingEnabled bool
+
+	// ConnectionUpgradeRequired indicates that an ALPN connection upgrade is required
+	// for connections to the cluster.
+	ConnectionUpgradeRequired bool
+
+	// TSHConfigPath is the path to a tsh config file.
+	TSHConfigPath string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -264,10 +287,16 @@ type BotConfig struct {
 	Version    Version          `yaml:"version"`
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
-	Outputs    Outputs          `yaml:"outputs,omitempty"`
+	// Deprecated: Use Services
+	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
+	Services ServiceConfigs `yaml:"services,omitempty"`
 
-	Debug           bool          `yaml:"debug"`
-	AuthServer      string        `yaml:"auth_server"`
+	Debug      bool   `yaml:"debug"`
+	AuthServer string `yaml:"auth_server,omitempty"`
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
+	// explicitly point to a Teleport proxy.
+	// Example: "example.teleport.sh:443"
+	ProxyServer     string        `yaml:"proxy_server,omitempty"`
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
@@ -291,6 +320,30 @@ type BotConfig struct {
 	Insecure bool `yaml:"insecure,omitempty"`
 }
 
+type AddressKind string
+
+const (
+	AddressKindUnspecified AddressKind = ""
+	AddressKindProxy       AddressKind = "proxy"
+	AddressKindAuth        AddressKind = "auth"
+)
+
+// Address returns the address to the auth server, either directly or via
+// a proxy, and the kind of address it is.
+func (conf *BotConfig) Address() (string, AddressKind) {
+	switch {
+	case conf.AuthServer != "" && conf.ProxyServer != "":
+		// This is an error case that should be prevented by the validation.
+		return "", AddressKindUnspecified
+	case conf.ProxyServer != "":
+		return conf.ProxyServer, AddressKindProxy
+	case conf.AuthServer != "":
+		return conf.AuthServer, AddressKindAuth
+	default:
+		return "", AddressKindUnspecified
+	}
+}
+
 func (conf *BotConfig) CipherSuites() []uint16 {
 	if conf.FIPS {
 		return defaults.FIPSCipherSuites
@@ -311,6 +364,14 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	// We've migrated Outputs to Services, so copy all Outputs to Services.
+	conf.Services = append(conf.Services, conf.Outputs...)
+	for i, service := range conf.Services {
+		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
+		}
+	}
+
 	destinationPaths := map[string]int{}
 	addDestinationToKnownPaths := func(d bot.Destination) {
 		switch d := d.(type) {
@@ -320,11 +381,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
-	for _, output := range conf.Outputs {
-		if err := output.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+	for _, svc := range conf.Services {
+		v, ok := svc.(interface{ GetDestination() bot.Destination })
+		if ok {
+			addDestinationToKnownPaths(v.GetDestination())
 		}
-		addDestinationToKnownPaths(output.GetDestination())
 	}
 
 	// Check for identical destinations being used. This is a deeply
@@ -334,8 +395,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	addDestinationToKnownPaths(conf.Storage.Destination)
 	for path, count := range destinationPaths {
 		if count > 1 {
-			log.WithField("path", path).Error(
-				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
+			log.ErrorContext(
+				context.TODO(),
+				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error",
+				"path", path,
 			)
 		}
 	}
@@ -372,14 +435,30 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Warn about config where renewals will fail due to weird TTL vs Interval
+	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
+		log.WarnContext(
+			context.TODO(),
+			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
+			"ttl", conf.CertificateTTL,
+			"interval", conf.RenewalInterval,
+		)
+	}
+
 	return nil
 }
 
-// Outputs assists polymorphic unmarshaling of a slice of Outputs
-type Outputs []Output
+// ServiceConfig is an interface over the various service configurations.
+type ServiceConfig interface {
+	Type() string
+	CheckAndSetDefaults() error
+}
 
-func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
-	var out []Output
+// ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
+type ServiceConfigs []ServiceConfig
+
+func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
+	var out []ServiceConfig
 	for _, node := range node.Content {
 		header := struct {
 			Type string `yaml:"type"`
@@ -389,14 +468,26 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		switch header.Type {
-		case IdentityOutputType:
-			v := &IdentityOutput{}
+		case ExampleServiceType:
+			v := &ExampleService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case ApplicationOutputType:
-			v := &ApplicationOutput{}
+		case SPIFFEWorkloadAPIServiceType:
+			v := &SPIFFEWorkloadAPIService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case DatabaseTunnelServiceType:
+			v := &DatabaseTunnelService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case SSHMultiplexerServiceType:
+			v := &SSHMultiplexerService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -407,8 +498,8 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case DatabaseOutputType:
-			v := &DatabaseOutput{}
+		case SPIFFESVIDOutputType:
+			v := &SPIFFESVIDOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -419,8 +510,26 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case ApplicationOutputType:
+			v := &ApplicationOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case DatabaseOutputType:
+			v := &DatabaseOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case IdentityOutputType:
+			v := &IdentityOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
-			return trace.BadParameter("unrecognized output type (%s)", header.Type)
+			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
 	}
 
@@ -474,44 +583,22 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 }
 
-// GetOutputByPath attempts to fetch a Destination by its filesystem path.
-// Only valid for filesystem destinations; returns nil if no matching
-// Destination exists.
-func (conf *BotConfig) GetOutputByPath(path string) (Output, error) {
-	for _, output := range conf.Outputs {
-		destImpl := output.GetDestination()
-
-		destDir, ok := destImpl.(*DestinationDirectory)
-		if !ok {
-			continue
-		}
-
-		// Note: this compares only paths as written in the config file. We
-		// might want to compare .Abs() if that proves to be confusing (though
-		// this may have its own problems)
-		if destDir.Path == path {
-			return output, nil
-		}
-	}
-
-	return nil, nil
+// Initable represents any ServiceConfig which is compatible with
+// `tbot init`.
+type Initable interface {
+	GetDestination() bot.Destination
+	Init(ctx context.Context) error
+	Describe() []FileDescription
 }
 
-// newTestConfig creates a new minimal bot configuration from defaults for use
-// in tests
-func newTestConfig(authServer string) (*BotConfig, error) {
-	// Note: we need authServer for CheckAndSetDefaults to succeed.
-	cfg := BotConfig{
-		AuthServer: authServer,
-		Onboarding: OnboardingConfig{
-			JoinMethod: types.JoinMethodToken,
-		},
+func (conf *BotConfig) GetInitables() []Initable {
+	var out []Initable
+	for _, service := range conf.Services {
+		if v, ok := service.(Initable); ok {
+			out = append(out, v)
+		}
 	}
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &cfg, nil
+	return out
 }
 
 func destinationFromURI(uriString string) (bot.Destination, error) {
@@ -572,21 +659,44 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.AuthServer != "" {
 		if config.AuthServer != "" {
-			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.AuthServer = cf.AuthServer
 	}
 
+	if cf.ProxyServer != "" {
+		if config.ProxyServer != "" {
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
+		}
+		config.ProxyServer = cf.ProxyServer
+	}
+
 	if cf.CertificateTTL != 0 {
 		if config.CertificateTTL != 0 {
-			log.Warnf("CLI parameters are overriding certificate TTL configured in %s", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.CertificateTTL = cf.CertificateTTL
 	}
 
 	if cf.RenewalInterval != 0 {
 		if config.RenewalInterval != 0 {
-			log.Warnf("CLI parameters are overriding renewal interval configured in %s", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.RenewalInterval = cf.RenewalInterval
 	}
@@ -594,9 +704,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
 		if config.Storage != nil && config.Storage.Destination != nil {
-			log.Warnf(
-				"CLI parameters are overriding storage location from %s",
-				cf.ConfigPath,
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
 			)
 		}
 		dest, err := destinationFromURI(cf.DataDir)
@@ -614,13 +725,17 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 		// CLI only supports a single filesystem Destination with SSH client config
 		// and all roles.
-		if len(config.Outputs) > 0 {
-			log.Warnf("CLI parameters are overriding destinations from %s", cf.ConfigPath)
+		if len(config.Services) > 0 {
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 
 		// When using the CLI --Destination-dir we configure an Identity type
 		// output for that directory.
-		config.Outputs = []Output{
+		config.Services = []ServiceConfig{
 			&IdentityOutput{
 				Destination: &DestinationDirectory{
 					Path: cf.DestinationDir,
@@ -636,7 +751,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
 		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
-			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 
 		config.Onboarding = OnboardingConfig{
@@ -652,7 +771,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.DiagAddr != "" {
 		if config.DiagAddr != "" {
-			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.DiagAddr = cf.DiagAddr
 	}
@@ -705,7 +828,8 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	switch version.Version {
 	case V1, "":
 		if !manualMigration {
-			log.Warn("Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
+			log.WarnContext(
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {

@@ -52,6 +52,11 @@ const (
 	defaultBatchItems = 20000
 	// defaultBatchInterval defines default batch interval.
 	defaultBatchInterval = 1 * time.Minute
+
+	// topicARNBypass is a magic value for TopicARN that signifies that the
+	// Athena audit log should send messages directly to SQS instead of going
+	// through a SNS topic.
+	topicARNBypass = "bypass"
 )
 
 // Config structure represents Athena configuration.
@@ -62,7 +67,9 @@ type Config struct {
 
 	// Publisher settings.
 
-	// TopicARN where to emit events in SNS (required).
+	// TopicARN where to emit events in SNS (required). If TopicARN is "bypass"
+	// (i.e. [topicArnBypass]) then the events should be emitted directly to the
+	// SQS queue reachable at QueryURL.
 	TopicARN string
 	// LargeEventsS3 is location on S3 where temporary large events (>256KB)
 	// are stored before converting it to Parquet and moving to long term
@@ -106,7 +113,9 @@ type Config struct {
 
 	// Batcher settings.
 
-	// QueueURL is URL of SQS, which is set as subscriber to SNS topic (required).
+	// QueueURL is URL of SQS, which is set as subscriber to SNS topic if we're
+	// emitting to SNS, or used directly to send messages if we're bypassing SNS
+	// (required).
 	QueueURL string
 	// BatchMaxItems defines how many items can be stored in single Parquet
 	// batch (optional).
@@ -165,7 +174,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("Database name too long")
 	}
 	if !isAlphanumericOrUnderscore(cfg.Database) {
-		return trace.BadParameter("Database name can contains only alphanumeric or underscore characters")
+		return trace.BadParameter("Database name can only contain alphanumeric or underscore characters")
 	}
 
 	if cfg.TableName == "" {
@@ -177,7 +186,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	// TableName is appended directly to athena query. That's why we put extra care
 	// that no weird chars are passed here.
 	if !isAlphanumericOrUnderscore(cfg.TableName) {
-		return trace.BadParameter("TableName can contains only alphanumeric or underscore characters")
+		return trace.BadParameter("TableName can only contain alphanumeric or underscore characters")
 	}
 
 	if cfg.TopicARN == "" {
@@ -267,7 +276,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 
 	if cfg.LogEntry == nil {
 		cfg.LogEntry = log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAthena,
+			teleport.ComponentKey: teleport.ComponentAthena,
 		})
 	}
 

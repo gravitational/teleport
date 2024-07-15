@@ -20,10 +20,10 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -33,9 +33,9 @@ import (
 )
 
 type tcpServer struct {
-	newAudit func(sessionID string) (common.Audit, error)
+	newAudit func(ctx context.Context, sessionID string) (common.Audit, error)
 	hostID   string
-	log      logrus.FieldLogger
+	log      *slog.Logger
 }
 
 // handleConnection handles connection from a TCP application.
@@ -55,7 +55,7 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	audit, err := s.newAudit(identity.RouteToApp.SessionID)
+	audit, err := s.newAudit(ctx, identity.RouteToApp.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -64,7 +64,7 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	}
 	defer func() {
 		if err := audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
-			s.log.WithError(err).Warnf("Failed to emit session end event for app %v.", app.GetName())
+			s.log.WarnContext(ctx, "Failed to emit session end event for app.", "app", app.GetName(), "error", err)
 		}
 	}()
 	err = utils.ProxyConn(ctx, clientConn, serverConn)

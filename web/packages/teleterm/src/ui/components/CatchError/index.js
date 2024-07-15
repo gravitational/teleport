@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import CatchError from './CatchError';
-export default CatchError;
+export { CatchError } from './CatchError';

@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Text, Flex, Link, Mark } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
 import {
@@ -28,17 +28,17 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark, StyledBox } from 'teleport/Discover/Shared';
+import { StyledBox } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta } from 'teleport/Discover/useDiscover';
+import { Tabs } from 'teleport/components/Tabs';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
-import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
-export default function Container(props: AgentStepProps) {
-  const state = useUserTraits(props);
+export default function Container() {
+  const state = useUserTraits();
   return <SetupAccess {...state} />;
 }
 
@@ -58,6 +58,8 @@ export function SetupAccess(props: State) {
 
   const [userInputValue, setUserInputValue] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<Option[]>([]);
+
+  const wantAutoDiscover = !!agentMeta.autoDiscovery;
 
   useEffect(() => {
     if (props.attempt.status === 'success') {
@@ -95,7 +97,17 @@ export function SetupAccess(props: State) {
   }
 
   function handleOnProceed() {
-    onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
+    let numStepsToIncrement;
+    // Skip test connection since test connection currently
+    // only supports one resource testing and auto enrolling
+    // enrolls resources > 1.
+    if (wantAutoDiscover) {
+      numStepsToIncrement = 2;
+    }
+    onProceed(
+      { databaseNames: selectedNames, databaseUsers: selectedUsers },
+      numStepsToIncrement
+    );
   }
 
   const { engine, location } = resourceSpec.dbMeta;
@@ -111,6 +123,15 @@ export function SetupAccess(props: State) {
 
   const dbMeta = agentMeta as DbMeta;
 
+  let infoContent = (
+    <StyledBox mt={5}>
+      <Info dbEngine={engine} dbLocation={location} />
+    </StyledBox>
+  );
+  if (wantAutoDiscover) {
+    infoContent = <AutoDiscoverInfoTabs location={location} />;
+  }
+
   return (
     <SetupAccessWrapper
       {...restOfProps}
@@ -119,11 +140,19 @@ export function SetupAccess(props: State) {
       traitDescription="names and users"
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
-      infoContent={<Info dbEngine={engine} dbLocation={location} />}
+      infoContent={infoContent}
       // Don't allow going back to previous screen when deploy db
       // service got skipped or user auto deployed the db service.
       onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
+      wantAutoDiscover={wantAutoDiscover}
     >
+      {wantAutoDiscover && (
+        <Text mb={3}>
+          Since auto-discovery is enabled, make sure to include all database
+          users and names that will be used to connect to the discovered
+          databases.
+        </Text>
+      )}
       <Box mb={4}>
         Database Users
         <SelectCreatable
@@ -173,7 +202,7 @@ const Info = (props: {
   dbEngine: DatabaseEngine;
   dbLocation: DatabaseLocation;
 }) => (
-  <StyledBox mt={5}>
+  <>
     <Flex mb={2}>
       <InfoIcon size="medium" mr={1} />
       <Text bold>To allow access using your Database Users</Text>
@@ -197,7 +226,7 @@ const Info = (props: {
         </li>
       </ul>
     </Box>
-  </StyledBox>
+  </>
 );
 
 function DbEngineInstructions({
@@ -370,7 +399,7 @@ function DbEngineInstructions({
                 bash={false}
                 lines={[
                   {
-                    text: "GRANT ALL ON ` % `.* TO 'YOUR_USERNAME'@'%';",
+                    text: "GRANT ALL ON `%`.* TO 'YOUR_USERNAME'@'%';",
                   },
                 ]}
               />
@@ -382,3 +411,30 @@ function DbEngineInstructions({
 
   return null;
 }
+
+// If auto discovery was enabled, users need to see all supported engine info
+// to help setup access to their databases.
+const AutoDiscoverInfoTabs = ({ location }: { location: DatabaseLocation }) => {
+  return (
+    <Tabs
+      tabs={[
+        {
+          title: 'PostgreSQL',
+          content: (
+            <Box p={3}>
+              <Info dbEngine={DatabaseEngine.Postgres} dbLocation={location} />
+            </Box>
+          ),
+        },
+        {
+          title: `MySQL`,
+          content: (
+            <Box p={3}>
+              <Info dbEngine={DatabaseEngine.MySql} dbLocation={location} />
+            </Box>
+          ),
+        },
+      ]}
+    />
+  );
+};

@@ -404,6 +404,16 @@ describe('round to nearest 10 minutes', () => {
       input: { days: 1, minutes: 9, seconds: 10 },
       expected: { days: 1, minutes: 10, seconds: 0 },
     },
+    {
+      name: 'add 60 minutes to undefined hour and set minutes to 0',
+      input: { minutes: 60 },
+      expected: { hours: 1, minutes: 0, seconds: 0 },
+    },
+    {
+      name: 'add 60 minutes to existing hour and set minutes to 0',
+      input: { hours: 3, minutes: 60 },
+      expected: { hours: 4, minutes: 0, seconds: 0 },
+    },
   ];
 
   test.each(cases)('$name', ({ input, expected }) => {

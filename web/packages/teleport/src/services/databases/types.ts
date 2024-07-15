@@ -47,6 +47,7 @@ export interface Database {
   users?: string[];
   hostname: string;
   aws?: Aws;
+  requiresRequest?: boolean;
 }
 
 export type DatabasesResponse = {

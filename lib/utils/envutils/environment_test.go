@@ -19,14 +19,13 @@
 package envutils
 
 import (
-	"os"
+	"bytes"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
-func TestReadEnvironmentFile(t *testing.T) {
+func TestReadEnvironment(t *testing.T) {
 	t.Parallel()
 
 	// contents of environment file
@@ -43,21 +42,11 @@ bar=foo
 LD_PRELOAD=attack
 `)
 
-	// create a temp file with an environment in it
-	f, err := os.CreateTemp(t.TempDir(), "teleport-environment-")
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	_, err = f.Write(rawenv)
-	require.NoError(t, err)
-	err = f.Close()
-	require.NoError(t, err)
-
-	// read in the temp file
-	env, err := ReadEnvironmentFile(f.Name())
+	env, err := readEnvironment(bytes.NewReader(rawenv))
 	require.NoError(t, err)
 
 	// check we parsed it correctly
-	require.Empty(t, cmp.Diff(env, []string{"foo=bar", "foo=bar=baz", "foo=", "bar=foo"}))
+	require.Equal(t, []string{"foo=bar", "foo=bar=baz", "foo=", "bar=foo"}, env)
 }
 
 func TestSafeEnvAdd(t *testing.T) {

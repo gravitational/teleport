@@ -32,19 +32,26 @@ export type Props = {
   hideSelectedOptions?: boolean;
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
-  onChange(e: Option<any, any> | Option<any, any>[]): void;
+  onChange(e: Option<any, any> | Option<any, any>[], action?: ActionMeta): void;
   onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
   value: null | Option<any, any> | Option<any, any>[];
   isMulti?: boolean;
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
-  options: Option<any, any>[] | GroupOption[];
+  options?: Option<any, any>[] | GroupOption[];
   width?: string | number;
   menuPlacement?: string;
   name?: string;
   minMenuHeight?: number;
   components?: any;
+  /**
+   * customProps are any props that are not react-select
+   * default or option props and need to be accessed through a
+   * react-select custom component. `customProps` can be accessed
+   * through react-select prop `selectProps`.
+   * eg: `selectProps.customProps.<the-prop-name>`
+   */
   customProps?: Record<string, any>;
   menuPosition?: 'fixed' | 'absolute';
   inputValue?: string;
@@ -53,6 +60,7 @@ export type Props = {
   // Whether or not the element is on an elevated platform (such as a dialog).
   elevated?: boolean;
   stylesConfig?: StylesConfig;
+  formatCreateLabel?: (i: string) => string;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {
@@ -66,7 +74,7 @@ export type AsyncProps = Omit<Props, 'options'> & {
 /**
  * Properties specific to `react-select`'s Creatable widget.
  */
-export type CreatableProps = Omit<Props, 'options'> & {
+export type CreatableProps = Props & {
   onBlur?(e: FocusEvent): void;
 };
 
@@ -84,7 +92,7 @@ export type GroupOption = {
 };
 
 export type ActionMeta = {
-  action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close';
+  action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close' | 'clear';
 };
 
 /**

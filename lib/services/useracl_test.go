@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -92,6 +93,7 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Tokens, denied))
 	require.Empty(t, cmp.Diff(userContext.Nodes, denied))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, denied))
+	require.Empty(t, cmp.Diff(userContext.AccessMonitoringRule, denied))
 	require.Empty(t, cmp.Diff(userContext.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, denied))
@@ -151,6 +153,7 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Tokens, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Nodes, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.AccessMonitoringRule, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Bots, allowedRW))
@@ -160,6 +163,35 @@ func TestNewUserACLCloud(t *testing.T) {
 	// cloud-specific asserts
 	require.Empty(t, cmp.Diff(userContext.Billing, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
+}
+
+func TestJoinSessionsACL(t *testing.T) {
+	t.Parallel()
+
+	user := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	// create a role denying list/read to all resources,
+	// but allowing the ability to join sessions
+	role := &types.RoleV6{}
+	role.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{"*"},
+			Verbs:     RO(),
+		},
+	})
+	role.SetSessionJoinPolicies([]*types.SessionJoinPolicy{
+		{
+			Name:  "join all",
+			Roles: []string{"*"},
+			Modes: []string{string(types.SessionObserverMode)},
+			Kinds: []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+		},
+	})
+	roleSet := []types.Role{role}
+	acl := NewUserACL(user, roleSet, proto.Features{}, true, false)
+	assert.True(t, acl.ActiveSessions.List)
+	assert.True(t, acl.ActiveSessions.Read)
 }
 
 func TestNewAccessMonitoring(t *testing.T) {

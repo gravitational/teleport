@@ -60,7 +60,7 @@ func TestWriteMovieCanBeCanceled(t *testing.T) {
 	cancel()
 
 	frames, _, err := writeMovieWrapper(t, ctx, fs, "test", "test", nil)
-	require.ErrorIs(t, context.Canceled, err)
+	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 0, frames)
 }
 

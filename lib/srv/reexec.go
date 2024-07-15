@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -612,9 +613,87 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	return nil
 }
 
-// RunForward reads in the command to run from the parent process (over a
+type forwardHandler func(ctx context.Context, addr string, file *os.File) error
+
+func handleLocalPortForward(ctx context.Context, addr string, file *os.File) error {
+	conn, err := uds.FromFile(file)
+	_ = file.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer conn.Close()
+	var d net.Dialer
+	remote, err := d.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer remote.Close()
+	if err := utils.ProxyConn(ctx, conn, remote); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func createRemotePortForwardingListener(ctx context.Context, addr string) (*os.File, error) {
+	lc := net.ListenConfig{
+		Control: func(network, addr string, conn syscall.RawConn) error {
+			var err error
+			err2 := conn.Control(func(descriptor uintptr) {
+				// Disable address reuse to prevent socket replacement.
+				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+			})
+			return trace.NewAggregate(err2, err)
+		},
+	}
+
+	listener, err := lc.Listen(ctx, "tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer listener.Close()
+
+	tcpListener, _ := listener.(*net.TCPListener)
+	if tcpListener == nil {
+		return nil, trace.Errorf("expected listener to be of type *net.TCPListener, but was %T", listener)
+	}
+
+	listenerFD, err := tcpListener.File()
+	return listenerFD, trace.Wrap(err)
+}
+
+func handleRemotePortForward(ctx context.Context, addr string, file *os.File) error {
+	controlConn, err := uds.FromFile(file)
+	_ = file.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	// unblock the final write
+	context.AfterFunc(ctx, func() { _ = controlConn.Close() })
+	go func() {
+		defer cancel()
+		_, _ = controlConn.Read(make([]byte, 1))
+	}()
+
+	var payload []byte
+	var files []*os.File
+	listenerFD, err := createRemotePortForwardingListener(ctx, addr)
+	if err == nil {
+		files = []*os.File{listenerFD}
+	} else {
+		payload = []byte(err.Error())
+	}
+	_, _, err2 := uds.WriteWithFDs(controlConn, payload, files)
+	return trace.NewAggregate(err, err2)
+}
+
+// runForward reads in the command to run from the parent process (over a
 // pipe) then port forwards.
-func RunForward() (errw io.Writer, code int, err error) {
+func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
@@ -682,37 +761,42 @@ func RunForward() (errw io.Writer, code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var buf [1024]byte
-	var fbuf [1]*os.File
 	for {
-		n, fn, err := conn.ReadWithFDs(buf[:], fbuf[:])
+		buf := make([]byte, 1024)
+		fbuf := make([]*os.File, 1)
+		n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return errorWriter, teleport.RemoteCommandSuccess, nil
 			}
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
-
+		addr := string(buf[:n])
 		if fn == 0 {
+			log.Errorf("Parent did not send a file descriptor for address %q.", addr)
 			continue
 		}
 
-		conn, err := uds.FromFile(fbuf[0])
-		fbuf[0].Close()
-		if err != nil {
-			continue
-		}
-
-		go func(addr string, conn net.Conn) {
-			defer conn.Close()
-			remote, err := net.Dial("tcp", addr)
-			if err != nil {
-				return
+		go func() {
+			if err := handler(ctx, addr, fbuf[0]); err != nil {
+				log.WithError(err).Errorf("Error handling forwarding request for address %q.", addr)
 			}
-			defer remote.Close()
-			utils.ProxyConn(ctx, conn, remote)
-		}(string(buf[:n]), conn)
+		}()
 	}
+}
+
+// RunLocalForward reads in the command to run from the parent process (over a
+// pipe) then port forwards.
+func RunLocalForward() (errw io.Writer, code int, err error) {
+	errw, code, err = runForward(handleLocalPortForward)
+	return errw, code, trace.Wrap(err)
+}
+
+// RunRemoteForward reads in the command to run from the parent process (over a
+// pipe) then listens for port forwarding.
+func RunRemoteForward() (errw io.Writer, code int, err error) {
+	errw, code, err = runForward(handleRemotePortForward)
+	return errw, code, trace.Wrap(err)
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
@@ -747,8 +831,10 @@ func RunAndExit(commandType string) {
 	switch commandType {
 	case teleport.ExecSubCommand:
 		w, code, err = RunCommand()
-	case teleport.ForwardSubCommand:
-		w, code, err = RunForward()
+	case teleport.LocalForwardSubCommand:
+		w, code, err = RunLocalForward()
+	case teleport.RemoteForwardSubCommand:
+		w, code, err = RunRemoteForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
 	case teleport.ParkSubCommand:
@@ -768,8 +854,8 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand,
-			teleport.ParkSubCommand, teleport.SFTPSubCommand:
+		case teleport.ExecSubCommand, teleport.LocalForwardSubCommand, teleport.RemoteForwardSubCommand,
+			teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
 	}
@@ -786,8 +872,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
 	if err != nil {
-		log.Debugf("Failed to get login shell for %v: %v. Using default: %v.",
-			c.Login, err, shell.DefaultShell)
+		log.Debugf("Failed to get login shell for %v: %v.", c.Login, err)
 	}
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
@@ -982,11 +1067,16 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	}
 	executableDir, _ := filepath.Split(executable)
 
-	// The channel type determines the subcommand to execute (execution or
+	// The channel/request type determines the subcommand to execute (execution or
 	// port forwarding).
-	subCommand := teleport.ExecSubCommand
-	if ctx.ChannelType == teleport.ChanDirectTCPIP {
-		subCommand = teleport.ForwardSubCommand
+	var subCommand string
+	switch ctx.ExecType {
+	case teleport.ChanDirectTCPIP:
+		subCommand = teleport.LocalForwardSubCommand
+	case teleport.TCPIPForwardRequest:
+		subCommand = teleport.RemoteForwardSubCommand
+	default:
+		subCommand = teleport.ExecSubCommand
 	}
 
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
@@ -995,7 +1085,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// build env for `teleport exec`
 	env := &envutils.SafeEnv{}
-	env.AddFullTrusted(cmdmsg.Environment...)
 	env.AddExecEnvironment()
 
 	// Build the "teleport exec" command.
@@ -1016,6 +1105,29 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// Add extra files if applicable.
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
+	}
+
+	// For remote port forwarding, the child needs to run as the user to
+	// create listeners with the correct permissions.
+	if subCommand == teleport.RemoteForwardSubCommand {
+		localUser, err := user.Lookup(ctx.Identity.Login)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Ensure that the working directory is one that the child has access to.
+		cmd.Dir = "/"
+		credential, err := getCmdCredential(localUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log := slog.With("uid", credential.Uid, "gid", credential.Gid, "groups", credential.Groups)
+		if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
+			cmd.SysProcAttr = &syscall.SysProcAttr{Credential: credential}
+			log.DebugContext(ctx.Context, "Creating process with new credentials.")
+		} else {
+			log.DebugContext(ctx.Context, "Creating process with environment credentials.")
+		}
 	}
 
 	// Perform OS-specific tweaks to the command.

@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -47,31 +47,34 @@ func TestStreamsDesktopEvents(t *testing.T) {
 		&apievents.DesktopRecording{Message: []byte("jkl")},
 	}
 	s := newServer(t, 20*time.Millisecond, events)
-	url := strings.Replace(s.URL, "http", "ws", 1)
-	cfg, err := websocket.NewConfig(url, "http://localhost")
-	require.NoError(t, err)
 
 	// connect to the server and verify that we receive
 	// all 4 JSON-encoded events
-	ws, err := websocket.DialConfig(cfg)
+	url := strings.Replace(s.URL, "http", "ws", 1)
+
+	// As per https://pkg.go.dev/github.com/gorilla/websocket#Dialer.DialContext:
+	// "The response body may not contain the entire response and does not need to be closed by the application."
+	//nolint:bodyclose // false positive
+	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
+
 	t.Cleanup(func() { ws.Close() })
 
 	for _, evt := range events {
-		b := make([]byte, 4096)
-		n, err := ws.Read(b)
+		typ, b, err := ws.ReadMessage()
 		require.NoError(t, err)
+		require.Equal(t, websocket.BinaryMessage, typ)
 
 		var dr apievents.DesktopRecording
-		err = utils.FastUnmarshal(b[:n], &dr)
+		err = utils.FastUnmarshal(b, &dr)
 		require.NoError(t, err)
 		require.Equal(t, evt.(*apievents.DesktopRecording).Message, dr.Message)
 	}
 
-	b := make([]byte, 4096)
-	n, err := ws.Read(b)
+	typ, b, err := ws.ReadMessage()
 	require.NoError(t, err)
-	require.JSONEq(t, `{"message":"end"}`, string(b[:n]))
+	require.Equal(t, websocket.BinaryMessage, typ)
+	require.JSONEq(t, `{"message":"end"}`, string(b))
 }
 
 func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent) *httptest.Server {
@@ -81,19 +84,27 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 	log := utils.NewLoggerForTests()
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		websocket.Handler(func(ws *websocket.Conn) {
-			player, err := player.New(&player.Config{
-				Clock:     clockwork.NewRealClock(),
-				Log:       log,
-				SessionID: session.ID("session-id"),
-				Streamer:  fs,
-			})
-			assert.NoError(t, err)
-			player.Play()
-			desktop.PlayRecording(r.Context(), log, ws, player)
-		}).ServeHTTP(w, r)
-	}))
-	t.Cleanup(s.Close)
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
 
+		player, err := player.New(&player.Config{
+			Clock:     clockwork.NewRealClock(),
+			Log:       log,
+			SessionID: session.ID("session-id"),
+			Streamer:  fs,
+		})
+		assert.NoError(t, err)
+		player.Play()
+		desktop.PlayRecording(r.Context(), log, ws, player)
+	}))
+
+	t.Cleanup(s.Close)
 	return s
 }

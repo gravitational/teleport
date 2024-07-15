@@ -18,113 +18,12 @@
 
 const path = require('path');
 
-const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-const HtmlWebPackPlugin = require('html-webpack-plugin');
-const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
-const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
-
 const resolvePath = require('./resolvepath');
-
-const tsconfigPath = path.join(__dirname, '/../../../../tsconfig.json');
 
 const configFactory = {
   createDefaultConfig,
-  plugins: {
-    reactRefresh(options) {
-      return new ReactRefreshPlugin(options);
-    },
-    tsChecker() {
-      return new ForkTsCheckerWebpackPlugin({
-        typescript: {
-          configFile: tsconfigPath,
-          memoryLimit: 4096,
-        },
-        issue: {
-          exclude: [{ file: '**/*.story.tsx' }],
-        },
-      });
-    },
-    indexHtml(options) {
-      return new HtmlWebPackPlugin({
-        filename: '../index.html',
-        title: '',
-        inject: true,
-        template: path.join(__dirname, '/../index.ejs'),
-        ...options,
-      });
-    },
-    bundleAnalyzer(options) {
-      return new BundleAnalyzerPlugin({ analyzerHost: '0.0.0.0', ...options });
-    },
-  },
-  rules: {
-    raw() {
-      return {
-        resourceQuery: /raw/,
-        type: 'asset/source',
-      };
-    },
-    fonts() {
-      return {
-        test: /fonts\/(.)+\.(woff|woff2|ttf|svg)/,
-        type: 'asset',
-        generator: {
-          filename: 'assets/fonts/[name][ext]',
-        },
-      };
-    },
-    svg() {
-      return {
-        test: /\.svg$/,
-        type: 'asset/inline',
-        exclude: /[\\/]node_modules[\\/]/,
-      };
-    },
-    css() {
-      return {
-        test: /\.(css)$/,
-        use: ['style-loader', 'css-loader'],
-      };
-    },
-    images() {
-      return {
-        test: /\.(png|jpg|gif|ico)$/,
-        type: 'asset',
-        generator: {
-          filename: 'assets/img/img-[hash:6][ext]',
-        },
-        parser: {
-          dataUrlCondition: {
-            maxSize: 10240, // 10kb
-          },
-        },
-      };
-    },
-    jsx() {
-      return {
-        test: /\.(ts|tsx|js|jsx)$/,
-        exclude: /[\\/]node_modules[\\/]/,
-        use: [
-          {
-            loader: 'babel-loader',
-          },
-          {
-            loader: 'ts-loader',
-            options: {
-              onlyCompileBundledFiles: true,
-              configFile: tsconfigPath,
-              compilerOptions: {
-                jsx: 'preserve',
-              },
-            },
-          },
-        ],
-      };
-    },
-  },
 };
 
-/** @return {import('webpack').webpack.Configuration} */
 function createDefaultConfig() {
   return {
     entry: {
@@ -153,10 +52,10 @@ function createDefaultConfig() {
         teleterm: path.join(__dirname, '/../../teleterm/src'),
         teleport: path.join(__dirname, '/../../teleport/src'),
         'e-teleport': path.join(__dirname, '/../../../../e/web/teleport/src'),
-        'e-teleterm': path.join(__dirname, '/../../../../e/web/teleterm/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
         'gen-proto-js': path.join(__dirname, '/../../../../gen/proto/js'),
+        'gen-proto-ts': path.join(__dirname, '/../../../../gen/proto/ts'),
       },
 
       /*

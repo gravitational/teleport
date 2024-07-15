@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 	v1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
@@ -315,12 +315,12 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 
 	now := time.Now()
 	clusterName := "example.teleport.sh"
-	validKubeSubclaim := &kubernetesSubClaim{
-		ServiceAccount: &serviceAccountSubClaim{
+	validKubeSubclaim := &KubernetesSubClaim{
+		ServiceAccount: &ServiceAccountSubClaim{
 			Name: "my-service-account",
 			UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 		},
-		Pod: &podSubClaim{
+		Pod: &PodSubClaim{
 			Name: "my-pod-797959fdf-wptbj",
 			UID:  "413b22ca-4833-48d9-b6db-76219d583173",
 		},
@@ -330,7 +330,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 	tests := []struct {
 		name   string
 		signer jose.Signer
-		claims serviceAccountClaims
+		claims ServiceAccountClaims
 
 		wantResult *ValidationResult
 		wantErr    string
@@ -338,7 +338,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "valid",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -356,7 +356,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "missing bound pod claim",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -364,8 +364,8 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
 				},
-				Kubernetes: &kubernetesSubClaim{
-					ServiceAccount: &serviceAccountSubClaim{
+				Kubernetes: &KubernetesSubClaim{
+					ServiceAccount: &ServiceAccountSubClaim{
 						Name: "my-service-account",
 						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 					},
@@ -377,7 +377,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "signed by unknown key",
 			signer: wrongSigner,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -392,7 +392,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "wrong audience",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{"wrong.audience"},
@@ -407,7 +407,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "no expiry",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -421,7 +421,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "no issued at",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -435,7 +435,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "too long ttl",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -454,7 +454,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "expired",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -469,7 +469,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "not yet valid",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},

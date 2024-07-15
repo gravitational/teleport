@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -47,6 +48,13 @@ type Credentials interface {
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+	// Expiry returns the Credentials expiry if it's possible to know its expiry.
+	// When expiry can be determined returns true, else returns false.
+	// If the Credentials don't expire, returns the zero time.
+	// If the Credential is dynamically refreshed or reloaded, (e.g filesystem
+	// reload or tbot renewal), Expiry returns the expiry of the currently active
+	// Credentials.
+	Expiry() (time.Time, bool)
 }
 
 // CredentialsWithDefaultAddrs additionally provides default addresses sourced
@@ -87,6 +95,12 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+// Expiry returns the credential expiry. As the tlsConfigCreds are built from an existing tlsConfig
+// we have no way of knowing which certificate will be returned and if it's expired.
+func (c *tlsConfigCreds) Expiry() (time.Time, bool) {
+	return time.Time{}, false
+}
+
 // LoadKeyPair is used to load Credentials from a certicate keypair on disk.
 //
 // KeyPair Credentials can only be used to connect directly to a Teleport Auth server.
@@ -115,7 +129,7 @@ type keypairCreds struct {
 
 // TLSConfig returns TLS configuration.
 func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
+	cert, err := keys.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,6 +155,19 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+// Expiry returns the credential expiry.
+func (c *keypairCreds) Expiry() (time.Time, bool) {
+	certPEMBlock, err := os.ReadFile(c.certFile)
+	if err != nil {
+		return time.Time{}, false
+	}
+	cert, _, err := keys.X509Certificate(certPEMBlock)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
+}
+
 // LoadIdentityFile is used to load Credentials from an identity file on disk.
 //
 // Identity Credentials can be used to connect to an auth server directly
@@ -162,12 +189,16 @@ func LoadIdentityFile(path string) Credentials {
 
 // identityCredsFile use an identity file to provide client credentials.
 type identityCredsFile struct {
+	// mutex protects identityFile
+	mutex        sync.Mutex
 	identityFile *identityfile.IdentityFile
 	path         string
 }
 
 // TLSConfig returns TLS configuration.
 func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,6 +213,8 @@ func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns SSH configuration.
 func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,6 +225,16 @@ func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// Expiry returns the credential expiry.
+func (c *identityCredsFile) Expiry() (time.Time, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+	return c.identityFile.Expiry()
 }
 
 // load is used to lazy load the identity file from persistent storage.
@@ -258,6 +301,15 @@ func (c *identityCredsString) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// Expiry returns the credential expiry.
+func (c *identityCredsString) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+
+	return c.identityFile.Expiry()
 }
 
 // load is used to lazy load the identity file from a string.
@@ -329,6 +381,13 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return sshConfig, nil
 }
 
+func (c *profileCreds) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+	return c.profile.Expiry()
+}
+
 // DefaultAddrs implements CredentialsWithDefaultAddrs by providing the
 // WebProxyAddr from the credential
 func (c *profileCreds) DefaultAddrs() ([]string, error) {
@@ -380,6 +439,9 @@ func configureTLS(c *tls.Config) *tls.Config {
 // source of authentication for Client. It does not automatically watch the
 // identity file or reload on an interval, this is left as an exercise for the
 // consumer.
+//
+// DynamicIdentityFileCreds is the recommended [Credentials] implementation for
+// tools that use Machine ID certificates.
 type DynamicIdentityFileCreds struct {
 	// mu protects the fields that may change if the underlying identity file
 	// is reloaded.
@@ -452,6 +514,8 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 
 // TLSConfig returns TLS configuration. Implementing the Credentials interface.
 func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	// Build a "dynamic" tls.Config which can support a changing cert and root
 	// CA pool.
 	cfg := &tls.Config{
@@ -473,7 +537,10 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 		},
 
 		// VerifyConnection is used instead of the static RootCAs field.
-		RootCAs: nil,
+		// However, there's some client code which relies on the static RootCAs
+		// field. So we set it to a copy of the current root CAs pool to support
+		// those - e.g ALPNDialerConfig.GetClusterCAs
+		RootCAs: d.tlsRootCAs.Clone(),
 		// InsecureSkipVerify is forced true to ensure that only our
 		// VerifyConnection callback is used to verify the server's presented
 		// certificate.
@@ -488,7 +555,7 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 			opts := x509.VerifyOptions{
 				DNSName:       state.ServerName,
 				Intermediates: x509.NewCertPool(),
-				Roots:         d.tlsRootCAs,
+				Roots:         d.tlsRootCAs.Clone(),
 			}
 			for _, cert := range state.PeerCertificates[1:] {
 				// Whilst we don't currently use intermediate certs at
@@ -554,4 +621,21 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 		User: "-teleport-internal-join",
 	}
 	return cfg, nil
+}
+
+// Expiry returns the current credential expiry.
+func (d *DynamicIdentityFileCreds) Expiry() (time.Time, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.tlsCert == nil || len(d.tlsCert.Certificate) == 0 {
+		return time.Time{}, false
+	}
+
+	x509Cert, err := x509.ParseCertificate(d.tlsCert.Certificate[0])
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return x509Cert.NotAfter, true
 }

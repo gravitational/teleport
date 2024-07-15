@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
-import { matchPath, useHistory, useLocation } from 'react-router';
-import { Image } from 'design';
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { matchPath, useLocation, useHistory } from 'react-router';
+import { Box, Text, Flex } from 'design';
+import { Info } from 'design/Icon';
 
-import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
 import {
   NAVIGATION_CATEGORIES,
@@ -29,13 +29,6 @@ import {
 } from 'teleport/Navigation/categories';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
-
-import { useTeleport } from '..';
-
-import logoLight from './logoLight.svg';
-import logoDark from './logoDark.svg';
-import logoPoweredBy from './logoPoweredBy.svg';
 
 import type * as history from 'history';
 
@@ -47,8 +40,7 @@ const NavigationContainer = styled.div`
   position: relative;
   display: flex;
   flex-direction: column;
-  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
-    0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12);
+  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
 `;
 
 const CategoriesContainer = styled.div`
@@ -104,74 +96,14 @@ function getCategoryForRoute(
   return feature.category;
 }
 
-export function Navigation({
-  CustomLogo,
-  showPoweredByLogo = false,
-}: NavigationProps) {
+export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
   const location = useLocation();
-  const ctx = useTeleport();
 
-  const [view, setView] = useState(
+  const view =
     getCategoryForRoute(features, history.location) ||
-      NavigationCategory.Resources
-  );
-
-  const [previousRoute, setPreviousRoute] = useState<{
-    [category: string]: string;
-  }>({});
-
-  const handleLocationChange = useCallback(
-    (next: history.Location<unknown> | Location) => {
-      const previousPathName = location.pathname;
-
-      const category = getCategoryForRoute(features, next);
-      const previousCategory = getCategoryForRoute(features, location);
-
-      if (category && category !== view) {
-        setView(category);
-
-        if (previousCategory) {
-          setPreviousRoute(previous => ({
-            ...previous,
-            [previousCategory]: previousPathName,
-          }));
-        }
-      }
-    },
-    [location, view]
-  );
-
-  useEffect(() => {
-    return history.listen(handleLocationChange);
-  }, [history, location.pathname, features, view]);
-
-  const handlePopState = useCallback(
-    (event: PopStateEvent) => {
-      handleLocationChange((event.currentTarget as Window).location);
-    },
-    [view]
-  );
-
-  useEffect(() => {
-    window.addEventListener('popstate', handlePopState);
-
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [handlePopState]);
-
-  const handleCategoryChange = useCallback(
-    (category: NavigationCategory) => {
-      if (view === category) {
-        return;
-      }
-
-      history.push(
-        previousRoute[category] || getFirstRouteForCategory(features, category)
-      );
-    },
-    [view, previousRoute]
-  );
+    NavigationCategory.Resources;
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
     <NavigationCategoryContainer
@@ -183,71 +115,114 @@ export function Navigation({
 
   const feature = getFeatureForRoute(features, location);
 
-  if (feature?.hideNavigation) {
+  if (
+    feature?.hideNavigation ||
+    feature?.category !== NavigationCategory.Management
+  ) {
     return null;
   }
 
   return (
     <NavigationContainer>
-      {CustomLogo ? <CustomLogo /> : <NavigationLogo />}
-
-      {ctx.getFeatureFlags().managementSection && (
-        <NavigationSwitcher
-          onChange={handleCategoryChange}
-          value={view}
-          items={[
-            { category: NavigationCategory.Resources },
-            {
-              category: NavigationCategory.Management,
-              requiresAttention: ctx.storeNotifications.hasNotificationsByKind(
-                NotificationKind.AccessList
-              ),
-            },
-          ]}
-        />
-      )}
-
       <CategoriesContainer>{categories}</CategoriesContainer>
-      {showPoweredByLogo && <PoweredByLogo />}
+      {cfg.edition === 'oss' && <AGPLFooter />}
+      {cfg.edition === 'community' && <CommunityFooter />}
     </NavigationContainer>
   );
 }
-
-const NavigationLogo = () => {
-  const theme = useTheme();
-
+function AGPLFooter() {
   return (
-    <Image
-      src={theme.type === 'dark' ? logoDark : logoLight}
-      height="32px"
-      width="fit-content"
-      style={{
-        marginTop: '20px',
-        marginLeft: '32px',
-        marginBottom: '20px',
-      }}
-      alt="teleport logo"
+    <LicenseFooter
+      title="AGPL Edition"
+      subText="Unofficial Version"
+      infoContent={
+        <>
+          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
+          {/* can find the official release on{' '} */}
+          This is an independently compiled AGPL-3.0 version of Teleport.
+          <br />
+          Visit{' '}
+          <Text
+            as="a"
+            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+          >
+            the Downloads page
+          </Text>{' '}
+          for the official release.
+        </>
+      }
     />
   );
-};
+}
 
-const PoweredByLogo = () => {
+function CommunityFooter() {
   return (
-    <Image
-      src={logoPoweredBy}
-      height="48px"
-      width="fit-content"
-      style={{
-        marginTop: '28px',
-        marginLeft: '32px',
-        marginBottom: '36px',
-      }}
-      alt="powered by teleport"
+    <LicenseFooter
+      title="Community Edition"
+      subText="Limited Features"
+      infoContent={
+        <>
+          <Text
+            as="a"
+            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+          >
+            Upgrade to Teleport Enterprise
+          </Text>{' '}
+          for SSO, just-in-time access requests, Access Graph, and much more!
+        </>
+      }
     />
   );
-};
+}
 
-export type NavigationProps = {
-  CustomLogo?: () => React.ReactElement;
-  showPoweredByLogo?: boolean;
-};
+function LicenseFooter({
+  title,
+  subText,
+  infoContent,
+}: {
+  title: string;
+  subText: string;
+  infoContent: JSX.Element;
+}) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
+      <Flex alignItems="center" gap={2}>
+        <Text>{title}</Text>
+        <FooterContent onMouseEnter={() => setOpened(true)}>
+          <Info size={16} />
+          {opened && <TooltipContent>{infoContent}</TooltipContent>}
+        </FooterContent>
+      </Flex>
+      <SubText>{subText}</SubText>
+    </StyledFooterBox>
+  );
+}
+
+const StyledFooterBox = styled(Box)`
+  line-height: 20px;
+  border-top: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.spotBackground[0]};
+`;
+
+const SubText = styled(Text)`
+  color: ${props => props.theme.colors.text.disabled};
+  font-size: ${props => props.theme.fontSizes[1]}px;
+`;
+
+const TooltipContent = styled(Box)`
+  width: max-content;
+  position: absolute;
+  bottom: 0;
+  left: 24px;
+  padding: 12px 16px 12px 16px;
+  box-shadow: ${p => p.theme.boxShadow[1]};
+  background-color: ${props => props.theme.colors.tooltip.background};
+  z-index: 20;
+`;
+
+const FooterContent = styled(Flex)`
+  position: relative;
+`;

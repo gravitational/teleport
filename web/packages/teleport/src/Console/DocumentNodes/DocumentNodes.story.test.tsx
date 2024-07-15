@@ -24,11 +24,13 @@ import { Document, createContext } from './DocumentNodes.story';
 
 test('render DocumentNodes', async () => {
   const ctx = createContext();
-  jest.spyOn(ctx, 'fetchClusters');
+  jest.spyOn(ctx.clustersService, 'fetchClusters');
   jest.spyOn(ctx.nodesService, 'fetchNodes');
 
   const { container } = render(<Document value={ctx} />);
-  await waitFor(() => expect(ctx.fetchClusters).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(ctx.clustersService.fetchClusters).toHaveBeenCalledTimes(1)
+  );
   await waitFor(() =>
     expect(ctx.nodesService.fetchNodes).toHaveBeenCalledTimes(1)
   );

@@ -59,14 +59,13 @@ export default class MenuActionIcon extends React.Component<
     return (
       <>
         <ButtonBorder
-          height="24px"
           size="small"
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
           {...buttonProps}
         >
-          {this.props.buttonText || 'OPTIONS'}
-          <ChevronDown ml={2} mr={-2} size="small" color="text.slightlyMuted" />
+          {this.props.buttonText || 'Options'}
+          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           getContentAnchorEl={null}
@@ -79,7 +78,7 @@ export default class MenuActionIcon extends React.Component<
             horizontal: 'right',
           }}
           anchorOrigin={{
-            vertical: 'center',
+            vertical: 'bottom',
             horizontal: 'right',
           }}
           {...menuProps}

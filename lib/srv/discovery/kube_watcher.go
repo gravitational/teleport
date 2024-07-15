@@ -34,9 +34,10 @@ import (
 const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
-	if len(s.kubeFetchers) == 0 {
+	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
 		return nil
 	}
+
 	var (
 		kubeResources []types.KubeCluster
 		mu            sync.Mutex
@@ -70,7 +71,11 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		FetchersFn:     common.StaticFetchers(s.kubeFetchers),
+		FetchersFn: func() []common.Fetcher {
+			kubeNonIntegrationFetchers := s.getKubeNonIntegrationFetchers()
+			s.submitFetchersEvent(kubeNonIntegrationFetchers)
+			return kubeNonIntegrationFetchers
+		},
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
@@ -87,12 +92,14 @@ func (s *Server) startKubeWatchers() error {
 			case newResources := <-watcher.ResourcesC():
 				clusters := make([]types.KubeCluster, 0, len(newResources))
 				for _, r := range newResources {
-					cluster, ok := r.(types.KubeCluster)
-					if !ok {
+					if cluster, ok := r.(types.DiscoveredEKSCluster); ok {
+						clusters = append(clusters, cluster.GetKubeCluster())
 						continue
 					}
-
-					clusters = append(clusters, cluster)
+					if cluster, ok := r.(types.KubeCluster); ok {
+						clusters = append(clusters, cluster)
+						continue
+					}
 				}
 				mu.Lock()
 				kubeResources = clusters
@@ -113,15 +120,12 @@ func (s *Server) startKubeWatchers() error {
 func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
-	// If the resource already exists, it means that the resource was created
-	// by a previous discovery_service instance that didn't support the discovery
-	// group feature or the discovery group was changed.
-	// In this case, we need to update the resource with the
-	// discovery group label to ensure the user doesn't have to manually delete
-	// the resource.
-	// TODO(tigrato): DELETE on 15.0.0
-	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster))
+	// If the kube already exists but has an empty discovery group, update it.
+	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
+		func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetKubernetesCluster(ctx, kubeCluster.GetName())
+		}) {
+		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -139,7 +143,7 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	return nil
 }
 
-func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster types.KubeCluster) error {
+func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeCluster) error {
 	s.Log.Debugf("Updating kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateKubernetesCluster(ctx, kubeCluster))
 }

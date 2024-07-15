@@ -31,7 +31,7 @@ export default function RecoveryCodesDialog({
   isNewCodes,
   continueText = 'Continue',
   username = '',
-}: Props) {
+}: RecoveryCodesProps) {
   const codesRef = useRef();
 
   const captureRecoveryCodeEvent = (event: CaptureEvent) => {
@@ -218,7 +218,7 @@ const MiniActionButton = styled(ButtonPrimary)`
   font-size: 10px;
 `;
 
-export type Props = {
+export type RecoveryCodesProps = {
   recoveryCodes: RecoveryCodes;
   onContinue: () => void;
   isNewCodes: boolean;

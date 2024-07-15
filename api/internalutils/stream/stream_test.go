@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -126,6 +127,63 @@ func TestMapWhile(t *testing.T) {
 	// failure
 	err = Drain(MapWhile(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
 	require.Error(t, err)
+}
+
+// TestChain tests the Chain combinator.
+func TestChain(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	s, err := Collect(Chain(
+		Slice([]int{1, 2, 3}),
+		Slice([]int{4}),
+		Slice([]int{5, 6}),
+	))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
+
+	// single substream
+	s, err = Collect(Chain(Slice([]int{1, 2, 3})))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, s)
+
+	// no substreams
+	s, err = Collect(Chain[int]())
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// some empty substreams
+	s, err = Collect(Chain(
+		Empty[int](),
+		Slice([]int{4, 5, 6}),
+		Empty[int](),
+	))
+	require.NoError(t, err)
+	require.Equal(t, []int{4, 5, 6}, s)
+
+	// all empty substreams
+	s, err = Collect(Chain(
+		Empty[int](),
+		Empty[int](),
+	))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// late failure
+	s, err = Collect(Chain(
+		Slice([]int{7, 7, 7}),
+		Fail[int](fmt.Errorf("some error")),
+	))
+	require.Error(t, err)
+	require.Equal(t, []int{7, 7, 7}, s)
+
+	// early failure
+	s, err = Collect(Chain(
+		Fail[int](fmt.Errorf("some other error")),
+		Func(func() (int, error) { panic("unreachable") }),
+	))
+	require.Error(t, err)
+	require.Empty(t, s)
 }
 
 // TestFunc tests the Func stream.
@@ -300,6 +358,32 @@ func TestEmpty(t *testing.T) {
 	// nil error case
 	s, err = Collect(Fail[int](nil))
 	require.NoError(t, err)
+	require.Empty(t, s)
+}
+
+// TestOnceFunc tests the OnceFunc stream combinator.
+func TestOnceFunc(t *testing.T) {
+	t.Parallel()
+
+	// single-element variant
+	s, err := Collect(OnceFunc(func() (int, error) {
+		return 1, nil
+	}))
+	require.NoError(t, err)
+	require.Equal(t, []int{1}, s)
+
+	// empty stream case
+	s, err = Collect(OnceFunc(func() (int, error) {
+		return 1, io.EOF
+	}))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// error case
+	s, err = Collect(OnceFunc(func() (int, error) {
+		return 1, fmt.Errorf("unexpected error")
+	}))
+	require.Error(t, err)
 	require.Empty(t, s)
 }
 
@@ -602,5 +686,114 @@ func repeat[T any](item T, count int) Stream[T] {
 			return zero, io.EOF
 		}
 		return item, nil
+	})
+}
+
+// TestMergeStreams tests the MergeStreams adapter.
+func TestMergeStreams(t *testing.T) {
+	t.Parallel()
+
+	// Mock convert function that converts the strings in streamB to integers.
+	convertBFunc := func(val string) int {
+		bValue, _ := strconv.Atoi(val)
+		return bValue
+	}
+
+	// Since streamA is already the type we want from the merged stream, the convertA function just returns the item as-is.
+	convertAFunc := func(item int) int { return item }
+
+	// Mock compare function that favors the lower value.
+	compareFunc := func(a int, b string) bool {
+		return a <= convertBFunc(b)
+	}
+
+	// Test the case where the streams should have interlaced values.
+	t.Run("interlaced streams", func(t *testing.T) {
+		streamA := Slice([]int{1, 3, 5})
+		streamB := Slice([]string{"2", "4", "6"})
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
+	})
+
+	// Test the case where streamA is empty.
+	t.Run("stream A empty", func(t *testing.T) {
+		streamA := Empty[int]()
+		streamB := Slice([]string{"1", "2", "3"})
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Equal(t, []int{1, 2, 3}, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
+	})
+
+	// Test the case where streamB is empty.
+	t.Run("stream B empty", func(t *testing.T) {
+		streamA := Slice([]int{1, 2, 3})
+		streamB := Empty[string]()
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Equal(t, []int{1, 2, 3}, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
+	})
+
+	// Test the case where both streams are empty.
+	t.Run("both streams empty", func(t *testing.T) {
+		streamA := Empty[int]()
+		streamB := Empty[string]()
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Empty(t, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
+	})
+
+	// Test the case where every value in streamA is lower than every value in streamB.
+	t.Run("compare always favors A", func(t *testing.T) {
+		streamA := Slice([]int{1, 2, 3})
+		streamB := Slice([]string{"4", "5", "6"})
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
+	})
+
+	// Test the case where every value in streamB is lower than every value in streamA.
+	t.Run("compare always favors B", func(t *testing.T) {
+		streamA := Slice([]int{4, 5, 6})
+		streamB := Slice([]string{"1", "2", "3"})
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
 	})
 }

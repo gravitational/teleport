@@ -169,16 +169,16 @@ The following key types will be used when the configured algorithm suite is
     * TLS: ECDSA with NIST P-256 (X.509 cert signed by host CA)
   * OpenSSH hosts
     * SSH: Ed25519 (SSH cert signed by host CA)
-  * User certs for "Agentless" SSH connections
+  * proxy -> Agentless/OpenSSH certs
     * SSH: Ed25519 (SSH certs signed by OpenSSH CA)
   * proxy -> database agent
-    * 2048-bit RSA (X.509 cert signed by Database CA)
-    * this may be forwarded directly to the database
+    * ECDSA with NIST P-256 (X.509 cert signed by Host CA)
   * database agent -> self-hosted database
-    * 2048-bit RSA (X.509 cert signed by Database CA)
+    * 2048-bit RSA (X.509 cert signed by Database Client CA)
+    * for Snowflake access this is a JWT signed by the Database Client CA
+    * maybe we could choose the subject key algorithm per-database
   * self-hosted database
     * 2048-bit RSA (X.509 cert signed by Database CA)
-    * this may be a JWT for Snowflake access
   * windows desktop service -> RDP server
     * 2048-bit RSA (X.509 cert signed by user CA)
     * this is a current limitation of our rdpclient implementation, we could
@@ -280,7 +280,11 @@ uses: user ssh cert signing, user tls cert signing, ssh hosts trust this CA
 
 keys: ssh, tls
 
-uses: host ssh cert signing, host tls cert signing, ssh clients trust this CA
+uses:
+
+* signs host ssh certs
+* signs host tls certs
+* ssh clients trust this CA
 
 * current/`legacy` SSH key type: 2048-bit RSA
 * proposed `balanced-v1` key type: Ed25519
@@ -310,6 +314,22 @@ uses:
 
 * signs (often) long-lived db cert used to authenticate db to database service
 * signs short-lived proxy cert used to authenticate proxy to database service
+
+* current/`legacy` TLS key type: 2048-bit RSA
+* proposed `balanced-v1` key type: 2048-bit RSA
+* proposed `fips-v1` key type: 2048-bit RSA
+* proposed `hsm-v1` key type: 2048-bit RSA
+* reasoning:
+  * some database protocols still require RSA, reduce friction by keeping it as
+    the default
+
+#### Database Client CA
+
+keys: tls
+
+uses:
+
+* signs short-lived certs used to authenticate db service to databases
 * signs snowflake JWTs
 * self-hosted databases (and Snowflake) trust this CA
 
@@ -481,7 +501,7 @@ The main TLS private key will now be held in
 All TLS x509 cert files will be renamed from `<name>-x509.pem` to
 `<name>-cert.pem` so that any software trying to use the old `<name>-x509.pem`
 along with the outdated private key location will fail to load both files,
-instead of succesfully opening the files but failing with some confusing error
+instead of successfully opening the files but failing with some confusing error
 when the private key does not match the certificate.
 
 RPCs such as `GenerateUserCerts` will also need to change to support passing

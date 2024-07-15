@@ -94,9 +94,9 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
 
-  downloadAgent() {
-    return Promise.resolve();
-  }
+  async downloadAgent() {}
+
+  async verifyAgent() {}
 
   createAgentConfigFile() {
     return Promise.resolve();
@@ -131,6 +131,8 @@ export class MockMainProcessClient implements MainProcessClient {
   async tryRemoveConnectMyComputerAgentBinary() {}
 
   signalUserInterfaceReadiness() {}
+
+  refreshClusterList() {}
 }
 
 export const makeRuntimeSettings = (
@@ -153,7 +155,6 @@ export const makeRuntimeSettings = (
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',
-    flags: [],
   },
   sharedProcess: {
     requestedNetworkAddress: '',

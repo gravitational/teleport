@@ -85,6 +85,42 @@ const typography = {
     fontSize: '10px',
     lineHeight: '16px',
   },
+  subtitle3: {
+    fontSize: '10px',
+    fontWeight: regular,
+    lineHeight: '14px',
+  },
+  table: {
+    fontWeight: light,
+    fontSize: '14px',
+    lineHeight: '20px',
+    letterSpacing: '0.035px',
+  },
+  dropdownTitle: {
+    fontWeight: bold,
+    fontSize: '14px',
+    lineHeight: '20px',
+  },
+
+  // TODO(bl-nero): Migrate everything to the new typography.
+  newBody1: {
+    fontSize: '16px',
+    fontWeight: light,
+    lineHeight: '24px',
+    letterSpacing: '0.08px',
+  },
+  newBody2: {
+    fontSize: '14px',
+    fontWeight: light,
+    lineHeight: '20px',
+    letterSpacing: '0.035px',
+  },
+  newBody3: {
+    fontSize: '12px',
+    fontWeight: regular,
+    lineHeight: '20px',
+    letterSpacing: '0.015px',
+  },
 };
 
 export default typography;

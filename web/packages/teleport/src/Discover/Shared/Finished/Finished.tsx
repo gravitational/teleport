@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 import { ButtonPrimary, Text, Flex, ButtonSecondary, Image } from 'design';
 
 import cfg from 'teleport/config';
@@ -27,30 +28,27 @@ import celebratePamPng from './celebrate-pam.png';
 import type { AgentStepProps } from '../../types';
 
 export function Finished(props: AgentStepProps) {
-  let resourceText;
-  if (props.agentMeta && props.agentMeta.resourceName) {
-    resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
-        this Teleport Cluster.`;
+  let title = 'Resource Successfully Added';
+  let resourceText =
+    'You can start accessing this resource right away or add another resource.';
+
+  if (props.agentMeta) {
+    if (props.agentMeta.autoDiscovery) {
+      title = 'Completed Setup';
+      resourceText = 'You have completed setup for auto-enrolling.';
+    } else if (props.agentMeta.resourceName) {
+      resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
+      this Teleport Cluster. ${resourceText}`;
+    }
   }
 
   return (
-    <Flex
-      width="600px"
-      flexDirection="column"
-      alignItems="center"
-      css={`
-        margin: 0 auto;
-        text-align: center;
-      `}
-    >
+    <Container>
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
-        Resource Successfully Added
+        {title}
       </Text>
-      <Text mb={3}>
-        {resourceText} You can start accessing this resource right away or add
-        another resource.
-      </Text>
+      <Text mb={3}>{resourceText}</Text>
       <Flex>
         <ButtonPrimary
           width="270px"
@@ -68,6 +66,14 @@ export function Finished(props: AgentStepProps) {
           Add Another Resource
         </ButtonSecondary>
       </Flex>
-    </Flex>
+    </Container>
   );
 }
+
+const Container = styled(Flex)`
+  width: 600px;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  text-align: center;
+`;

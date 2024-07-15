@@ -18,12 +18,12 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonSecondary, Text, Box, Flex, ButtonText } from 'design';
+import { ButtonSecondary, Text, Box, Flex, ButtonText, Mark } from 'design';
 import * as Icons from 'design/Icon';
 
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 
-import { StyledBox, TextIcon, Mark } from '..';
+import { StyledBox, TextIcon } from '..';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { ConnectionDiagnostic } from 'teleport/services/agents';
@@ -57,7 +57,7 @@ export function ConnectionDiagnosticResult({
   } else if (attempt.status === 'success' && diagnosis?.success) {
     $diagnosisStateComponent = (
       <TextIcon>
-        <Icons.CircleCheck size="medium" ml={1} mr={1} color="success" />
+        <Icons.CircleCheck size="medium" ml={1} mr={1} color="success.main" />
         Testing complete
       </TextIcon>
     );
@@ -120,7 +120,11 @@ export function ConnectionDiagnosticResult({
                 if (trace.status === 'success') {
                   return (
                     <TextIcon key={index}>
-                      <Icons.CircleCheck size="medium" color="success" mr={1} />
+                      <Icons.CircleCheck
+                        size="medium"
+                        color="success.main"
+                        mr={1}
+                      />
                       {trace.details}
                     </TextIcon>
                   );

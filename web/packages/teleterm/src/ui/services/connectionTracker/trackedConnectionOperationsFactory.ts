@@ -103,7 +103,7 @@ export class TrackedConnectionOperationsFactory {
   private getConnectionGatewayOperations(
     connection: TrackedGatewayConnection
   ): TrackedConnectionOperations {
-    const { rootClusterId, leafClusterId } = routing.parseDbUri(
+    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
       connection.targetUri
     ).params;
     const { rootClusterUri, leafClusterUri } = this.getClusterUris({
@@ -186,25 +186,31 @@ export class TrackedConnectionOperationsFactory {
         documentsService.open(gwDoc.uri);
       },
       disconnect: async () => {
-        return this._clustersService
-          .removeKubeGateway(connection.kubeUri)
-          .then(() => {
-            documentsService
-              .getDocuments()
-              .filter(getGatewayKubeDocumentByConnection(connection))
-              .forEach(document => {
-                documentsService.close(document.uri);
-              });
+        return (
+          this._clustersService
+            // We have to use `removeKubeGateway` instead of `removeGateway`,
+            // because we need to support both the old kube connections
+            // (which don't have gatewayUri and an underlying gateway)
+            // and new ones (which do have a gateway).
+            .removeKubeGateway(connection.kubeUri)
+            .then(() => {
+              documentsService
+                .getDocuments()
+                .filter(getGatewayKubeDocumentByConnection(connection))
+                .forEach(document => {
+                  documentsService.close(document.uri);
+                });
 
-            // Remove deprecated doc.terminal_tsh_kube documents.
-            // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-            documentsService
-              .getDocuments()
-              .filter(getKubeDocumentByConnection(connection))
-              .forEach(document => {
-                documentsService.close(document.uri);
-              });
-          });
+              // Remove deprecated doc.terminal_tsh_kube documents.
+              // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+              documentsService
+                .getDocuments()
+                .filter(getKubeDocumentByConnection(connection))
+                .forEach(document => {
+                  documentsService.close(document.uri);
+                });
+            })
+        );
       },
       remove: async () => {},
     };

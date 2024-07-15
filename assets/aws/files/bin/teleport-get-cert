@@ -1,7 +1,7 @@
 #!/bin/bash
 # This script uses DNS-01 challenge, which means that users
 # have to control route53 zone as it modifies zone records
-# to prove to letsencrypt that they own the domain.
+# to prove to Let's Encrypt that they own the domain.
 
 set -e
 if [[ "${DEBUG:-false}" == "true" ]]; then

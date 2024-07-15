@@ -28,20 +28,22 @@ import {
   DiscoverServiceDeployMethod,
   DiscoverServiceDeploy,
   DiscoverServiceDeployType,
+  DiscoverDiscoveryConfigMethod,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
-
+import { DiscoveryConfig } from 'teleport/services/discovery';
 import {
   addIndexToViews,
   findViewAtIndex,
-  ResourceViewConfig,
-  View,
-} from './flow';
+} from 'teleport/components/Wizard/flow';
+
+import { ResourceViewConfig, View } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
+import type { App } from 'teleport/services/apps';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { ResourceLabel } from 'teleport/services/agents';
@@ -52,6 +54,11 @@ import type {
   Integration,
   Regions,
 } from 'teleport/services/integrations';
+
+import type {
+  SamlGcpWorkforce,
+  SamlIdpServiceProvider,
+} from 'teleport/services/samlidp/types';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -68,6 +75,7 @@ export interface DiscoverContextState<T = any> {
   emitErrorEvent(errorStr: string): void;
   emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
   eventState: EventState;
+  isUpdateFlow?: boolean;
 }
 
 type EventState = {
@@ -83,6 +91,16 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
   serviceDeploy?: DiscoverServiceDeploy;
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
+};
+
+export type DiscoverUpdateProps = {
+  // resourceSpec specifies ResourceSpec which should be used to
+  // start a Discover flow.
+  resourceSpec: ResourceSpec;
+  // agentMeta includes data that will be used to prepopulate input fields
+  // in the respective Discover compnents.
+  agentMeta: AgentMeta;
 };
 
 type DiscoverProviderProps = {
@@ -90,6 +108,8 @@ type DiscoverProviderProps = {
   mockCtx?: DiscoverContextState;
   // Extra view configs that are passed in. This is used to add view configs from Enterprise.
   eViewConfigs?: EViewConfigs;
+  // updateFlow holds properties used in Discover update flow.
+  updateFlow?: DiscoverUpdateProps;
 };
 
 // DiscoverUrlLocationState define fields to preserve state between
@@ -114,6 +134,7 @@ export function DiscoverProvider({
   mockCtx,
   children,
   eViewConfigs = [],
+  updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
@@ -146,14 +167,24 @@ export function DiscoverProvider({
         }
       }
 
+      let discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+      if (event === DiscoverEvent.CreateDiscoveryConfig) {
+        if (custom?.discoveryConfigMethod) {
+          discoveryConfigMethod = custom.discoveryConfigMethod;
+        } else {
+          discoveryConfigMethod = DiscoverDiscoveryConfigMethod.Unspecified;
+        }
+      }
+
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
-          id: id || custom.id,
+          id: id || custom?.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
           serviceDeploy,
+          discoveryConfigMethod,
           ...status,
         },
       });
@@ -215,6 +246,14 @@ export function DiscoverProvider({
       },
     });
   }
+
+  // trigger update Discover flow.
+  useEffect(() => {
+    if (updateFlow && updateFlow.agentMeta) {
+      updateAgentMeta(updateFlow.agentMeta);
+      onSelectResource(updateFlow.resourceSpec);
+    }
+  }, [updateFlow]);
 
   // If a location.state.discover was provided, that means the user is
   // coming back from another location to resume the flow.
@@ -294,7 +333,7 @@ export function DiscoverProvider({
     const currCfg = [...viewConfigs, ...eViewConfigs].find(
       r => r.kind === resource.kind
     );
-    let indexedViews = [];
+    let indexedViews: View[] = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
     } else {
@@ -440,6 +479,7 @@ export function DiscoverProvider({
     emitErrorEvent,
     emitEvent,
     eventState,
+    isUpdateFlow: !!updateFlow,
   };
 
   return (
@@ -480,13 +520,26 @@ type BaseMeta = {
    * This field is set when a user wants to enroll AWS resources.
    */
   awsRegion?: Regions;
+  /**
+   * If this field is defined, then user opted for auto discovery.
+   * Auto discover will automatically identify and register resources
+   * in customers infrastructure such as Kubernetes clusters or databases hosted
+   * on cloud platforms like AWS, Azure, etc.
+   */
+  autoDiscovery?: {
+    config: DiscoveryConfig;
+    // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
+    // If this is empty, then a user can skip deploying db agents.
+    // If >0, auto discovery requires deploying db agents.
+    requiredVpcsAndSubnets?: Record<string, string[]>;
+  };
 };
 
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ice?: Ec2InstanceConnectEndpoint;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource
@@ -496,8 +549,10 @@ export type DbMeta = BaseMeta & {
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
-  // serviceDeployedMethod flag will be undefined if user skipped
-  // deploying service (service already existed).
+  /**
+   * serviceDeployedMethod flag will be undefined if user skipped
+   * deploying service (service already existed).
+   */
   serviceDeployedMethod?: ServiceDeployMethod;
 };
 
@@ -507,6 +562,38 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
+/**
+ * EksMeta describes the fields for a kube resource
+ * that needs to be preserved throughout the flow.
+ */
+export type EksMeta = BaseMeta & {
+  kube: Kube;
+};
+
+/**
+ * AppMeta describes the fields for a app resource
+ * that needs to be preserved throughout the flow.
+ */
+export type AppMeta = BaseMeta & {
+  app: App;
+};
+
+/**
+ * SamlMeta describes the fields for SAML IdP
+ * service provider resource that needs to be
+ * preserved throughout the flow.
+ */
+export type SamlMeta = BaseMeta & {
+  samlGeneric?: SamlIdpServiceProvider;
+  samlGcpWorkforce?: SamlGcpWorkforce;
+};
+
+export type AgentMeta =
+  | DbMeta
+  | NodeMeta
+  | KubeMeta
+  | EksMeta
+  | SamlMeta
+  | AppMeta;
 
 export type State = ReturnType<typeof useDiscover>;

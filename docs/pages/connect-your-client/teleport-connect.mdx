@@ -3,8 +3,8 @@ title: Using Teleport Connect
 description: Using Teleport Connect
 ---
 
-Teleport Connect provides easy and secure access to SSH servers, databases, and Kubernetes clusters,
-with support for other resources coming in the future.
+Teleport Connect provides easy and secure access to SSH servers, databases, applications, and
+Kubernetes clusters.
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
 
@@ -64,6 +64,168 @@ The top bar of Teleport Connect consists of:
 The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
 which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
 
+## Connecting to an SSH server
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+   You can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the SSH server you want to connect to and click the Connect button.
+1. Select or enter the SSH user you wish to log in as and press `Enter`.
+
+A new tab will open with a shell session on the chosen server.
+
+Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
+
+## Opening a local terminal
+
+To open a terminal with a local shell session, either select "Open new terminal" from the additional
+actions menu or press `` Ctrl+Shift+` ``.
+
+Any tsh command executed within the tab targets the current cluster. Teleport Connect accomplishes
+this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER` for the session.
+Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
+directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
+
+When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+you to determine which cluster the shell session will be bound to. The selected cluster will be
+reflected in both the tab title and the status bar.
+
+## Connecting to a Kubernetes cluster
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+   You can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the cluster you wish to connect to and click the Connect button.
+
+Alternatively, you can look for the cluster in the search bar and press `Enter`
+to connect to it.
+
+A new local terminal tab will open which is preconfigured with the `KUBECONFIG`
+environment variable pointing to a configuration for the specified cluster. Any
+tools that respect the `KUBECONFIG` environment variable (`kubectl`, `helm`,
+etc.) will work without additional configuration. To identify the path to this
+config for use in other tools, inspect the value of the `KUBECONFIG`
+environment variable.
+
+The value of the `KUBECONFIG` environment variable will persist between app
+restarts, but this configuration file will not be available or usable when the
+Kubernetes cluster is removed from the connection list in the top left, or when
+Teleport Connect is closed.
+
+## Connecting to a database
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+  can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the database server you wish to connect to and click the Connect button.
+1. Select or enter the database user you wish to use and press `Enter`.
+
+A new tab will open with a new connection established between your device and the database server.
+
+Alternatively, you can look for the database in the search bar and press `Enter` to connect to it.
+
+This connection will remain active until you click the Close Connection button or close Teleport
+Connect. The port number will persist between app restarts—you can set up your favorite client
+without worrying about the port suddenly changing.
+
+### With a GUI client
+
+To connect with a GUI client, follow the instructions in the database connection tab under the
+Connect with GUI section.
+
+### With a CLI client
+
+The database connection tab shows the command that can be used to connect to the database. You can
+modify the database name of the connection and then click the Run button to open a new terminal tab
+with that command executed.
+
+## Connecting to an application
+
+Teleport Connect supports launching applications in the browser, as well as creating
+authenticated tunnels for web and TCP applications.
+
+When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis.mdx),
+Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
+be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
+
+### Launching an application in the browser
+
+Teleport Connect can open a web app in the browser. As browsers and Teleport Connect do not share
+authentication data, you will have to log in to the Web UI before accessing an app.
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+  can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the application you wish to open and click the Launch button (web apps and AWS console)
+   or the Login button (SAML apps).
+
+Alternatively, you can look for the application in the search bar and press `Enter` to launch it in
+the browser.
+
+### Connecting to TCP apps with VNet on macOS
+
+VNet is a virtual network emulation tool available in Teleport Connect. It enables any program on
+your computer to connect to TCP applications protected by Teleport, with no extra changes required
+to the program itself. It removes the need to manually create tunnels for TCP applications.
+
+This is the recommended way of connecting to TCP apps.
+
+1. Log in to your Teleport cluster.
+1. To start VNet, open the connection list in the top left and click the connect icon to the right of
+   VNet.
+1. Now access any of your TCP apps over its regular public address.
+
+VNet automatically authenticates the connection with your user certificate. See [Using
+VNet](vnet.mdx) for more details.
+
+### Creating an authenticated tunnel
+
+Teleport Connect can set up an authenticated tunnel on a random port on your device. All connections
+made to that tunnel will be authenticated with your credentials.
+
+Use this method if you want to access an HTTP API that was added to Teleport as a web app (its
+address starts with `https://`), if you don't have administrator rights to your device, or if VNet
+is not yet available on your system.
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+  can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the application you wish to connect to.
+  - For TCP applications, click the Connect button.
+    - On macOS, click the three dots instead and select "Connect to local port".
+  - For web applications, click the three dots next to the Launch button and select "Set up
+    connection".
+
+Alternatively, on Windows and Linux you can look for a TCP application in the search bar and press
+`Enter` to set up a connection to it.
+
+A new tab will open with a new connection established between your device and the application.
+
+This connection will remain active until you click the Close Connection button or close Teleport
+Connect. The port number will persist between app restarts—you can set up your favorite client
+without worrying about the port suddenly changing.
+
+The application connection tab shows an example command that can be used to query the application.
+Requests sent under the displayed address will be proxied through an authenticated tunnel to the
+application.
+
+## Connecting to multiple clusters
+
+Teleport Connect allows you to log in to multiple clusters at the same time. After logging in to
+your first cluster, open the profile selector at the top right and click the *+Add another cluster*
+button. You can switch between active profiles in multiple ways:
+
+1. Click at the profile selector button at the top right.
+1. Open the profile selector with a shortcut (`Ctrl+Shift+I/Cmd+I`).
+1. Select a connection from the connection list at the top to automatically switch to the right profile.
+
+At the moment Teleport Connect supports only one user per cluster. To log in as a different user,
+log out of the cluster first.
+
+## Restarting and reconnecting
+
+Before closing, Teleport Connect will remember the tabs that you had open at the end of the session.
+Next time you open the app, Connect will ask you if you want to reopen those tabs. If you agree,
+Connect will restore connections to all resources that were active before you closed the app.
+
+When restoring terminal tabs, Teleport Connect doesn't attempt to re-execute commands that were in
+progress when the app was closed. It will only restore the working directory for those tabs.
+
 ## Connect My Computer
 
 Connect My Computer makes it possible to add your personal machine to a Teleport cluster in just a
@@ -87,7 +249,7 @@ that's why it's not listed in the partial. */}
   for [the `role` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
-as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
+as logging in as other system users or [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
 
 ### Setup and usage
 
@@ -153,12 +315,12 @@ After the setup is done, open the Connect My Computer tab and from the three dot
 tab choose "Open agent logs directory".
 
 <Tabs>
-<TabItem label="macOS">
-The logs are stored at `~/Library/Application Support/Teleport Connect/agents/<cluster>/logs`.
-</TabItem>
-<TabItem label="Linux">
-The logs are stored at `~/.config/Teleport Connect/agents/<cluster>/logs`.
-</TabItem>
+  <TabItem label="macOS">
+    The logs are stored at <code>~/Library/Application Support/Teleport Connect/agents/&lt;cluster&gt;/logs</code>.
+  </TabItem>
+  <TabItem label="Linux">
+    The logs are stored at <code>~/.config/Teleport Connect/agents/&lt;cluster&gt;/logs</code>.
+  </TabItem>
 </Tabs>
 
 #### The Connect My Computer icon is not visible in the top bar
@@ -199,7 +361,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -234,101 +396,6 @@ $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != 
 $ tctl lock --server-id=<Var name="Node UUID" /> --message="Using Connect My Computer is forbidden"
 ```
 
-## Connecting to an SSH server
-
-1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
-   You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
-1. Look for the SSH server you want to connect to and click the Connect button to the right.
-1. Select or enter the SSH user you wish to log in as and press `Enter`.
-
-A new tab will open with a shell session on the chosen server.
-
-Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
-
-## Opening a local terminal
-
-To open a terminal with a local shell session, either select "Open new terminal" from the additional
-actions menu or press <span style="white-space: nowrap;">`Ctrl/Cmd + Shift + T`</span>.
-
-Any tsh command executed within the tab targets the current cluster. Teleport Connect accomplishes
-this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER` for the session.
-Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
-directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
-
-When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
-you to determine which cluster the shell session will be bound to. The selected cluster will be
-reflected in both the tab title and the status bar.
-
-## Connecting to a Kubernetes cluster
-
-1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
-   You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
-1. Select the Kubes section.
-1. Look for the cluster you wish to connect to and click the Connect button to the right.
-
-Alternatively, you can look for the cluster in the search bar and press `Enter`
-to connect to it.
-
-A new local terminal tab will open which is preconfigured with the `KUBECONFIG`
-environment variable pointing to a configuration for the specified cluster. Any
-tools that respect the `KUBECONFIG` environment variable (`kubectl`, `helm`,
-etc.) will work without additional configuration. To identify the path to this
-config for use in other tools, inspect the value of the `KUBECONFIG`
-environment variable.
-
-The value of the `KUBECONFIG` environment variable will persist between app
-restarts, but this configuration file will not be available or usable when the
-Kubernetes cluster is removed from the connection list in the top left, or when
-Teleport Connect is closed.
-
-## Connecting to a database
-
-1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
-  can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
-1. Select the Databases section.
-1. Look for the database server you wish to connect to and click the Connect button to the right.
-1. Select or enter the database user you wish to use and press `Enter`.
-
-A new tab will open with a new connection established between your device and the database server.
-
-Alternatively, you can look for the database in the search bar and press `Enter` to connect to it.
-
-This connection will remain active until you click the Close Connection button or close Teleport
-Connect. The port number will persist between app restarts—you can set up your favorite client
-without worrying about the port suddenly changing.
-
-### With a GUI client
-
-To connect with a GUI client, follow the instructions in the database connection tab under the
-Connect with GUI section.
-
-### With a CLI client
-
-The database connection tab shows the command that can be used to connect to the database. You can
-modify the database name of the connection and then click the Run button to open a new terminal tab
-with that command executed.
-
-## Connecting to multiple clusters
-
-Teleport Connect allows you to log in to multiple clusters at the same time. After logging in to
-your first cluster, open the profile selector at the top right and click the *+Add another cluster*
-button. You can switch between active profiles in multiple ways:
-
-1. Click at the profile selector button at the top right.
-1. Open the profile selector with a shortcut (<span style="white-space: nowrap;">`Ctrl/Cmd + I`</span>).
-1. Select a connection from the connection list at the top to automatically switch to the right profile.
-
-At the moment Teleport Connect supports only one user per cluster. To log in as a different user,
-log out of the cluster first.
-
-## Restarting and reconnecting
-
-Before closing, Teleport Connect will remember the tabs that you had open at the end of the session.
-Next time you open the app, Connect will ask you if you want to reopen those tabs. If you agree,
-Connect will restore connections to all resources that were active before you closed the app.
-
-When restoring terminal tabs, Teleport Connect doesn't attempt to re-execute commands that were in
-progress when the app was closed. It will only restore the working directory for those tabs.
 
 ## Using tsh outside of Teleport Connect
 
@@ -374,23 +441,23 @@ The file will open in your default editor.
 
 Below is the list of the supported config properties.
 
-| Property                      | Default                                                                                                              | Description                                                            |
-|-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.   |
-| `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                          |
-| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                            |
-| `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)). |
-| `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                              |
-| `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+W` on Windows/Linux                                                                   | Shortcut to close a tab.                                               |
-| `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+T` on Windows/Linux                                                                   | Shortcut to open a new tab.                                            |
-| `keymap.newTerminalTab`       | `Shift+Command+T` on macOS<br/>`Ctrl+Shift+T` on Windows/Linux                                                       | Shortcut to open a new terminal tab.                                   |
-| `keymap.previousTab`          | `Shift+Command+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                   | Shortcut to go to the previous tab.                                    |
-| `keymap.nextTab`              | `Command+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                               | Shortcut to go to the next tab.                                        |
-| `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+P` on Windows/Linux                                                                   | Shortcut to open the connection list.                                  |
-| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                   | Shortcut to open the cluster selector.                                 |
-| `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                   | Shortcut to open the profile selector.                                 |
-| `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the search bar.                                       |
-| `headless.skipConfirm` | false | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| Property                      | Default                                                                                                              | Description                                                                                                |
+|-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
+| `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
+| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                                                                |
+| `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)).                                     |
+| `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                                                                  |
+| `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+Shift+W` on Windows/Linux                                                             | Shortcut to close a tab.                                                                                   |
+| `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+Shift+T` on Windows/Linux                                                             | Shortcut to open a new tab.                                                                                |
+| `keymap.newTerminalTab`       | `` Control+Shift+` `` on macOS<br/>`` Ctrl+Shift+` `` on Windows/Linux                                               | Shortcut to open a new terminal tab.                                                                       |
+| `keymap.previousTab`          | `Control+Shift+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                   | Shortcut to go to the previous tab.                                                                        |
+| `keymap.nextTab`              | `Control+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                               | Shortcut to go to the next tab.                                                                            |
+| `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+Shift+P` on Windows/Linux                                                             | Shortcut to open the connection list.                                                                      |
+| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+Shift+E` on Windows/Linux                                                             | Shortcut to open the cluster selector.                                                                     |
+| `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+Shift+I` on Windows/Linux                                                             | Shortcut to open the profile selector.                                                                     |
+| `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
+| `headless.skipConfirm`        | false                                                                                                                | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
 
 <Admonition
   type="note"
@@ -402,7 +469,7 @@ Below is the list of the supported config properties.
 
 ### Configuring keyboard shortcuts
 
-A valid shortcut contains at least one modifier and a single key code, for example <span style="white-space: nowrap;">`Shift+Tab`</span>.
+A valid shortcut contains at least one modifier and a single key code, for example `Shift+Tab`.
 Function keys such as `F1` do not require a modifier.
 Modifiers and a key code must be combined by the `+` character.
 

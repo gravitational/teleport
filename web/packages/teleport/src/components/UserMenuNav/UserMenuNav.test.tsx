@@ -28,6 +28,8 @@ import {
   fireEvent,
 } from 'design/utils/testing';
 
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
 import cfg from 'teleport/config';
 
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -38,8 +40,6 @@ import TeleportContext from 'teleport/teleportContext';
 
 import { makeUserContext } from 'teleport/services/user';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
-
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
@@ -49,8 +49,7 @@ const server = setupServer(
   rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
     return res(
       ctx.json({
-        theme: ThemePreference.Light,
-        assist: {},
+        theme: Theme.LIGHT,
       })
     );
   })
@@ -100,7 +99,7 @@ function render(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getOSSFeatures()}>
-          <UserMenuNav username="llama" />
+          <UserMenuNav iconSize={24} username="llama" />
         </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>

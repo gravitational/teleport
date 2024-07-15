@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
@@ -157,8 +158,7 @@ func (s *Config) CheckAndSetDefaults() error {
 	}
 	if s.Session == nil {
 		awsConfig := aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+			UseFIPSEndpoint: events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
 		}
 		if s.Region != "" {
 			awsConfig.Region = aws.String(s.Region)
@@ -173,6 +173,11 @@ func (s *Config) CheckAndSetDefaults() error {
 		if s.Credentials != nil {
 			awsConfig.Credentials = s.Credentials
 		}
+		hc, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		awsConfig.HTTPClient = hc
 
 		sess, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
@@ -210,7 +215,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeS3),
+			teleport.ComponentKey: teleport.Component(teleport.SchemeS3),
 		}),
 		Config:     cfg,
 		uploader:   uploader,

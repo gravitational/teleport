@@ -78,9 +78,9 @@ Update the included Makefile to define your configuration.
 # Set up Terraform variables in a separate environment file, or inline here
 
 # Region to run in - we currently have AMIs in the following regions:
-# ap-south-1, ap-northeast-2, ap-southeast-1, ap-southeast-2, ap-northeast-1, ca-central-1, eu-central-1, eu-west-1, eu-west-2
-# sa-east-1, us-east-1, us-east-2, us-west-1, us-west-2
-TF_VAR_region ?= "us-east-1"
+# ap-northeast-1, ap-northeast-2, ap-northeast-3, ap-south-1, ap-southeast-1, ap-southeast-2, ca-central-1, eu-central-1
+# eu-north-1, eu-west-1, eu-west-2, eu-west-3, sa-east-1, us-east-1, us-east-2, us-west-1, us-west-2
+TF_VAR_region ?= "us-west-2"
 
 # Cluster name is a unique cluster name to use, should be unique and not contain spaces or other special characters
 TF_VAR_cluster_name ?= "TeleportCluster1"
@@ -95,10 +95,10 @@ TF_VAR_license_path ?= "/path/to/license"
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
 # These AMIs are published by Teleport and shared as public whenever a new version of Teleport is released
 # To list available AMIs:
-# OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
-# Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
+# OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
+# Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-14.2.3"
+TF_VAR_ami_name ?= "teleport-ent-16.0.4-arm64"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"
@@ -127,7 +127,7 @@ export TF_VAR_enable_postgres_listener="false"
 export TF_VAR_s3_bucket_name="teleport.example.com"
 
 # AWS instance type to provision for running this Teleport cluster
-export TF_VAR_cluster_instance_type="t3.micro"
+export TF_VAR_cluster_instance_type="t4g.micro"
 
 # Email to be used for Let's Encrypt certificate registration process.
 export TF_VAR_email="support@example.com"
@@ -155,8 +155,8 @@ export TF_VAR_use_tls_routing="true"
 # This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
 # or GitHub connector configured in DynamoDB. The default is "local".
 # Teleport Community Edition supports "local" or "github"
-# Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
-# Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
+# Teleport Enterprise Edition supports "local", "github", "oidc", or "saml"
+# Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc", or "saml"
 export TF_VAR_teleport_auth_type="local"
 
 # plan

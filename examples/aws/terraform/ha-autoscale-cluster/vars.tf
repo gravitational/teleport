@@ -23,25 +23,19 @@ variable "teleport_uid" {
 // Instance types used for authentication servers auto scale groups
 variable "auth_instance_type" {
   type    = string
-  default = "m4.large"
+  default = "m7g.large"
 }
 
 // Instance types used for proxy auto scale groups
 variable "proxy_instance_type" {
   type    = string
-  default = "m4.large"
+  default = "m7g.large"
 }
 
 // Instance types used for teleport nodes auto scale groups
 variable "node_instance_type" {
   type    = string
-  default = "t2.medium"
-}
-
-// Instance types used for monitor auto scale groups
-variable "monitor_instance_type" {
-  type    = string
-  default = "m4.large"
+  default = "t4g.medium"
 }
 
 // SSH key name to provision instances withx
@@ -49,7 +43,7 @@ variable "key_name" {
   type = string
 }
 
-// DNS and letsencrypt integration variables
+// DNS and Let's Encrypt integration variables
 // Zone name to host DNS record, e.g. example.com
 variable "route53_zone" {
   type = string
@@ -92,12 +86,12 @@ variable "enable_postgres_listener" {
   default = false
 }
 
-// Email for letsencrypt domain registration
+// Email for Let's Encrypt domain registration
 variable "email" {
   type = string
 }
 
-// S3 Bucket to create for encrypted letsencrypt certificates
+// S3 Bucket to create for encrypted Let's Encrypt certificates
 variable "s3_bucket_name" {
   type = string
 }
@@ -151,27 +145,6 @@ variable "autoscale_max_write_capacity" {
   default = 100
 }
 
-// InfluxDB and Telegraf versions
-variable "influxdb_version" {
-  type    = string
-  default = "1.4.2"
-}
-
-variable "telegraf_version" {
-  type    = string
-  default = "1.5.1-1"
-}
-
-variable "grafana_version" {
-  type    = string
-  default = "4.6.3"
-}
-
-// Password for grafana admin user
-variable "grafana_pass" {
-  type = string
-}
-
 // Whether to use Amazon-issued certificates via ACM or not
 // This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
 variable "use_acm" {
@@ -195,7 +168,6 @@ variable "allowed_bastion_ssh_ingress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-
 // CIDR blocks allowed for egress from bastion
 variable "allowed_bastion_ssh_egress_cidr_blocks" {
   type    = list(any)
@@ -216,18 +188,6 @@ variable "allowed_proxy_egress_cidr_blocks" {
 
 // CIDR blocks allowed for egress from Teleport Auth servers
 variable "allowed_auth_egress_cidr_blocks" {
-  type    = list(any)
-  default = ["0.0.0.0/0"]
-}
-
-// CIDR blocks allowed for ingress for Teleport Monitor ports
-variable "allowed_monitor_ingress_cidr_blocks" {
-  type    = list(any)
-  default = ["0.0.0.0/0"]
-}
-
-// CIDR blocks allowed for egress from Teleport Monitor
-variable "allowed_monitor_egress_cidr_blocks" {
   type    = list(any)
   default = ["0.0.0.0/0"]
 }
@@ -274,8 +234,8 @@ variable "route53_domain_acm_nlb_alias" {
 // This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
 // or GitHub connector configured in DynamoDB. The default if not set is "local".
 // Teleport Community Edition supports "local" or "github"
-// Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
-// Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
+// Teleport Enterprise Edition supports "local", "github", "oidc", or "saml"
+// Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc", or "saml"
 variable "teleport_auth_type" {
   type    = string
   default = "local"

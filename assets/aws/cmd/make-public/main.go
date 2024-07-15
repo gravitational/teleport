@@ -79,39 +79,41 @@ func main() {
 
 		client := ec2.NewFromConfig(cfg)
 
-		for _, edition := range []string{"oss", "ent"} {
-			for _, fips := range []string{"false", "true"} {
-				// No such combination exists
-				if edition == "oss" && fips == "true" {
-					continue
-				}
+		for _, arch := range []string{"x86_64", "arm64"} {
+			for _, edition := range []string{"oss", "ent"} {
+				for _, fips := range []string{"false", "true"} {
+					// No such combination exists
+					if edition == "oss" && fips == "true" {
+						continue
+					}
 
-				ami, err := findLatestAMI(ctx, client, args.accountId, args.teleportVersion, edition, fips)
-				switch {
-				case err == nil:
-					break
+					ami, err := findLatestAMI(ctx, client, args.accountId, args.teleportVersion, arch, edition, fips)
+					switch {
+					case err == nil:
+						break
 
-				case errors.Is(err, notFound):
-					continue
+					case errors.Is(err, notFound):
+						continue
 
-				default:
-					log.Fatalf("Failed to find the latest AMI: %s", err)
-				}
+					default:
+						log.Fatalf("Failed to find the latest AMI: %s", err)
+					}
 
-				// Mark the AMI as public
-				log.Printf("Marking %s as public", ami)
-				_, err = client.ModifyImageAttribute(ctx, &ec2.ModifyImageAttributeInput{
-					ImageId:   aws.String(ami),
-					Attribute: aws.String("launchPermission"),
-					LaunchPermission: &types.LaunchPermissionModifications{
-						Add: []types.LaunchPermission{
-							{Group: types.PermissionGroupAll},
+					// Mark the AMI as public
+					log.Printf("Marking %s as public", ami)
+					_, err = client.ModifyImageAttribute(ctx, &ec2.ModifyImageAttributeInput{
+						ImageId:   aws.String(ami),
+						Attribute: aws.String("launchPermission"),
+						LaunchPermission: &types.LaunchPermissionModifications{
+							Add: []types.LaunchPermission{
+								{Group: types.PermissionGroupAll},
+							},
 						},
-					},
-				})
-				if err != nil {
-					log.Printf("WARNING: Failed to make ami %q public: %s", ami, err)
-					continue
+					})
+					if err != nil {
+						log.Printf("WARNING: Failed to make ami %q public: %s", ami, err)
+						continue
+					}
 				}
 			}
 		}
@@ -120,10 +122,11 @@ func main() {
 
 var notFound error = fmt.Errorf("not found")
 
-func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportVersion, edition, fips string) (string, error) {
+func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportVersion, arch, edition, fips string) (string, error) {
 	resp, err := client.DescribeImages(ctx, &ec2.DescribeImagesInput{
 		Filters: []types.Filter{
 			{Name: aws.String("name"), Values: []string{"teleport-*"}},
+			{Name: aws.String("tag:Architecture"), Values: []string{arch}},
 			{Name: aws.String("tag:TeleportVersion"), Values: []string{teleportVersion}},
 			{Name: aws.String("tag:TeleportEdition"), Values: []string{edition}},
 			{Name: aws.String("tag:TeleportFipsEnabled"), Values: []string{fips}},

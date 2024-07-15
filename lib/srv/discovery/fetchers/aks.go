@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
@@ -64,7 +65,7 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "fetcher:aks")
+		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:aks")
 	}
 	return nil
 }
@@ -90,7 +91,7 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
 			continue
 		}
-		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
+		kubeCluster, err := common.NewKubeClusterFromAzureAKS(cluster)
 		if err != nil {
 			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
 			continue

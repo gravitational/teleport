@@ -512,9 +512,9 @@ func TestNewHeartbeatFetchMetadata(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	heartbeat, err := NewSSHServerHeartbeat(SSHServerHeartbeatConfig{
+	heartbeat, err := NewSSHServerHeartbeat(HeartbeatV2Config[*types.ServerV2]{
 		InventoryHandle: &fakeDownstreamHandle{},
-		GetServer: func() *types.ServerV2 {
+		GetResource: func() *types.ServerV2 {
 			return &types.ServerV2{
 				Spec: types.ServerSpecV2{},
 			}

@@ -18,6 +18,8 @@
 
 import { useCallback } from 'react';
 
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -43,8 +45,10 @@ export type CrossClusterResourceSearchResult = {
   search: string;
 };
 
+const MAX_RANKED_RESULTS = 10;
 const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'node',
+  'app',
   'db',
   'kube_cluster',
 ];
@@ -87,9 +91,9 @@ export function useResourceSearch() {
         }
         case 'preview': {
           // In preview mode we know that the user didn't specify any search terms. So instead of
-          // fetching all 100 resources for each request, we fetch only a bunch of them to show
+          // fetching all 100 resources, we fetch only a bunch of them to show
           // example results in the UI.
-          limit = 5;
+          limit = MAX_RANKED_RESULTS;
           break;
         }
         case 'full-search': {
@@ -115,20 +119,22 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
-      // get rejected.
-      const promiseResults = (
-        await Promise.all(
-          clustersToSearch.map(cluster =>
-            resourcesService.searchResources({
-              clusterUri: cluster.uri,
-              search,
-              filters: resourceTypeSearchFilters.map(f => f.resourceType),
-              limit,
-            })
-          )
-        )
-      ).flat();
+      const promiseResults = await Promise.allSettled(
+        clustersToSearch.map(cluster => {
+          const rootCluster = clustersService.findRootClusterByResource(
+            cluster.uri
+          );
+          return resourcesService.searchResources({
+            clusterUri: cluster.uri,
+            search,
+            filters: resourceTypeSearchFilters.map(f => f.resourceType),
+            limit,
+            includeRequestable:
+              rootCluster?.showResources === ShowResources.REQUESTABLE &&
+              !!rootCluster?.features?.advancedAccessWorkflows,
+          });
+        })
+      );
 
       const results: resourcesServiceTypes.SearchResult[] = [];
       const errors: resourcesServiceTypes.ResourceSearchError[] = [];
@@ -265,7 +271,7 @@ export function rankResults(
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
     )
-    .slice(0, 10);
+    .slice(0, MAX_RANKED_RESULTS);
 }
 
 function populateMatches(
@@ -276,7 +282,7 @@ function populateMatches(
   const resourceMatches: ResourceMatch<ResourceSearchResult['kind']>[] = [];
 
   terms.forEach(term => {
-    searchResult.resource.labelsList.forEach(label => {
+    searchResult.resource.labels.forEach(label => {
       // indexOf is faster on Chrome than includes or regex.
       // https://jsbench.me/b7lf9kvrux/1
       const nameIndex = label.name.toLocaleLowerCase().indexOf(term);
@@ -327,7 +333,7 @@ function calculateScore(
   let searchResultScore = 0;
 
   const labelMatches = searchResult.labelMatches.map(match => {
-    const label = searchResult.resource.labelsList.find(
+    const label = searchResult.resource.labels.find(
       label => label.name === match.labelName
     );
     let matchedValue: string;
@@ -360,6 +366,11 @@ function calculateScore(
 
     const resourceMatchScore = getLengthScore(searchTerm, field) * weight;
     searchResultScore += resourceMatchScore;
+  }
+
+  // Show resources that require access lower in the results.
+  if (searchResult.requiresRequest) {
+    searchResultScore *= 0.95;
   }
 
   return { ...searchResult, labelMatches, score: searchResultScore };
@@ -397,6 +408,7 @@ function getLengthScore(searchTerm: string, matchedValue: string): number {
 
 export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
   db: 'databases',
+  app: 'apps',
   node: 'servers',
   kube_cluster: 'kubes',
 };

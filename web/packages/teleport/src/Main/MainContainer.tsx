@@ -28,4 +28,11 @@ export const MainContainer = styled.div`
   flex: 1;
   min-height: 0;
   --sidebar-width: 256px;
+  margin-top: ${p => p.theme.topBarHeight[0]}px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+    margin-top: ${p => p.theme.topBarHeight[1]}px;
+  }
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    margin-top: ${p => p.theme.topBarHeight[2]}px;
+  }
 `;

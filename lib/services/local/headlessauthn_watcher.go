@@ -382,6 +382,13 @@ func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthenticati
 	s.updatesMu.Lock()
 	defer s.updatesMu.Unlock()
 
+	select {
+	case <-s.closed:
+		// subscriber is closing, ignore updates.
+		return
+	default:
+	}
+
 	// Drain stale update if there is one.
 	if overwrite {
 		select {

@@ -280,17 +280,39 @@ It is sent from TDP server to client. At the time of writing, the purpose of thi
 ```
 
 Some messages passed to the TDP client via a FastPath Frame warrant a response, which can be sent from the TDP client to the server with this message.
-At the time of writing this message is used to send responses to RemoteFX frames, which occasionaly demand such, but in theory it can be used to carry
+At the time of writing this message is used to send responses to RemoteFX frames, which occasionally demand such, but in theory it can be used to carry
 any raw RDP response message intended to be written directly into the TDP server-side's RDP connection.
 
-#### 31 - RDP Channel IDs
+#### 31 - RDP Connection Activated
+
+This message is sent from the server to the browser when a connection
+is initialized, or after executing a [Deactivation-Reactivation Sequence](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432).
+It contains data that the browser needs in order to correctly handle the
+session.
 
 ```
-| message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+| message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
 ```
 
-During the RDP connection sequence the client and server negotiate channel IDs for the I/O and user channels, which are used in the RemoteFX
-response frames (see message type 30, above) . This message is sent by the TDP server to the TDP client so that such response frames can be
-properly formulated.
+During the RDP connection sequence the client and server negotiate channel IDs
+for the I/O and user channels, which are used in the RemoteFX response frames
+(see message type 30, above) . This message is sent by the TDP server to the TDP
+client so that such response frames can be properly formulated.
 
 See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+
+In addition, this message also contains the screen resolution that the server agreed upon
+(you don't always get the resolution that you requested).
+
+#### 32 - sync keys
+
+This message is sent from the client to the server to synchronize the state of keyboard's modifier keys.
+
+```
+| message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+```
+
+`*_lock_state` is one of:
+
+- `0` for \* lock inactive
+- `1` FOR \* LOCK ACTIVE

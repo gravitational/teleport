@@ -16,66 +16,67 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useRef } from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
 
+import styled from 'styled-components';
+
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
-interface ConnectionItemProps {
+export function ConnectionItem(props: {
   index: number;
   item: ExtendedTrackedConnection;
-
-  onActivate(): void;
-
-  onRemove(): void;
-
-  onDisconnect(): void;
-}
-
-export function ConnectionItem(props: ConnectionItemProps) {
+  showClusterName: boolean;
+  activate(): void;
+  remove(): void;
+  disconnect(): void;
+}) {
   const offline = !props.item.connected;
-  const { isActive } = useKeyboardArrowsNavigation({
+  const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
     index: props.index,
-    onRun: props.onActivate,
+    onRun: props.activate,
   });
 
   const actionIcons = {
     disconnect: {
-      title: 'Disconnect',
-      action: props.onDisconnect,
+      title: `Disconnect ${props.item.title}`,
+      action: props.disconnect,
       Icon: Unlink,
     },
     remove: {
-      title: 'Remove',
-      action: props.onRemove,
+      title: `Remove ${props.item.title}`,
+      action: props.remove,
       Icon: Trash,
     },
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
+  const ref = useRef<HTMLLIElement>();
+
+  useEffect(() => {
+    scrollIntoViewIfActive(ref.current);
+  }, [scrollIntoViewIfActive]);
 
   return (
-    <ListItem
-      onClick={props.onActivate}
+    <ConnectionListItem
+      onClick={props.activate}
       isActive={isActive}
-      css={`
-        padding: 6px 8px;
-        height: unset;
-      `}
+      ref={ref}
+      $showClusterName={props.showClusterName}
     >
       <ConnectionStatusIndicator
         mr={3}
         css={`
           flex-shrink: 0;
         `}
-        connected={props.item.connected}
+        status={props.item.connected ? 'on' : 'off'}
       />
       <Flex
         alignItems="center"
@@ -94,6 +95,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             color="text.main"
             title={props.item.title}
             css={`
+              // Needed to condense a single item when the cluster name is displayed.
               line-height: 16px;
             `}
           >
@@ -107,7 +109,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
                 border-radius: 4px;
               `}
             >
-              {getKindName(props.item.kind)}
+              {getKindName(props.item)}
             </span>
             <span
               css={`
@@ -117,13 +119,16 @@ export function ConnectionItem(props: ConnectionItemProps) {
               {props.item.title}
             </span>
           </Text>
-          <Text
-            color="text.slightlyMuted"
-            typography="body2"
-            title={props.item.clusterName}
-          >
-            {props.item.clusterName}
-          </Text>
+
+          {props.showClusterName && (
+            <Text
+              color="text.slightlyMuted"
+              typography="body2"
+              title={props.item.clusterName}
+            >
+              {props.item.clusterName}
+            </Text>
+          )}
         </div>
         <ButtonIcon
           mr="-3px"
@@ -136,19 +141,39 @@ export function ConnectionItem(props: ConnectionItemProps) {
           <actionIcon.Icon size={18} />
         </ButtonIcon>
       </Flex>
-    </ListItem>
+    </ConnectionListItem>
   );
 }
 
-function getKindName(kind: ExtendedTrackedConnection['kind']): string {
-  switch (kind) {
+const ConnectionListItem = styled(ListItem)<{ $showClusterName?: boolean }>`
+  padding: ${props => props.theme.space[1]}px ${props => props.theme.space[2]}px;
+  // Space out items more if there are two lines of text to show inside a single item.
+  margin-block-start: ${props =>
+    props.$showClusterName ? props.theme.space[1] : 0}px;
+  height: unset;
+`;
+
+function getKindName(connection: ExtendedTrackedConnection): string {
+  switch (connection.kind) {
     case 'connection.gateway':
-      return 'DB';
+      if (isAppUri(connection.targetUri)) {
+        return 'APP';
+      }
+      if (isDatabaseUri(connection.targetUri)) {
+        return 'DB';
+      }
+      return 'UNKNOWN';
     case 'connection.server':
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
     default:
-      assertUnreachable(kind);
+      // The default branch is triggered when the state read from the disk
+      // contains a connection not supported by the given Connect version.
+      //
+      // For example, the user can open an app connection in Connect v15
+      // and then downgrade to a version that doesn't support apps.
+      // That connection should be shown as 'UNKNOWN' in the connection list.
+      return 'UNKNOWN';
   }
 }

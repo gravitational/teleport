@@ -17,14 +17,13 @@
  */
 
 import api from 'teleport/services/api';
-import cfg, { UrlResourcesParams } from 'teleport/config';
+import cfg, { UrlResourcesParams, UrlListRolesParams } from 'teleport/config';
 
 import { UnifiedResource, ResourcesResponse } from '../agents';
-import { KeysEnum } from '../storageService';
 
 import { makeUnifiedResource } from './makeUnifiedResource';
 
-import { makeResource, makeResourceList } from './';
+import { makeResource, makeResourceList, RoleResource } from './';
 
 class ResourceService {
   fetchTrustedClusters() {
@@ -43,30 +42,11 @@ class ResourceService {
       .then(json => {
         const items = json?.items || [];
 
-        // TODO (avatus) DELETE IN 15.0
-        // if this request succeeds, we don't need a legacy view
-        localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
         return {
           agents: items.map(makeUnifiedResource),
           startKey: json?.startKey,
           totalCount: json?.totalCount,
         };
-      })
-      .catch(res => {
-        // TODO (avatus) : a temporary check to catch unimplemented errors for unified resources
-        // This is a quick hacky way to catch the error until we migrate completely to unified resources
-        // DELETE IN 15.0
-        if (
-          (res.response?.status === 404 &&
-            res.message?.includes('unknown method ListUnifiedResources')) ||
-          res.response?.status === 501
-        ) {
-          localStorage.setItem(
-            KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED,
-            'true'
-          );
-        }
-        throw res;
       });
   }
 
@@ -76,10 +56,24 @@ class ResourceService {
       .then(res => makeResourceList<'github'>(res));
   }
 
-  fetchRoles() {
-    return api
-      .get(cfg.getRolesUrl())
-      .then(res => makeResourceList<'role'>(res));
+  async fetchRoles(params?: UrlListRolesParams): Promise<{
+    items: RoleResource[];
+    startKey: string;
+  }> {
+    const response = await api.get(cfg.getListRolesUrl(params));
+
+    // This will handle backward compatibility with roles.
+    // The old roles API returns only an array of resources while
+    // the new one sends the paginated object with startKey/requests
+    // If this webclient requests an older proxy
+    // (this may happen in multi proxy deployments),
+    //  this should allow the old request to not break the Web UI.
+    // TODO (gzdunek): DELETE in 17.0.0
+    if (Array.isArray(response)) {
+      return makeRolesPageLocally(params, response);
+    }
+
+    return response;
   }
 
   fetchPresetRoles() {
@@ -96,7 +90,7 @@ class ResourceService {
 
   createRole(content: string) {
     return api
-      .post(cfg.getRolesUrl(), { content })
+      .post(cfg.getRoleUrl(), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -114,7 +108,7 @@ class ResourceService {
 
   updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRolesUrl(name), { content })
+      .put(cfg.getRoleUrl(name), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -129,7 +123,7 @@ class ResourceService {
   }
 
   deleteRole(name: string) {
-    return api.delete(cfg.getRolesUrl(name));
+    return api.delete(cfg.getRoleUrl(name));
   }
 
   deleteGithubConnector(name: string) {
@@ -138,3 +132,31 @@ class ResourceService {
 }
 
 export default ResourceService;
+
+// TODO (gzdunek): DELETE in 17.0.0.
+// See the comment where this function is used.
+function makeRolesPageLocally(
+  params: UrlListRolesParams,
+  response: RoleResource[]
+): {
+  items: RoleResource[];
+  startKey: string;
+} {
+  if (params.search) {
+    // A serverside search would also match labels, here we only check the name.
+    response = response.filter(p =>
+      p.name.toLowerCase().includes(params.search.toLowerCase())
+    );
+  }
+
+  if (params.startKey) {
+    const startIndex = response.findIndex(p => p.name === params.startKey);
+    response = response.slice(startIndex);
+  }
+
+  const limit = params.limit || 200;
+  const nextKey = response.at(limit)?.name;
+  response = response.slice(0, limit);
+
+  return { items: response, startKey: nextKey };
+}

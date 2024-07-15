@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonBorder } from 'design';
+import { ButtonPrimary } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
 
@@ -109,6 +109,8 @@ const renderIconCell = (type: RecordingType) => {
     Icon = Icons.Desktop;
   } else if (type === 'k8s') {
     Icon = Icons.Kubernetes;
+  } else if (type === 'database') {
+    Icon = Icons.Database;
   }
 
   return (
@@ -134,13 +136,12 @@ const renderPlayCell = (
     { clusterId, sid },
     {
       recordingType,
-      durationMs: recordingType === 'desktop' ? duration : undefined,
+      durationMs: duration,
     }
   );
   return (
     <Cell align="right">
-      <ButtonBorder
-        kind="primary"
+      <ButtonPrimary
         as="a"
         href={url}
         width="80px"
@@ -148,7 +149,7 @@ const renderPlayCell = (
         size="small"
       >
         Play
-      </ButtonBorder>
+      </ButtonPrimary>
     </Cell>
   );
 };

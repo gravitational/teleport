@@ -16,16 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { debounce } from 'shared/utils/highbar';
+
 import {
   MainProcessClient,
   ElectronGlobals,
-  SubscribeToTshdEvent,
+  TshdEventContextBridgeService,
 } from 'teleterm/types';
-import {
-  ReloginRequest,
-  SendNotificationRequest,
-  SendPendingHeadlessAuthenticationRequest,
-} from 'teleterm/services/tshdEvents';
 import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -43,12 +40,13 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
-import { TshClient } from 'teleterm/services/tshd/types';
-import { IAppContext } from 'teleterm/ui/types';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
+import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
+import { createTshdEventsContextBridgeService } from './tshdEvents';
 
 export default class AppContext implements IAppContext {
   private logger: Logger;
@@ -64,21 +62,19 @@ export default class AppContext implements IAppContext {
   connectionTracker: ConnectionTrackerService;
   fileTransferService: FileTransferService;
   resourcesService: ResourcesService;
-  tshd: TshClient;
+  tshd: TshdClient;
+  vnet: VnetClient;
   /**
-   * subscribeToTshdEvent lets you add a listener that's going to be called every time a client
-   * makes a particular RPC to the tshd events service. The listener receives the request converted
-   * to a simple JS object since classes cannot be passed through the context bridge.
+   * setupTshdEventContextBridgeService adds a context-bridge-compatible version of a gRPC service
+   * that's going to be called every time a client makes a particular RPC to the tshd events
+   * service. The service receives requests converted to simple JS objects since classes cannot be
+   * passed through the context bridge.
    *
-   * @param {string} eventName - Name of the event.
-   * @param {function} listener - A function that gets called when a client calls the specific
-   * event. It accepts an object with two properties:
-   *
-   * - request is the request payload converted to a simple JS object.
-   * - onCancelled is a function which lets you register a callback which will be called when the
-   * request gets canceled by the client.
+   * See the JSDoc for TshdEventContextBridgeService for more details.
    */
-  subscribeToTshdEvent: SubscribeToTshdEvent;
+  setupTshdEventContextBridgeService: (
+    service: TshdEventContextBridgeService
+  ) => void;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   headlessAuthenticationService: HeadlessAuthenticationService;
@@ -86,12 +82,17 @@ export default class AppContext implements IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   deepLinksService: DeepLinksService;
+  private _unexpectedVnetShutdownListener:
+    | UnexpectedVnetShutdownListener
+    | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.logger = new Logger('AppContext');
     this.tshd = tshClient;
-    this.subscribeToTshdEvent = config.subscribeToTshdEvent;
+    this.vnet = config.vnetClient;
+    this.setupTshdEventContextBridgeService =
+      config.setupTshdEventContextBridgeService;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
     this.configService = this.mainProcessClient.configService;
@@ -167,36 +168,42 @@ export default class AppContext implements IAppContext {
   }
 
   async pullInitialState(): Promise<void> {
-    this.setUpTshdEventSubscriptions();
+    this.setupTshdEventContextBridgeService(
+      createTshdEventsContextBridgeService(this)
+    );
+
     this.subscribeToDeepLinkLaunch();
+    this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
   }
 
-  private setUpTshdEventSubscriptions() {
-    this.subscribeToTshdEvent('relogin', ({ request, onCancelled }) => {
-      // The handler for the relogin event should return only after the relogin procedure finishes.
-      return this.reloginService.relogin(
-        request as ReloginRequest,
-        onCancelled
-      );
-    });
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function which
+   * removes the listener.
+   */
+  addUnexpectedVnetShutdownListener(
+    listener: UnexpectedVnetShutdownListener
+  ): () => void {
+    this._unexpectedVnetShutdownListener = listener;
 
-    this.subscribeToTshdEvent('sendNotification', ({ request }) => {
-      this.tshdNotificationsService.sendNotification(
-        request as SendNotificationRequest
-      );
-    });
+    return () => {
+      this._unexpectedVnetShutdownListener = undefined;
+    };
+  }
 
-    this.subscribeToTshdEvent(
-      'sendPendingHeadlessAuthentication',
-      ({ request, onCancelled }) => {
-        return this.headlessAuthenticationService.sendPendingHeadlessAuthentication(
-          request as SendPendingHeadlessAuthenticationRequest,
-          onCancelled
-        );
-      }
-    );
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  // To force callsites to use addUnexpectedVnetShutdownListener instead of setting the property
+  // directly on appContext, we use a getter which exposes a private property.
+  get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
+    return this._unexpectedVnetShutdownListener;
   }
 
   private subscribeToDeepLinkLaunch() {
@@ -214,5 +221,24 @@ export default class AppContext implements IAppContext {
         });
       };
     }
+  }
+
+  private notifyMainProcessAboutClusterListChanges() {
+    // Debounce the notifications sent to the main process so that we don't unnecessarily send more
+    // than one notification per frame. The main process doesn't need to be notified absolutely
+    // immediately after a change in the cluster list.
+    //
+    // The clusters map in ClustersService gets updated a bunch of times during the start of the
+    // app. After each update, the renderer tells the main process to refresh the list. The main
+    // process sends a request to list root clusters and cancels any pending ones. Debouncing here
+    // helps to minimize those cancellations.
+    const refreshClusterList = debounce(
+      this.mainProcessClient.refreshClusterList,
+      16
+    );
+    this.clustersService.subscribeWithSelector(
+      state => state.clusters,
+      refreshClusterList
+    );
   }
 }

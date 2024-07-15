@@ -18,15 +18,23 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Link } from 'react-router-dom';
+import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
+import { AWSIcon, AzureIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import jamfIcon from 'design/assets/images/icons/jamf.svg';
 import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
+import jiraIcon from 'design/assets/images/icons/jira.svg';
+import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
+import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
+import servicenowIcon from 'design/assets/images/icons/servicenow.svg';
+import discordIcon from 'design/assets/images/icons/discord.svg';
+import emailIcon from 'design/assets/images/icons/email.svg';
+import msteamIcon from 'design/assets/images/icons/msteams.svg';
+import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -43,6 +51,7 @@ import {
 import cfg from 'teleport/config';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -98,17 +107,21 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
+            // Normal 'integration' type.
             if (item.resourceType === 'integration') {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    <MenuItem
-                      onClick={() =>
-                        props.integrationOps.onEditIntegration(item)
-                      }
-                    >
-                      Edit...
-                    </MenuItem>
+                    {/* Currently, only AWSOIDC supports editing. */}
+                    {item.kind === IntegrationKind.AwsOidc && (
+                      <MenuItem
+                        onClick={() =>
+                          props.integrationOps.onEditIntegration(item)
+                        }
+                      >
+                        Edit...
+                      </MenuItem>
+                    )}
                     <MenuItem
                       onClick={() =>
                         props.integrationOps.onDeleteIntegration(item)
@@ -127,7 +140,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                 <Cell align="right">
                   <MenuButton>
                     <MenuItem
-                      as={Link}
+                      as={InternalRouteLink}
                       to={{
                         pathname: cfg.getIntegrationEnrollRoute(
                           IntegrationKind.ExternalAuditStorage
@@ -173,8 +186,25 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
   const status = getStatus(item);
-  const statusDescription = getStatusCodeDescription(item.statusCode);
 
+  if (
+    item.resourceType === 'integration' &&
+    item.kind === IntegrationKind.AwsOidc &&
+    (!item.spec.issuerS3Bucket || !item.spec.issuerS3Prefix)
+  ) {
+    return (
+      <Cell>
+        <Flex alignItems="center">
+          <StatusLight status={status} />
+          {getStatusCodeTitle(item.statusCode)}
+          <Box mx="1">
+            <UpdateAwsOidcThumbprint integration={item} />
+          </Box>
+        </Flex>
+      </Cell>
+    );
+  }
+  const statusDescription = getStatusCodeDescription(item.statusCode);
   return (
     <Cell>
       <Flex alignItems="center">
@@ -224,14 +254,14 @@ function getStatus(item: IntegrationLike): Status | null {
   }
 }
 
-const StatusLight = styled(Box)`
+const StatusLight = styled(Box)<{ status: Status }>`
   border-radius: 50%;
   margin-right: 4px;
   width: 8px;
   height: 8px;
   background-color: ${({ status, theme }) => {
     if (status === Status.Success) {
-      return theme.colors.success;
+      return theme.colors.success.main;
     }
     if (status === Status.Error) {
       return theme.colors.error.main;
@@ -268,6 +298,38 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Opsgenie';
         icon = <IconContainer src={opsgenieIcon} />;
         break;
+      case 'jira':
+        formattedText = 'Jira';
+        icon = <IconContainer src={jiraIcon} />;
+        break;
+      case 'mattermost':
+        formattedText = 'Mattermost';
+        icon = <IconContainer src={mattermostIcon} />;
+        break;
+      case 'servicenow':
+        formattedText = 'ServiceNow';
+        icon = <IconContainer src={servicenowIcon} />;
+        break;
+      case 'pagerduty':
+        formattedText = 'PagerDuty';
+        icon = <IconContainer src={pagerdutyIcon} />;
+        break;
+      case 'discord':
+        formattedText = 'Discord';
+        icon = <IconContainer src={discordIcon} />;
+        break;
+      case 'email':
+        formattedText = 'Email';
+        icon = <IconContainer src={emailIcon} />;
+        break;
+      case 'msteams':
+        formattedText = 'Microsoft Teams';
+        icon = <IconContainer src={msteamIcon} />;
+        break;
+      case 'entra-id':
+        formattedText = 'Microsoft Entra ID';
+        icon = <IconContainer src={entraIdIcon} />;
+        break;
     }
   } else {
     // Default is integration.
@@ -278,6 +340,14 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         icon = (
           <SvgIconContainer>
             <AWSIcon />
+          </SvgIconContainer>
+        );
+        break;
+      case IntegrationKind.AzureOidc:
+        formattedText = 'Azure OIDC';
+        icon = (
+          <SvgIconContainer>
+            <AzureIcon size={24} />
           </SvgIconContainer>
         );
         break;

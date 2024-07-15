@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -88,7 +88,7 @@ func (s *Server) requestCertificate(username string, cluster string, identity tl
 	}
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 
-	response, err := s.cfg.Signer.ProcessKubeCSR(auth.KubeCSR{
+	response, err := s.cfg.Signer.ProcessKubeCSR(authclient.KubeCSR{
 		Username:    username,
 		ClusterName: cluster,
 		CSR:         csrPEM,

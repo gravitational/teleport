@@ -21,13 +21,14 @@ import { MainProcessClient } from 'teleterm/types';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ConfigService } from 'teleterm/services/config';
 
+import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 import type * as types from 'teleterm/services/tshd/types';
 
 export class HeadlessAuthenticationService {
   constructor(
     private mainProcessClient: MainProcessClient,
     private modalsService: ModalsService,
-    private tshClient: types.TshClient,
+    private tshClient: TshdClient,
     private configService: ConfigService
   ) {}
 
@@ -59,12 +60,11 @@ export class HeadlessAuthenticationService {
   }
 
   async updateHeadlessAuthenticationState(
-    params: types.UpdateHeadlessAuthenticationStateParams,
-    abortSignal: types.TshAbortSignal
+    params: types.UpdateHeadlessAuthenticationStateRequest,
+    abortSignal: CloneableAbortSignal
   ): Promise<void> {
-    return this.tshClient.updateHeadlessAuthenticationState(
-      params,
-      abortSignal
-    );
+    await this.tshClient.updateHeadlessAuthenticationState(params, {
+      abort: abortSignal,
+    });
   }
 }

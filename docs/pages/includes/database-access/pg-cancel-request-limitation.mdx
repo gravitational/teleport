@@ -1,0 +1,48 @@
+{{ PIDQuery="SELECT pid,usename,backend_start,query FROM pg_stat_activity WHERE state = 'active';" }}
+### Unable to cancel a query
+
+If you use a PostgreSQL cli client like `psql`, and you try to cancel a query
+with `ctrl+c`, but it doesn't cancel the query, then you need to connect using a
+tsh local proxy instead.
+When `psql` cancels a query, it establishes a new connection without TLS
+certificates, however Teleport requires TLS certificates not only for
+authentication, but also to route database connections.
+
+If you
+[enable TLS Routing in Teleport](../../management/operations/tls-routing.mdx)
+then `tsh db connect` will automatically start a local proxy for every
+connection.
+Alternatively, you can connect via
+[Teleport Connect](../../connect-your-client/teleport-connect.mdx)
+which also uses a local proxy.
+Otherwise, you need to start a tsh local proxy manually using `tsh proxy db`
+and connect via the local proxy.
+
+If you have already started a long-running query in a `psql` session that you
+cannot cancel with ctrl+c, you can start a new client session to cancel that
+query manually:
+
+First, find the query's process identifier (PID):
+```sql
+{{ PIDQuery }}
+```
+
+Next, gracefully cancel the query using its PID.
+This will send a SIGINT signal to the postgres backend process for that query:
+```sql
+SELECT pg_cancel_backend(<PID>);
+```
+
+You should always try to gracefully terminate a query first, but if graceful
+cancellation is taking too long, then you can forcefully terminate the query
+instead.
+This will send a SIGTERM signal to the postgres backend process for that query:
+
+```sql
+SELECT pg_terminate_backend(<PID>);
+```
+
+See the PostgreSQL documentation on
+[admin functions](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-SIGNAL)
+for more information about the `pg_cancel_backend` and `pg_terminate_backend`
+functions.

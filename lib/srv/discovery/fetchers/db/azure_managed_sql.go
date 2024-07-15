@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -55,7 +54,7 @@ func (f *azureManagedSQLServerFetcher) NewDatabaseFromServer(server *armsql.Mana
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzureManagedSQLServer(server)
+	database, err := common.NewDatabaseFromAzureManagedSQLServer(server)
 	if err != nil {
 		log.Warnf("Could not convert Azure Managed SQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
 		return nil

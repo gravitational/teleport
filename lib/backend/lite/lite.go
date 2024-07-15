@@ -38,10 +38,17 @@ import (
 	"github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 )
+
+func init() {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p)
+	})
+}
 
 const (
 	// BackendName is the name of this backend.
@@ -243,7 +250,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	l := &Backend{
 		Config: cfg,
 		db:     db,
-		Entry:  log.WithFields(log.Fields{trace.Component: BackendName}),
+		Entry:  log.WithFields(log.Fields{teleport.ComponentKey: BackendName}),
 		clock:  cfg.Clock,
 		buf:    buf,
 		ctx:    closeCtx,
@@ -501,35 +508,39 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 
 	i.Revision = backend.CreateRevision()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		created := l.clock.Now().UTC()
-		recordID := id(created)
-		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer stmt.Close()
-
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer stmt.Close()
-
-		if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return l.putInTransaction(ctx, i, tx)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return backend.NewLease(i), nil
+}
+
+func (l *Backend) putInTransaction(ctx context.Context, i backend.Item, tx *sql.Tx) error {
+	created := l.clock.Now().UTC()
+	recordID := id(created)
+	if !l.EventsOff {
+		stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+
+		if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Update updates value in the backend
@@ -600,7 +611,7 @@ func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 // getInTransaction returns an item, works in transaction
 func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, item *backend.Item) error {
 	q, err := tx.PrepareContext(ctx,
-		"SELECT key, value, expires, modified, revision FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
+		"SELECT key, value, expires, revision FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -608,7 +619,7 @@ func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, 
 
 	row := q.QueryRowContext(ctx, string(key), l.clock.Now().UTC())
 	var expires sql.NullTime
-	if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID, &item.Revision); err != nil {
+	if err := row.Scan(&item.Key, &item.Value, &expires, &item.Revision); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return trace.NotFound("key %v is not found", string(key))
 		}
@@ -633,7 +644,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	var result backend.GetResult
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(ctx,
-			"SELECT key, value, expires, modified, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
+			"SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -648,7 +659,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		for rows.Next() {
 			var i backend.Item
 			var expires sql.NullTime
-			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.ID, &i.Revision); err != nil {
+			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 			i.Expires = expires.Time

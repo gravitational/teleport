@@ -55,9 +55,10 @@ teleportVersionOverride: ""
 # proxyProtocol: on
 
 # The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
-# `auth` contains values specific for the auth pods. You can use it to
-#  set specific values for auth pods, taking precedence over chart-scoped values.
-# For example, to override the [`postStart`](#postStart) value only for auth pods:
+#
+# `auth` allows you to set chart values only for Kubernetes resources related to the Teleport Auth Service.
+# This is merged with chart-scoped values and takes precedence in case of conflict.
+# For example:
 #
 # auth:
 #  postStart: ["curl", "http://hook"]
@@ -79,11 +80,15 @@ auth:
   #     client_idle_timeout_message: "Connection closed after 2hours without activity"
   teleportConfig: {}
 
-# proxy contains values specific for the proxy pods
-# You can override chart-scoped values, for example
+# `proxy` allows you to set chart values only for Kubernetes resources related to the Teleport Proxy Service. 
+# This is merged with chart-scoped values and takes precedence in case of conflict.
+# For example:
 # proxy:
 #   postStart: ["curl", "http://hook"]
 #   imagePullPolicy: Always
+#   annotations:
+#     service:
+#       external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
 proxy:
   # proxy.teleportConfig contains YAML teleport configuration for proxy pods
   # The configuration will be merged with the chart-generated configuration
@@ -261,6 +266,8 @@ operator:
   #    memory: "1Gi"
   joinMethod: "kubernetes"
   token: "teleport-operator"
+  # This is needed to have a sensible name and predictible service account name.
+  nameOverride: operator
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
@@ -269,7 +276,20 @@ operator:
 podSecurityPolicy:
   enabled: true
 
-# Labels is a map of key-value pairs about this cluster
+# The `global` section contains values that are shared between the main chart and all subcharts.
+global:
+  # The `clusterDomain` value controls the domain suffix used in the Kubernetes
+  # DNS service. This is used to resolve service names in the cluster.
+  # The default value is `cluster.local`.
+
+  # WARNING: Changing this value must match the Kubernetes cluster's configuration 
+  # otherwise Teleport will not be able to resolve service names.
+  clusterDomain: cluster.local
+
+# Labels is a map of key-value pairs about this cluster. Those labels are used
+# in Teleport to access the Kuebrnetes cluster. They must not be confused with
+# `extraLabels` which are additional labels to add on Kubernetes resources
+# created by the Helm chart.
 labels: {}
 
 # Mode to deploy the chart in. The default is "standalone". Options:
@@ -341,9 +361,34 @@ aws:
   # The DynamoDB table name to use for audit log storage. Teleport will attempt to create this table automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
   # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
+  #
+  # If you are using the Athena backend, you don't need to set this value.
+  # If you set this value, audit logs will be sent both to the Athena and DynamoDB
+  # backends, this is useful when migrating backends.
+  # If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+  # `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+  # Teleport queries the audit backend to display the audit log in the web UI, export events
+  # using the audit log collector, or perform any action that needs to inspect past audit events.
   auditLogTable: ""
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
+  # auditLogPrimaryBackend controls which backend is used for queries when multiple
+  # audit backends are enabled. This setting has no effect when a single audit
+  # log backend is enabled.This setting is used when migrating from DynamoDB to
+  # Athena.
+  #
+  # Possible values are `dynamo` and `athena`.
+  auditLogPrimaryBackend: ""
+  # athenaURL contains the Athena audit log backend configuration
+  # When this value is set, Teleport will export events to the Athena audit backend.
+  #
+  # To use the Athena audit backend, you must set up the required infrastructure
+  # (S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
+  # The requirements are described in the documentation: https://goteleport.com/docs/reference/backends/#athena
+  #
+  # If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+  # `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+  athenaURL: ""
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
@@ -351,6 +396,10 @@ aws:
   backups: false
 
   # Whether Teleport should configure DynamoDB's autoscaling.
+  #
+  # WARNING: DynamoDB autoscaling is no longer recommended. Teleport now
+  # defaults to "on demand" DynamoDB billing, which has more reliable performance.
+  #
   # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
   # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
   dynamoAutoScaling: false
@@ -363,6 +412,20 @@ aws:
   writeMinCapacity: null     # Integer
   writeMaxCapacity: null     # Integer
   writeTargetValue: null     # Float
+
+  # accessMonitoring configures the Access Monitoring feature of the Auth Service.
+  # Using this features requires setting up specific AWS infrastructure as described
+  # in https://goteleport.com/docs/access-controls/access-monitoring/#configuration
+  # The Terraform example code will output the chart values for this section.
+  accessMonitoring:
+    enabled: false
+    # reportResults is the bucket uri where query results are reported.
+    # Example: "s3://example-athena-long-term/report_results"
+    reportResults: ""
+    # roleARN is the ARN of the role that is assumed to run the reports.
+    roleARN: ""
+    # workgroup is the Athena workgroup in which Teleport runs queries.
+    workgroup: ""
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)
@@ -439,7 +502,8 @@ azure:
 #   is not supported with multiple replicas.
 # For proxy pods:
 #   Proxy pods need to be provided a certificate to be replicated (either via
-#  `tls.existingSecretName` or via `highAvailability.certManager`).
+#  `tls.existingSecretName` or via `highAvailability.certManager`) or be exposed
+#   via an ingress (`ingress.enabled`).
 #   If proxy pods are replicable, they will default to 2 replicas,
 #   even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
 #   set `proxy.highAvailability.replicaCount: 1`.
@@ -565,6 +629,44 @@ annotations:
   # Annotations for the Ingress object
   ingress: {}
 
+# extraLabels -- contains additional Kubernetes labels to apply on the resources
+# created by the chart.
+# See [the Kubernetes label documentation
+# ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+# for more information.
+#
+# Note: for PodMonitor labels, see `podMonitor.additionalLabels` instead.
+extraLabels:
+  # extraLabels.certSecret(object) -- are labels to set on the certificate secret
+  # generated by cert-manager v1.5+ when `highAvailability.certManager.enabled`
+  # is true.
+  certSecret: {}
+  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole.
+  clusterRole: {}
+  # extraLabels.clusterRoleBinding(object) -- are labels to set on the ClusterRoleBinding.
+  clusterRoleBinding: {}
+  # extraLabels.role(object) -- are labels to set on the Role.
+  config: {}
+  # extraLabels.deployment(object) -- are labels to set on the Deployment.
+  deployment: {}
+  # extraLabels.ingress(object) -- are labels to set on the Ingress.
+  ingress: {}
+  # extraLabels.job(object) -- are labels to set on the Job run by the Helm hook.
+  job: {}
+  # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
+  persistentVolumeClaim: {}
+  # extraLabels.pod(object) -- are labels to set on the Pods created by the
+  # Deployment.
+  pod: {}
+  # extraLabels.podDisruptionBudget(object) -- are labels to set on the podDisruptionBudget.
+  podDisruptionBudget: {}
+  # extraLabels.secret(object) -- are labels to set on the Secret.
+  secret: {}
+  # extraLabels.service(object) -- are labels to set on the Service.
+  service: {}
+  # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
+  serviceAccount: {}
+
 # Kubernetes service account to create/use.
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
@@ -598,6 +700,11 @@ service:
 # See https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview for details.
 ingress:
   enabled: false
+  # useExisting indicates to the chart that you are managing your own ingress.
+  # (or HTTPRoute, or any other LoadBalancing method that terminates TLS).
+  # The chart will configure Teleport like it's running behind an ingress, but will not create the ingress resource.
+  # You are responsible for creating and managing the ingress.
+  useExisting: false
   # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname served
   # by the Ingress. This may be desirable if you don't use Teleport Application Access.
   suppressAutomaticWildcards: false
@@ -653,10 +760,24 @@ postStart:
 
 # Resources to request for the teleport container
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+#
+# DANGER: Setting CPU limits is an anti-pattern and harmful in most cases.
+# Unless you enabled [the Static CPU management policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy),
+# a multithreaded workload with CPU limits will very likely not behave the way
+# you expect when approaching its CPU limit.
+#
+# Teleport will become unstable once throttling starts. We recommend not to set CPU limits.
+# See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for technical details.
 resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+#  limits:
+#    memory: "2Gi"
+
+# Pod security context for any pods created by the chart
+podSecurityContext: {}
+  # fsGroup: 65532
 
 # Security context to add to the container
 securityContext: {}

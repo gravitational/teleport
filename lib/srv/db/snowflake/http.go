@@ -75,24 +75,24 @@ func readRequestBody(req *http.Request) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return maybeReadGzip(&req.Header, body)
+	return maybeReadGzip(&req.Header, body, teleport.MaxHTTPRequestSize)
 }
 
 func readResponseBody(resp *http.Response) ([]byte, error) {
 	defer resp.Body.Close()
 
-	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPRequestSize)
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return maybeReadGzip(&resp.Header, body)
+	return maybeReadGzip(&resp.Header, body, teleport.MaxHTTPResponseSize)
 }
 
 // maybeReadGzip checks if the body is gzip encoded and returns decoded version.
 // To determine gzip encoding the beginning of body message is being checked
 // instead of HTTP header and the second one was less reliable during testing.
-func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
+func maybeReadGzip(headers *http.Header, body []byte, limit int64) ([]byte, error) {
 	gzipMagic := []byte{0x1f, 0x8b, 0x08}
 
 	// Check if the body is gzip encoded. Alternative here could check
@@ -108,7 +108,7 @@ func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
 	}
 	defer bodyGZ.Close()
 
-	body, err = utils.ReadAtMost(bodyGZ, teleport.MaxHTTPRequestSize)
+	body, err = utils.ReadAtMost(bodyGZ, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

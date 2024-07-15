@@ -8,7 +8,7 @@ Kubernetes.
 
 If you are already running Teleport on another platform, you can use your
 existing Teleport deployment to access your Kubernetes cluster. [Follow our
-guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+guide](../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
@@ -33,7 +33,7 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
 
 ## Step 2/4. Install Teleport
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 Install Teleport in your Kubernetes cluster using the `teleport-cluster` Helm
 chart:
@@ -276,8 +276,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect a Kubernetes cluster with
 Teleport:
 
-- Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../kubernetes-access/getting-started.mdx)
-- [Set up Machine ID with Kubernetes](../../machine-id/access-guides/kubernetes.mdx)
-- [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
-- [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)
+- Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../enroll-resources/kubernetes-access/getting-started.mdx)
+- [Set up Machine ID with Kubernetes](../../enroll-resources/machine-id/access-guides/kubernetes.mdx)
+- [Single-Sign On and Kubernetes Access Control](../../enroll-resources/kubernetes-access/controls.mdx)
 

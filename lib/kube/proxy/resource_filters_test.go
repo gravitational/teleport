@@ -211,7 +211,7 @@ func Test_filterBuffer(t *testing.T) {
 						if row.Object.Object == nil {
 							var err error
 							// decode only if row.Object.Object was not decoded before.
-							row.Object.Object, err = decodeAndSetGVK(decoder, row.Object.Raw)
+							row.Object.Object, err = decodeAndSetGVK(decoder, row.Object.Raw, nil)
 							require.NoError(t, err)
 						}
 

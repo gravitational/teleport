@@ -89,8 +89,9 @@ $ tsh clusters --quiet
 
 ## tsh config
 
-Generates OpenSSH configuration to use currently logged in teleport
-as a bastion host.
+Print OpenSSH configuration details to allow using an SSH
+client with credentials managed by Teleport to connect to
+hosts in your cluster.
 
 ```code
 $ tsh config
@@ -620,18 +621,7 @@ $ tsh proxy azure [<flags>]
 The command will print the address of the local proxy server along with `export`
 commands for environment variables required to connect:
 
-```text
-Started Azure proxy on http://127.0.0.1:54330.
-To avoid port randomization, you can choose the listening port using the --port flag.
-
-Use the following credentials and HTTPS proxy setting to connect to the proxy:
-
-  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
-  export HTTPS_PROXY=http://127.0.0.1:54330
-  export HTTP_PROXY=http://127.0.0.1:54330
-  export MSI_ENDPOINT=https://azure-msi.teleport.dev/eedfd5b55257c0aaa58f
-  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
-```
+(!docs/pages/includes/application-access/azure-tsh-proxy-azure-sample.mdx!)
 
 <Notice type="tip">
 
@@ -647,7 +637,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../../application-access/cloud-apis/azure.mdx).
+Access](../../enroll-resources/application-access/cloud-apis/azure.mdx).
 
 ### Arguments
 
@@ -758,7 +748,7 @@ $ gsutil ls
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
 This is typically used as part of the SSH client configuration to use `ssh` as a client
-through Teleport.  See the [OpenSSH Guide](../../server-access/guides/openssh.mdx) guide
+through Teleport.  See the [OpenSSH Guide](../../enroll-resources/server-access/openssh/openssh.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
 
@@ -846,27 +836,6 @@ $ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
 ```
 
 See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
-
-## tsh recordings export
-
-Export recorded desktop sessions to video.
-
-```code
-$ tsh recordings export <session_id> [<flags>]
-```
-
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
-
-### Examples
-
-```code
-$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
-wrote recording to recording.avi
-```
 
 ## tsh recordings ls
 
@@ -1123,6 +1092,7 @@ $ tsh ssh [<flags>] <[user@]host> [<command>...]
 | `-A, --forward-agent` | none | none | Forward agent to target node like `ssh -A` |
 | `-L, --forward` | none | none | Forward localhost connections to remote server |
 | `-D, --dynamic-forward` | none | none | Forward localhost connections to remote server using SOCKS5 |
+| `-R, --remote-forward` | none | none | Forward remote connections to localhost |
 | `-N, -no-remote-exec` | none | none | Don't execute remote command, useful for port forwarding |
 | `--local` | none | | Execute command on localhost after connecting to SSH node |
 | `-t, --tty` | `file` | | Allocate TTY |

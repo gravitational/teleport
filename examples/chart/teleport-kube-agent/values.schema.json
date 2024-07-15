@@ -15,6 +15,7 @@
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
         "teleportConfig",
+        "updater",
         "existingDataVolume",
         "podSecurityPolicy",
         "labels",
@@ -265,6 +266,56 @@
                 }
             }
         },
+        "updater": {
+            "$id": "#/properties/updater",
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/updater/properties/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "versionServer": {
+                    "$id": "#/properties/updater/properties/versionServer",
+                    "type": "string",
+                    "default": "https://updates.releases.teleport.dev/v1/"
+                },
+                "releaseChannel": {
+                    "$id": "#/properties/updater/properties/releaseChannel",
+                    "type": "string",
+                    "default": "stable/cloud"
+                },
+                "image": {
+                    "$id": "#/properties/updater/properties/image",
+                    "type": "string",
+                    "default": "public.ecr.aws/gravitational/teleport-kube-agent-updater"
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/updater/properties/serviceAccount",
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "$id": "#/properties/updater/properties/serviceAccount/properties/name",
+                            "type": "string",
+                            "default": ""
+                        }
+                    }
+                },
+                "pullCredentials": {
+                    "$id": "#/properties/updater/properties/pullCredentials",
+                    "type": "string",
+                    "default": ""
+                },
+                "extraArgs": {
+                    "$id": "#/properties/updater/properties/extraArgs",
+                    "type": "array",
+                    "default": []
+                }
+            }
+        },
         "existingDataVolume": {
             "$id": "#/properties/existingDataVolume",
             "type": "string",
@@ -507,6 +558,11 @@
                     "type": "object",
                     "default": {}
                 },
+                "job": {
+                    "$id": "#/properties/extraLabels/properties/job",
+                    "type": "object",
+                    "default": {}
+                },
                 "pod": {
                     "$id": "#/properties/extraLabels/properties/pod",
                     "type": "object",
@@ -688,6 +744,39 @@
                 },
                 "additionalProperties": false
             }
+        },
+        "jamfCredentialsSecret": {
+            "$id": "#/properties/jamfCredentialsSecret",
+            "type": "object",
+            "required": ["create", "name"],
+            "properties": {
+                "create": {
+                    "$id": "#/properties/jamfCredentialsSecret/create",
+                    "type": "boolean",
+                    "default": true
+                },
+                "name": {
+                    "$id": "#/properties/jamfCredentialsSecret/name",
+                    "type": "string",
+                    "default": "teleport-jamf-api-credentials"
+                },
+                "additionalProperties": false
+            }
+        },
+        "jamfApiEndpoint": {
+            "$id": "#/properties/jamfApiEndpoint",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientId": {
+            "$id": "#/properties/jamfClientId",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientSecret": {
+            "$id": "#/properties/jamfSecret",
+            "type": "string",
+            "default": ""
         }
     }
 }

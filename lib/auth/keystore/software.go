@@ -23,10 +23,10 @@ import (
 	"crypto"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type softwareKeyStore struct {
@@ -36,43 +36,45 @@ type softwareKeyStore struct {
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
 type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
 
-type SoftwareConfig struct {
-	RSAKeyPairSource RSAKeyPairSource
+type softwareConfig struct {
+	rsaKeyPairSource RSAKeyPairSource
 }
 
-func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
-	if cfg.RSAKeyPairSource == nil {
-		return trace.BadParameter("must provide RSAKeyPairSource")
-	}
-	return nil
-}
-
-func newSoftwareKeyStore(config *SoftwareConfig, logger logrus.FieldLogger) *softwareKeyStore {
+func newSoftwareKeyStore(config *softwareConfig) *softwareKeyStore {
 	return &softwareKeyStore{
-		rsaKeyPairSource: config.RSAKeyPairSource,
+		rsaKeyPairSource: config.rsaKeyPairSource,
 	}
 }
 
-// generateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
-// private key, and can be passed to getSigner later to get the same
-// crypto.Signer.
-func (s *softwareKeyStore) generateRSA(ctx context.Context, _ ...RSAKeyOption) ([]byte, crypto.Signer, error) {
-	priv, _, err := s.rsaKeyPairSource()
-	if err != nil {
-		return nil, nil, err
-	}
-	signer, err := s.getSigner(ctx, priv)
-	if err != nil {
-		return nil, nil, err
-	}
-	return priv, signer, trace.Wrap(err)
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (s *softwareKeyStore) keyTypeDescription() string {
+	return "raw software keys"
 }
 
-// GetSigner returns a crypto.Signer for the given pem-encoded private key.
-func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
-	signer, err := utils.ParsePrivateKeyPEM(rawKey)
-	return signer, trace.Wrap(err)
+// generateRSA creates a new private key and returns its identifier and a crypto.Signer. The returned
+// identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getSigner later to get
+// an equivalent crypto.Signer.
+func (s *softwareKeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+	if alg == cryptosuites.RSA2048 && s.rsaKeyPairSource != nil {
+		privateKeyPEM, _, err := s.rsaKeyPairSource()
+		if err != nil {
+			return nil, nil, err
+		}
+		signer, err := keys.ParsePrivateKey(privateKeyPEM)
+		return privateKeyPEM, signer, trace.Wrap(err)
+	}
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+	if err != nil {
+		return nil, nil, err
+	}
+	privateKeyPEM, err := keys.MarshalPrivateKey(signer)
+	return privateKeyPEM, signer, trace.Wrap(err)
+}
+
+// getSigner returns a crypto.Signer for the given pem-encoded private key.
+func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	return keys.ParsePrivateKey(rawKey)
 }
 
 // canSignWithKey returns true if the given key is a raw key.
@@ -80,16 +82,14 @@ func (s *softwareKeyStore) canSignWithKey(ctx context.Context, _ []byte, keyType
 	return keyType == types.PrivateKeyType_RAW, nil
 }
 
-// deleteKey deletes the given key from the KeyStore. This is a no-op for
-// softwareKeyStore.
+// deleteKey is a no-op for softwareKeyStore because the keys are not actually
+// stored in any external backend.
 func (s *softwareKeyStore) deleteKey(_ context.Context, _ []byte) error {
 	return nil
 }
 
-// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
-// 1. Labeled by this KeyStore when they were created
-// 2. Not included in the argument activeKeys
-// This is a no-op for rawKeyStore.
-func (s *softwareKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+// deleteUnusedKeys is a no-op for softwareKeyStore because the keys are not
+// actually stored in any external backend.
+func (s *softwareKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	return nil
 }

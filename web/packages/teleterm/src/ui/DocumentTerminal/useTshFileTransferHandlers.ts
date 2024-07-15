@@ -21,7 +21,8 @@ import {
   createFileTransferEventsEmitter,
 } from 'shared/components/FileTransfer';
 
-import { FileTransferDirection } from 'teleterm/services/tshd/types';
+import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
@@ -40,7 +41,7 @@ export function useTshFileTransferHandlers() {
         appContext,
         file,
         abortController,
-        FileTransferDirection.FILE_TRANSFER_DIRECTION_UPLOAD
+        FileTransferDirection.UPLOAD
       );
     },
     download(
@@ -51,7 +52,7 @@ export function useTshFileTransferHandlers() {
         appContext,
         file,
         abortController,
-        FileTransferDirection.FILE_TRANSFER_DIRECTION_DOWNLOAD
+        FileTransferDirection.DOWNLOAD
       );
     },
   };

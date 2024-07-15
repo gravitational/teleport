@@ -52,13 +52,15 @@ it('creates a gateway on mount if it does not exist already', async () => {
     wrapper: $wrapper,
   });
 
-  await waitFor(() => result.current.connectAttempt.status === 'success');
+  await waitFor(() =>
+    expect(result.current.connectAttempt.status).toBe('success')
+  );
 
   expect(appContext.clustersService.createGateway).toHaveBeenCalledWith({
     targetUri: doc.targetUri,
-    subresource_name: doc.targetSubresourceName,
-    user: doc.targetUser,
-    port: doc.port,
+    targetSubresourceName: doc.targetSubresourceName,
+    targetUser: doc.targetUser,
+    localPort: doc.port,
   });
   expect(appContext.clustersService.createGateway).toHaveBeenCalledTimes(1);
 });
@@ -103,7 +105,9 @@ it('does not attempt to create a gateway immediately after closing it if the gat
     result.current.disconnect();
   });
 
-  await waitFor(() => result.current.disconnectAttempt.status === 'success');
+  await waitFor(() =>
+    expect(result.current.disconnectAttempt.status).toBe('success')
+  );
 
   expect(appContext.clustersService.createGateway).not.toHaveBeenCalled();
 });
@@ -122,6 +126,7 @@ const testSetup = () => {
     gatewayUri: gateway.uri,
     origin: 'resource_table',
     title: '',
+    status: '',
   };
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);

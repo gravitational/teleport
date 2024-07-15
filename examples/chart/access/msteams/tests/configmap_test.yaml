@@ -1,0 +1,24 @@
+suite: Test deployment
+templates:
+  - configmap.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      msTeams:
+        appSecret: test-appSecret
+        appID: my-app-id
+        teamsAppID: my-teams-app-id
+        tenantID: my-tenant-id
+      roleToRecipients:
+        dev:
+          - dev-access-requests
+          - example-user@example.com
+        "*":
+          - dev-access-requests
+      log:
+        output: /var/log/teleport-msteams.log
+        severity: DEBUG
+    asserts:
+      - matchSnapshot: {}

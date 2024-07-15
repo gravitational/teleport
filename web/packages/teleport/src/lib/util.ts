@@ -70,8 +70,10 @@ export function generateTshLoginCommand({
   }
 }
 
-// arrayStrDiff returns an array of strings that
-// belong in stringsA but not in stringsB.
+/**
+ * arrayStrDiff returns an array of strings that
+ * belong in stringsA but not in stringsB.
+ */
 export function arrayStrDiff(stringsA: string[], stringsB: string[]) {
   if (!stringsA || !stringsB) {
     return [];

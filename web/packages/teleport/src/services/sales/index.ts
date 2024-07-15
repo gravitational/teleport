@@ -26,6 +26,8 @@ const UPGRADE_TEAM_URL = 'https://goteleport.com/r/upgrade-team';
 const UPGRADE_COMMUNITY_URL = 'https://goteleport.com/r/upgrade-community';
 // UPGRADE_IGS_URL is enterprise upgrading to enterprise with Identity Governance & Security
 const UPGRADE_IGS_URL = 'https://goteleport.com/r/upgrade-igs';
+// UPGRADE_POLICY_URL is enterprise upgrading to enterprise with Policy
+export const UPGRADE_POLICY_URL = 'https://goteleport.com/r/upgrade-policy';
 
 function getParams(
   version: string,
@@ -40,11 +42,15 @@ function getParams(
 export function getSalesURL(
   version: string,
   isEnterprise: boolean,
-  event?: CtaEvent
+  event?: CtaEvent,
+  url?: string
 ) {
-  let url = UPGRADE_COMMUNITY_URL;
-  if (isEnterprise) {
-    url = cfg.isTeam ? UPGRADE_TEAM_URL : UPGRADE_IGS_URL;
+  if (!url) {
+    url = UPGRADE_COMMUNITY_URL;
+    if (isEnterprise) {
+      // TODO(mcbattirola): remove isTeam when it is no longer used
+      url = cfg.isTeam ? UPGRADE_TEAM_URL : UPGRADE_IGS_URL;
+    }
   }
   const params = getParams(version, isEnterprise, event);
   return `${url}?${params}`;

@@ -1,0 +1,92 @@
+---
+title: User Types
+description: Describes the different types of Teleport users and their properties.
+keywords: [user,idp,sso]
+tocDepth: 3
+---
+
+This guide explains the different kinds of users in Teleport, how they are
+created, and their properties.
+
+## Local users
+
+Local users are created in Teleport. They are not coming from an
+external system like an identity provider.
+
+Local users can be created via the CLI (`tctl users add`), by applying a user
+resource manifest (`tctl create -f user.yaml`) or via the web UI. Their roles
+and traits can be modified directly in Teleport.
+
+Those users can connect to Teleport directly via username/password and/or
+additional authentication factors such as WebAuthn physical tokens, passkeys, or
+one-time passwords.
+
+Local user login can be disabled via `cluster_auth_preference` or `teleport.yaml`.
+Disabling local authentication is required for [FIPS/FedRAMP compliance
+](../access-controls/compliance-frameworks/fedramp.mdx).
+
+### Special case: Bots
+
+Machine ID provides machines with an identity that can authenticate to the
+Teleport cluster. This identity is known as a bot. Bots are represented in
+Teleport by a user and a role resource and can be created via the
+`tctl bots add` command.
+
+Unlike human users, who use a password, MFA, or SSO, bot users join
+the cluster as Teleport services using [a join method](./join-methods.mdx). They
+can still join even if local auth is disabled. 
+
+See the [Machine ID introduction](../enroll-resources/machine-id/introduction.mdx) for more information.
+
+## SSO users
+
+Single Sign-On (SSO) users are imported in Teleport from an external identity provider.
+Teleport contains a user resource representing those users, but it's only a
+representation of a user of a remote system.
+
+Remote users don't perform their login challenge in Teleport. They are redirected
+to their identity provider (IdP) to enter their password, MFA, or any
+authentication method required by the upstream SSO provider. Teleport is not
+aware of the authentication method not the user credentials, it trusts the IdP
+response.
+
+If `teleport.auth_service.authentication.second_factor` is `webauthn`, Teleport
+might ask for an additional MFA for administrative actions. This protects
+against IdP compromise.
+
+SSO users cannot be edited via `tctl`, or via any other IaC tooling like
+Terraform or the Teleport Kubernetes Operator. They are managed by Teleport.
+
+### Temporary users
+
+Users logging in via GitHub, SAML, or OIDC connectors are created in Teleport
+after a successful login. At that time, their roles and traits are computed
+according to the connector mappings.
+
+Those users are short-lived: they are created when a Teleport session is opened
+and automatically expire. The expiry is dynamically computed based on the IdP
+answer validity, the max session duration allowed by the user roles, and cannot
+exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
+
+See the [SSO setup guides](../access-controls/sso.mdx) to learn how to setup an
+authentication connector and allow user to log in via an IdP.
+
+### Synced users
+
+Since version 15, Teleport supports fetching users from external identity
+providers like Okta.
+
+Synchronizing users from the external IdP allows all users to be represented in
+Teleport, whether they logged in Teleport or not. The benefits of such
+integration are:
+- Automatic user locking and deletion if the user is suspended or removed in the
+  IdP.
+- Ability to see all users within Teleport regardless of the last login date.
+- All IdP users are displayed in Teleport Policy's Access Graph.
+
+The Okta synchronization service is in charge of creating new users when they
+are created in Okta, and locking/deleting users if they get deactivated/removed
+in Okta.
+
+Those users can be identified by the label `teleport.dev/origin: okta` and
+cannot be edited via `tctl`, only deleted.

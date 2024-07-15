@@ -8,18 +8,18 @@ using Teleport Helm charts and Google Cloud Platform products (Firestore and Goo
 
 If you are already running Teleport on another platform, you can use your
 existing Teleport deployment to access your Kubernetes cluster. [Follow our
-guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+guide](../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 
 ## Step 1/6. Add the Teleport Helm chart repository
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 <Admonition
   type="note"
@@ -220,6 +220,7 @@ $ helm repo update
 $ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
+--set global.leaderElection.namespace=cert-manager \
 --set installCRDs=true
 ```
 
@@ -318,7 +319,7 @@ highAvailability:
   certManager:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
-    
+
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false

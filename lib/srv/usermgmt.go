@@ -40,10 +40,13 @@ import (
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
-	// newHostUsersBackend statically returns a valid backend or an error,
-	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                       //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	//nolint:staticcheck // SA4023. False positive on macOS.
+	backend, err := newHostUsersBackend()
+	switch {
+	case trace.IsNotImplemented(err), trace.IsNotFound(err):
+		log.Debugf("Skipping host user management: %v", err)
+		return nil
+	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		log.Warnf("Error making new HostUsersBackend: %s", err)
 		return nil
 	}
@@ -58,11 +61,14 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 }
 
 func NewHostSudoers(uuid string) HostSudoers {
-	// newHostSudoersBackend statically returns a valid backend or an error,
-	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostSudoersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                             //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		log.Warnf("Error making new HostUsersBackend: %s", err)
+	//nolint:staticcheck // SA4023. False positive on macOS.
+	backend, err := newHostSudoersBackend(uuid)
+	switch {
+	case trace.IsNotImplemented(err):
+		log.Debugf("Skipping host sudoers management: %v", err)
+		return nil
+	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+		log.Warnf("Error making new HostSudoersBackend: %s", err)
 		return nil
 	}
 	return &HostSudoersManagement{
@@ -90,14 +96,16 @@ type HostUsersBackend interface {
 	LookupGroup(group string) (*user.Group, error)
 	// LookupGroupByID retrieves a group by its ID.
 	LookupGroupByID(gid string) (*user.Group, error)
+	// SetUserGroups sets a user's groups, replacing their existing groups.
+	SetUserGroups(name string, groups []string) error
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
-	CreateUser(name string, groups []string, uid, gid string) error
+	CreateUser(name string, groups []string, home, uid, gid string) error
 	// DeleteUser deletes a user from a host.
 	DeleteUser(name string) error
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
-	CreateHomeDirectory(user string, uid, gid string) error
+	CreateHomeDirectory(userHome string, uid, gid string) error
 }
 
 type userCloser struct {
@@ -139,8 +147,8 @@ func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
 }
 
 type HostUsers interface {
-	// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
-	CreateUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)
+	// UpsertUser creates a temporary Teleport user in the TeleportServiceGroup
+	UpsertUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)
 	// DeleteUser deletes a temporary Teleport user only if they are
 	// in a specified group
 	DeleteUser(name string, gid string) error
@@ -215,58 +223,10 @@ func (u *HostSudoersManagement) RemoveSudoers(name string) error {
 	return nil
 }
 
-// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
-func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
+// UpsertUser creates a temporary Teleport user in the TeleportServiceGroup
+func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
-	}
-
-	tempUser, err := u.backend.Lookup(name)
-	if err != nil && err != user.UnknownUserError(name) {
-		return nil, trace.Wrap(err)
-	}
-
-	if tempUser != nil {
-		gids, err := u.backend.UserGIDs(tempUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
-		if err != nil {
-			if isUnknownGroupError(err, types.TeleportServiceGroup) {
-				return nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
-			}
-			return nil, trace.Wrap(err)
-		}
-		var found bool
-		for _, gid := range gids {
-			if gid == systemGroup.Gid {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, trace.AlreadyExists("User %q already exists and is not managed by teleport", name)
-		}
-
-		err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
-			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
-				return trace.Wrap(err)
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// try to delete even if the user already exists as only users
-		// in the teleport-system group will be deleted and this way
-		// if a user creates multiple sessions the account will
-		// succeed in deletion
-		return &userCloser{
-			username: name,
-			users:    u,
-			backend:  u.backend,
-		}, trace.AlreadyExists("User %q already exists", name)
 	}
 
 	groups := make([]string, 0, len(ui.Groups))
@@ -292,9 +252,86 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		return nil, trace.WrapWithMessage(err, "error while creating groups")
 	}
 
+	tempUser, err := u.backend.Lookup(name)
+	if err != nil && !errors.Is(err, user.UnknownUserError(name)) {
+		return nil, trace.Wrap(err)
+	}
+
+	if tempUser != nil {
+		// Collect actions that need to be done together under a lock on the user.
+		actionsUnderLock := []func() error{
+			func() error {
+				// If the user exists, set user groups again as they might have changed.
+				return trace.Wrap(u.backend.SetUserGroups(name, groups))
+			},
+		}
+		doWithUserLock := func() error {
+			return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
+				for _, action := range actionsUnderLock {
+					if err := action(); err != nil {
+						return trace.Wrap(err)
+					}
+				}
+				return nil
+			}))
+		}
+
+		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
+		if err != nil {
+			if isUnknownGroupError(err, types.TeleportServiceGroup) {
+				// Teleport service group doesn't exist, so we don't need to update interaction time.
+				return nil, trace.Wrap(doWithUserLock())
+			}
+			return nil, trace.Wrap(err)
+		}
+		gids, err := u.backend.UserGIDs(tempUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var found bool
+		for _, gid := range gids {
+			if gid == systemGroup.Gid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// User isn't managed by Teleport, so we don't need to update interaction time.
+			return nil, trace.Wrap(doWithUserLock())
+		}
+
+		actionsUnderLock = append(actionsUnderLock, func() error {
+			return trace.Wrap(u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()))
+		})
+		if err := doWithUserLock(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// try to delete even if the user already exists as only users
+		// in the teleport-system group will be deleted and this way
+		// if a user creates multiple sessions the account will
+		// succeed in deletion
+		return &userCloser{
+			username: name,
+			users:    u,
+			backend:  u.backend,
+		}, nil
+	}
+
+	var home string
+	if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+		//nolint:staticcheck // SA4023. False positive on macOS.
+		home, err = readDefaultHome(name)
+		//nolint:staticcheck // SA4023. False positive on macOS.
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
-			return trace.Wrap(err)
+		if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		if ui.GID != "" {
 			// if gid is specified a group must already exist
@@ -304,7 +341,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			}
 		}
 
-		err = u.backend.CreateUser(name, groups, ui.UID, ui.GID)
+		err = u.backend.CreateUser(name, groups, home, ui.UID, ui.GID)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
@@ -314,8 +351,8 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			return trace.Wrap(err)
 		}
 
-		if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-			if err := u.backend.CreateHomeDirectory(name, user.Uid, user.Gid); err != nil {
+		if home != "" {
+			if err := u.backend.CreateHomeDirectory(home, user.Uid, user.Gid); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -327,7 +364,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 	}
 
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
-		return nil, trace.Wrap(err)
+		return nil, nil
 	}
 
 	closer := &userCloser{
@@ -459,9 +496,15 @@ func (u *HostUserManagement) UserCleanup() {
 	cleanupTicker := time.NewTicker(time.Minute * 5)
 	defer cleanupTicker.Stop()
 	for {
-		if err := u.DeleteAllUsers(); err != nil {
+		err := u.DeleteAllUsers()
+		switch {
+		case trace.IsNotFound(err):
+			log.Debugf("Error during temporary user cleanup: %s, stopping cleanup job", err)
+			return
+		case err != nil:
 			log.Error("Error during temporary user cleanup: ", err)
 		}
+
 		select {
 		case <-cleanupTicker.C:
 		case <-u.ctx.Done():
@@ -479,7 +522,7 @@ func (u *HostUserManagement) Shutdown() {
 func (u *HostUserManagement) UserExists(username string) error {
 	_, err := u.backend.Lookup(username)
 	if err != nil {
-		if err == user.UnknownUserError(username) {
+		if errors.Is(err, user.UnknownUserError(username)) {
 			return trace.NotFound("User not found: %s", err)
 		}
 		return trace.Wrap(err)

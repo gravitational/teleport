@@ -21,11 +21,15 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
@@ -38,6 +42,8 @@ import (
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
+	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request
+	defaultAccessMonitoringRulePageSize = 10
 )
 
 // App is the access request application for plugins. This will notify when access requests
@@ -50,11 +56,20 @@ type App struct {
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
+
+	accessMonitoringRules amrMap
+}
+
+type amrMap struct {
+	sync.RWMutex
+	rules map[string]*accessmonitoringrulesv1.AccessMonitoringRule
 }
 
 // NewApp will create a new access request application.
 func NewApp(bot MessagingBot) common.App {
-	app := &App{}
+	app := &App{accessMonitoringRules: amrMap{
+		rules: make(map[string]*accessmonitoringrulesv1.AccessMonitoringRule),
+	}}
 	app.job = lib.NewServiceJob(app.run)
 	return app
 }
@@ -111,7 +126,10 @@ func (a *App) run(ctx context.Context) error {
 	job, err := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch: types.Watch{Kinds: []types.WatchKind{
+				{Kind: types.KindAccessRequest},
+				{Kind: types.KindAccessMonitoringRule},
+			}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -127,6 +145,10 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	a.job.SetReady(ok)
 	if !ok {
 		return trace.BadParameter("job not ready")
@@ -136,12 +158,28 @@ func (a *App) run(ctx context.Context) error {
 	return nil
 }
 
+func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+	if amr.Spec.Notification.Name != a.pluginName {
+		return false
+	}
+	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
+		return subject == types.KindAccessRequest
+	})
+}
+
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
-	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
-		return trace.Errorf("unexpected kind %s", kind)
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.handleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAcessRequest(ctx, event))
 	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 	op := event.Type
 	reqID := event.Resource.GetName()
 	ctx, _ = logger.WithField(ctx, "request_id", reqID)
@@ -151,7 +189,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
-			return trace.Errorf("unexpected resource type %T", event.Resource)
+			return trace.BadParameter("unexpected resource type %T", event.Resource)
 		}
 		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
 
@@ -179,6 +217,39 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 			log.WithError(err).Errorf("Failed to process deleted request")
 			return trace.Wrap(err)
 		}
+		return nil
+	default:
+		return trace.BadParameter("unexpected event operation %s", op)
+	}
+}
+
+func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event) error {
+	if kind := event.Resource.GetKind(); kind != types.KindAccessMonitoringRule {
+		return trace.BadParameter("expected %s resource kind, got %s", types.KindAccessMonitoringRule, kind)
+	}
+
+	a.accessMonitoringRules.Lock()
+	defer a.accessMonitoringRules.Unlock()
+	switch op := event.Type; op {
+	case types.OpPut:
+		e, ok := event.Resource.(types.Resource153Unwrapper)
+		if !ok {
+			return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
+		}
+		req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
+		if !ok {
+			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
+		}
+
+		// In the event an existing rule no longer applies we must remove it.
+		if !a.amrAppliesToThisPlugin(req) {
+			delete(a.accessMonitoringRules.rules, event.Resource.GetName())
+			return nil
+		}
+		a.accessMonitoringRules.rules[req.Metadata.Name] = req
+		return nil
+	case types.OpDelete:
+		delete(a.accessMonitoringRules.rules, event.Resource.GetName())
 		return nil
 	default:
 		return trace.BadParameter("unexpected event operation %s", op)
@@ -345,6 +416,14 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := common.NewRecipientSet()
 
+	recipients := a.recipientsFromAccessMonitoringRules(ctx, req)
+	recipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r)
+	})
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
+	}
+
 	switch a.pluginType {
 	case types.PluginTypeServiceNow:
 		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
@@ -352,16 +431,19 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		recipientSet.Add(common.Recipient{})
 		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
-		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
-			for _, recipient := range recipients {
-				rec, err := a.bot.FetchRecipient(ctx, recipient)
-				if err != nil {
-					log.Warning(err)
-				}
-				recipientSet.Add(*rec)
-			}
+		recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
+		if !ok {
 			return recipientSet.ToSlice()
 		}
+		for _, recipient := range recipients {
+			rec, err := a.bot.FetchRecipient(ctx, recipient)
+			if err != nil {
+				log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
+				continue
+			}
+			recipientSet.Add(*rec)
+		}
+		return recipientSet.ToSlice()
 	}
 
 	validEmailSuggReviewers := []string{}
@@ -384,6 +466,40 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	}
 
 	return recipientSet.ToSlice()
+}
+
+func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) *common.RecipientSet {
+	log := logger.Get(ctx)
+	recipientSet := common.NewRecipientSet()
+
+	// This switch is used to determine which plugins we are enabling access monitoring notification rules for.
+	switch a.pluginType {
+	// Enabled plugins are added to this case.
+	case types.PluginTypeSlack, types.PluginTypeMattermost:
+		log.Debug("Applying access monitoring rules to request")
+	default:
+		return &recipientSet
+	}
+
+	for _, rule := range a.getAccessMonitoringRules() {
+		match, err := matchAccessRequest(rule.Spec.Condition, req)
+		if err != nil {
+			log.WithError(err).WithField("rule", rule.Metadata.Name).
+				Warn("Failed to parse access monitoring notification rule")
+		}
+		if !match {
+			continue
+		}
+		for _, recipient := range rule.Spec.Notification.Recipients {
+			rec, err := a.bot.FetchRecipient(ctx, recipient)
+			if err != nil {
+				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access moniotring rule recipients")
+				continue
+			}
+			recipientSet.Add(*rec)
+		}
+	}
+	return &recipientSet
 }
 
 // updateMessages updates the messages status and adds the resolve reason.
@@ -427,8 +543,13 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	if err := a.bot.UpdateMessages(ctx, reqID, reqData, sentMessages, reviews); err != nil {
 		return trace.Wrap(err)
 	}
-
 	log.Infof("Successfully marked request as %s in all messages", tag)
+
+	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Successfully notified user %s request marked as %s", reqData.User, tag)
 
 	return nil
 }
@@ -452,4 +573,46 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 	}
 	return resourceNames, nil
+}
+
+func (a *App) initAccessMonitoringRulesCache(ctx context.Context) error {
+	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.accessMonitoringRules.Lock()
+	defer a.accessMonitoringRules.Unlock()
+	for _, amr := range accessMonitoringRules {
+		if !a.amrAppliesToThisPlugin(amr) {
+			continue
+		}
+		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+	}
+	return nil
+}
+
+func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
+	var nextToken string
+	for {
+		var page []*accessmonitoringrulesv1.AccessMonitoringRule
+		var err error
+		page, nextToken, err = a.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken, []string{types.KindAccessRequest}, a.pluginName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (a *App) getAccessMonitoringRules() map[string]*accessmonitoringrulesv1.AccessMonitoringRule {
+	a.accessMonitoringRules.RLock()
+	defer a.accessMonitoringRules.RUnlock()
+	return maps.Clone(a.accessMonitoringRules.rules)
 }

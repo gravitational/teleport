@@ -19,11 +19,15 @@
 package memory
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
@@ -62,4 +66,64 @@ func TestMemory(t *testing.T) {
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)
+}
+
+func TestIterateRange(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bk, err := New(Config{})
+	require.NoError(t, err)
+
+	// set up a generic bulk range to iterate
+	expectedKeys := make(map[string]struct{})
+	for i := 0; i < 500; i++ {
+		key := fmt.Sprintf("/bulk/%d", i)
+		expectedKeys[key] = struct{}{}
+
+		_, err = bk.Put(ctx, backend.Item{
+			Key:   []byte(key),
+			Value: []byte("v"),
+		})
+		require.NoError(t, err)
+	}
+
+	// check that observed range members match expectations
+	observedKeys := make(map[string]struct{})
+	err = backend.IterateRange(ctx, bk, []byte("/bulk/"), backend.RangeEnd([]byte("/bulk/")), 3, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			key := string(item.Key)
+
+			_, dup := observedKeys[key]
+			require.False(t, dup, "duplicate of %q", key)
+
+			_, exp := expectedKeys[key]
+			require.True(t, exp, "unexpected key %q", key)
+
+			observedKeys[key] = struct{}{}
+		}
+
+		return false, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, expectedKeys, observedKeys)
+
+	// set up a collection of keys that are suffixes of one another (ensures we aren't suffering from the classic 'pagination bug', where
+	// page breaks landing on some key K skip subsequent keys with prefix K).
+	for i := 0; i < 20; i++ {
+		_, err = bk.Put(ctx, backend.Item{
+			Key:   []byte("/suff/" + strings.Repeat("s", i+1)),
+			Value: []byte("s"),
+		})
+
+		require.NoError(t, err)
+	}
+
+	var scount int
+	err = backend.IterateRange(ctx, bk, []byte("/suff/"), backend.RangeEnd([]byte("/suff/")), 2, func(items []backend.Item) (stop bool, err error) {
+		scount += len(items)
+		return false, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 20, scount)
 }

@@ -68,12 +68,23 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
               component: EnrollRdsDatabase,
               eventName: DiscoverEvent.DatabaseRDSEnrollEvent,
             },
+            // There are two types of deploy service methods:
+            //  - manual: user deploys it whereever they want OR
+            //  - auto (default): we deploy for them using aws
+            //    fargate container
             {
               title: 'Deploy Database Service',
               component: DeployService,
               eventName: DiscoverEvent.DeployService,
               manuallyEmitSuccessEvent: true,
             },
+            // This step can be skipped for the following.
+            // In the enroll RDS step:
+            //  - if user opted to auto-enroll all databases
+            //  - or if a db service was already found and in the db server
+            //    polling result there is a iamPolicyStatus === Success
+            // Or if user auto deployed a database service (the first step
+            // requires them to configure IAM policy)
             {
               title: 'Configure IAM Policy',
               component: IamPolicy,

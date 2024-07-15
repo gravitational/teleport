@@ -39,7 +39,7 @@ const placeholdConfirm = /confirm password/i;
 
 const btnSubmitText = /update password/i;
 
-const inputValText = 'aaaaaa';
+const inputValText = 'aaaaaaaaaaaa';
 const inputVal = { target: { value: inputValText } };
 
 test('input validation error states', async () => {
@@ -60,7 +60,7 @@ test('input validation error states', async () => {
   expect(onChangePassWithWebauthn).not.toHaveBeenCalled();
 
   expect(screen.getByText(/current password is required/i)).toBeInTheDocument();
-  expect(screen.getByText(/enter at least 6 characters/i)).toBeInTheDocument();
+  expect(screen.getByText(/enter at least 12 characters/i)).toBeInTheDocument();
   expect(screen.getByText(/please confirm your password/i)).toBeInTheDocument();
   expect(screen.getByText(/token is required/i)).toBeInTheDocument();
 });

@@ -21,6 +21,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -207,7 +208,7 @@ func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.Auth, user
 func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		// Retrieve the auth token for Azure Cache for Redis. Use default user.
-		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx)
+		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx.Database)
 		if err != nil {
 			return "", "", trace.AccessDenied("failed to get Azure access key: %v", err)
 		}
@@ -220,7 +221,7 @@ func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.Auth) fetch
 func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		// Retrieve the auth token for AWS IAM ElastiCache.
-		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return "", "", trace.AccessDenied(
 				"failed to get AWS ElastiCache IAM auth token for %v: %v",
@@ -233,7 +234,7 @@ func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) 
 // memorydbIAMTokenFetchFunc fetches an AWS MemoryDB IAM auth token.
 func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
-		password, err := auth.GetMemoryDBToken(ctx, sessionCtx)
+		password, err := auth.GetMemoryDBToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return "", "", trace.AccessDenied(
 				"failed to get AWS MemoryDB IAM auth token for %v: %v",
@@ -355,7 +356,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 			}
 
 			result := c.Get(ctx, k)
-			if result.Err() == redis.Nil {
+			if errors.Is(result.Err(), redis.Nil) {
 				resultsKeys = append(resultsKeys, redis.Nil)
 				continue
 			}

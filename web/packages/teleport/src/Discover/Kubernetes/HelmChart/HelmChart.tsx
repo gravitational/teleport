@@ -18,12 +18,13 @@
 
 import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
+import { ResourceLabel } from 'teleport/services/agents';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -45,7 +46,6 @@ import {
   ActionButtons,
   Header,
   HeaderSubtitle,
-  Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
@@ -318,7 +318,7 @@ const StepTwo = ({
   );
 };
 
-const generateCmd = (data: {
+export type GenerateCmdProps = {
   namespace: string;
   clusterName: string;
   proxyAddr: string;
@@ -329,10 +329,17 @@ const generateCmd = (data: {
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
   automaticUpgradesTargetVersion: string;
-}) => {
+  joinLabels?: ResourceLabel[];
+  disableAppDiscovery?: boolean;
+};
+
+export function generateCmd(data: GenerateCmdProps) {
   let extraYAMLConfig = '';
   let deployVersion = data.clusterVersion;
   let roles: JoinRole[] = ['Kube', 'App', 'Discovery'];
+  if (data.disableAppDiscovery) {
+    roles = ['Kube'];
+  }
 
   if (data.isEnterprise) {
     extraYAMLConfig += 'enterprise: true\n';
@@ -364,17 +371,23 @@ const generateCmd = (data: {
 
   const yamlRoles = roles.join(',').toLowerCase();
 
+  // whitespace in the beginning if a string is intentional, to correctly align in yaml.
+  const joinLabelsText = data.joinLabels
+    ? '\n' + data.joinLabels.map(l => `    ${l.name}: ${l.value}`).join('\n')
+    : '';
+
   return `cat << EOF > prod-cluster-values.yaml
 roles: ${yamlRoles}
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
 labels:
-    teleport.internal/resource-id: ${data.resourceId}
+    teleport.internal/resource-id: ${data.resourceId}${joinLabelsText}
 ${extraYAMLConfig}EOF
  
-helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} --create-namespace --namespace ${data.namespace}`;
-};
+helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} \\
+--create-namespace --namespace ${data.namespace}`;
+}
 
 const InstallHelmChart = ({
   namespace,

@@ -5,10 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "yarn build-wasm && vite",
-    "build-wasm": "wasm-pack build ./src/ironrdp --target web",
-    "build": "yarn build-wasm && vite build",
-    "test": "npx jest",
-    "tdd": "jest . --watch"
+    "build-wasm": "RUST_MIN_STACK=16777216 wasm-pack build ./src/ironrdp --target web",
+    "build": "yarn build-wasm && vite build"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
@@ -20,16 +18,34 @@
   "dependencies": {
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
-    "xterm": "^5.0.0",
-    "xterm-addon-fit": "^0.7.0",
-    "xterm-addon-web-links": "^0.8.0"
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/context-zone": "1.25.1",
+    "@opentelemetry/core": "^1.8.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.52.1",
+    "@opentelemetry/instrumentation": "0.52.1",
+    "@opentelemetry/instrumentation-document-load": "0.39.0",
+    "@opentelemetry/instrumentation-fetch": "0.52.1",
+    "@opentelemetry/instrumentation-user-interaction": "0.39.0",
+    "@opentelemetry/instrumentation-xml-http-request": "0.52.1",
+    "@opentelemetry/propagator-b3": "1.25.1",
+    "@opentelemetry/resources": "1.25.1",
+    "@opentelemetry/sdk-trace-base": "1.25.1",
+    "@opentelemetry/sdk-trace-web": "1.25.1",
+    "@opentelemetry/semantic-conventions": "1.25.1",
+    "create-react-class": "^15.6.3",
+    "events": "3.3.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-canvas": "^0.5.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-web-links": "^0.9.0",
+    "xterm-addon-webgl": "^0.16.0"
   },
   "devDependencies": {
+    "@gravitational/build": "^1.0.0",
     "babel-plugin-transform-import-meta": "^2.2.0",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
-    "@gravitational/build": "^1.0.0",
-    "@types/wicg-file-system-access": "^2020.9.5",
-    "jest-canvas-mock": "^2.3.1",
-    "ts-loader": "^9.4.2"
+    "jest-canvas-mock": "^2.5.2",
+    "jest-websocket-mock": "^2.5.0",
+    "react-select-event": "^5.5.1"
   }
 }

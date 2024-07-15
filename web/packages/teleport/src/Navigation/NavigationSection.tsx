@@ -37,7 +37,8 @@ const Title = styled.h3`
   line-height: 14px;
   color: ${props => props.theme.colors.text.slightlyMuted};
   margin-left: 32px;
-  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1),
+  transition:
+    transform 0.3s cubic-bezier(0.19, 1, 0.22, 1),
     opacity 0.15s ease-in;
   will-change: transform;
   margin-top: 33px;

@@ -20,19 +20,19 @@ package pgcommon
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
-	"github.com/sirupsen/logrus"
 )
 
 // AzureBeforeConnect will return a pgx BeforeConnect function suitable for
 // Azure AD authentication. The returned function will set the password of the
 // connection to a token for the relevant scope.
-func AzureBeforeConnect(log logrus.FieldLogger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
+func AzureBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Azure credentials")
@@ -48,7 +48,7 @@ func AzureBeforeConnect(log logrus.FieldLogger) (func(ctx context.Context, confi
 			return trace.Wrap(err, "obtaining Azure authentication token")
 		}
 
-		log.WithField("ttl", time.Until(token.ExpiresOn).String()).Debug("Acquired Azure access token.")
+		logger.DebugContext(ctx, "Acquired Azure access token.", "ttl", time.Until(token.ExpiresOn).String())
 		config.Password = token.Token
 
 		return nil

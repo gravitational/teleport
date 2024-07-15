@@ -21,7 +21,6 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -181,6 +180,7 @@ func TestClickableURL(t *testing.T) {
 		{info: "unspecified IPV4", in: "http://0.0.0.0:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
 		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
 		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
+		{info: "hostname", in: "http://example.com:3000/howdy", out: "http://example.com:3000/howdy"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.info, func(t *testing.T) {
@@ -559,45 +559,6 @@ func TestStringsSet(t *testing.T) {
 	out := StringsSet(nil)
 	require.Empty(t, out)
 	require.NotNil(t, out)
-}
-
-// TestRepeatReader tests repeat reader
-func TestRepeatReader(t *testing.T) {
-	t.Parallel()
-
-	type tc struct {
-		name     string
-		repeat   byte
-		count    int
-		expected string
-	}
-	tcs := []tc{
-		{
-			name:     "repeat once",
-			repeat:   byte('a'),
-			count:    1,
-			expected: "a",
-		},
-		{
-			name:     "repeat zero times",
-			repeat:   byte('a'),
-			count:    0,
-			expected: "",
-		},
-		{
-			name:     "repeat multiple times",
-			repeat:   byte('a'),
-			count:    3,
-			expected: "aaa",
-		},
-	}
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			data, err := io.ReadAll(NewRepeatReader(tc.repeat, tc.count))
-			require.NoError(t, err)
-			require.Equal(t, tc.expected, string(data))
-		})
-	}
 }
 
 func TestReadAtMost(t *testing.T) {

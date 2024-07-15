@@ -20,26 +20,28 @@ import { unique } from 'teleterm/ui/utils';
 
 import Logger from 'teleterm/logger';
 
+import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
+
 import { PtyProcess } from './ptyProcess';
-import { IPtyHostServer } from './../api/protogen/ptyHostService_grpc_pb';
+import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyCwd, PtyId } from './../api/protogen/ptyHostService_pb';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 
-export function createPtyHostService(): IPtyHostServer {
+export function createPtyHostService(): IPtyHost {
   const logger = new Logger('PtyHostService');
   const ptyProcesses = new Map<string, PtyProcess>();
 
   return {
     createPtyProcess: (call, callback) => {
-      const ptyOptions = call.request.toObject();
+      const ptyOptions = call.request;
       const ptyId = unique();
       try {
         const ptyProcess = new PtyProcess({
           path: ptyOptions.path,
-          args: ptyOptions.argsList,
+          args: ptyOptions.args,
           cwd: ptyOptions.cwd,
           ptyId,
-          env: call.request.getEnv()?.toJavaScript() as Record<string, string>,
+          env: Struct.toJson(call.request.env!) as Record<string, string>,
           initMessage: ptyOptions.initMessage,
         });
         ptyProcesses.set(ptyId, ptyProcess);
@@ -48,11 +50,11 @@ export function createPtyHostService(): IPtyHostServer {
         callback(error);
         return;
       }
-      callback(null, new PtyId().setId(ptyId));
+      callback(null, PtyId.create({ id: ptyId }));
       logger.info(`created PTY process for id ${ptyId}`);
     },
     getCwd: (call, callback) => {
-      const id = call.request.getId();
+      const id = call.request.id;
       const ptyProcess = ptyProcesses.get(id);
       if (!ptyProcess) {
         const message = `PTY process with id: ${id} does not exist`;
@@ -62,7 +64,7 @@ export function createPtyHostService(): IPtyHostServer {
       ptyProcess
         .getCwd()
         .then(cwd => {
-          const response = new PtyCwd().setCwd(cwd);
+          const response = PtyCwd.create({ cwd });
           callback(null, response);
         })
         .catch(error => {

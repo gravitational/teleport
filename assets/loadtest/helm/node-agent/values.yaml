@@ -6,7 +6,7 @@ authServer: ""
 minReadySeconds: 0
 
 image:
-  repository: public.ecr.aws/gravitational/teleport
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless-debug
   pullPolicy: IfNotPresent
   tag: ""
 
@@ -17,8 +17,13 @@ joinParams:
   # the kubernetes join method is not currently suited for joining a large amount of nodes in a short time
   method: token
   # DO NOT USE THIS IN PRODUCTION
-  token_name: qwertyuiop
+  token_name: ""
 
 tolerations: []
 
 affinity: {}
+
+tls:
+  existingCASecretName: ""
+
+labels: {}

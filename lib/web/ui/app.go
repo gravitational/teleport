@@ -19,13 +19,13 @@
 package ui
 
 import (
-	"fmt"
+	"cmp"
 	"sort"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -57,6 +57,14 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// SAMLAppPreset is the preset value of SAML IdP service provider. The SAML service provider
+	// preset value is used to process custom configuration for the service provider.
+	SAMLAppPreset string `json:"samlAppPreset,omitempty"`
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// Integration is the integration name that must be used to access this Application.
+	// Only applicable to AWS App Access.
+	Integration string `json:"integration,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -79,18 +87,21 @@ type MakeAppsConfig struct {
 	AppsToUserGroups map[string]types.UserGroups
 	// AppServersAndSAMLIdPServiceProviders is a list of AppServers and SAMLIdPServiceProviders.
 	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
-	// Identity is identity of the logged in user.
-	Identity *tlsca.Identity
+	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
+	// Only used for AWS Console Apps.
+	AllowedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
 	Logger logrus.FieldLogger
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool
 }
 
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
-	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
@@ -118,40 +129,48 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	resultApp := App{
-		Kind:         types.KindApp,
-		Name:         app.GetName(),
-		Description:  description,
-		URI:          app.GetURI(),
-		PublicAddr:   app.GetPublicAddr(),
-		Labels:       labels,
-		ClusterID:    c.AppClusterName,
-		FQDN:         fqdn,
-		AWSConsole:   app.IsAWSConsole(),
-		FriendlyName: types.FriendlyName(app),
-		UserGroups:   userGroupAndDescriptions,
-		SAMLApp:      false,
+		Kind:            types.KindApp,
+		Name:            app.GetName(),
+		Description:     description,
+		URI:             app.GetURI(),
+		PublicAddr:      app.GetPublicAddr(),
+		Labels:          labels,
+		ClusterID:       c.AppClusterName,
+		FQDN:            fqdn,
+		AWSConsole:      app.IsAWSConsole(),
+		FriendlyName:    types.FriendlyName(app),
+		UserGroups:      userGroupAndDescriptions,
+		SAMLApp:         false,
+		RequiresRequest: c.RequiresRequest,
+		Integration:     app.GetIntegration(),
 	}
 
 	if app.IsAWSConsole() {
-		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 			app.GetAWSAccountID())
 	}
 
 	return resultApp
 }
 
-// MakeSAMLApp creates a SAMLIdPServiceProvider object for the WebUI.
-func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
+// MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
+// Keep in sync with lib/teleterm/apiserver/handler/handler_apps.go.
+// Note: The SAMLAppPreset field is used in SAML service provider update flow in the
+// Web UI. Thus, this field is currently not available in the Connect App type.
+func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{
-		Kind:         types.KindApp,
-		Name:         app.GetName(),
-		Description:  "SAML Application",
-		PublicAddr:   "",
-		Labels:       labels,
-		ClusterID:    c.AppClusterName,
-		FriendlyName: types.FriendlyName(app),
-		SAMLApp:      true,
+		Kind:            types.KindApp,
+		Name:            app.GetName(),
+		Description:     "SAML Application",
+		PublicAddr:      "",
+		Labels:          labels,
+		ClusterID:       c.AppClusterName,
+		FriendlyName:    types.FriendlyName(app),
+		SAMLApp:         true,
+		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
+		RequiresRequest: c.RequiresRequest,
 	}
 
 	return resultApp
@@ -163,7 +182,7 @@ func MakeApps(c MakeAppsConfig) []App {
 	for _, appOrSP := range c.AppServersAndSAMLIdPServiceProviders {
 		if appOrSP.IsAppServer() {
 			app := appOrSP.GetAppServer().GetApp()
-			fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+			fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 			labels := makeLabels(app.GetAllLabels())
 
 			userGroups := c.AppsToUserGroups[app.GetName()]
@@ -192,7 +211,8 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			if app.IsAWSConsole() {
-				resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+				allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+				resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 					app.GetAWSAccountID())
 			}
 
@@ -215,20 +235,4 @@ func MakeApps(c MakeAppsConfig) []App {
 	}
 
 	return result
-}
-
-// AssembleAppFQDN returns the application's FQDN.
-//
-// If the application is running within the local cluster and it has a public
-// address specified, the application's public address is used.
-//
-// In all other cases, i.e. if the public address is not set or the application
-// is running in a remote cluster, the FQDN is formatted as
-// <appName>.<localProxyDNSName>
-func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app types.Application) string {
-	isLocalCluster := localClusterName == appClusterName
-	if isLocalCluster && app.GetPublicAddr() != "" {
-		return app.GetPublicAddr()
-	}
-	return fmt.Sprintf("%v.%v", app.GetName(), localProxyDNSName)
 }

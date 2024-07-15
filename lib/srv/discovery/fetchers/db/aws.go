@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -82,11 +83,11 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
 		}
 		cfg.Log = logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:" + component,
-			"labels":        cfg.Labels,
-			"region":        cfg.Region,
-			"role":          cfg.AssumeRole,
-			"credentials":   credentialsSource,
+			teleport.ComponentKey: "watch:" + component,
+			"labels":              cfg.Labels,
+			"region":              cfg.Region,
+			"role":                cfg.AssumeRole,
+			"credentials":         credentialsSource,
 		})
 	}
 	return nil

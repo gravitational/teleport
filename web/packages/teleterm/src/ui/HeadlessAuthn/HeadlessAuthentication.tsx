@@ -20,10 +20,12 @@ import React, { useRef, useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { HeadlessAuthenticationState } from 'teleterm/services/tshd/types';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 
@@ -38,7 +40,7 @@ interface HeadlessAuthenticationProps {
 
 export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
   const { headlessAuthenticationService, clustersService } = useAppContext();
-  const refAbortCtrl = useRef(clustersService.client.createAbortController());
+  const refAbortCtrl = useRef(new AbortController());
   const cluster = clustersService.findCluster(props.rootClusterUri);
 
   const [updateHeadlessStateAttempt, updateHeadlessState] = useAsync(
@@ -49,13 +51,13 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
           headlessAuthenticationId: props.headlessAuthenticationId,
           state: state,
         },
-        refAbortCtrl.current.signal
+        cloneAbortSignal(refAbortCtrl.current.signal)
       )
   );
 
   async function handleHeadlessApprove(): Promise<void> {
     const [, error] = await updateHeadlessState(
-      HeadlessAuthenticationState.HEADLESS_AUTHENTICATION_STATE_APPROVED
+      HeadlessAuthenticationState.APPROVED
     );
     if (!error) {
       props.onSuccess();
@@ -64,7 +66,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
 
   async function handleHeadlessReject(): Promise<void> {
     const [, error] = await updateHeadlessState(
-      HeadlessAuthenticationState.HEADLESS_AUTHENTICATION_STATE_DENIED
+      HeadlessAuthenticationState.DENIED
     );
     if (!error) {
       props.onSuccess();
@@ -83,7 +85,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
       clientIp={props.clientIp}
       skipConfirm={props.skipConfirm}
       onApprove={handleHeadlessApprove}
-      abortApproval={refAbortCtrl.current.abort}
+      abortApproval={() => refAbortCtrl.current.abort()}
       onReject={handleHeadlessReject}
       headlessAuthenticationId={props.headlessAuthenticationId}
       updateHeadlessStateAttempt={updateHeadlessStateAttempt}

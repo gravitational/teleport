@@ -123,7 +123,7 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
 	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onAppUpdate(ctx, app))
+		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -141,7 +141,7 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	return nil
 }
 
-func (s *Server) onAppUpdate(ctx context.Context, app types.Application) error {
+func (s *Server) onAppUpdate(ctx context.Context, app, _ types.Application) error {
 	s.Log.Debugf("Updating app %s.", app.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateApp(ctx, app))
 }

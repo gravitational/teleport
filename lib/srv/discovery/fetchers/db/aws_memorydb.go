@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -61,12 +60,12 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 
 	var eligibleClusters []*memorydb.Cluster
 	for _, cluster := range clusters {
-		if !services.IsMemoryDBClusterSupported(cluster) {
+		if !libcloudaws.IsMemoryDBClusterSupported(cluster) {
 			cfg.Log.Debugf("MemoryDB cluster %q is not supported. Skipping.", aws.StringValue(cluster.Name))
 			continue
 		}
 
-		if !services.IsMemoryDBClusterAvailable(cluster) {
+		if !libcloudaws.IsMemoryDBClusterAvailable(cluster) {
 			cfg.Log.Debugf("The current status of MemoryDB cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.Name),
 				aws.StringValue(cluster.Status))
@@ -102,8 +101,8 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 			}
 		}
 
-		extraLabels := services.ExtraMemoryDBLabels(cluster, tags, allSubnetGroups)
-		database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+		extraLabels := common.ExtraMemoryDBLabels(cluster, tags, allSubnetGroups)
+		database, err := common.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 		if err != nil {
 			cfg.Log.WithError(err).Infof("Could not convert memorydb cluster %q configuration endpoint to database resource.", aws.StringValue(cluster.Name))
 		} else {

@@ -6,7 +6,7 @@
     "allowSyntheticDefaultImports": true
   },
   "include": [
-    "web/packages/build/vite/*.ts",
-    "web/packages/teleport/vite.config.mts"
+    "e/web/**/*.mts",
+    "web/**/*.mts"
   ]
 }

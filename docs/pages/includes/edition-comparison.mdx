@@ -1,67 +1,79 @@
-### Access controls
+### Access Controls
 
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|[Access Requests](../access-controls/guides/dual-authz.mdx)|Limited|✔|✔|✖|
-|[Single Sign-On](../access-controls/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Teleport|
-|[Role-Based Access Control](../access-controls/guides/role-templates.mdx)|✔|✔|✔|✔|
-|[Moderated Sessions](../access-controls/guides/moderated-sessions.mdx)|✖|✔|✔|✖|
-|[Device Trust](../access-controls/device-trust/guide.mdx)|✖|✔|✔|✖|
-|[Dual Authorization](../access-controls/guides/dual-authz.mdx)|✖|✔|✔|✖|
-|[Hardware Key Support](../access-controls/guides/hardware-key-support.mdx)|✖|✔|✔|✖|
-
-### Infrastructure access
-
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|[Application Access](../application-access/getting-started.mdx)|✔|✔|✔|✔|
-|[Server Access](../server-access/getting-started.mdx)|✔|✔|✔|✔|
-|[Database Access](../database-access/getting-started.mdx)|✔|✔|✔|✔|
-|[Desktop Access](../desktop-access/introduction.mdx)|✔|✔|✔|✔|
-|[Kubernetes Access](../kubernetes-access/getting-started.mdx)|✔|✔|✔|✔|
-|[Machine ID](../machine-id/getting-started.mdx)|✔|✔|✔|✔|
-|Agentless Integration with [OpenSSH Servers](../server-access/guides/openssh.mdx)|✔|✔|✔|✔|
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|[Dual Authorization](../access-controls/guides/dual-authz.mdx)|✖|✔|✔|
+|[Hardware Key Support](../access-controls/guides/hardware-key-support.mdx)|✖|✔|✔|
+|[Moderated Sessions](../access-controls/guides/moderated-sessions.mdx)|✖|✔|✔|
+|[Role-Based Access Control](../access-controls/guides/role-templates.mdx)|✔|✔|✔|
+|[Single Sign-On](../access-controls/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Google Workspace, OIDC, SAML, Teleport|
 
 ### Audit logging and session recording
 
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|[Structured Audit Logs](../reference/audit.mdx)|✔|✔|✔|✔|
-|[Session Recording with Playback](../architecture/session-recording.mdx)|✔|✔|✔|✔|
-|[Recording Proxy Mode](../server-access/guides/recording-proxy-mode.mdx)|✔|✔|✖|✖|
-|[Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx)|✔|✔|✔|✔|
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|[Enhanced Session Recording](../enroll-resources/server-access/guides/bpf-session-recording.mdx)|✔|✔|✔|
+|[Recording Proxy Mode](../enroll-resources/server-access/guides/recording-proxy-mode.mdx)|✔|✔|✖|
+|[Session Recording with Playback](../architecture/session-recording.mdx)|✔|✔|✔|
+|[Structured Audit Logs](../reference/audit.mdx)|✔|✔|✔|
 
 ### Compliance
 
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|[FedRAMP Control](../access-controls/compliance-frameworks/fedramp.mdx)|✖|✔|✖|✖|
-|PCI DSS Features|Limited|✔|✔|Limited|
-|SOC 2 Features|Limited|✔|✔|Limited|
-|FIPS-compliant binaries available for FedRAMP High|✖|✔|✖|✖|
-|IP-Based Restrictions|✖|✔|✔|✖|
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|[FedRAMP Control](../access-controls/compliance-frameworks/fedramp.mdx)|✖|✔|✖|
+|FIPS-compliant binaries available for FedRAMP High|✖|✔|✖|
+|IP-Based Restrictions|✖|✔|✔|
+|PCI DSS Features|Limited|✔|✔|
+|SOC 2 Features|Limited|✔|✔|
 
-### Operations
+### Identity
 
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|Auth and Proxy Service Management|Self-hosted|Self-hosted|Fully managed|Fully managed|
-|Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|A subdomain of `teleport.sh`|
-|Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|Deploys last stable release with 2-3 week lag for stability.|
-|[Backend support](../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption.|All data is stored in DynamoDB and S3 with server-side encryption.|
-|Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access.|Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access.|
-|[Hardware Security Module support](../choose-an-edition/teleport-enterprise/hsm.mdx) for encryption at rest|✖|✔|✖|✖|
+_Available as an add-on to Teleport Enterprise_
 
-### Support
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|[Access Monitoring & Response](../access-controls/access-monitoring.mdx)|✖|✔|✔|
+|[Access Lists & Access Reviews](../access-controls/access-lists.mdx)|✖|✔|✔|
+|[Device Trust](../access-controls/device-trust/guide.mdx)|✖|✔|✔|
+|[Endpoint Management: Jamf](../access-controls/device-trust/jamf-integration.mdx)|✖|✔|✔|
+|[JIT Access Requests](../access-controls/guides/dual-authz.mdx)|Limited|✔|✔|
+|[Session & Identity Locks](../access-controls/guides/locking.mdx)|✖|✔|✔|
 
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|Support|Community|24x7 support with premium SLAs and account managers|24x7 support with premium SLAs and account managers|Community|
+### Infrastructure access
+
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|Agentless Integration with [OpenSSH Servers](../enroll-resources/server-access/openssh/openssh.mdx)|✔|✔|✔|
+|[Application Access](../enroll-resources/application-access/getting-started.mdx)|✔|✔|✔|
+|[Database Access](../enroll-resources/database-access/getting-started.mdx)|✔|✔|✔|
+|[Desktop Access](../enroll-resources/desktop-access/introduction.mdx)|✔|✔|✔|
+|[Kubernetes Access](../enroll-resources/kubernetes-access/getting-started.mdx)|✔|✔|✔|
+|[Machine ID](../enroll-resources/machine-id/getting-started.mdx)|✔|✔|✔|
+|[Server Access](../enroll-resources/server-access/getting-started.mdx)|✔|✔|✔|
 
 ### Licensing and usage management
 
-||Open Source|Enterprise|Cloud|Team|
-|---|---|---|---|---|
-|Annual or multi-year contracts, volume discounts|✖|✔|✔|✖|
-|License|Apache 2|Commercial|Commercial|Commercial|
-|Anonymized Usage Tracking|Opt-in|✔|✔|✔|
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|Annual or multi-year contracts, volume discounts|✖|✔|✔|
+|Anonymized Usage Tracking|Opt-in|✔|✔|
+|License|Commercial|Commercial|Commercial|
+
+### Operations
+
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|Auth Service and Proxy Service Management|Self-hosted|Self-hosted|Fully managed|
+|[Backend support](../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption.|
+|Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access.|
+|[Hardware Security Module support](../choose-an-edition/teleport-enterprise/hsm.mdx) for encryption at rest|✖|✔|✖|
+|Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
+|Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
+
+### Support
+
+||Community Edition|Enterprise|Cloud|
+|---|---|---|---|
+|Support|Community|24x7 support with premium SLAs and account managers|24x7 support with premium SLAs and account managers|
+

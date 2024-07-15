@@ -22,8 +22,16 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+const (
+	MaxRDPScreenWidth  = 8192
+	MaxRDPScreenHeight = 8192
+)
+
+var _ compare.IsEqual[WindowsDesktop] = (*WindowsDesktopV3)(nil)
 
 // WindowsDesktopService represents a Windows desktop service instance.
 type WindowsDesktopService interface {
@@ -132,6 +140,10 @@ type WindowsDesktop interface {
 	// NonAD checks whether this is a standalone host that
 	// is not joined to an Active Directory domain.
 	NonAD() bool
+	// GetScreenSize returns the desired size of the screen to use for sessions
+	// to this host. Returns (0, 0) if no screen size is set, which means to
+	// use the size passed by the client over TDP.
+	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this windows desktop
 	Copy() *WindowsDesktopV3
 	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
@@ -179,7 +191,22 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if d.Spec.ScreenSize != nil {
+		if d.Spec.ScreenSize.Width > MaxRDPScreenWidth || d.Spec.ScreenSize.Height > MaxRDPScreenHeight {
+			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
+				d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
+		}
+	}
+
 	return nil
+}
+
+func (d *WindowsDesktopV3) GetScreenSize() (width, height uint32) {
+	if d.Spec.ScreenSize == nil {
+		return 0, 0
+	}
+	return d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height
 }
 
 // NonAD checks whether host is part of Active Directory
@@ -218,17 +245,12 @@ func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
 	return d.Copy()
 }
 
-// DeduplicateDesktops deduplicates desktops by name.
-func DeduplicateDesktops(desktops []WindowsDesktop) (result []WindowsDesktop) {
-	seen := make(map[string]struct{})
-	for _, desktop := range desktops {
-		if _, ok := seen[desktop.GetName()]; ok {
-			continue
-		}
-		seen[desktop.GetName()] = struct{}{}
-		result = append(result, desktop)
+// IsEqual determines if two windows desktop resources are equivalent to one another.
+func (d *WindowsDesktopV3) IsEqual(i WindowsDesktop) bool {
+	if other, ok := i.(*WindowsDesktopV3); ok {
+		return deriveTeleportEqualWindowsDesktopV3(d, other)
 	}
-	return result
+	return false
 }
 
 // Match checks if a given desktop request matches this filter.

@@ -20,7 +20,7 @@ Note that the design of session recording carries some security risks. Namely,
 users can conceal terminal commands by encoding them (e.g., using `base64`),
 running scripts from disk or the internet, or changing the terminal settings. If
 this presents an issue for your environment, consider using the BPF-based
-[Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx)
+[Enhanced Session Recording](../enroll-resources/server-access/guides/bpf-session-recording.mdx)
 instead.
 
 ### Kubernetes sessions
@@ -78,35 +78,52 @@ and `proxy-sync` identically (perform synchronous recording).
 
 </Admonition>
 
-### Record at Node
+### Record at the SSH node
 
 By default, Teleport performs recording at the SSH node. This is because Teleport's
-Proxy Server cannot see the SSH traffic to the node, it is encrypted end-to-end
-(from the SSH client to the SSH server).
+Proxy Server cannot see the SSH traffic to the node. It is encrypted end-to-end
+(from the SSH client to the SSH server):
 
-### Record at Proxy
+![session-recording-diagram](../../img/session-recording.svg)
 
-In some cases, it is desirable to perform the recording at Teleport's Proxy Server.
-For example, sessions to non-Teleport servers (like OpenSSH's `sshd`) can only be
-recorded at a Proxy Service instance. This is referred to as *Recording Proxy Mode*.
+### Record at the Proxy Service
 
-In this mode, the Proxy Server terminates (decrypts) the SSH connection and establishes
-its own SSH connection to the destination server, effectively becoming an authorized
-"man in the middle."
+In **Recording Proxy Mode**, the Proxy Service terminates (decrypts) the SSH
+connection using the certificate supplied by the client via SSH agent forwarding
+and then establishes its own SSH connection to the final destination server.
+This allows the Proxy Service to forward SSH session data to the auth server to
+be recorded, as shown below:
 
-We consider this mode to be less secure, as it grants additional privileges to the
-Proxy Server. Since the Proxy Server needs credentials to decrypt the SSH connection,
-it must be properly secured and is a higher value target for an attacker than a proxy
-that cannot decrypt the data flowing through it.
+![recording-proxy](../../img/recording-proxy.svg)
 
-Additionally, the credentials that the Proxy Server uses to decrypt the SSH connection are
-provided via SSH Agent Forwarding, so Agent Forwarding must be enabled to record at
-the Proxy Server.
+Recording Proxy Mode allows Teleport users to enable session recording for
+OpenSSH's servers running `sshd`, which is helpful when gradually transitioning
+large server fleets to Teleport.
+
+We consider Recording Proxy Mode to be less secure, as it grants additional
+privileges to the Proxy Service. Since the Proxy Service needs credentials to
+decrypt the SSH connection, it must be properly secured and is a higher value
+target for an attacker than a Proxy Service instance that cannot decrypt the
+data flowing through it.
+
+Additionally, the credentials that the Proxy Service uses to decrypt the SSH
+connection are provided via SSH Agent Forwarding, so Agent Forwarding must be
+enabled to record at the Proxy Service.
+
+However, there are advantages of proxy-based session recording too. When
+sessions are recorded at the SSH nodes, a root user can add iptables rules to
+prevent sessions logs from reaching the Auth Service. With sessions recorded at
+the Proxy Service, users with root privileges on nodes have no way of disabling
+the audit.
+
+See the [reference](../reference/audit.mdx#recorded-sessions) to learn how to
+turn on Recording Proxy Mode. Note that the recording mode is configured on the
+Auth Service.
 
 ### Synchronous recording
 
 When synchronous recording is enabled, the Teleport component doing the recording
-(which may be the Node or the Proxy Service instance depending on your configuration)
+(which may be the Teleport SSH Service or the Proxy Service instance depending on your configuration)
 submits each recording event to Teleport's Auth Server as it occurs. In this mode,
 failure to emit a recording event is considered fatal - the session will be terminated
 if an event cannot be recorded. This makes synchronous recording best suited for highly
@@ -118,8 +135,9 @@ or terminated due to temporary connection loss.
 In synchronous recording modes, the Auth Server receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
 it to the storage backend. Since data is streamed directly to the Auth Server,
-Teleport administrators don't need to be concerned with disk space on their Nodes
-and Proxy Service instances, as no recording data is written to those disks.
+Teleport administrators don't need to be concerned with disk space on their
+Teleport SSH Service and Proxy Service instances, as no recording data is
+written to those disks.
 
 ### Asynchronous recording
 
@@ -202,7 +220,6 @@ complete it.
 
 ## Related reading
 
-- [Recording Proxy Mode](../server-access/guides/recording-proxy-mode.mdx)
-- [SSH session recording](./nodes.mdx#ssh-session-recording)
+- [Recording Proxy Mode](../enroll-resources/server-access/guides/recording-proxy-mode.mdx)
 - [SSH recording modes](../reference/audit.mdx#modes)
-- [Desktop Access recording](../desktop-access/reference/sessions.mdx)
+- [Desktop Access recording](../enroll-resources/desktop-access/reference/sessions.mdx)

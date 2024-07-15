@@ -17,16 +17,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
-
+import Table from 'design/DataTable';
 import { Box, Indicator, Text, Flex } from 'design';
 import { Warning } from 'design/Icon';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import {
+  AwsOidcDeployEc2InstanceConnectEndpointRequest,
   SecurityGroup,
   integrationService,
 } from 'teleport/services/integrations';
@@ -61,6 +62,28 @@ export function CreateEc2Ice() {
     fetchStatus: 'disabled',
   });
 
+  const {
+    attempt: fetchSecurityGroupsAttempt,
+    setAttempt: setFetchSecurityGroupsAttempt,
+  } = useAttempt('');
+
+  const { attempt: deployEc2IceAttempt, setAttempt: setDeployEc2IceAttempt } =
+    useAttempt('');
+
+  const { emitErrorEvent, agentMeta, prevStep, nextStep, emitEvent } =
+    useDiscover();
+
+  const autoDiscoverEnabled = !!agentMeta.autoDiscovery;
+
+  useEffect(() => {
+    // It has been decided for now that with auto discover,
+    // default security groups will be used (in the request
+    // this is depicted as an empty value)
+    if (!autoDiscoverEnabled) {
+      fetchSecurityGroups();
+    }
+  }, []);
+
   function onSelectSecurityGroup(
     sg: SecurityGroup,
     e: React.ChangeEvent<HTMLInputElement>
@@ -73,21 +96,6 @@ export function CreateEc2Ice() {
       );
     }
   }
-
-  useEffect(() => {
-    fetchSecurityGroups();
-  }, []);
-
-  const {
-    attempt: fetchSecurityGroupsAttempt,
-    setAttempt: setFetchSecurityGroupsAttempt,
-  } = useAttempt('');
-
-  const { attempt: deployEc2IceAttempt, setAttempt: setDeployEc2IceAttempt } =
-    useAttempt('');
-
-  const { emitErrorEvent, agentMeta, prevStep, nextStep, emitEvent } =
-    useDiscover();
 
   async function fetchSecurityGroups() {
     const integration = agentMeta.awsIntegration;
@@ -117,17 +125,35 @@ export function CreateEc2Ice() {
   async function deployEc2InstanceConnectEndpoint() {
     const integration = agentMeta.awsIntegration;
 
-    setDeployEc2IceAttempt({ status: 'processing' });
-    setShowCreatingDialog(true);
-    try {
-      await integrationService.deployAwsEc2InstanceConnectEndpoint(
-        integration.name,
+    let endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[] = [];
+    if (autoDiscoverEnabled) {
+      endpoints = Object.values(
+        agentMeta.autoDiscovery.requiredVpcsAndSubnets
+      ).map(subnets => ({
+        // Being in this step of the flow means
+        // the requiredVpcsAndSubnets will always
+        // be defined.
+        subnetId: subnets[0],
+      }));
+    } else {
+      endpoints = [
         {
-          region: (agentMeta as NodeMeta).node.awsMetadata.region,
           subnetId: (agentMeta as NodeMeta).node.awsMetadata.subnetId,
           ...(selectedSecurityGroups.length && {
             securityGroupIds: selectedSecurityGroups,
           }),
+        },
+      ];
+    }
+
+    setDeployEc2IceAttempt({ status: 'processing' });
+    setShowCreatingDialog(true);
+    try {
+      await integrationService.deployAwsEc2InstanceConnectEndpoints(
+        integration.name,
+        {
+          region: agentMeta.awsRegion,
+          endpoints,
         }
       );
       // Capture event for deploying EICE.
@@ -137,6 +163,7 @@ export function CreateEc2Ice() {
           eventName: DiscoverEvent.EC2DeployEICE,
         }
       );
+      setDeployEc2IceAttempt({ status: 'success' });
     } catch (err) {
       const errMsg = getErrMessage(err);
       setShowCreatingDialog(false);
@@ -158,51 +185,33 @@ export function CreateEc2Ice() {
   return (
     <>
       <Box maxWidth="800px">
-        <Header>Create an EC2 Instance Connect Endpoint</Header>
+        <Header>
+          {autoDiscoverEnabled
+            ? 'Create EC2 Instance Connect Endpoints'
+            : 'Create an EC2 Instance Connect Endpoint'}
+        </Header>
         <Box width="800px">
           {deployEc2IceAttempt.status === 'failed' && (
             <Danger>{deployEc2IceAttempt.statusText}</Danger>
           )}
-          <Text mb={1} typography="h4">
-            Select AWS Security Groups to assign to the new EC2 Instance Connect
-            Endpoint:
-          </Text>
-          <Text mb={2}>
-            The security groups you pick should allow outbound connectivity for
-            the agent to be able to dial Teleport clusters. If you don't select
-            any security groups, the default one for the VPC will be used.
-          </Text>
-          {fetchSecurityGroupsAttempt.status === 'failed' && (
-            <>
-              <Flex my={3}>
-                <Warning size="medium" ml={1} mr={2} color="error.main" />
-                <Text>{fetchSecurityGroupsAttempt.statusText}</Text>
-              </Flex>
-              <ButtonBlueText ml={1} onClick={fetchSecurityGroups}>
-                Retry
-              </ButtonBlueText>
-            </>
-          )}
-          {fetchSecurityGroupsAttempt.status === 'processing' && (
-            <Flex width="352px" justifyContent="center" mt={3}>
-              <Indicator />
-            </Flex>
-          )}
-          {fetchSecurityGroupsAttempt.status === 'success' && (
-            <Box width="1000px">
-              <SecurityGroupPicker
-                items={tableData.items}
-                attempt={fetchSecurityGroupsAttempt}
-                fetchNextPage={() => fetchSecurityGroups()}
-                fetchStatus={tableData.fetchStatus}
-                onSelectSecurityGroup={onSelectSecurityGroup}
-                selectedSecurityGroups={selectedSecurityGroups}
-              />
-            </Box>
+          {autoDiscoverEnabled ? (
+            <CreateEndpointsForAutoDiscover
+              requiredVpcIdsAndSubnets={
+                agentMeta.autoDiscovery.requiredVpcsAndSubnets
+              }
+            />
+          ) : (
+            <SecurityGroups
+              fetchSecurityGroupsAttempt={fetchSecurityGroupsAttempt}
+              fetchSecurityGroups={fetchSecurityGroups}
+              tableData={tableData}
+              onSelectSecurityGroup={onSelectSecurityGroup}
+              selectedSecurityGroups={selectedSecurityGroups}
+            />
           )}
         </Box>
         <ActionButtons
-          onPrev={prevStep}
+          onPrev={deployEc2IceAttempt.status === 'success' ? null : prevStep}
           onProceed={() => handleOnProceed()}
           disableProceed={deployEc2IceAttempt.status === 'processing'}
         />
@@ -212,6 +221,99 @@ export function CreateEc2Ice() {
           nextStep={nextStep}
           retry={() => deployEc2InstanceConnectEndpoint()}
         />
+      )}
+    </>
+  );
+}
+
+function CreateEndpointsForAutoDiscover({
+  requiredVpcIdsAndSubnets,
+}: {
+  requiredVpcIdsAndSubnets: Record<string, string[]>;
+}) {
+  const items = Object.keys(requiredVpcIdsAndSubnets).map(key => ({
+    vpcId: key,
+    subnetId: requiredVpcIdsAndSubnets[key][0],
+  }));
+
+  return (
+    <Box mt={2}>
+      <Text mb={3}>
+        EC2 Instance Connect Endpoints will be created for the following VPC
+        ID's:
+      </Text>
+      <Table
+        data={items}
+        columns={[
+          {
+            key: 'vpcId',
+            headerText: 'VPC ID',
+          },
+          {
+            key: 'subnetId',
+            headerText: 'The subnet ID that will be used',
+          },
+        ]}
+        emptyText="No VPC ID's Found"
+      />
+    </Box>
+  );
+}
+
+function SecurityGroups({
+  fetchSecurityGroupsAttempt,
+  fetchSecurityGroups,
+  tableData,
+  onSelectSecurityGroup,
+  selectedSecurityGroups,
+}: {
+  fetchSecurityGroupsAttempt: Attempt;
+  fetchSecurityGroups(): Promise<void>;
+  tableData: TableData;
+  onSelectSecurityGroup(
+    sg: SecurityGroup,
+    e: React.ChangeEvent<HTMLInputElement>
+  ): void;
+  selectedSecurityGroups: string[];
+}) {
+  return (
+    <>
+      <Text mb={1} typography="h4">
+        Select AWS Security Groups to assign to the new EC2 Instance Connect
+        Endpoint:
+      </Text>
+      <Text mb={2}>
+        The security groups you pick should allow outbound connectivity for the
+        agent to be able to dial Teleport clusters. If you don't select any
+        security groups, the default one for the VPC will be used.
+      </Text>
+      {fetchSecurityGroupsAttempt.status === 'failed' && (
+        <>
+          <Flex my={3}>
+            <Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Text>{fetchSecurityGroupsAttempt.statusText}</Text>
+          </Flex>
+          <ButtonBlueText ml={1} onClick={fetchSecurityGroups}>
+            Retry
+          </ButtonBlueText>
+        </>
+      )}
+      {fetchSecurityGroupsAttempt.status === 'processing' && (
+        <Flex width="352px" justifyContent="center" mt={3}>
+          <Indicator />
+        </Flex>
+      )}
+      {fetchSecurityGroupsAttempt.status === 'success' && (
+        <Box width="1000px">
+          <SecurityGroupPicker
+            items={tableData.items}
+            attempt={fetchSecurityGroupsAttempt}
+            fetchNextPage={() => fetchSecurityGroups()}
+            fetchStatus={tableData.fetchStatus}
+            onSelectSecurityGroup={onSelectSecurityGroup}
+            selectedSecurityGroups={selectedSecurityGroups}
+          />
+        </Box>
       )}
     </>
   );

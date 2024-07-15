@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bufbuild/connect-go"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -132,6 +132,8 @@ func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv
 	}
 
 	// anonymized
+	// NOTE: for simplicity reasons the teleterm anonymization doesn't match the on-prem teleport anonymization.
+	// see https://github.com/gravitational/teleport/pull/35652#issuecomment-1865135970 for details
 	anonymizer, err := newClusterAnonymizer(req.GetAuthClusterId()) // authClusterId is sent with each event that needs to be anonymized
 	if err != nil {
 		return nil, trace.Wrap(err)

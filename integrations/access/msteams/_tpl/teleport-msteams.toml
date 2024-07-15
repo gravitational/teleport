@@ -1,0 +1,50 @@
+# Example ms teams plugin configuration TOML file
+
+# If true, recipients existence got checked on plugin start
+# When a recipient is checked, the app is installed for the user if it was not already.
+# This takes some time and does not fits well with HTTP timeouts, hence preload is necessary when a new
+# recipient is added.
+preload = true
+
+[teleport]
+# Teleport Auth/Proxy Server address.
+# addr = "example.com:3025"
+#
+# Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
+# For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
+
+# Credentials generated with `tctl auth sign`.
+#
+# When using --format=file:
+# identity = "/var/lib/teleport/plugins/msteams/auth_id"    # Identity file
+# refresh_identity = true                                   # Refresh identity file on a periodic basis.
+#
+# When using --format=tls:
+# client_key = "/var/lib/teleport/plugins/msteams/auth.key" # Teleport TLS secret key
+# client_crt = "/var/lib/teleport/plugins/msteams/auth.crt" # Teleport TLS certificate
+# root_cas = "/var/lib/teleport/plugins/msteams/auth.cas"   # Teleport CA certs
+addr = "localhost:3025"
+identity = "identity"
+
+[msapi]
+# MS API ID's. Please, check the documentation.
+app_id = "{{ .AppID }}"
+# Either contains the app secret or the path of a file containing the secret
+app_secret = "{{ .AppSecret }}"
+tenant_id = "{{ .TenantID }}"
+teams_app_id = "{{ .TeamsAppID }}"
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide msteams user email/id recipients for access requests for specific roles. 
+# role.suggested_reviewers will automatically be treated as additional email recipients.
+# "*" must be provided to match non-specified roles.
+#
+# "dev" = "devs-slack-channel"
+# "*" = ["admin@email.com", "admin-slack-channel"]
+"*" = ["foo@example.com"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/msteams.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

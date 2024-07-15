@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -98,20 +99,36 @@ func (g *TermManager) writeToClients(p []byte) {
 	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
+	var toDelete []struct {
+		key string
+		err error
+	}
 	for key, w := range g.writers {
 		_, err := w.Write(p)
 		if err != nil {
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				log.Warnf("Failed to write to remote terminal: %v", err)
 			}
-
-			// Let term manager decide how to handle broken party writers
-			if g.OnWriteError != nil {
-				g.OnWriteError(key, err)
-			}
+			toDelete = append(
+				toDelete, struct {
+					key string
+					err error
+				}{key, err})
 
 			delete(g.writers, key)
 		}
+	}
+
+	// Let term manager decide how to handle broken party writers
+	if g.OnWriteError != nil {
+		// writeToClients is called with the lock held, so we need to release it
+		// before calling OnWriteError to avoid a deadlock if OnWriteError
+		// calls DeleteWriter/DeleteReader.
+		g.mu.Unlock()
+		for _, deleteWriter := range toDelete {
+			g.OnWriteError(deleteWriter.key, deleteWriter.err)
+		}
+		g.mu.Lock()
 	}
 }
 
@@ -216,14 +233,19 @@ func (g *TermManager) DeleteWriter(name string) {
 }
 
 func (g *TermManager) AddReader(name string, r io.Reader) {
+	// AddReader is called by goroutines so we need to hold the lock.
+	g.mu.Lock()
 	g.readerState[name] = false
+	g.mu.Unlock()
 
 	go func() {
 		for {
 			buf := make([]byte, 1024)
 			n, err := r.Read(buf)
 			if err != nil {
-				log.Warnf("Failed to read from remote terminal: %v", err)
+				if !errors.Is(err, io.EOF) {
+					log.Warnf("Failed to read from remote terminal: %v", err)
+				}
 				// Let term manager decide how to handle broken party readers.
 				if g.OnReadError != nil {
 					g.OnReadError(name, err)

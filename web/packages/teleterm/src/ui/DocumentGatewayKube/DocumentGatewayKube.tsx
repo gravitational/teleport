@@ -28,7 +28,7 @@ import Document from 'teleterm/ui/Document';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import { routing } from 'teleterm/ui/uri';
 
-import { Reconnect } from './Reconnect';
+import { OfflineGateway } from '../components/OfflineGateway';
 
 /**
  * DocumentGatewayKube creates a terminal session that presets KUBECONFIG env
@@ -54,16 +54,22 @@ export const DocumentGatewayKube = (props: {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const { params } = routing.parseKubeUri(doc.targetUri);
+  const gateway = ctx.clustersService.findGatewayByConnectionParams(
+    doc.targetUri,
+    ''
+  );
+  const connected = !!gateway;
+
   const [connectAttempt, createGateway] = useAsync(async () => {
     documentsService.update(doc.uri, { status: 'connecting' });
 
     try {
       await retryWithRelogin(ctx, doc.targetUri, () =>
-        // Creating a kube gateway twice with the same params is a noop. tshd
-        // will return the URI of an already existing gateway.
         ctx.clustersService.createGateway({
           targetUri: doc.targetUri,
-          user: '',
+          targetSubresourceName: '',
+          targetUser: '',
+          localPort: '',
         })
       );
     } catch (error) {
@@ -72,31 +78,30 @@ export const DocumentGatewayKube = (props: {
     }
   });
 
-  useEffect(() => {
-    if (connectAttempt.status === '') {
-      createGateway();
-    }
+  useEffect(
+    function createGatewayOnMount() {
+      // Only creates a gateway if we don't have it for the given params.
+      if (!gateway && connectAttempt.status === '') {
+        createGateway();
+      }
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    []
+  );
 
-  switch (connectAttempt.status) {
-    case 'success': {
-      return <DocumentTerminal doc={doc} visible={visible} />;
-    }
-
-    case 'error': {
-      return (
-        <Reconnect
-          kubeId={params.kubeId}
-          statusText={connectAttempt.statusText}
+  if (!connected) {
+    return (
+      <Document visible={visible}>
+        <OfflineGateway
+          connectAttempt={connectAttempt}
+          targetName={params.kubeId}
+          gatewayKind="kube"
           reconnect={createGateway}
+          gatewayPort={{ isSupported: false }}
         />
-      );
-    }
-
-    default: {
-      // Show waiting animation.
-      return <Document visible={visible} />;
-    }
+      </Document>
+    );
   }
+
+  return <DocumentTerminal doc={doc} visible={visible} />;
 };

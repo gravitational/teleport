@@ -59,7 +59,7 @@ export function RegisterSuccess({
         <Image src={shieldCheck} width="200px" height="143px" />
       </Flex>
       <Text fontSize={2} color="text.slightlyMuted" mb={4}>
-        Congratulations your {actionTxt} is completed.
+        Congratulations, your {actionTxt} is completed.
         <br />
         Proceed to access your account.
       </Text>

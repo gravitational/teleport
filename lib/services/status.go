@@ -30,7 +30,7 @@ type Status interface {
 	// GetClusterAlerts loads all matching cluster alerts.
 	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
 
-	// UpsertClusterAlert creates the specified alert, overwriting any preexising alert with the same ID.
+	// UpsertClusterAlert creates the specified alert, overwriting any preexisting alert with the same ID.
 	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
 
 	// CreateAlertAck marks a cluster alert as acknowledged.

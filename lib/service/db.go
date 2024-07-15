@@ -47,10 +47,9 @@ func (process *TeleportProcess) initDatabases() {
 }
 
 func (process *TeleportProcess) initDatabaseService() (retErr error) {
-	log := process.log.WithField(trace.Component, teleport.Component(
-		teleport.ComponentDatabase, process.id))
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id))
 
-	conn, err := process.WaitForConnector(DatabasesIdentityEvent, log)
+	conn, err := process.WaitForConnector(DatabasesIdentityEvent, logger)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
@@ -82,13 +81,16 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if err := services.ValidateDatabase(db); err != nil {
+			return trace.Wrap(err)
+		}
 		databases = append(databases, db)
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       log,
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -96,17 +98,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ServerIdentity.ClusterName
+	clusterName := conn.ClusterName()
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      log,
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -117,7 +119,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			warnOnErr(asyncEmitter.Close(), process.log)
+			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
 		}
 	}()
 
@@ -171,7 +173,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			warnOnErr(dbService.Close(), process.log)
+			warnOnErr(process.ExitContext(), dbService.Close(), logger)
 		}
 	}()
 
@@ -180,12 +182,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
 			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.ServerIdentity.ID.HostUUID,
+			HostUUID:             conn.HostID(),
 			Resolver:             tunnelAddrResolver,
 			Client:               conn.Client,
 			Server:               dbService,
 			AccessPoint:          conn.Client,
-			HostSigner:           conn.ServerIdentity.KeySigner,
+			AuthMethods:          conn.ClientAuthMethods(),
 			Cluster:              clusterName,
 			FIPS:                 process.Config.FIPS,
 			ConnectedProxyGetter: proxyGetter,
@@ -206,25 +208,25 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	process.OnExit("db.stop", func(payload interface{}) {
 		if dbService != nil {
 			if payload == nil {
-				log.Info("Shutting down immediately.")
-				warnOnErr(dbService.Close(), log)
+				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
+				warnOnErr(process.ExitContext(), dbService.Close(), logger)
 			} else {
-				log.Info("Shutting down gracefully.")
-				warnOnErr(dbService.Shutdown(payloadContext(payload, log)), log)
+				logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
+				warnOnErr(process.ExitContext(), dbService.Shutdown(payloadContext(payload)), logger)
 			}
 		}
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), log)
+			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
 		}
 		if agentPool != nil {
 			agentPool.Stop()
 		}
-		warnOnErr(conn.Close(), log)
-		log.Info("Exited.")
+		warnOnErr(process.ExitContext(), conn.Close(), logger)
+		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 
 	process.BroadcastEvent(Event{Name: DatabasesReady, Payload: nil})
-	log.Infof("Database service has successfully started: %v.", databases)
+	logger.InfoContext(process.ExitContext(), "Database service has successfully started.", "database", databases)
 
 	// Block and wait while the server and agent pool are running.
 	if err := dbService.Wait(); err != nil {

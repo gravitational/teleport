@@ -115,7 +115,7 @@ giving us a smaller set of runtime dependencies than you might imagine:
 
 Requirement (1) (i.e. Teleport itself) is provided by our CI process. 
 
-Requirements (2) and (5) are satisfied automatically by using the the google-
+Requirements (2) and (5) are satisfied automatically by using the google-
 provided base image [`gcr.io/distroless/cc-debian11`](https://github.com/GoogleContainerTools/distroless#what-images-are-available),
 which is configured for "mostly statically compiled" languages that require libc.
 

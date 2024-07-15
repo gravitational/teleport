@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -33,10 +34,16 @@ import (
 )
 
 type authServer interface {
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
 	// GenerateHostCert uses the private key of the CA to sign the public key of
 	// the host (along with metadata like host ID, node name, roles, and ttl)
 	// to generate a host certificate.
 	GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+
+	// RotateCertAuthority starts or restarts certificate authority rotation process.
+	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
 }
 
 // ServiceConfig holds configuration options for
@@ -44,7 +51,7 @@ type authServer interface {
 type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      services.AuthorityGetter
-	Backend    services.Trust
+	Backend    services.TrustInternal
 	Logger     *logrus.Entry
 	AuthServer authServer
 }
@@ -54,7 +61,7 @@ type Service struct {
 	trustpb.UnimplementedTrustServiceServer
 	authorizer authz.Authorizer
 	cache      services.AuthorityGetter
-	backend    services.Trust
+	backend    services.TrustInternal
 	authServer authServer
 	logger     *logrus.Entry
 }
@@ -71,7 +78,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
 	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "trust.service")
 	}
 
 	return &Service{
@@ -85,6 +92,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetCertAuthority retrieves the matching certificate authority.
 func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
 		readVerb = types.VerbRead
@@ -102,9 +114,15 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, contextCA, readVerb)
-	if err != nil {
+	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Require admin MFA to read secrets.
+	if req.IncludeKey {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Retrieve the requested CA and perform RBAC on it to ensure that
@@ -114,8 +132,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, ca, readVerb)
-	if err != nil {
+	if err = authCtx.CheckAccessToResource(ca, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -129,14 +146,23 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
 
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
+
+		// Require admin MFA to read secrets.
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, verbs...)
-	if err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -161,12 +187,16 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 // DeleteCertAuthority deletes the matching cert authority.
 func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -187,12 +217,17 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate)
+	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authzCtx.CheckAccessToResource(req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -201,6 +236,124 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 	}
 
 	return req.CertAuthority, nil
+}
+
+// RotateCertAuthority rotates a cert authority.
+func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCertAuthorityRequest) (*trustpb.RotateCertAuthorityResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rotateRequest := types.RotateRequest{
+		Type:        types.CertAuthType(req.Type),
+		TargetPhase: req.TargetPhase,
+		Mode:        req.Mode,
+	}
+
+	if req.GracePeriod != nil {
+		duration := req.GracePeriod.AsDuration()
+		rotateRequest.GracePeriod = &duration
+	}
+
+	if req.Schedule != nil {
+		rotateRequest.Schedule = &types.RotationSchedule{
+			UpdateClients: req.Schedule.UpdateClients.AsTime(),
+			UpdateServers: req.Schedule.UpdateServers.AsTime(),
+			Standby:       req.Schedule.Standby.AsTime(),
+		}
+	}
+
+	if err := s.authServer.RotateCertAuthority(ctx, rotateRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.RotateCertAuthorityResponse{}, nil
+}
+
+// RotateExternalCertAuthority rotates external certificate authority,
+// this method is called by remote trusted cluster and is used to update
+// only public keys and certificates of the certificate authority.
+func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.RotateExternalCertAuthorityRequest) (*trustpb.RotateExternalCertAuthorityResponse, error) {
+	if req.CertAuthority == nil {
+		return nil, trace.BadParameter("missing certificate authority")
+	}
+
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToResource(req.CertAuthority, types.VerbRotate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteService(*authCtx) {
+		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
+	}
+
+	clusterName, err := s.authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// this is just an extra precaution against local admins,
+	// because this is additionally enforced by RBAC as well
+	if req.CertAuthority.GetClusterName() == clusterName.GetClusterName() {
+		return nil, trace.BadParameter("can not rotate local certificate authority")
+	}
+
+	existing, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       req.CertAuthority.GetType(),
+		DomainName: req.CertAuthority.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated := existing.Clone()
+	if err := updated.SetActiveKeys(req.CertAuthority.GetActiveKeys().Clone()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := updated.SetAdditionalTrustedKeys(req.CertAuthority.GetAdditionalTrustedKeys().Clone()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// a rotation state of "" gets stored as "standby" after
+	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
+	// this before checking if `updated` is the same as `existing` or the check
+	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
+	// to call it both here and in CompareAndSwapCertAuthority)
+	updated.SetRotation(req.CertAuthority.GetRotation())
+	if err := services.CheckAndSetDefaults(updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// CASing `updated` over `existing` if they're equivalent will only cause
+	// backend and watcher spam for no gain, so we exit early if that's the case
+	if services.CertAuthoritiesEquivalent(existing, updated) {
+		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
+	}
+
+	// use compare and swap to protect from concurrent updates
+	// by trusted cluster API
+	if _, err := s.backend.UpdateCertAuthority(ctx, updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.RotateExternalCertAuthorityResponse{}, nil
 }
 
 // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format
@@ -212,7 +365,7 @@ func (s *Service) GenerateHostCert(
 	// resource type.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, s.logger, err)
+		return nil, trace.Wrap(err)
 	}
 	ruleCtx := &services.Context{
 		User: authCtx.User,
@@ -225,16 +378,11 @@ func (s *Service) GenerateHostCert(
 			TTL:         req.Ttl.AsDuration(),
 		},
 	}
-	_, err = authz.AuthorizeContextWithVerbs(
-		ctx,
-		s.logger,
-		authCtx,
-		false,
+	if err = authCtx.CheckAccessToRule(
 		ruleCtx,
 		types.KindHostCert,
 		types.VerbCreate,
-	)
-	if err != nil {
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: gomod
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
@@ -21,7 +21,9 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
-    open-pull-requests-limit: 10
+      # Ignore until kube libs are upgraded. See https://github.com/kubernetes-sigs/controller-runtime/issues/2788.
+      - dependency-name: k8s.io/*
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -29,9 +31,9 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -40,10 +42,10 @@ updates:
   - package-ecosystem: gomod
     directory: "/api"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -51,9 +53,9 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -62,13 +64,13 @@ updates:
   - package-ecosystem: gomod
     directory: "/assets/aws"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -76,7 +78,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - tcsc
       - zmb3
@@ -88,10 +89,10 @@ updates:
   - package-ecosystem: gomod
     directory: "/assets/backport"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -99,7 +100,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -110,13 +110,13 @@ updates:
   - package-ecosystem: gomod
     directory: "/build.assets/tooling"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -125,7 +125,6 @@ updates:
     reviewers:
       - codingllama
       - fheinecke
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -133,13 +132,65 @@ updates:
       - "go"
       - "no-changelog"
 
+  - package-ecosystem: gomod
+    directory: "/integrations/terraform"
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore:
+      # breaks compatibility
+      - dependency-name: github.com/hashicorp/terraform-plugin-framework
+      - dependency-name: github.com/hashicorp/terraform-plugin-go
+      - dependency-name: github.com/hashicorp/terraform-plugin-sdk/v2
+    open-pull-requests-limit: 20
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+  - package-ecosystem: gomod
+    directory: "/integrations/event-handler"
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 20
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+
   - package-ecosystem: cargo
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
@@ -147,8 +198,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -159,10 +208,10 @@ updates:
   - package-ecosystem: cargo
     directory: "/lib/srv/desktop/rdp/rdpclient"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
@@ -170,8 +219,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -179,19 +226,56 @@ updates:
       - "rust"
       - "no-changelog"
 
-  - package-ecosystem: github-actions
+  - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 20
+    reviewers:
+      - avatus
+      - kimlisa
+      - rudream
+      - bl-nero
+      - gzdnunek
+      - ravicious
+      - ryanclark
+  - package-ecosystem: github-actions
+    directory: "/.github/workflows"
+    schedule:
+      interval: monthly
       day: monday
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
     labels:
       - "dependencies"
-      - "github_actions"
+      - "github-actions"
+      - "no-changelog"
+
+  - package-ecosystem: github-actions
+    directory: "/.github/actions"
+    schedule:
+      interval: monthly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - fheinecke
+      - camscale
+    labels:
+      - "dependencies"
+      - "github-actions"
       - "no-changelog"

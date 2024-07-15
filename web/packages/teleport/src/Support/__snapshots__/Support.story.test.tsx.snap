@@ -4,16 +4,14 @@ exports[`support Cloud 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -43,8 +41,14 @@ exports[`support Cloud 1`] = `
   margin-bottom: 16px;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -52,16 +56,16 @@ exports[`support Cloud 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -69,25 +73,19 @@ exports[`support Cloud 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -109,6 +107,9 @@ exports[`support Cloud 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -269,15 +270,14 @@ exports[`support Cloud 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/docs/cloud/downloads/"
+          href="/web/downloads"
           rel="noreferrer"
-          target="_blank"
         >
           Download Page
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -439,16 +439,14 @@ exports[`support Enterprise 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -478,8 +476,14 @@ exports[`support Enterprise 1`] = `
   margin-bottom: 16px;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -487,16 +491,16 @@ exports[`support Enterprise 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -504,25 +508,19 @@ exports[`support Enterprise 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -544,6 +542,9 @@ exports[`support Enterprise 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -720,7 +721,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=e_13.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/faq?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -882,16 +883,14 @@ exports[`support Enterprise with CTA 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -928,7 +927,8 @@ exports[`support Enterprise with CTA 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -937,36 +937,62 @@ exports[`support Enterprise with CTA 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   padding-top: 12px;
   padding-bottom: 12px;
   width: 100%;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -974,16 +1000,16 @@ exports[`support Enterprise with CTA 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -991,25 +1017,19 @@ exports[`support Enterprise with CTA 1`] = `
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -1031,6 +1051,9 @@ exports[`support Enterprise with CTA 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -1135,8 +1158,8 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c13"
+          fill="filled"
           href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
-          kind="primary"
           rel="noreferrer"
           style="text-transform: none;"
           target="blank"
@@ -1238,7 +1261,7 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=e_13.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/faq?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1400,16 +1423,14 @@ exports[`support OSS 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -1439,8 +1460,14 @@ exports[`support OSS 1`] = `
   margin-bottom: 16px;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1448,16 +1475,16 @@ exports[`support OSS 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -1465,25 +1492,19 @@ exports[`support OSS 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -1505,6 +1526,9 @@ exports[`support OSS 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -1673,7 +1697,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1835,16 +1859,14 @@ exports[`support OSSWithCTA 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -1881,7 +1903,8 @@ exports[`support OSSWithCTA 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1890,36 +1913,62 @@ exports[`support OSSWithCTA 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   padding-top: 12px;
   padding-bottom: 12px;
   width: 100%;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1927,16 +1976,16 @@ exports[`support OSSWithCTA 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -1944,25 +1993,19 @@ exports[`support OSSWithCTA 1`] = `
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -1984,6 +2027,9 @@ exports[`support OSSWithCTA 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -2088,8 +2134,8 @@ exports[`support OSSWithCTA 1`] = `
         </a>
         <a
           class="c13"
+          fill="filled"
           href="https://goteleport.com/r/upgrade-community?4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
-          kind="primary"
           rel="noreferrer"
           style="text-transform: none;"
           target="blank"
@@ -2191,7 +2237,7 @@ exports[`support OSSWithCTA 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >

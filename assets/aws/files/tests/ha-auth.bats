@@ -9,7 +9,6 @@ TELEPORT_DOMAIN_ADMIN_EMAIL=test@email.com
 TELEPORT_DOMAIN_NAME=gus-tftestkube4.gravitational.io
 TELEPORT_DYNAMO_TABLE_NAME=gus-tftestkube4
 TELEPORT_DYNAMO_EVENTS_TABLE_NAME=gus-tftestkube4-events
-TELEPORT_INFLUXDB_ADDRESS=http://gus-tftestkube4-monitor-ae7983980c3419ab.elb.us-east-1.amazonaws.com:8086
 TELEPORT_LICENSE_PATH=/home/gus/downloads/teleport/license-gus.pem
 TELEPORT_LOCKS_TABLE_NAME=gus-tftestkube4-locks
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
@@ -89,4 +88,10 @@ load fixtures/common
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A5 | grep -q "rp_id: ${TELEPORT_DOMAIN_NAME?}"
+}
+
+@test "[${TEST_SUITE?}] auth_service.proxy_protocol is on" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^  proxy_protocol: on"
 }

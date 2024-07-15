@@ -40,21 +40,27 @@ describe('localStorage', () => {
     localStorage.setItem('key1', 'val1');
     localStorage.setItem(KeysEnum.THEME, '');
     localStorage.setItem('key2', 'val2');
-    localStorage.setItem(KeysEnum.SHOW_ASSIST_POPUP, '');
-    localStorage.setItem('key3', 'val3');
     localStorage.setItem(KeysEnum.LAST_ACTIVE, '');
 
-    expect(localStorage).toHaveLength(6);
+    expect(localStorage).toHaveLength(4);
 
     ls.clear();
-    expect(localStorage).toHaveLength(2);
+    expect(localStorage).toHaveLength(1);
     expect(localStorage.key(0)).toBe(KeysEnum.THEME);
-    expect(localStorage.key(1)).toBe(KeysEnum.SHOW_ASSIST_POPUP);
   });
 
   test('delete on empty length is not an error', () => {
     expect(localStorage).toHaveLength(0);
     ls.clear();
     expect(localStorage).toHaveLength(0);
+  });
+
+  test('parses JSON configuration values', () => {
+    localStorage.setItem('key1', '{"foo": "bar"}');
+    localStorage.setItem('key2', 'true');
+
+    expect(ls.getParsedJSONValue('key1', null)).toEqual({ foo: 'bar' });
+    expect(ls.getParsedJSONValue('key2', null)).toBe(true);
+    expect(ls.getParsedJSONValue('not-a-key', 'default')).toBe('default');
   });
 });

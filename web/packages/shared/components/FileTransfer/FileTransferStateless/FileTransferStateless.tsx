@@ -57,7 +57,6 @@ export function FileTransferStateless(props: FileTransferStatelessProps) {
   return (
     <Container
       data-testid="file-transfer-container"
-      backgroundColor={props.backgroundColor}
       onKeyDown={e => {
         if (e.key !== 'Escape') {
           return;

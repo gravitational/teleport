@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DesktopSession from './DesktopSession';
-export default DesktopSession;
+export { DesktopSession, DesktopSessionContainer } from './DesktopSession';

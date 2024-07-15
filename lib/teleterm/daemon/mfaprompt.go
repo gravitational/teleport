@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -28,29 +30,30 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // mfaPrompt is a tshd implementation of mfa.Prompt that uses the
 // tshdEventsClient to propagate mfa prompts to the Electron App.
 type mfaPrompt struct {
 	cfg          libmfa.PromptConfig
-	clusterURI   string
+	resourceURI  uri.ResourceURI
 	promptAppMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)
 }
 
 // NewMFAPromptConstructor returns a new MFA prompt constructor
-// for this service and the given cluster.
-func (s *Service) NewMFAPromptConstructor(clusterURI string) func(cfg *libmfa.PromptConfig) mfa.Prompt {
+// for this service and the given resource URI.
+func (s *Service) NewMFAPromptConstructor(resourceURI uri.ResourceURI) func(cfg *libmfa.PromptConfig) mfa.Prompt {
 	return func(cfg *libmfa.PromptConfig) mfa.Prompt {
-		return s.NewMFAPrompt(clusterURI, cfg)
+		return s.NewMFAPrompt(resourceURI, cfg)
 	}
 }
 
-// NewMFAPrompt returns a new MFA prompt for this service and the given cluster.
-func (s *Service) NewMFAPrompt(clusterURI string, cfg *libmfa.PromptConfig) *mfaPrompt {
+// NewMFAPrompt returns a new MFA prompt for this service and the given resource URI.
+func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptConfig) *mfaPrompt {
 	return &mfaPrompt{
 		cfg:          *cfg,
-		clusterURI:   clusterURI,
+		resourceURI:  resourceURI,
 		promptAppMFA: s.promptAppMFA,
 	}
 }
@@ -71,8 +74,15 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.Wrap(err)
 	}
 
+	// No prompt to run, no-op.
+	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+		return &proto.MFAAuthenticateResponse{}, nil
+	}
+
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
+		ctx, cancel := context.WithCancelCause(ctx)
+
 		// Fire App goroutine (TOTP).
 		wg.Add(1)
 		go func() {
@@ -80,6 +90,12 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 			resp, err := p.promptMFA(ctx, chal, runOpts)
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
+
+			// If the user closes the modal in the Electron app, we need to be able to cancel the other
+			// goroutine as well so that we stop waiting for the hardware key tap.
+			if err != nil && status.Code(err) == codes.Aborted {
+				cancel(err)
+			}
 		}()
 
 		// Fire Webauthn goroutine.
@@ -110,10 +126,10 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 
 func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
-		RootClusterUri: p.clusterURI,
-		Reason:         p.cfg.PromptReason,
-		Totp:           runOpts.PromptTOTP,
-		Webauthn:       runOpts.PromptWebauthn,
+		ClusterUri: p.resourceURI.GetClusterURI().String(),
+		Reason:     p.cfg.PromptReason,
+		Totp:       runOpts.PromptTOTP,
+		Webauthn:   runOpts.PromptWebauthn,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)

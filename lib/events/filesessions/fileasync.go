@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -50,6 +50,8 @@ type UploaderConfig struct {
 	CorruptedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
+	// InitialScanDelay is how long to wait before performing the initial scan.
+	InitialScanDelay time.Duration
 	// ScanPeriod is a uploader dir scan period
 	ScanPeriod time.Duration
 	// ConcurrentUploads sets up how many parallel uploads to schedule
@@ -104,8 +106,8 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 
 	uploader := &Uploader{
 		cfg: cfg,
-		log: log.WithFields(log.Fields{
-			trace.Component: cfg.Component,
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: cfg.Component,
 		}),
 		closeC:        make(chan struct{}),
 		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
@@ -128,7 +130,7 @@ type Uploader struct {
 	semaphore chan struct{}
 
 	cfg UploaderConfig
-	log *log.Entry
+	log *logrus.Entry
 
 	eventsCh  chan events.UploadEvent
 	closeC    chan struct{}
@@ -193,9 +195,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 
 	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step:  u.cfg.ScanPeriod,
-		Max:   u.cfg.ScanPeriod * 100,
-		Clock: u.cfg.Clock,
+		First:  u.cfg.InitialScanDelay,
+		Step:   u.cfg.ScanPeriod,
+		Max:    u.cfg.ScanPeriod * 100,
+		Clock:  u.cfg.Clock,
+		Jitter: retryutils.NewSeventhJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -221,8 +225,7 @@ func (u *Uploader) Serve(ctx context.Context) error {
 				}
 			default:
 				backoff.Inc()
-				u.log.WithError(event.Error).Warningf(
-					"Backing off, will retry after %v.", backoff.Duration())
+				u.log.Warnf("Increasing session upload backoff due to error, will retry after %v.", backoff.Duration())
 			}
 			// forward the event to channel that used in tests
 			if u.cfg.EventsC != nil {
@@ -234,18 +237,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 			}
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
-			var failed bool
 			if _, err := u.Scan(ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
-					failed = true
-					u.log.WithError(err).Warningf("Uploader scan failed.")
+				if !errors.Is(trace.Unwrap(err), errContext) {
+					backoff.Inc()
+					u.log.WithError(err).Warningf("Uploader scan failed, will retry after %v.", backoff.Duration())
 				}
-			}
-			if failed {
-				backoff.Inc()
-				u.log.Debugf("Scan failed, backing off, will retry after %v.", backoff.Duration())
-			} else {
-				backoff.ResetToDelay()
 			}
 		}
 	}
@@ -384,11 +380,14 @@ func (u *upload) removeFiles() error {
 	return trace.NewAggregate(errs...)
 }
 
-func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
+func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log := u.log.WithField(fieldSessionID, sessionID)
+
 	sessionFilePath := filepath.Join(u.cfg.ScanDir, fileName)
 	// Corrupted session records can clog the uploader
 	// that will indefinitely try to upload them.
@@ -408,7 +407,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
 		}
 		if len(moveErrs) > 0 {
-			u.log.Errorf("Failed to move corrupted recording: %v", trace.NewAggregate(moveErrs...))
+			log.Errorf("Failed to move corrupted recording: %v", trace.NewAggregate(moveErrs...))
 		}
 
 		return sessionError{
@@ -416,6 +415,20 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 				"session recording %v; check the %v directory for artifacts",
 				sessionID, u.cfg.CorruptedDir),
 		}
+	}
+
+	start := time.Now()
+	if err := u.takeSemaphore(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			_ = u.releaseSemaphore(ctx)
+		}
+	}()
+
+	if time.Since(start) > 500*time.Millisecond {
+		log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
 	}
 
 	// Apparently, exclusive lock can be obtained only in RDWR mode on NFS
@@ -426,9 +439,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	unlock, err := utils.FSTryWriteLock(sessionFilePath)
 	if err != nil {
 		if e := sessionFile.Close(); e != nil {
-			u.log.WithError(e).Warningf("Failed to close %v.", fileName)
+			log.WithError(e).Warningf("Failed to close %v.", fileName)
 		}
-		return trace.WrapWithMessage(err, "could not acquire file lock for %q", sessionFilePath)
+		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
 	}
 
 	upload := &upload{
@@ -440,26 +453,16 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		if err := upload.Close(); err != nil {
-			u.log.WithError(err).Warningf("Failed to close upload.")
+			log.WithError(err).Warningf("Failed to close upload.")
 		}
 		return trace.ConvertSystemError(err)
 	}
 
-	start := time.Now()
-	if err := u.takeSemaphore(ctx); err != nil {
-		if err := upload.Close(); err != nil {
-			u.log.WithError(err).Warningf("Failed to close upload.")
-		}
-		return trace.Wrap(err)
-	}
-	if time.Since(start) > 500*time.Millisecond {
-		u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
-	}
 	u.wg.Add(1)
 	go func() {
 		defer u.wg.Done()
 		if err := u.upload(ctx, upload); err != nil {
-			u.log.WithError(err).Warningf("Upload failed.")
+			log.WithError(err).Warningf("Upload failed.")
 			u.emitEvent(events.UploadEvent{
 				SessionID: string(upload.sessionID),
 				Error:     err,
@@ -467,7 +470,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 			})
 			return
 		}
-		u.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": sessionID}).Debugf("Session upload completed.")
+		log.WithField("duration", time.Since(start)).Debugf("Session upload completed.")
 		u.emitEvent(events.UploadEvent{
 			SessionID: string(upload.sessionID),
 			Created:   u.cfg.Clock.Now().UTC(),
@@ -477,10 +480,12 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 }
 
 func (u *Uploader) upload(ctx context.Context, up *upload) error {
+	log := u.log.WithField(fieldSessionID, up.sessionID)
+
 	defer u.releaseSemaphore(ctx)
 	defer func() {
 		if err := up.Close(); err != nil {
-			u.log.WithError(err).Warningf("Failed to close upload.")
+			log.WithError(err).Warningf("Failed to close upload.")
 		}
 	}()
 
@@ -500,9 +505,9 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
-			u.log.WithError(err).Warningf(
-				"Upload for session %v, upload ID %v is not found starting a new upload from scratch.",
-				up.sessionID, status.UploadID)
+			log.WithError(err).Warningf(
+				"Upload ID %v is not found, starting a new upload from scratch.",
+				status.UploadID)
 			status = nil
 			stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
 			if err != nil {
@@ -515,8 +520,8 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	// func doesn't observe future changes to the ctx var
 	defer func(ctx context.Context) {
 		if err := stream.Close(ctx); err != nil {
-			if trace.Unwrap(err) != io.EOF {
-				u.log.WithError(err).Debugf("Failed to close stream.")
+			if !errors.Is(trace.Unwrap(err), io.EOF) {
+				log.WithError(err).Debugf("Failed to close stream.")
 			}
 		}
 	}(ctx)
@@ -527,6 +532,12 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	select {
 	case <-u.closeC:
 		return trace.Errorf("operation has been canceled, uploader is closed")
+	case <-stream.Done():
+		if errStream, ok := stream.(interface{ Error() error }); ok {
+			return trace.ConnectionProblem(errStream.Error(), errStream.Error().Error())
+		}
+
+		return trace.ConnectionProblem(nil, "upload stream terminated unexpectedly")
 	case <-stream.Status():
 	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
@@ -565,7 +576,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	}
 
 	if err := stream.Complete(ctx); err != nil {
-		u.log.WithError(err).Error("Failed to complete upload.")
+		log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}
 
@@ -578,14 +589,14 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	<-wctx.Done()
 	if errors.Is(wctx.Err(), context.DeadlineExceeded) {
-		u.log.WithError(wctx.Err()).Warningf(
+		log.WithError(wctx.Err()).Warningf(
 			"Checkpoint function failed to complete the write due to timeout. Possible slow disk write.")
 	}
 
 	// In linux it is possible to remove a file while holding a file descriptor
 	if err := up.removeFiles(); err != nil {
 		if !trace.IsNotFound(err) {
-			u.log.WithError(err).Warningf("Failed to remove session files.")
+			log.WithError(err).Warningf("Failed to remove session files.")
 		}
 	}
 	return nil
@@ -641,8 +652,8 @@ func (u *Uploader) emitEvent(e events.UploadEvent) {
 }
 
 func isSessionError(err error) bool {
-	_, ok := trace.Unwrap(err).(sessionError)
-	return ok
+	var sessionError sessionError
+	return errors.As(trace.Unwrap(err), &sessionError)
 }
 
 // sessionError highlights problems with session
@@ -655,3 +666,8 @@ func (s sessionError) Error() string {
 	return fmt.Sprintf(
 		"session file could be corrupted or is using unsupported format: %v", s.err.Error())
 }
+
+// Field names used for logging.
+const (
+	fieldSessionID = "session"
+)

@@ -67,13 +67,9 @@ export function Clusters() {
         <ClusterList
           clusters={clusters}
           menuFlags={{
-            showNodes: enabledFeatures.nodes,
+            showResources: enabledFeatures.resources,
             showAudit: enabledFeatures.audit,
             showRecordings: enabledFeatures.recordings,
-            showApps: enabledFeatures.apps,
-            showDatabases: enabledFeatures.databases,
-            showKubes: enabledFeatures.kubes,
-            showDesktops: enabledFeatures.desktops,
           }}
         />
       )}

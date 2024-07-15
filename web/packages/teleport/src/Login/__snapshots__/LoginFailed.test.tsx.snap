@@ -14,8 +14,8 @@ exports[`callback error message 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  margin-bottom: 24px;
   margin-top: 8px;
+  margin-bottom: 24px;
   background: #FF6257;
   color: #000000;
 }
@@ -37,7 +37,7 @@ exports[`callback error message 1`] = `
 }
 
 .c2 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -45,10 +45,10 @@ exports[`callback error message 1`] = `
 .c3 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 28px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 24px;
   text-align: center;
 }
@@ -56,20 +56,20 @@ exports[`callback error message 1`] = `
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 16px;
   line-height: 32px;
-  margin: 0px;
   text-align: center;
 }
 
 .c0 {
   display: block;
   outline: none;
-  margin-left: auto;
-  margin-right: auto;
   margin-top: 48px;
   margin-bottom: 48px;
+  margin-left: auto;
+  margin-right: auto;
   max-width: 200px;
   max-height: 120px;
 }
@@ -128,8 +128,8 @@ exports[`default error message 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  margin-bottom: 24px;
   margin-top: 8px;
+  margin-bottom: 24px;
   background: #FF6257;
   color: #000000;
 }
@@ -151,7 +151,7 @@ exports[`default error message 1`] = `
 }
 
 .c2 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -159,10 +159,10 @@ exports[`default error message 1`] = `
 .c3 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 28px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 24px;
   text-align: center;
 }
@@ -170,20 +170,20 @@ exports[`default error message 1`] = `
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 16px;
   line-height: 32px;
-  margin: 0px;
   text-align: center;
 }
 
 .c0 {
   display: block;
   outline: none;
-  margin-left: auto;
-  margin-right: auto;
   margin-top: 48px;
   margin-bottom: 48px;
+  margin-left: auto;
+  margin-right: auto;
   max-width: 200px;
   max-height: 120px;
 }

@@ -20,9 +20,14 @@ package services
 
 import (
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -167,6 +172,11 @@ func TestParseShortcut(t *testing.T) {
 
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 
+		"access_request":  {expectedOutput: types.KindAccessRequest},
+		"access_requests": {expectedOutput: types.KindAccessRequest},
+		"accessrequest":   {expectedOutput: types.KindAccessRequest},
+		"accessrequests":  {expectedOutput: types.KindAccessRequest},
+
 		"unknown_type": {expectedErr: true},
 	}
 
@@ -236,6 +246,53 @@ func Test_setResourceName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := setResourceName(tt.overrideLabels, tt.meta, tt.firstNamePart, tt.extraNameParts...)
 			require.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestProtoResourceRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	resource := &vnet.VnetConfig{
+		Metadata: &headerv1.Metadata{
+			Name: "vnet_config",
+		},
+		Spec: &vnet.VnetConfigSpec{
+			Ipv4CidrRange: "100.64.0.0/10",
+		},
+	}
+
+	for _, tc := range []struct {
+		desc          string
+		marshalFunc   func(*vnet.VnetConfig, ...MarshalOption) ([]byte, error)
+		unmarshalFunc func([]byte, ...MarshalOption) (*vnet.VnetConfig, error)
+	}{
+		{
+			desc:          "deprecated",
+			marshalFunc:   FastMarshalProtoResourceDeprecated[*vnet.VnetConfig],
+			unmarshalFunc: FastUnmarshalProtoResourceDeprecated[*vnet.VnetConfig],
+		},
+		{
+			desc:          "new",
+			marshalFunc:   MarshalProtoResource[*vnet.VnetConfig],
+			unmarshalFunc: UnmarshalProtoResource[*vnet.VnetConfig],
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			marshaled, err := tc.marshalFunc(resource)
+			require.NoError(t, err)
+
+			unmarshalled, err := tc.unmarshalFunc(marshaled)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(resource, unmarshalled, protocmp.Transform()))
+
+			revision := "123"
+			expires := time.Now()
+			unmarshalled, err = tc.unmarshalFunc(marshaled,
+				WithRevision(revision), WithExpires(expires))
+			require.NoError(t, err)
+			require.Equal(t, revision, unmarshalled.GetMetadata().GetRevision())
+			require.WithinDuration(t, expires, unmarshalled.GetMetadata().GetExpires().AsTime(), time.Millisecond)
 		})
 	}
 }

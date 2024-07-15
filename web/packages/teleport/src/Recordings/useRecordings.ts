@@ -82,6 +82,7 @@ export default function useRecordings(ctx: Ctx) {
 
   return {
     ...results,
+    ctx,
     attempt,
     range,
     rangeOptions,

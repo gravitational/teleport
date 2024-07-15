@@ -18,11 +18,18 @@
 
 import React from 'react';
 
-import { Text, Indicator, Box, Flex } from 'design';
+import { Box, Flex, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
-import { TableProps } from './types';
+import { StyledTable, StyledPanel } from './StyledTable';
+import {
+  BasicTableProps,
+  PagedTableProps,
+  PagerPosition,
+  SearchableBasicTableProps,
+  ServersideTableProps,
+  TableProps,
+} from './types';
 import { SortHeaderCell, TextCell } from './Cells';
 import { ClientSidePager, ServerSidePager } from './Pager';
 import InputSearch from './InputSearch';
@@ -138,55 +145,54 @@ export function Table<T>({
 
   if (serversideProps) {
     return (
-      <StyledTableWrapper borderRadius={3}>
-        <ServersideTable
-          style={style}
-          className={className}
-          data={state.data}
-          renderHeaders={renderHeaders}
-          renderBody={renderBody}
-          nextPage={fetching.onFetchNext}
-          prevPage={fetching.onFetchPrev}
-          pagination={state.pagination}
-          serversideProps={serversideProps}
-        />
-      </StyledTableWrapper>
+      <ServersideTable
+        style={style}
+        className={className}
+        data={state.data}
+        renderHeaders={renderHeaders}
+        renderBody={renderBody}
+        nextPage={fetching.onFetchNext}
+        prevPage={fetching.onFetchPrev}
+        pagination={state.pagination}
+        serversideProps={serversideProps}
+        fetchStatus={fetching.fetchStatus}
+      />
     );
   }
 
+  const paginationProps: PagedTableProps<T> = {
+    style,
+    className,
+    data: state.data as T[],
+    renderHeaders,
+    renderBody,
+    nextPage,
+    prevPage,
+    pagination: state.pagination,
+    searchValue: state.searchValue,
+    setSearchValue,
+    fetching,
+  };
+
+  if (state.pagination && state.pagination.CustomTable) {
+    return <state.pagination.CustomTable {...paginationProps} />;
+  }
+
   if (state.pagination) {
-    return (
-      <StyledTableWrapper borderRadius={3}>
-        <PagedTable
-          style={style}
-          className={className}
-          data={state.data}
-          renderHeaders={renderHeaders}
-          renderBody={renderBody}
-          nextPage={nextPage}
-          prevPage={prevPage}
-          pagination={state.pagination}
-          searchValue={state.searchValue}
-          setSearchValue={setSearchValue}
-          fetching={fetching}
-        />
-      </StyledTableWrapper>
-    );
+    return <PagedTable {...paginationProps} />;
   }
 
   if (isSearchable) {
     return (
-      <StyledTableWrapper borderRadius={3}>
-        <SearchableBasicTable
-          style={style}
-          className={className}
-          data={state.data}
-          renderHeaders={renderHeaders}
-          renderBody={renderBody}
-          searchValue={state.searchValue}
-          setSearchValue={setSearchValue}
-        />
-      </StyledTableWrapper>
+      <SearchableBasicTable
+        style={style}
+        className={className}
+        data={state.data}
+        renderHeaders={renderHeaders}
+        renderBody={renderBody}
+        searchValue={state.searchValue}
+        setSearchValue={setSearchValue}
+      />
     );
   }
 
@@ -227,12 +233,12 @@ function SearchableBasicTable<T>({
 }: SearchableBasicTableProps<T>) {
   return (
     <>
-      <StyledPanel>
+      <Box mb={3}>
         <InputSearch
           searchValue={searchValue}
           setSearchValue={setSearchValue}
         />
-      </StyledPanel>
+      </Box>
       <StyledTable
         className={className}
         borderTopLeftRadius={0}
@@ -260,30 +266,19 @@ function PagedTable<T>({
   style,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
-  const isTopPager = pagerPosition === 'top';
+  const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
+    pagerPosition,
+    paginatedData[currentPage].length
+  );
 
-  const radiusProps = {
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-  };
-
-  if (isTopPager) {
-    radiusProps.borderTopLeftRadius = 0;
-    radiusProps.borderTopRightRadius = 0;
-  } else {
-    radiusProps.borderBottomLeftRadius = 0;
-    radiusProps.borderBottomRightRadius = 0;
-  }
   return (
     <>
-      {isTopPager && (
-        <StyledPanel>
-          <InputSearch
-            searchValue={searchValue}
-            setSearchValue={setSearchValue}
-          />
+      <StyledPanel>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+        {(showTopPager || showBothPager) && (
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -291,18 +286,14 @@ function PagedTable<T>({
             {...fetching}
             {...pagination}
           />
-        </StyledPanel>
-      )}
-      <StyledTable {...radiusProps} className={className} style={style}>
+        )}
+      </StyledPanel>
+      <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
       </StyledTable>
-      {!isTopPager && (
-        <StyledPanel
-          borderBottomLeftRadius={3}
-          borderBottomRightRadius={3}
-          showTopBorder={true}
-        >
+      {(showBottomPager || showBothPager) && (
+        <StyledPanel>
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -324,17 +315,38 @@ function ServersideTable<T>({
   className,
   style,
   serversideProps,
+  fetchStatus,
+  pagination,
 }: ServersideTableProps<T>) {
+  const { showTopPager, showBothPager, showBottomPager } = getPagerPosition(
+    pagination?.pagerPosition,
+    data.length
+  );
   return (
     <>
-      {serversideProps.serversideSearchPanel}
+      <StyledPanel>
+        {serversideProps.serversideSearchPanel}
+        {(showTopPager || showBothPager) && (
+          <ServerSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            isLoading={fetchStatus === 'loading'}
+          />
+        )}
+      </StyledPanel>
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(data)}
       </StyledTable>
-      <StyledPanel showTopBorder={true}>
-        <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
-      </StyledPanel>
+      {(showBottomPager || showBothPager) && (
+        <Box mt={2}>
+          <ServerSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            isLoading={fetchStatus === 'loading'}
+          />
+        </Box>
+      )}
     </>
   );
 }
@@ -415,29 +427,24 @@ const LoadingIndicator = ({ colSpan }: { colSpan: number }) => (
   </tfoot>
 );
 
-type BasicTableProps<T> = {
-  data: T[];
-  renderHeaders: () => JSX.Element;
-  renderBody: (data: T[]) => JSX.Element;
-  className?: string;
-  style?: React.CSSProperties;
-};
+/**
+ * Returns pager position flags.
+ *
+ * If pagerPosition is not defined, it defaults to:
+ *   - top pager only: if current dataLen < 5
+ *   - both top and bottom pager if dataLen > 5
+ */
+export function getPagerPosition(
+  pagerPosition: PagerPosition,
+  dataLen: number
+) {
+  const hasSufficientData = dataLen > 5;
 
-type SearchableBasicTableProps<T> = BasicTableProps<T> & {
-  searchValue: string;
-  setSearchValue: (searchValue: string) => void;
-};
+  const showBottomPager = pagerPosition === 'bottom';
+  const showTopPager =
+    pagerPosition === 'top' || (!pagerPosition && !hasSufficientData);
+  const showBothPager =
+    pagerPosition === 'both' || (!pagerPosition && hasSufficientData);
 
-type PagedTableProps<T> = SearchableBasicTableProps<T> & {
-  nextPage: () => void;
-  prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  fetching?: State<T>['fetching'];
-};
-
-type ServersideTableProps<T> = BasicTableProps<T> & {
-  nextPage: () => void;
-  prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  serversideProps: State<T>['serversideProps'];
-};
+  return { showBothPager, showBottomPager, showTopPager };
+}

@@ -30,12 +30,12 @@ function New-TempDirectory {
     <#
     .SYNOPSIS
     Creates a uniquely-named temporary directory.
-    
+
     .OUTPUTS
     string
     #>
 
-    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$($(New-Guid).Guid)"
+    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$([guid]::newguid().Guid)"
     New-Item -ItemType Directory -Path "$TempDirectoryPath" | Out-Null
 
     return "$TempDirectoryPath"
@@ -68,7 +68,7 @@ function Install-Go {
 function Enable-Go {
     <#
     .SYNOPSIS
-        Adds the Go toolchaion to the system search path 
+        Adds the Go toolchaion to the system search path
     #>
     [CmdletBinding()]
     param(
@@ -76,7 +76,7 @@ function Enable-Go {
         [string] $ToolchainDir
     )
     begin {
-        # note we prepend the toolchain before the path, otherwise the build 
+        # note we prepend the toolchain before the path, otherwise the build
         # will just use the system Go.
         $Env:Path = "$ToolchainDir/go/bin;$Env:Path"
     }
@@ -164,27 +164,6 @@ function Enable-Node {
     }
 }
 
-function Format-FileHashes {
-    <#
-    .SYNOPSIS
-        Finds each file matching the supplied path glob and creates a sidecar 
-        `*.sha256` file containing the file's hash
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $PathGlob
-    )
-    begin {
-        foreach ($file in $(Get-ChildItem $PathGlob)) {
-            Write-Output "Hashing  $($file.Name)"
-            $Hash = (Get-FileHash $file.FullName).Hash
-            "$($Hash.ToLower()) $($file.Name)" `
-            | Out-File -Encoding ASCII -FilePath "$($file.FullName).sha256"
-        }
-    }
-}
-
 function Get-Relcli {
     <#
     .SYNOPSIS
@@ -195,45 +174,53 @@ function Get-Relcli {
         [Parameter(Mandatory)]
         [string] $Url,
         [Parameter(Mandatory)]
-        [string] $Sha256,
-        [Parameter(Mandatory)]
         [string] $Workspace
     )
     begin {
         New-Item -Path "$Workspace" -ItemType Directory -Force | Out-Null
         Invoke-WebRequest $url -UseBasicParsing -OutFile "$Workspace\relcli.exe"
-        $gotSha256 = (Get-FileHash "$Workspace\relcli.exe").hash
-        if ($gotSha256 -ne $Sha256) {
-            Write-Output "sha256 mismatch: $gotSha256 != $Sha256"
-        }
     }
 }
 
-function Register-Artifacts {
+function Generate-Artifacts {
     <#
     .SYNOPSIS
-        Invokes relcli to automatically upload built artifacts
+        Invokes relcli to automatically generate manfiests for built artifacts
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $Workspace,
         [Parameter(Mandatory)]
-        [string] $OutputsDir,
-        [string] $ReleaseRepo = $env:RELEASE_REPO,
-        [string] $ArtifactVersion = $env:ARTIFACT_VERSION
+        [string] $ArtifactDirectory
     )
-    begin {
-        $certPath = "$Workspace\releases.crt"
-        Out-File -FilePath $certPath -Encoding ascii -InputObject "$env:RELEASES_CERT"
-        $keyPath = "$Workspace\releases.key"
-        Out-File -FilePath $keyPath -Encoding ascii -InputObject "$env:RELEASES_KEY"
 
-        # These must be set for the `auto_upload` command
-        $env:DRONE_REPO = "$ReleaseRepo"
-        $env:DRONE_TAG = "$ArtifactVersion"
+    $SearchPath = Join-Path -Path $ArtifactDirectory -ChildPath *
+    Get-ChildItem -Path $SearchPath -Include "*.exe","*.zip" | ForEach-Object {
+        switch -Wildcard ($_.Name) {
+            "Teleport Connect Setup*.exe" {
+                $description = "Teleport Connect"
+                Break
+            }
+            "teleport-windows-auth-setup*.exe" {
+                $description = "Teleport Authentication Package"
+                Break
+            }
+            "teleport*.zip" {
+                $description = "Windows (64-bit, tsh client only)"
+                Break
+            }
+            "*" {
+                # Unmatched file, skip it
+                Write-Host "Skipping $_"
+                return
+            }
+        }
 
-        & "$Workspace\relcli.exe" --cert $certPath --key $keyPath auto_upload -f -v 6 $OutputsDir
+        & "$Workspace\relcli.exe" generate-manifest --path $_.FullName `
+            --products teleport --products teleport-ent `
+            --os "windows" --architecture "amd64" `
+            --description $description
     }
 }
 
@@ -288,18 +275,32 @@ function Invoke-SignBinary {
     <#
     .SYNOPSIS
     Signs the provided binary with the base64-encoded certificate listed in "$WINDOWS_SIGNING_CERT"
+    .PARAMETER UnsignedBinaryPath
+    The path to the unsigned binary.
+    .PARAMETER SignedBinaryPath
+    The path where the signed binary should be written. If not provided, then the signed binary will
+    be written to a temporary path, and then moved to the unsigned binary path.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $UnsignedBinaryPath,
 
-        [Parameter(Mandatory)]
+        [Parameter()]
         [string] $SignedBinaryPath
     )
 
+    if (! $SignedBinaryPath) {
+        $ShouldMoveSignedBinary = $true
+        $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
+    }
+
     Write-Host "Signing $UnsignedBinaryPath using WSL sign-binary script:"
     wsl-ubuntu-command sign-binary "$UnsignedBinaryPath" "$SignedBinaryPath"
+
+    if ($ShouldMoveSignedBinary) {
+        Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath -Force
+    }
 }
 
 function Build-WindowsAuthenticationPackage {
@@ -345,24 +346,82 @@ function Build-Tsh {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
         Write-Host "::endgroup::"
 
         Write-Host "::group::Signing tsh..."
         Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
         Write-Host "::endgroup::"
+    }
+    Write-Host $("Built TSH in {0:g}" -f $CommandDuration)
 
+    return "$SignedBinaryPath"  # This is needed for building Connect and bundling the zip archive
+}
+
+function Build-Tctl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    $BinaryName = "tctl.exe"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building tctl..."
+        $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
+        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing tctl..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
+        Write-Host "::endgroup::"
+    }
+    Write-Host $("Built TCTL in {0:g}" -f $CommandDuration)
+
+    return "$SignedBinaryPath"  # This is needed for bundling the zip archive
+}
+
+function Package-Artifacts {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion,
+        [Parameter(Mandatory)]
+        [string] $SignedTctlBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $SignedTshBinaryPath
+    )
+
+    $CommandDuration = Measure-Block {
         $PackageDirectory = New-TempDirectory
-        Write-Host "Packaging tsh with zip directory $PackageDirectory..."
-        Copy-Item -Path "$SignedBinaryPath" -Destination "$PackageDirectory"
+        Write-Host "Packaging zip archive $PackageDirectory..."
+        Copy-Item -Path "$SignedTctlBinaryPath" -Destination "$PackageDirectory"
+        Copy-Item -Path "$SignedTshBinaryPath" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\CHANGELOG.md" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\README.md" -Destination "$PackageDirectory"
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
         Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
     }
-    Write-Host $("Built TSH in {0:g}" -f $CommandDuration)
+    Write-Host $("Created archive in {0:g}" -f $CommandDuration)
 
-    return "$SignedBinaryPath"  # This is needed for building Connect
+    return
 }
 
 function Build-Connect {
@@ -392,6 +451,63 @@ function Build-Connect {
     Write-Host $("Built Teleport Connect in {0:g}" -f $CommandDuration)
 }
 
+function Write-Version-Objects {
+    <#
+    .SYNOPSIS
+    Produces Windows resource files containing version info metadata
+    for tsh and tctl. These files are automatically read by the go
+    tool during compilation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    Write-Host "Generating version info files for Windows artifacts"
+
+    # install go-winres (v0.3.3)
+    go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e
+    $GoWinres = Join-Path -Path $(go env GOPATH) -ChildPath "bin\go-winres.exe"
+
+    $Year = (Get-Date).Year
+
+    # generate tsh version info
+    & $GoWinres simply --no-suffix --arch amd64 `
+        --file-description "Teleport tsh command-line client" `
+        --original-filename tsh.exe `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\tool\tsh\resource.syso"
+
+    # generate tctl version info
+    & $GoWinres simply --no-suffix --arch amd64 `
+        --file-description "Teleport tctl administrative tool" `
+        --original-filename tctl.exe `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\tool\tctl\resource.syso"
+
+    # generate windowsauth version info (note the --admin flag, as the installer must run as admin)
+    & $GoWinres simply --no-suffix --arch amd64 --admin `
+        --file-description "Teleport Authentication Package" `
+        --original-filename "teleport-windows-auth-setup-v$TeleportVersion-amd64.exe" `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\e\windowsauth\installer\resource.syso"
+}
+
 function Build-Artifacts {
     [CmdletBinding()]
     param(
@@ -404,11 +520,14 @@ function Build-Artifacts {
     )
     Write-Host "Starting build process for Teleport $TeleportVersion..."
 
-    # Setup for builds
-    Install-BuildRequirements -InstallDirectory "C:\toolchains" -TeleportSourceDirectory "$TeleportSourceDirectory"
-
     # Create the artifact output directory
     New-Item -Path "$ArtifactDirectory" -ItemType Directory -Force | Out-Null
+
+    # Build tctl
+    $SignedTctlBinaryPath = Build-Tctl `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion"
 
     # Build tsh
     $SignedTshBinaryPath = Build-Tsh `
@@ -416,23 +535,26 @@ function Build-Artifacts {
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
 
+    # Create archive
+    Package-Artifacts `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion" `
+        -SignedTshBinaryPath "$SignedTshBinaryPath" `
+        -SignedTctlBinaryPath "$SignedTctlBinaryPath"
+
     # Build Teleport Connect
     Build-Connect `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion" `
-        -SignedTshBinaryPath "$SignedTshBinaryPath" 
+        -SignedTshBinaryPath "$SignedTshBinaryPath"
 
     # Build Windows Authentication Package
     Build-WindowsAuthenticationPackage `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
-
-    # Copy artifacts to output directory
-    Write-Host "::group::Generating artifact checksums..."
-    Format-FileHashes -PathGlob "$ArtifactDirectory\*"
-    Write-Host "::endgroup::"
 
     Write-Host "Build complete"
 }

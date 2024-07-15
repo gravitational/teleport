@@ -18,17 +18,13 @@
 
 import styled from 'styled-components';
 
-import { space, borderRadius } from 'design/system';
+import { borderRadius, BorderRadiusProps } from 'design/system';
 
-import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
-
-export const StyledTable = styled.table(
-  props => `
-  background: ${props.theme.colors.levels.surface};
+export const StyledTable = styled.table<BorderRadiusProps>`
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
-  font-size: 12px;
+  font-size: ${props => props.theme.fontSizes[1]}px;
   width: 100%;
 
   & > thead > tr > th,
@@ -37,14 +33,16 @@ export const StyledTable = styled.table(
   & > thead > tr > td,
   & > tbody > tr > td,
   & > tfoot > tr > td {
-    padding: 8px 8px;
+    padding: ${p => p.theme.space[2]}px ${p => p.theme.space[2]}px;
     vertical-align: middle;
 
     &:first-child {
-      padding-left: 24px;
+      // should match padding-left on StyledInput to align Search content to Table content
+      padding-left: ${props => props.theme.space[4]}px;
     }
+
     &:last-child {
-      padding-right: 24px;
+      padding-right: ${props => props.theme.space[4]}px;
     }
   }
 
@@ -53,16 +51,12 @@ export const StyledTable = styled.table(
   }
 
   & > thead > tr > th {
-    background: ${props.theme.colors.spotBackground[0]};
-    color: ${props.theme.colors.text.main};
+    color: ${props => props.theme.colors.text.main};
+    ${props => props.theme.typography.h6};
     cursor: pointer;
-    font-size: 10px;
-    font-weight: 400;
     padding-bottom: 0;
     padding-top: 0;
     text-align: left;
-    opacity: 0.75;
-    text-transform: uppercase;
     white-space: nowrap;
 
     svg {
@@ -71,54 +65,48 @@ export const StyledTable = styled.table(
   }
 
   & > tbody > tr > td {
-    color: ${props.theme.colors.text.main};
-    line-height: 16px;
+    color: ${props => props.theme.colors.text.main};
+    ${props => props.theme.typography.table}
   }
 
   tbody tr {
-    border-bottom: 1px solid ${getSolidRowBorderColor(props.theme)};
-  }
+    transition: all 150ms;
+    position: relative;
+    border-top: ${props => props.theme.borders[2]}
+      ${props => props.theme.colors.spotBackground[0]};
 
-  tbody tr:hover {
-    background-color: ${props.theme.colors.spotBackground[0]};
-  }
+    &:hover {
+      border-top: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      background-color: ${props => props.theme.colors.levels.surface};
 
-  `,
-  space,
-  borderRadius
-);
+      // We use a pseudo element for the shadow with position: absolute in order to prevent
+      // the shadow from increasing the size of the layout and causing scrollbar flicker.
+      &:after {
+        box-shadow: ${props => props.theme.boxShadow[3]};
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: -1;
+        width: 100%;
+        height: 100%;
+      }
 
-// When `border-collapse: collapse` is set on a table element, Safari incorrectly renders row border with alpha channel.
-// It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14 (this is more visible
-// on the dark theme).
-// Sometimes, there is also an artifact visible after hovering the rows - some of them have correct border color, some not.
-// WebKit issue https://bugs.webkit.org/show_bug.cgi?id=35456.
-//
-// `getSolidRowBorderColor` is a workaround. Instead of setting a color with an alpha channel to the border and letting
-// the browser mix it with the background color, we calculate the final (non-alpha) color in the JS code.
-// The final color is created by lightening or darkening the table background color by the value of the alpha channel of theme.colors.spotBackground[0].
-function getSolidRowBorderColor(theme) {
-  const alpha = decomposeColor(theme.colors.spotBackground[0]).values[3] || 0;
-  return emphasize(theme.colors.levels.surface, alpha);
-}
+      + tr {
+        // on hover, hide border on adjacent sibling
+        border-top: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      }
+    }
 
-export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
-  padding: 16px 24px;
+    ${borderRadius}
+`;
+
+export const StyledPanel = styled.nav`
   display: flex;
-  height: 24px;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  background: ${props => props.theme.colors.levels.surface};
-  ${borderRadius}
-  border-top: ${props =>
-    props.showTopBorder
-      ? '1px solid ' + props.theme.colors.spotBackground[0]
-      : undefined};
-`;
-
-export const StyledTableWrapper = styled.div`
-  box-shadow: ${props => props.theme.boxShadow[0]};
-  overflow: hidden;
-  ${borderRadius}
+  padding: 0 0 ${props => props.theme.space[3]}px 0;
+  max-height: ${props => props.theme.space[6]}px;
+  margin-top: ${props => props.theme.space[1]}px;
 `;

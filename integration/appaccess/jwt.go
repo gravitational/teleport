@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -39,14 +38,13 @@ func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 	var jwks web.JWKSResponse
 	err = json.Unmarshal([]byte(body), &jwks)
 	require.NoError(t, err)
-	require.Len(t, jwks.Keys, 1)
+	require.Len(t, jwks.Keys, 2) // For backwards compatibility the same key is included twice in JWKS with different key IDs.
 	publicKey, err := jwt.UnmarshalJWK(jwks.Keys[0])
 	require.NoError(t, err)
 
 	// Verify JWT.
 	key, err := jwt.New(&jwt.Config{
 		PublicKey:   publicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: pack.jwtAppClusterName,
 	})
 	require.NoError(t, err)

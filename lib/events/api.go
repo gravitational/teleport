@@ -424,6 +424,13 @@ const (
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
+	// DatabaseSessionUserCreateEvent is emitted after provisioning new database user.
+	DatabaseSessionUserCreateEvent = "db.session.user.create"
+	// DatabaseSessionUserDeactivateEvent is emitted after disabling/deleting the auto-provisioned database user.
+	DatabaseSessionUserDeactivateEvent = "db.session.user.deactivate"
+	// DatabaseSessionPermissionsUpdateEvent is emitted after assigning
+	// the auto-provisioned database user permissions.
+	DatabaseSessionPermissionsUpdateEvent = "db.session.permissions.update"
 	// DatabaseSessionEndEvent is emitted when a database client disconnects
 	// from a database.
 	DatabaseSessionEndEvent = "db.session.end"
@@ -433,6 +440,10 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+	// DatabaseSessionCommandResult is emitted when a database returns a
+	// query/command result.
+	DatabaseSessionCommandResultEvent = "db.session.result"
+
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
 	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
@@ -523,6 +534,10 @@ const (
 	DatabaseSessionCassandraExecuteEvent = "db.session.cassandra.execute"
 	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
 	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
+
+	// DatabaseSessionSpannerRPCEvent is emitted when a Spanner client
+	// calls a Spanner RPC.
+	DatabaseSessionSpannerRPCEvent = "db.session.spanner.rpc"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -629,6 +644,17 @@ const (
 	// Device enroll tokens are issued by either a device admin or during
 	// client-side auto-enrollment.
 	DeviceEnrollTokenCreateEvent = "device.token.create"
+	// DeviceWebTokenCreateEvent is emitted when a new device web token is issued.
+	// Device web tokens are issued during Web login for users that own a suitable
+	// trusted device.
+	// Tokens are spent in exchange for a single on-behalf-of device
+	// authentication attempt.
+	DeviceWebTokenCreateEvent = "device.webtoken.create"
+	// DeviceAuthenticateConfirmEvent is emitted when a device web authentication
+	// attempt is confirmed (via the ConfirmDeviceWebAuthentication RPC).
+	// A confirmed web authentication means the WebSession itself now holds
+	// augmented TLS and SSH certificates.
+	DeviceAuthenticateConfirmEvent = "device.authenticate.confirm"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -677,6 +703,12 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
+	// OktaAccessListSyncEvent is emitted when an access list synchronization has completed.
+	OktaAccessListSyncEvent = "okta.access_list.sync"
+
+	// OktaUserSyncEvent is emitted when an access list synchronization has completed.
+	OktaUserSyncEvent = "okta.user.sync"
+
 	// AccessListCreateEvent is emitted when an access list is created.
 	AccessListCreateEvent = "access_list.create"
 
@@ -716,6 +748,39 @@ const (
 	// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
 	// disabled.
 	ExternalAuditStorageDisableEvent = "external_audit_storage.disable"
+
+	// CreateMFAAuthChallengeEvent is emitted when an MFA auth challenge is created.
+	CreateMFAAuthChallengeEvent = "mfa_auth_challenge.create"
+
+	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
+	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
+
+	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
+	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+
+	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
+	AuthPreferenceUpdateEvent = "auth_preference.update"
+	// ClusterNetworkingConfigUpdateEvent is emitted when a user updates the cluster networking configuration.
+	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
+	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
+	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+	// AccessGraphSettingsUpdateEvent is emitted when a user updates the access graph settings configuration.
+	AccessGraphSettingsUpdateEvent = "access_graph_settings.update"
+
+	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
+	// and an identity/resource is affected.
+	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
+	// TODO(jakule): Remove once e is updated to the new name.
+	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
+
+	// DiscoveryConfigCreatedEvent is emitted when a discovery config is created.
+	DiscoveryConfigCreateEvent = "discovery_config.create"
+	// DiscoveryConfigUpdatedEvent is emitted when a discovery config is updated.
+	DiscoveryConfigUpdateEvent = "discovery_config.update"
+	// DiscoveryConfigDeletedEvent is emitted when a discovery config is deleted.
+	DiscoveryConfigDeleteEvent = "discovery_config.delete"
+	// DiscoveryConfigDeletedAllEvent is emitted when all discovery configs are deleted.
+	DiscoveryConfigDeleteAllEvent = "discovery_config.delete_all"
 )
 
 const (
@@ -735,6 +800,16 @@ const (
 	// at the end of the session, so it skips writing session event index
 	// on the fly
 	V3 = 3
+)
+
+var (
+	// SessionRecordingEvents is a list of events that are related to session
+	// recorings.
+	SessionRecordingEvents = []string{
+		SessionEndEvent,
+		WindowsDesktopSessionEndEvent,
+		DatabaseSessionEndEvent,
+	}
 )
 
 // ServerMetadataGetter represents interface
@@ -908,9 +983,13 @@ type SessionStreamer interface {
 	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
 
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	// StreamSessionEvents streams all events from a given session recording. An
+	// error is returned on the first channel if one is encountered. Otherwise
+	// the event channel is closed when the stream ends. The event channel is
+	// not closed on error to prevent race conditions in downstream select
+	// statements. Both returned channels must be driven until the event channel
+	// is exhausted or the error channel reports an error, or until the context
+	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 

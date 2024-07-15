@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LazyExoticComponent, ReactElement, useEffect, useState } from 'react';
+import { ReactElement, useEffect, useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 
-import { User } from 'teleport/services/user';
+import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
+import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
   InviteCollaborators,
@@ -29,7 +30,6 @@ export default function useUsers({
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
-  const [roles, setRoles] = useState([] as string[]);
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -77,16 +77,25 @@ export default function useUsers({
   }
 
   function onUpdate(u: User) {
-    return ctx.userService.updateUser(u).then(result => {
-      setUsers([result, ...users.filter(i => i.name !== u.name)]);
-    });
+    return ctx.userService
+      .updateUser(u, ExcludeUserField.Traits)
+      .then(result => {
+        setUsers([result, ...users.filter(i => i.name !== u.name)]);
+      });
   }
 
-  function onCreate(u: User) {
+  async function onCreate(u: User) {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
     return ctx.userService
-      .createUser(u)
+      .createUser(u, ExcludeUserField.Traits, webauthnResponse)
       .then(result => setUsers([result, ...users]))
-      .then(() => ctx.userService.createResetPasswordToken(u.name, 'invite'));
+      .then(() =>
+        ctx.userService.createResetPasswordToken(
+          u.name,
+          'invite',
+          webauthnResponse
+        )
+      );
   }
 
   function onInviteCollaboratorsClose(newUsers?: User[]) {
@@ -102,29 +111,22 @@ export default function useUsers({
     setOperation({ type: 'none' });
   }
 
+  async function fetchRoles(search: string): Promise<string[]> {
+    const { items } = await ctx.resourceService.fetchRoles({
+      search,
+      limit: 50,
+    });
+    return items.map(r => r.name);
+  }
+
   useEffect(() => {
-    function fetchRoles() {
-      if (ctx.getFeatureFlags().roles) {
-        return ctx.resourceService
-          .fetchRoles()
-          .then(resources => resources.map(role => role.name));
-      }
-
-      return Promise.resolve([]);
-    }
-
-    attemptActions.do(() =>
-      Promise.all([fetchRoles(), ctx.userService.fetchUsers()]).then(values => {
-        setRoles(values[0]);
-        setUsers(values[1]);
-      })
-    );
+    attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
 
   return {
     attempt,
     users,
-    roles,
+    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,
@@ -173,12 +175,8 @@ type EmailPasswordResetElement = (
 ) => ReactElement;
 
 export type UsersContainerProps = {
-  InviteCollaborators?:
-    | LazyExoticComponent<InviteCollaboratorsElement>
-    | InviteCollaboratorsElement;
-  EmailPasswordReset?:
-    | LazyExoticComponent<EmailPasswordResetElement>
-    | EmailPasswordResetElement;
+  InviteCollaborators?: InviteCollaboratorsElement;
+  EmailPasswordReset?: EmailPasswordResetElement;
 };
 
 export type State = ReturnType<typeof useUsers>;

@@ -87,6 +87,18 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should have multiple replicas by default when an ingress is terminating TLS
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+      ingress:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
   - it: should set affinity when set in values
     template: proxy/deployment.yaml
     set:
@@ -152,6 +164,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set podSecurityContext when set in values
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/pod-security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 99
+
+  - it: should not set podSecurityContext when is empty object (default value)
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/pod-security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.securityContext
+
   - it: should set securityContext when set in values
     template: proxy/deployment.yaml
     values:
@@ -212,6 +253,25 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set resources for wait-auth-update initContainer when set in values
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 0.1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 256Mi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 512Mi
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should not set securityContext for initContainers when is empty object (default value)
     template: proxy/deployment.yaml
@@ -927,3 +987,58 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: proxy-serviceaccount-token
             readOnly: true
+
+  - it: sets extraLabels on Deployment
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        deployment:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          deployment:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: sets extraLabels on Deployment Pods
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        pod:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          pod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: overridden
+
+  - it: sets clusterDomain on Deployment Pods
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[3]
+          pattern: ".svc.test.com$"

@@ -40,30 +40,49 @@ const (
 	// rendererCertFileName is the file name of the cert created by the renderer process of the
 	// Electron app.
 	rendererCertFileName = "renderer.crt"
+	// mainProcessCertFileName is the file name of the cert created by the main process of the
+	// Electron app.
+	mainProcessCertFileName = "main-process.crt"
 )
 
-// createServerCredentials creates mTLS credentials for a gRPC server. The client cert file is read
-// only on an incoming connection, not upfront. The way Connect startup is set up guarantees that by
-// the time the client reaches out to us, its public key is saved to the file under clientCertPath.
-func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath string) (grpc.ServerOption, error) {
+// createServerCredentials creates mTLS credentials for a gRPC server. This mTLS setup hinges on
+// server and client processes being able to read and write files to a directory that only the
+// current user is able to write to. It's meant a simple replacement for using Unix sockets in
+// environments like Windows where we can't use them.
+//
+// In this mTLS setup, there is no single CA which creates certs for clients. Instead, each client
+// generates a self-signed cert that it's going to use to initiate a connection. The cert is then
+// saved under a predetermined path. The path is passed out of bound during tsh daemon startup.
+//
+// createServerCredentials then reads each cert and adds it to ClientCAs. Those certs will be then
+// used by clients to initiate connections.
+//
+// The startup of Connect is orchestrated in a way where those client public keys are expected to be saved
+// to disk before a client attempts to connect to the server.
+func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []string) (grpc.ServerOption, error) {
 	config := &tls.Config{
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{serverKeyPair},
 	}
 
 	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
-		clientCert, err := os.ReadFile(clientCertPath)
-		if err != nil {
-			log.WithError(err).Error("Failed to read the client cert file")
-			// Fall back to the default config.
-			return nil, nil
-		}
-
 		certPool := x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(clientCert) {
-			log.Error("Failed to add the client cert to the pool")
-			// Fall back to the default config.
-			return nil, nil
+
+		for _, clientCertPath := range clientCertPaths {
+			log := log.WithField("cert_path", clientCertPath)
+
+			clientCert, err := os.ReadFile(clientCertPath)
+			if err != nil {
+				log.WithError(err).Error("Failed to read the client cert file")
+				// Fall back to the default config.
+				return nil, nil
+			}
+
+			if !certPool.AppendCertsFromPEM(clientCert) {
+				log.Error("Failed to add the client cert to the pool")
+				// Fall back to the default config.
+				return nil, nil
+			}
 		}
 
 		configClone := config.Clone()

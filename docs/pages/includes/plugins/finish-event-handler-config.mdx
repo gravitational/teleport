@@ -9,6 +9,12 @@ storage = "./storage"
 timeout = "10s"
 batch = 20
 namespace = "default"
+# The window size configures the duration of the time window for the event handler
+# to request events from Teleport. By default, this is set to 24 hours.
+# Reduce the window size if the events backend cannot manage the event volume 
+# for the default window size.
+# The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
+window-size = "24h"
 
 [forward.fluentd]
 ca = "/home/bob/event-handler/ca.crt"
@@ -36,10 +42,17 @@ eventHandler:
   timeout: "10s"
   batch: 20
   namespace: "default"
+  # The window size configures the duration of the time window for the event handler
+  # to request events from Teleport. By default, this is set to 24 hours.
+  # Reduce the window size if the events backend cannot manage the event volume 
+  # for the default window size.
+  # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
+  windowSize: "24h"
 
 teleport:
   address: "example.teleport.com:443"
   identitySecretName: teleport-event-handler-identity
+  identitySecretPath: identity
 
 fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"

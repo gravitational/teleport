@@ -20,8 +20,8 @@ compromising productivity.
 - A Microsoft Teams License (Microsoft 365 Business).
 - Azure console access in the organization/directory holding the Microsoft Teams
   License.
-- An Azure resource group in the same directory. This will  host resources for
-  the the Microsoft Teams Access Request plugin. You should have enough
+- An Azure resource group in the same directory. This will host resources for
+  the Microsoft Teams Access Request plugin. You should have enough
   permissions to create and edit Azure Bot Services in this resource group.
 - Someone with Global Admin rights on the Azure Active Directory that will grant
   permissions to the plugin.
@@ -311,7 +311,7 @@ $ tsh request create --roles=dbadmin --reviewers=alice@example.com,ivan@example.
 
 If an Access Request includes suggested reviewers, the Microsoft Teams plugin will add
 these to the list of channels to notify. If a suggested reviewer is an email
-address, the plugin will look up the the direct message channel for that
+address, the plugin will look up the direct message channel for that
 address and post a message in that channel.
 
 </Details>

@@ -22,3 +22,4 @@ export * from './documentsUtils';
 export * from './connectToDatabase';
 export * from './connectToServer';
 export * from './connectToKube';
+export * from './connectToApp';

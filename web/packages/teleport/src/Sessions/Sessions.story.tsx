@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 
@@ -34,9 +35,11 @@ export function Loaded() {
   const props = makeSessionProps({ attempt: { isSuccess: true } });
 
   return (
-    <ContextProvider ctx={ctx}>
-      <Sessions {...props} />
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Sessions {...props} />
+      </ContextProvider>
+    </MemoryRouter>
   );
 }
 
@@ -47,9 +50,11 @@ export function ActiveSessionsCTA() {
   });
 
   return (
-    <ContextProvider ctx={ctx}>
-      <Sessions {...props} />
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Sessions {...props} />
+      </ContextProvider>
+    </MemoryRouter>
   );
 }
 
@@ -60,9 +65,11 @@ export function ModeratedSessionsCTA() {
   });
 
   return (
-    <ContextProvider ctx={ctx}>
-      <Sessions {...props} />
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Sessions {...props} />
+      </ContextProvider>
+    </MemoryRouter>
   );
 }
 
@@ -73,6 +80,8 @@ const makeSessionProps = (
 ): ReturnType<typeof useSessions> => {
   return Object.assign(
     {
+      ctx,
+      clusterId: 'teleport.example.sh',
       sessions,
       attempt: {
         isSuccess: false,

@@ -37,6 +37,6 @@ jobs:
       - name: Installing Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: .github/shared-workflows/bot/go.mod
+          go-version: 'stable'
       - name: Validate the changelog entry
         run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

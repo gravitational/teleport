@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -42,7 +43,7 @@ type mockClients struct {
 	azureClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSAssumeRoleOptionFn) (ec2iface.EC2API, error) {
+func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSOptionsFn) (ec2iface.EC2API, error) {
 	return c.ec2Client, nil
 }
 
@@ -162,6 +163,14 @@ func TestEC2Watcher(t *testing.T) {
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
 			SSM:     &types.AWSSSM{},
 		},
+		{
+			Params:      &types.InstallerParams{},
+			Types:       []string{"EC2"},
+			Regions:     []string{"us-west-2"},
+			Tags:        map[string]utils.Strings{"with-eice": {"please"}},
+			Integration: "my-aws-integration",
+			SSM:         &types.AWSSSM{},
+		},
 	}
 	ctx := context.Background()
 
@@ -185,12 +194,23 @@ func TestEC2Watcher(t *testing.T) {
 			Name: aws.String(ec2.InstanceStateNameRunning),
 		},
 	}
+	presentForEICE := ec2.Instance{
+		InstanceId: aws.String("instance-present-3"),
+		Tags: []*ec2.Tag{{
+			Key:   aws.String("with-eice"),
+			Value: aws.String("please"),
+		}},
+		State: &ec2.InstanceState{
+			Name: aws.String(ec2.InstanceStateNameRunning),
+		},
+	}
 
 	output := ec2.DescribeInstancesOutput{
 		Reservations: []*ec2.Reservation{{
 			Instances: []*ec2.Instance{
 				&present,
 				&presentOther,
+				&presentForEICE,
 				{
 					InstanceId: aws.String("instance-absent"),
 					Tags: []*ec2.Tag{{
@@ -242,6 +262,13 @@ func TestEC2Watcher(t *testing.T) {
 		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, *result.EC2)
+	result = <-watcher.InstancesC
+	require.Equal(t, EC2Instances{
+		Region:      "us-west-2",
+		Instances:   []EC2Instance{toEC2Instance(&presentForEICE)},
+		Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+		Integration: "my-aws-integration",
+	}, *result.EC2)
 }
 
 func TestConvertEC2InstancesToServerInfos(t *testing.T) {
@@ -267,4 +294,68 @@ func TestConvertEC2InstancesToServerInfos(t *testing.T) {
 	require.Len(t, serverInfos, 1)
 
 	require.Empty(t, cmp.Diff(expected, serverInfos[0]))
+}
+
+func TestMakeEvents(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		insts    *EC2Instances
+		expected map[string]*usageeventsv1.ResourceCreateEvent
+	}{
+		{
+			name: "script mode with teleport agents, returns node resource type",
+			insts: &EC2Instances{
+				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				Instances: []EC2Instance{{
+					InstanceID: "i-123456789012",
+				}},
+				DocumentName: "TeleportDiscoveryInstaller",
+			},
+			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+				"aws/i-123456789012": {
+					ResourceType:   "node",
+					ResourceOrigin: "cloud",
+					CloudProvider:  "AWS",
+				},
+			},
+		},
+		{
+			name: "script mode with openssh config, returns node.openssh resource type",
+			insts: &EC2Instances{
+				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				Instances: []EC2Instance{{
+					InstanceID: "i-123456789012",
+				}},
+				DocumentName: "TeleportAgentlessDiscoveryInstaller",
+			},
+			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+				"aws/i-123456789012": {
+					ResourceType:   "node.openssh",
+					ResourceOrigin: "cloud",
+					CloudProvider:  "AWS",
+				},
+			},
+		},
+		{
+			name: "eice mode, returns node.openssh-eice resource type",
+			insts: &EC2Instances{
+				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				Instances: []EC2Instance{{
+					InstanceID: "i-123456789012",
+				}},
+			},
+			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+				"aws/i-123456789012": {
+					ResourceType:   "node.openssh-eice",
+					ResourceOrigin: "cloud",
+					CloudProvider:  "AWS",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.insts.MakeEvents()
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }

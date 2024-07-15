@@ -9,7 +9,9 @@ that can become a vector for attacks.
 
 Teleport's ServiceNow integration allows you to treat Teleport Access
 Requests as ServiceNow incidents, notify the appropriate on-call team, and
-approve or deny the requests via Teleport.
+approve or deny the requests via Teleport. You can also configure the plugin to
+approve Access Requests automatically if the user making the request is in
+a specific on-call rotation.
 
 This guide will explain how to set up Teleport's Access Request plugin for
 ServiceNow.
@@ -35,6 +37,35 @@ API.
 Before making the access request ensure the user making the request has
 the `requester` role.
 
+For the plugin to know which ServiceNow rotations to check for the
+auto approval flow, the rotation you wish users to be checked against
+must be included in one of the requesting user's roles. To do so, add the `teleport.dev/schedules` annotation as shown in the following example: 
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: YOUR_ROLE_NAME_HERE
+spec:
+  allow:
+    request:
+      roles: ['editor']
+      thresholds:
+        - approve: 1
+          deny: 1
+      annotations:
+        teleport.dev/schedules:
+        - YOUR_SERVICENOW_ROTA_ID_HERE
+```
+
+To retrieve the ServiceNow rotation ID, navigate to the group record
+of the ServiceNow group the rotation belongs to and right click on
+header, then click 'Select copy sys_id' to copy the ID.
+
+Then using the ServiceNow endpoint `/api/now/on_call_rota/workbench/group/{groupSysId}`
+retrieve the group's on-call rota information.
+Select the value of the desired 'rota' from the response.
+
 ## Step 3/4. Configure the ServiceNow plugin
 
 At this point, you have a ServiceNow user that the ServiceNow plugin will use
@@ -44,6 +75,10 @@ to Management -> Integrations -> Enroll New Integration.
 ![Integrations page](../../../img/enterprise/plugins/servicenow/servicenow-integration-page.png)
 
 The plugin requires credentials that can read and write to the incident table.
+
+The "Close Code" specified here will be the one used when resolving ServiceNow
+incidents. The "Caller" will be the username of the requesting Teleport user.
+(The "Caller" field will only be filled if there is an existing ServiceNow user of the same name.)
 
 ## Step 4/4. Test the ServiceNow plugin
 
@@ -55,6 +90,10 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 In ServiceNow, you will see a new incident containing information about the
 Access Request.
+
+If the a ServiceNow rotation was specified in the requester's role annotations,
+then the ServiceNow plugin will check that the requester's username matches the
+ServiceNow user currently on-call in that rotation and approve the Access Request.
 
 ### Resolve the request
 

@@ -17,11 +17,12 @@ limitations under the License.
 package events
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"reflect"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // MustToOneOf converts audit event to OneOf
@@ -266,6 +267,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *DatabaseSessionQuery:
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
+		}
+	case *DatabasePermissionUpdate:
+		out.Event = &OneOf_DatabasePermissionUpdate{
+			DatabasePermissionUpdate: e,
 		}
 	case *PostgresParse:
 		out.Event = &OneOf_PostgresParse{
@@ -615,9 +620,81 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ExternalAuditStorageDisable{
 			ExternalAuditStorageDisable: e,
 		}
+	case *CreateMFAAuthChallenge:
+		out.Event = &OneOf_CreateMFAAuthChallenge{
+			CreateMFAAuthChallenge: e,
+		}
+	case *ValidateMFAAuthResponse:
+		out.Event = &OneOf_ValidateMFAAuthResponse{
+			ValidateMFAAuthResponse: e,
+		}
+	case *OktaAccessListSync:
+		out.Event = &OneOf_OktaAccessListSync{
+			OktaAccessListSync: e,
+		}
+	case *OktaUserSync:
+		out.Event = &OneOf_OktaUserSync{
+			OktaUserSync: e,
+		}
+	case *SPIFFESVIDIssued:
+		out.Event = &OneOf_SPIFFESVIDIssued{
+			SPIFFESVIDIssued: e,
+		}
+	case *AuthPreferenceUpdate:
+		out.Event = &OneOf_AuthPreferenceUpdate{
+			AuthPreferenceUpdate: e,
+		}
+	case *ClusterNetworkingConfigUpdate:
+		out.Event = &OneOf_ClusterNetworkingConfigUpdate{
+			ClusterNetworkingConfigUpdate: e,
+		}
+	case *SessionRecordingConfigUpdate:
+		out.Event = &OneOf_SessionRecordingConfigUpdate{
+			SessionRecordingConfigUpdate: e,
+		}
+	case *AccessGraphSettingsUpdate:
+		out.Event = &OneOf_AccessGraphSettingsUpdate{
+			AccessGraphSettingsUpdate: e,
+		}
+	case *DatabaseUserCreate:
+		out.Event = &OneOf_DatabaseUserCreate{
+			DatabaseUserCreate: e,
+		}
+	case *DatabaseUserDeactivate:
+		out.Event = &OneOf_DatabaseUserDeactivate{
+			DatabaseUserDeactivate: e,
+		}
+	case *AccessPathChanged:
+		out.Event = &OneOf_AccessPathChanged{
+			AccessPathChanged: e,
+		}
+	case *SpannerRPC:
+		out.Event = &OneOf_SpannerRPC{
+			SpannerRPC: e,
+		}
+	case *DatabaseSessionCommandResult:
+		out.Event = &OneOf_DatabaseSessionCommandResult{
+			DatabaseSessionCommandResult: e,
+		}
+	case *DiscoveryConfigCreate:
+		out.Event = &OneOf_DiscoveryConfigCreate{
+			DiscoveryConfigCreate: e,
+		}
+	case *DiscoveryConfigUpdate:
+		out.Event = &OneOf_DiscoveryConfigUpdate{
+			DiscoveryConfigUpdate: e,
+		}
+	case *DiscoveryConfigDelete:
+		out.Event = &OneOf_DiscoveryConfigDelete{
+			DiscoveryConfigDelete: e,
+		}
+	case *DiscoveryConfigDeleteAll:
+		out.Event = &OneOf_DiscoveryConfigDeleteAll{
+			DiscoveryConfigDeleteAll: e,
+		}
 
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
+		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode

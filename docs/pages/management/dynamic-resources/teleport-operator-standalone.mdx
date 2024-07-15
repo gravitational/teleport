@@ -9,12 +9,13 @@ If your Teleport cluster is deployed using the `teleport-cluster` Helm chart, yo
 
 ## Prerequisites
 
-(!docs/pages/includes/self-hosted-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - a Kubernetes cluster. You must be able to create/read Namespace, ServiceAccount,
   Deployment, Secret, Role, RoleBinding and CustomResourceDefinition resources.
 - [Helm](https://helm.sh/docs/intro/quickstart/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- a Teleport cluster running at least version 15.
 
 Validate Kubernetes connectivity by running the following command:
 
@@ -33,7 +34,7 @@ $ kubectl cluster-info
   ```
 </Admonition>
 
-### Step 1/4 - Create the operator role
+### Step 1/4. Create the operator role
 
 In this step we create the role the operator uses to interact with Teleport resources.
 
@@ -50,7 +51,7 @@ resources, you will need to re-apply the operator role manifest. This will grant
 the operator access to the new resources.
 </Admonition>
 
-### Step 2/4 - Create the operator join token
+### Step 2/4. Create the operator join token
 
 The join token is used by the operator on each startup to join the Teleport cluster and retrieve its client certificates.
 
@@ -90,7 +91,7 @@ To establish trust between the connecting operator and Teleport, we are delegati
    $ export CLUSTER_NAME="$(tctl status | awk '/Cluster/ {print $2}')"
    ```
 
-### Step 3/4 - Create the operator bot
+### Step 3/4. Create the operator bot
 
 In Teleport, a bot is a resource allowing a machine to access Teleport.
 Create a bot for the operator with the following command:
@@ -99,12 +100,17 @@ Create a bot for the operator with the following command:
 $ tctl bots add operator --token operator-bot --roles operator
 ```
 
-### Step 4/4 - Deploy the operator in the Kubernetes cluster
+### Step 4/4. Deploy the operator in the Kubernetes cluster
 
-At this point you can configure and run the operator:
+At this point, you can configure and run the operator:
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
+1. Recover the version of your Teleport cluster
+   ```code
+   export TELEPORT_VERSION="$(tsh version | awk '/Proxy[[:space:]]version/ {print $3}')"
+   echo "$TELEPORT_VERSION"
+   ```
 1. Create the Kubernetes namespace that will contain both the operator Pods and the CustomResources to configure Teleport:
    ```code
    $ kubectl create namespace teleport-iac
@@ -115,17 +121,21 @@ At this point you can configure and run the operator:
    ```
 1. Deploy the operator with Helm:
    ```code
-   $ helm install teleport-operator teleport/teleport-operator -n teleport-iac --set teleportAddress=teleport.example.com:443 --set "teleportClusterName=$CLUSTER_NAME" --set token=operator-bot 
+   $ helm install teleport-operator teleport/teleport-operator -n teleport-iac --version "$TELEPORT_VERSION" --set teleportAddress=teleport.example.com:443 --set "teleportClusterName=$CLUSTER_NAME" --set token=operator-bot 
    ```
 1. Validate that operator is running properly (the operator might take a few seconds to start):
    ```code
    $ kubectl get pods -n teleport-iac
    ```
+   
+## Next steps
+
+Follow [the user and role IaC guide](./user-and-role.mdx) to use your newly
+deployed Teleport Kubernetes Operator to create Teleport users and grant them
+roles.
+
+Helm Chart parameters are documented in the [`teleport-operator` Helm chart reference](../../reference/helm-reference/teleport-operator.mdx).
 
 ## Troubleshooting
 
 (!docs/pages/includes/diagnostics/kubernetes-operator-troubleshooting.mdx!)
-
-## Next steps
-
-Helm Chart parameters are documented in the [`teleport-operator` Helm chart reference](../../reference/helm-reference/teleport-operator.mdx).

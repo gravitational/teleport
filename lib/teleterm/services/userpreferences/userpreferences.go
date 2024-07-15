@@ -20,25 +20,39 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
 func Get(ctx context.Context, rootClient Client, leafClient Client) (*api.UserPreferences, error) {
-	rootPreferencesResponse, err := rootClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rootPreferences := rootPreferencesResponse.GetPreferences()
-	clusterPreferences := rootPreferences.GetClusterPreferences()
+	group, groupCtx := errgroup.WithContext(ctx)
+	var rootPreferencesResponse *userpreferencesv1.GetUserPreferencesResponse
+	var leafPreferencesResponse *userpreferencesv1.GetUserPreferencesResponse
+
+	group.Go(func() error {
+		res, err := rootClient.GetUserPreferences(groupCtx, &userpreferencesv1.GetUserPreferencesRequest{})
+		rootPreferencesResponse = res
+		return trace.Wrap(err)
+	})
 
 	if leafClient != nil {
-		preferences, err := leafClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clusterPreferences = preferences.GetPreferences().GetClusterPreferences()
+		group.Go(func() error {
+			res, err := leafClient.GetUserPreferences(groupCtx, &userpreferencesv1.GetUserPreferencesRequest{})
+			leafPreferencesResponse = res
+			return trace.Wrap(err)
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootPreferences := rootPreferencesResponse.GetPreferences()
+	clusterPreferences := rootPreferences.GetClusterPreferences()
+	if leafPreferencesResponse != nil {
+		clusterPreferences = leafPreferencesResponse.GetPreferences().GetClusterPreferences()
 	}
 
 	return &api.UserPreferences{
@@ -48,26 +62,54 @@ func Get(ctx context.Context, rootClient Client, leafClient Client) (*api.UserPr
 }
 
 // Update updates the preferences for a given user.
-// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+// Only the properties that are set (cluster_preferences, unified_resource_preferences) are updated.
+// When updating the preferences for the root cluster, both unified_resource_preferences
+// and cluster_preferences are updated in it.
+// When updating the preferences for the leaf cluster, only cluster_preferences are updated
+// in the leaf, unified_resource_preferences are always updated in the root.
 func Update(ctx context.Context, rootClient Client, leafClient Client, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
 	// We have to fetch the full user preferences struct and modify only
 	// the fields that change.
 	// Calling `UpsertUserPreferences` with only the modified values would reset
 	// the rest of the preferences.
-	rootPreferencesResponse, err := rootClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
-	if err != nil {
+	getGroup, getGroupCtx := errgroup.WithContext(ctx)
+	var rootPreferencesResponse *userpreferencesv1.GetUserPreferencesResponse
+	var leafPreferencesResponse *userpreferencesv1.GetUserPreferencesResponse
+
+	getGroup.Go(func() error {
+		res, err := rootClient.GetUserPreferences(getGroupCtx, &userpreferencesv1.GetUserPreferencesRequest{})
+		rootPreferencesResponse = res
+		return trace.Wrap(err)
+	})
+
+	if leafClient != nil {
+		getGroup.Go(func() error {
+			res, err := leafClient.GetUserPreferences(getGroupCtx, &userpreferencesv1.GetUserPreferencesRequest{})
+			leafPreferencesResponse = res
+			return trace.Wrap(err)
+		})
+	}
+
+	if err := getGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rootPreferences := rootPreferencesResponse.GetPreferences()
 
+	rootPreferences := rootPreferencesResponse.GetPreferences()
 	var leafPreferences *userpreferencesv1.UserPreferences
-	if leafClient != nil {
-		response, err := leafClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		leafPreferences = response.GetPreferences()
+	if leafPreferencesResponse != nil {
+		leafPreferences = leafPreferencesResponse.GetPreferences()
 	}
+
+	// We do not use errgroup.WithContext since we don't want to cancel
+	// the other request when one of them fails.
+	//
+	// We can run update requests concurrently because the preferences for the root
+	// cluster and the leaf cluster aren't dependent on each other.
+	// The preferences for the unified view are always set for the root cluster,
+	// while pinned resources can be set for either the root or the leaf.
+	// So if, for example, setting unified view preferences fails,
+	// we can still update pinned resources for leaf.
+	upsertGroup := errgroup.Group{}
 
 	hasUnifiedResourcePreferencesForRoot := newPreferences.UnifiedResourcePreferences != nil
 	hasClusterPreferencesForRoot := newPreferences.ClusterPreferences != nil && leafPreferences == nil
@@ -80,24 +122,28 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 			rootPreferences.ClusterPreferences = updateClusterPreferences(rootPreferences.ClusterPreferences, newPreferences.ClusterPreferences)
 		}
 
-		err := rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
-			Preferences: rootPreferences,
+		upsertGroup.Go(func() error {
+			err := rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: rootPreferences,
+			})
+			return trace.Wrap(err)
 		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	hasClusterPreferencesForLeaf := newPreferences.ClusterPreferences != nil && leafPreferences != nil
 	if hasClusterPreferencesForLeaf {
 		leafPreferences.ClusterPreferences = updateClusterPreferences(leafPreferences.ClusterPreferences, newPreferences.ClusterPreferences)
 
-		err := leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
-			Preferences: leafPreferences,
+		upsertGroup.Go(func() error {
+			err := leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: leafPreferences,
+			})
+			return trace.Wrap(err)
 		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	}
+
+	if err := upsertGroup.Wait(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	updatedPreferences := &api.UserPreferences{
@@ -115,18 +161,13 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 // and LabelsViewMode fields in UnifiedResourcePreferences.
 // The fields are updated one by one (instead of passing the entire struct as new preferences)
 // to prevent potential new fields from being overwritten.
-// Supports oldPreferences being nil.
 func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedResourcePreferences, newPreferences *userpreferencesv1.UnifiedResourcePreferences) *userpreferencesv1.UnifiedResourcePreferences {
 	updated := oldPreferences
-	// TODO(gzdunek): DELETE IN 16.0.0.
-	// We won't have to support old preferences being nil.
-	if oldPreferences == nil {
-		updated = &userpreferencesv1.UnifiedResourcePreferences{}
-	}
 
 	updated.DefaultTab = newPreferences.DefaultTab
 	updated.ViewMode = newPreferences.ViewMode
 	updated.LabelsViewMode = newPreferences.LabelsViewMode
+	updated.AvailableResourceMode = newPreferences.AvailableResourceMode
 
 	return updated
 }
@@ -134,17 +175,8 @@ func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedR
 // updateClusterPreferences updates pinned resources in ClusterUserPreferences.
 // The fields are updated one by one (instead of passing the entire struct as new preferences)
 // to prevent potential new fields from being overwritten.
-// Supports oldPreferences being nil.
 func updateClusterPreferences(oldPreferences *userpreferencesv1.ClusterUserPreferences, newPreferences *userpreferencesv1.ClusterUserPreferences) *userpreferencesv1.ClusterUserPreferences {
 	updated := oldPreferences
-	// TODO(gzdunek): DELETE IN 16.0.0.
-	// We won't have to support old preferences being nil.
-	if oldPreferences == nil {
-		updated = &userpreferencesv1.ClusterUserPreferences{}
-	}
-	if updated.PinnedResources == nil {
-		updated.PinnedResources = &userpreferencesv1.PinnedResourcesUserPreferences{}
-	}
 
 	updated.PinnedResources.ResourceIds = newPreferences.PinnedResources.ResourceIds
 

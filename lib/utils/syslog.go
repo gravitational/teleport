@@ -35,7 +35,14 @@ import (
 func SwitchLoggingToSyslog() error {
 	logger := logrus.StandardLogger()
 
-	hook, err := CreateSyslogHook()
+	w, err := NewSyslogWriter()
+	if err != nil {
+		logger.Errorf("Failed to switch logging to syslog: %v.", err)
+		logger.SetOutput(os.Stderr)
+		return trace.Wrap(err)
+	}
+
+	hook, err := NewSyslogHook(w)
 	if err != nil {
 		logger.Errorf("Failed to switch logging to syslog: %v.", err)
 		logger.SetOutput(os.Stderr)
@@ -49,8 +56,22 @@ func SwitchLoggingToSyslog() error {
 	return nil
 }
 
-// CreateSyslogHook provides a [logrus.Hook] that sends output to syslog.
-func CreateSyslogHook() (logrus.Hook, error) {
-	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_WARNING, "")
-	return hook, trace.Wrap(err)
+// NewSyslogHook provides a [logrus.Hook] that sends output to syslog.
+func NewSyslogHook(w io.Writer) (logrus.Hook, error) {
+	if w == nil {
+		return nil, trace.BadParameter("syslog writer must not be nil")
+	}
+
+	sw, ok := w.(*syslog.Writer)
+	if !ok {
+		return nil, trace.BadParameter("expected a syslog writer, got %T", w)
+	}
+
+	return &logrusSyslog.SyslogHook{Writer: sw}, nil
+}
+
+// NewSyslogWriter creates a writer that outputs to the local machine syslog.
+func NewSyslogWriter() (io.Writer, error) {
+	writer, err := syslog.Dial("", "", syslog.LOG_WARNING, "")
+	return writer, trace.Wrap(err)
 }

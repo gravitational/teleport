@@ -32,15 +32,6 @@ func init() {
 // TeleportProvisionTokenSpec defines the desired state of TeleportProvisionToken
 type TeleportProvisionTokenSpec types.ProvisionTokenSpecV2
 
-// TeleportProvisionTokenStatus defines the observed state of TeleportProvisionToken
-type TeleportProvisionTokenStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -49,8 +40,8 @@ type TeleportProvisionToken struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportProvisionTokenSpec   `json:"spec,omitempty"`
-	Status TeleportProvisionTokenStatus `json:"status,omitempty"`
+	Spec   TeleportProvisionTokenSpec `json:"spec,omitempty"`
+	Status resources.Status           `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

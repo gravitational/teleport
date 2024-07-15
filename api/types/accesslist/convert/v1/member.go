@@ -44,7 +44,6 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		Expires:    msg.Spec.Expires.AsTime(),
 		Reason:     msg.Spec.Reason,
 		AddedBy:    msg.Spec.AddedBy,
-		Membership: accesslist.Inclusion(msg.Spec.Membership),
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
@@ -65,7 +64,7 @@ func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMemb
 	members := make([]*accesslist.AccessListMember, len(msgs))
 	for i, msg := range msgs {
 		var err error
-		members[i], err = FromMemberProto(msg)
+		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -89,7 +88,6 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			Expires:          timestamppb.New(member.Spec.Expires),
 			Reason:           member.Spec.Reason,
 			AddedBy:          member.Spec.AddedBy,
-			Membership:       string(member.Spec.Membership),
 			IneligibleStatus: ineligibleStatus,
 		},
 	}

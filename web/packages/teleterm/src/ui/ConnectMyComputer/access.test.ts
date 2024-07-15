@@ -70,7 +70,7 @@ test.each(testCases)('$name', testCase => {
         list: false,
         use: false,
         read: false,
-        pb_delete: false,
+        delete: false,
       },
     },
   });

@@ -60,11 +60,11 @@ export function VirtualScroll<T>(props: VirtualScrollProps<T>) {
   );
 }
 
-const TotalHeight = styled.div`
+const TotalHeight = styled.div<{ height: number }>`
   height: ${props => props.height + 'px'};
 `;
 
-const Offset = styled.div.attrs(props => ({
+const Offset = styled.div.attrs<{ moveBy: number }>(props => ({
   style: {
     transform: `translateY(${props.moveBy + 'px'})`,
   },

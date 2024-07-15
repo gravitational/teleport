@@ -149,6 +149,7 @@ export class AgentRunner {
     process.stderr.setEncoding('utf-8');
     process.stderr.on('data', (error: string) => {
       stderrOutput += error;
+      // TODO(ravicious): Pipe into KeepLastChunks instead.
       stderrOutput = processAgentOutput(stderrOutput);
       this.agentProcesses.get(rootClusterUri).logs = stderrOutput;
     });
@@ -211,14 +212,28 @@ export class AgentRunner {
     agent: ChildProcess
   ) {
     agent.once('spawn', () => {
-      const cleanupDaemon = fork(this.agentCleanupDaemonPath, [
-        // agent.pid can in theory be null if the agent gets terminated before the execution gets to
-        // this point. In that case, the cleanup daemon is going to exit early.
-        agent.pid?.toString(),
-        process.pid.toString(),
-        rootClusterUri,
-        this.settings.logsDir,
-      ]);
+      const cleanupDaemon = fork(
+        this.agentCleanupDaemonPath,
+        [
+          // agent.pid can in theory be null if the agent gets terminated before the execution gets to
+          // this point. In that case, the cleanup daemon is going to exit early.
+          agent.pid?.toString(),
+          process.pid.toString(),
+          rootClusterUri,
+          this.settings.logsDir,
+        ],
+        // Inherit stderr and stdout so that any errors emitted during Node.js process startup will
+        // be visible when running Connect from a terminal.
+        //
+        // In dev mode, stdout from cleanup daemon will be visible in the terminal output but it
+        // won't be colored like other logs.
+        //
+        // It'd be better to pipe stdout and stderr instead and log them (see
+        // pipeProcessOutputIntoLogger) but this would require a more elaborate setup (pipe stdout
+        // after fork and then stop piping on successful start since agent cleanup daemon has its
+        // own logging).
+        { stdio: 'inherit' }
+      );
 
       // The cleanup daemon terminates the agent only when the parent (this process) gets
       // unexpectedly killed and loses control over the agent by orphaning it.

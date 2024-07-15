@@ -85,3 +85,22 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: sets extraLabels on PersistentVolumeClaim
+    set:
+      chartMode: standalone
+      extraLabels:
+        persistentVolumeClaim:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          persistentVolumeClaim:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden

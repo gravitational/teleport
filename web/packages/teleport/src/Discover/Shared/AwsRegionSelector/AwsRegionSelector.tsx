@@ -30,7 +30,7 @@ export function AwsRegionSelector({
   clear,
 }: {
   onFetch(region: Regions): void;
-  onRefresh(): void;
+  onRefresh?(): void;
   disableSelector: boolean;
   clear(): void;
 }) {
@@ -58,22 +58,19 @@ export function AwsRegionSelector({
             isDisabled={disableSelector}
           />
         </Box>
-        <ButtonSecondary
-          onClick={onRefresh}
-          mt={1}
-          title="Refresh database table"
-          height="40px"
-          width="30px"
-          css={`
-            &:disabled {
-              opacity: 0.35;
-              pointer-events: none;
-            }
-          `}
-          disabled={disableSelector || !selectedRegion}
-        >
-          <RefreshIcon size="medium" />
-        </ButtonSecondary>
+        {onRefresh && (
+          <ButtonSecondary
+            onClick={onRefresh}
+            mt={1}
+            title="Refresh database table"
+            height="40px"
+            width="40px"
+            p={0}
+            disabled={disableSelector || !selectedRegion}
+          >
+            <RefreshIcon size="medium" />
+          </ButtonSecondary>
+        )}
       </Flex>
     </Box>
   );

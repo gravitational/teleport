@@ -3,6 +3,8 @@ teleport:
   address: "teleport.example.com:443"
   # Secret containing identity
   identitySecretName: teleport-plugin-discord-identity
+  # Path within the secret containing the identity file.
+  identitySecretPath: identity
 
 discord:
   token: "XXXXXXXX"  # Discord Bot OAuth token

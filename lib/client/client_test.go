@@ -248,7 +248,6 @@ func TestListenAndForwardCancel(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func newTestListener(t *testing.T, handle func(net.Conn)) net.Listener {
@@ -259,7 +258,6 @@ func newTestListener(t *testing.T, handle func(net.Conn)) net.Listener {
 		for {
 			con, err := l.Accept()
 			if err != nil {
-				t.Logf("listener error: %v", err)
 				return
 			}
 			go handle(con)

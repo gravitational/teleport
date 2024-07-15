@@ -26,6 +26,7 @@ import { Box, Indicator } from 'design';
 import session from 'teleport/services/websession';
 import { storageService } from 'teleport/services/storageService';
 import { ApiError } from 'teleport/services/api/parseError';
+import { StyledIndicator } from 'teleport/Main';
 
 import { ErrorDialog } from './ErrorDialogue';
 
@@ -52,17 +53,20 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
     const checkIfUserIsAuthenticated = async () => {
       if (!session.isValid()) {
         logger.warn('invalid session');
-        session.logout(true /* rememberLocation */);
+        session.clearBrowserSession(true /* rememberLocation */);
         return;
       }
 
       try {
-        await session.validateCookieAndSession();
+        const result = await session.validateCookieAndSession();
+        if (result.hasDeviceExtensions) {
+          session.setIsDeviceTrusted();
+        }
         setAttempt({ status: 'success' });
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {
           logger.warn('invalid session');
-          session.logout(true /* rememberLocation */);
+          session.clearBrowserSession(true /* rememberLocation */);
           // No need to update attempt, as `logout` will
           // redirect user to login page.
           return;
@@ -100,7 +104,9 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
 
   return (
     <Box textAlign="center">
-      <Indicator />
+      <StyledIndicator>
+        <Indicator />
+      </StyledIndicator>
     </Box>
   );
 };
@@ -119,7 +125,7 @@ function startActivityChecker(ttl = 0) {
   // ie. browser still openend but all app tabs closed.
   if (isInactive(adjustedTtl)) {
     logger.warn('inactive session');
-    session.logout();
+    session.logoutWithoutSlo();
     return;
   }
 
@@ -129,7 +135,7 @@ function startActivityChecker(ttl = 0) {
   const intervalId = setInterval(() => {
     if (isInactive(adjustedTtl)) {
       logger.warn('inactive session');
-      session.logout();
+      session.logoutWithoutSlo();
     }
   }, ACTIVITY_CHECKER_INTERVAL_MS);
 

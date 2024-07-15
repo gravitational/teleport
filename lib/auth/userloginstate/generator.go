@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
@@ -191,23 +192,28 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	for _, accessList := range accessLists {
-		// Check that the user meets the access list requirements.
-		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err != nil {
-			continue
+		if err := services.IsAccessListOwner(identity, accessList); err == nil {
+			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
 		}
 
-		state.Spec.Roles = append(state.Spec.Roles, accessList.Spec.Grants.Roles...)
-
-		if state.Spec.Traits == nil && len(accessList.Spec.Grants.Traits) > 0 {
-			state.Spec.Traits = map[string][]string{}
-		}
-
-		for k, values := range accessList.Spec.Grants.Traits {
-			state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
+		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
+			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state)
 		}
 	}
 
 	return nil
+}
+
+func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState) {
+	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
+
+	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
+		state.Spec.Traits = map[string][]string{}
+	}
+
+	for k, values := range grants.Traits {
+		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
+	}
 }
 
 // postProcess will perform cleanup to the user login state after its generation.
@@ -224,25 +230,14 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 		return nil
 	}
 
-	// Remove roles that don't exist in the backend so that we don't generate certs for non-existent roles.
-	// Doing so can prevent login from working properly. This could occur if access lists refer to roles that
-	// no longer exist, for example.
-	roles, err := g.access.GetRoles(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	roleLookup := map[string]bool{}
-	for _, role := range roles {
-		roleLookup[role.GetName()] = true
-	}
-
-	existingRoles := []string{}
+	// Make sure all the roles exist. If they don't, error out.
+	var existingRoles []string
 	for _, role := range state.Spec.Roles {
-		if roleLookup[role] {
+		_, err := g.access.GetRole(ctx, role)
+		if err == nil {
 			existingRoles = append(existingRoles, role)
 		} else {
-			g.log.Warnf("Role %s does not exist when trying to add user login state, will be skipped", role)
+			return trace.Wrap(err)
 		}
 	}
 	state.Spec.Roles = existingRoles

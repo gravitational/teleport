@@ -34,29 +34,34 @@ import (
 )
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
-func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, clusterURI, headlessID string, state api.HeadlessAuthenticationState) error {
-	cluster, _, err := s.ResolveCluster(clusterURI)
+func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, rootClusterURI, headlessID string, state api.HeadlessAuthenticationState) error {
+	cluster, _, err := s.ResolveCluster(rootClusterURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := cluster.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState(state)); err != nil {
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cluster.UpdateHeadlessAuthenticationState(ctx, proxyClient.CurrentCluster(), headlessID, types.HeadlessAuthenticationState(state)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-// StartHeadlessHandlers starts a headless watcher for the given cluster URI.
+// StartHeadlessWatcher starts a headless watcher for the given cluster URI.
 //
 // If waitInit is true, this method will wait for the watcher to connect to the
 // Auth Server and receive an OpInit event to indicate that the watcher is fully
 // initialized and ready to catch headless events.
-func (s *Service) StartHeadlessWatcher(uri string, waitInit bool) error {
+func (s *Service) StartHeadlessWatcher(rootClusterURI string, waitInit bool) error {
 	s.headlessWatcherClosersMu.Lock()
 	defer s.headlessWatcherClosersMu.Unlock()
 
-	cluster, _, err := s.ResolveCluster(uri)
+	cluster, _, err := s.ResolveCluster(rootClusterURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -70,7 +75,7 @@ func (s *Service) StartHeadlessWatchers() error {
 	s.headlessWatcherClosersMu.Lock()
 	defer s.headlessWatcherClosersMu.Unlock()
 
-	clusters, err := s.cfg.Storage.ReadAll()
+	clusters, err := s.cfg.Storage.ListRootClusters()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,10 +97,10 @@ func (s *Service) StartHeadlessWatchers() error {
 // If waitInit is true, this method will wait for the watcher to connect to the
 // Auth Server and receive an OpInit event to indicate that the watcher is fully
 // initialized and ready to catch headless events.
-func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool) error {
+func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit bool) error {
 	// If there is already a watcher for this cluster, close and replace it.
 	// This may occur after relogin, for example.
-	if err := s.stopHeadlessWatcher(cluster.URI.String()); err != nil && !trace.IsNotFound(err) {
+	if err := s.stopHeadlessWatcher(rootCluster.URI.String()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
@@ -112,9 +117,9 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 	}
 
 	watchCtx, watchCancel := context.WithCancel(s.closeContext)
-	s.headlessWatcherClosers[cluster.URI.String()] = watchCancel
+	s.headlessWatcherClosers[rootCluster.URI.String()] = watchCancel
 
-	log := s.cfg.Log.WithField("cluster", cluster.URI.String())
+	log := s.cfg.Log.WithField("cluster", rootCluster.URI.String())
 
 	pendingRequests := make(map[string]context.CancelFunc)
 	pendingRequestsMu := sync.Mutex{}
@@ -137,13 +142,19 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 	pendingWatcherInitializedOnce := sync.Once{}
 
 	watch := func() error {
-		pendingWatcher, closePendingWatcher, err := cluster.WatchPendingHeadlessAuthentications(watchCtx)
+		proxyClient, err := s.GetCachedClient(watchCtx, rootCluster.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authClient := proxyClient.CurrentCluster()
+
+		pendingWatcher, closePendingWatcher, err := rootCluster.WatchPendingHeadlessAuthentications(watchCtx, authClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer closePendingWatcher()
 
-		resolutionWatcher, closeResolutionWatcher, err := cluster.WatchHeadlessAuthentications(watchCtx)
+		resolutionWatcher, closeResolutionWatcher, err := rootCluster.WatchHeadlessAuthentications(watchCtx, authClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -190,7 +201,7 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 				// We do this in a goroutine so the watch loop can continue and cancel resolved requests.
 				go func() {
 					defer cancelSend()
-					if err := s.sendPendingHeadlessAuthentication(sendCtx, ha, cluster.URI.String()); err != nil {
+					if err := s.sendPendingHeadlessAuthentication(sendCtx, ha, rootCluster.URI.String()); err != nil {
 						if !strings.Contains(err.Error(), context.Canceled.Error()) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 							log.WithError(err).Debug("sendPendingHeadlessAuthentication resulted in unexpected error.")
 						}
@@ -233,14 +244,14 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 				// watcher was canceled by an outside call to stopHeadlessWatcher.
 			default:
 				// watcher closed due to error or cluster disconnect.
-				if err := s.stopHeadlessWatcher(cluster.URI.String()); err != nil {
+				if err := s.stopHeadlessWatcher(rootCluster.URI.String()); err != nil {
 					log.WithError(err).Debug("Failed to remove headless watcher.")
 				}
 			}
 		}()
 
 		for {
-			if !cluster.Connected() {
+			if !rootCluster.Connected() {
 				log.Debugf("Not connected to cluster. Returning from headless watch loop.")
 				return
 			}
@@ -276,9 +287,9 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 }
 
 // sendPendingHeadlessAuthentication notifies the Electron App of a pending headless authentication.
-func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication, clusterURI string) error {
+func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication, rootClusterURI string) error {
 	req := &api.SendPendingHeadlessAuthenticationRequest{
-		RootClusterUri:                 clusterURI,
+		RootClusterUri:                 rootClusterURI,
 		HeadlessAuthenticationId:       ha.GetName(),
 		HeadlessAuthenticationClientIp: ha.ClientIpAddress,
 	}

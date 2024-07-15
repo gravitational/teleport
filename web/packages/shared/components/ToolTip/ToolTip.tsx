@@ -63,7 +63,7 @@ export const ToolTipInfo: React.FC<
         {...(trigger === 'hover' && triggerOnHoverProps)}
         {...(trigger === 'click' && triggerOnClickProps)}
         css={`
-          :hover {
+          &:hover {
             cursor: pointer;
           }
           vertical-align: middle;
@@ -97,13 +97,13 @@ export const ToolTipInfo: React.FC<
   );
 };
 
-const StyledOnHover = styled(Text)`
+const StyledOnHover = styled(Text)<{ $maxWidth: number }>`
   color: ${props => props.theme.colors.text.main};
   background-color: ${props => props.theme.colors.tooltip.background};
   max-width: ${p => p.$maxWidth}px;
 `;
 
-const InfoIcon = styled(Icons.Info)`
+const InfoIcon = styled(Icons.Info)<{ $muteIconColor?: boolean }>`
   height: 18px;
   width: 18px;
   color: ${p => (p.$muteIconColor ? p.theme.colors.text.disabled : 'inherit')};

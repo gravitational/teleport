@@ -309,7 +309,8 @@ You configuration should resemble the following:
 # /etc/teleport-email.toml
 [teleport]
 addr = "example.com:443"
-identity = "/var/lib/teleport/plugins/email/auth_id"
+identity = "/var/lib/teleport/plugins/email/identity"
+refresh_identity = true
 
 [mailgun]
 domain = "sandbox123abc.mailgun.org" 
@@ -344,6 +345,7 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 teleport:
   address: "teleport.example.com:443"
   identitySecretName: teleport-plugin-email-identity
+  identitySecretPath: identity
 
 mailgun:
   domain: "sandbox123abc.mailgun.org" 

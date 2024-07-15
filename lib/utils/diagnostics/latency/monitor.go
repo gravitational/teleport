@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-var log = logrus.WithField(trace.Component, "latency")
+var log = logrus.WithField(teleport.ComponentKey, "latency")
 
 // Statistics contain latency measurements for both
 // legs of a proxied connection.

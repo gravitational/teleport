@@ -75,6 +75,7 @@ type Server struct {
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
 	newConnHandler NewConnHandler
+	getHostSigners GetHostSignersFunc
 
 	cfg     ssh.ServerConfig
 	limiter *limiter.Limiter
@@ -137,7 +138,7 @@ func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 // SetLogger sets the logger for the server
 func SetLogger(logger logrus.FieldLogger) ServerOption {
 	return func(s *Server) error {
-		s.log = logger.WithField(trace.Component, "ssh:"+s.component)
+		s.log = logger.WithField(teleport.ComponentKey, "ssh:"+s.component)
 		return nil
 	}
 }
@@ -193,7 +194,7 @@ func NewServer(
 	component string,
 	a utils.NetAddr,
 	h NewChanHandler,
-	hostSigners []ssh.Signer,
+	getHostSigners GetHostSignersFunc,
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
@@ -205,10 +206,11 @@ func NewServer(
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "ssh:" + component,
+			teleport.ComponentKey: "ssh:" + component,
 		}),
 		addr:           a,
 		newChanHandler: h,
+		getHostSigners: getHostSigners,
 		component:      component,
 		closeContext:   closeContext,
 		closeFunc:      cancel,
@@ -231,17 +233,18 @@ func NewServer(
 		s.tracerProvider = tracing.DefaultProvider()
 	}
 
-	err = s.checkArguments(a, h, hostSigners, ah)
+	err = s.checkArguments(a, h, getHostSigners, ah)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, signer := range hostSigners {
-		(&s.cfg).AddHostKey(signer)
-	}
 	s.cfg.PublicKeyCallback = ah.PublicKey
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
+
+	if s.fips {
+		s.cfg.PublicKeyAuthAlgorithms = defaults.FIPSPubKeyAuthAlgorithms
+	}
 
 	// Teleport servers need to identify as such to allow passing of the client
 	// IP from the client to the proxy to the destination node.
@@ -332,7 +335,12 @@ func (s *Server) Start() error {
 			return trace.ConvertSystemError(err)
 		}
 
-		if err := s.SetListener(s.limiter.WrapListener(listener)); err != nil {
+		listener, err = s.limiter.WrapListener(listener)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := s.SetListener(listener); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -370,20 +378,30 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if activeConnections == 0 {
 		return err
 	}
+	minReportInterval := 10 * s.shutdownPollPeriod
+	maxReportInterval := 600 * s.shutdownPollPeriod
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	reportedConnections := activeConnections
+	lastReport := time.Now()
+	reportInterval := minReportInterval
 	ticker := time.NewTicker(s.shutdownPollPeriod)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case now := <-ticker.C:
 			activeConnections = s.trackUserConnections(0)
 			if activeConnections == 0 {
 				return err
 			}
-			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
+			if activeConnections != reportedConnections || now.Sub(lastReport) > reportInterval {
 				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-				lastReport = time.Now()
+				lastReport = now
+				if activeConnections == reportedConnections {
+					reportInterval = min(reportInterval*2, maxReportInterval)
+				} else {
+					reportInterval = minReportInterval
+					reportedConnections = activeConnections
+				}
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
@@ -472,14 +490,31 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
 
+	hostSigners := s.getHostSigners()
+	if err := s.validateHostSigners(hostSigners); err != nil {
+		s.log.
+			WithError(err).
+			WithField("remote_addr", conn.RemoteAddr()).
+			Error("Error during server setup for a new SSH connection (this is a bug).")
+		conn.Close()
+		return
+	}
+
+	cfg := s.cfg
+	for _, signer := range hostSigners {
+		cfg.AddHostKey(signer)
+	}
+	if v := serverVersionOverrideFromConn(conn); v != "" && v != cfg.ServerVersion {
+		cfg.ServerVersion = v
+	}
+
 	// apply idle read/write timeout to this connection.
-	conn = utils.ObeyIdleTimeout(conn,
-		defaults.DefaultIdleConnectionDuration)
+	conn = utils.ObeyIdleTimeout(conn, defaults.DefaultIdleConnectionDuration)
 	// Wrap connection with a tracker used to monitor how much data was
 	// transmitted and received over the connection.
-	wconn := utils.NewTrackingConn(conn)
+	conn = utils.NewTrackingConn(conn)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(wconn, &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(conn, &cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
@@ -533,7 +568,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(context.Background(), wconn, sconn, SetConnectionContextClock(s.clock))
+	ctx, ccx := NewConnectionContext(context.Background(), conn, sconn, SetConnectionContextClock(s.clock))
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
@@ -615,7 +650,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if s.reqHandler != nil {
 				go func(span oteltrace.Span) {
 					defer span.End()
-					s.reqHandler.HandleRequest(ctx, req)
+					s.reqHandler.HandleRequest(ctx, ccx, req)
 				}(span)
 			} else {
 				span.End()
@@ -625,24 +660,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if nch == nil {
 				connClosed()
 				return
-			}
-
-			// This is a request from clients to determine if tracing is enabled.
-			// Handle here so that we always alert clients that we can handle tracing envelopes.
-			if nch.ChannelType() == tracessh.TracingChannel {
-				ch, _, err := nch.Accept()
-				if err != nil {
-					s.log.Warnf("Unable to accept channel: %v", err)
-					if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-						s.log.Warnf("Failed to reject channel: %v", err)
-					}
-					continue
-				}
-
-				if err := ch.Close(); err != nil {
-					s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-				}
-				continue
 			}
 
 			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
@@ -676,7 +693,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 type RequestHandler interface {
-	HandleRequest(ctx context.Context, r *ssh.Request)
+	HandleRequest(ctx context.Context, ccx *ConnectionContext, r *ssh.Request)
 }
 
 type NewChanHandler interface {
@@ -702,7 +719,20 @@ type AuthMethods struct {
 	NoClient  bool
 }
 
-func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
+// GetHostSignersFunc is an infallible function that returns host signers for
+// use with a new SSH connection. It should not block, as it's called while the
+// SSH client is already connected and waiting for the SSH handshake.
+type GetHostSignersFunc = func() []ssh.Signer
+
+// StaticHostSigners returns a [GetHostSignersFunc] that always returns the
+// given host signers.
+func StaticHostSigners(hostSigners ...ssh.Signer) GetHostSignersFunc {
+	return func() []ssh.Signer {
+		return hostSigners
+	}
+}
+
+func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, getHostSigners GetHostSignersFunc, ah AuthMethods) error {
 	// If the server is not in tunnel mode, an address must be specified.
 	if s.listener != nil {
 		if a.Addr == "" || a.AddrNetwork == "" {
@@ -713,22 +743,29 @@ func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners [
 	if h == nil {
 		return trace.BadParameter("missing NewChanHandler")
 	}
-	if len(hostSigners) == 0 {
-		return trace.BadParameter("need at least one signer")
+	if getHostSigners == nil {
+		return trace.BadParameter("missing GetHostSignersFunc")
 	}
+	if err := s.validateHostSigners(getHostSigners()); err != nil {
+		return trace.Wrap(err)
+	}
+	if ah.PublicKey == nil && ah.Password == nil && !ah.NoClient {
+		return trace.BadParameter("need at least one auth method")
+	}
+	return nil
+}
+
+func (s *Server) validateHostSigners(hostSigners []ssh.Signer) error {
 	for _, signer := range hostSigners {
 		if signer == nil {
 			return trace.BadParameter("host signer can not be nil")
 		}
-		if !s.insecureSkipHostValidation {
-			err := validateHostSigner(s.fips, signer)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		if s.insecureSkipHostValidation {
+			continue
 		}
-	}
-	if ah.PublicKey == nil && ah.Password == nil && !ah.NoClient {
-		return trace.BadParameter("need at least one auth method")
+		if err := validateHostSigner(s.fips, signer); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -763,4 +800,32 @@ type (
 type ClusterDetails struct {
 	RecordingProxy bool
 	FIPSEnabled    bool
+}
+
+// SSHServerVersionOverrider returns a SSH server version string that should be
+// used instead of the one from a static configuration (typically because the
+// version was already sent and can't be un-sent). If SSHServerVersionOverride
+// returns a blank string (which is an invalid version string, as version
+// strings should start with "SSH-2.0-") then no override is specified. The
+// string is intended to be passed as the [ssh.ServerConfig.ServerVersion], so
+// it should not include a trailing CRLF pair ("\r\n").
+type SSHServerVersionOverrider interface {
+	SSHServerVersionOverride() string
+}
+
+func serverVersionOverrideFromConn(nc net.Conn) string {
+	for nc != nil {
+		if overrider, ok := nc.(SSHServerVersionOverrider); ok {
+			if v := overrider.SSHServerVersionOverride(); v != "" {
+				return v
+			}
+		}
+
+		netConner, ok := nc.(interface{ NetConn() net.Conn })
+		if !ok {
+			break
+		}
+		nc = netConner.NetConn()
+	}
+	return ""
 }

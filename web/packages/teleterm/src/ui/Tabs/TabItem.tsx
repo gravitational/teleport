@@ -137,7 +137,12 @@ const RelativeContainer = styled.div`
   height: 100%;
 `;
 
-const TabContent = styled.div`
+const TabContent = styled.div<{
+  dragging?: boolean;
+  active?: boolean;
+  // TODO(bl-nero): is this really used? Perhaps remove it.
+  canDrag?: boolean;
+}>`
   display: flex;
   z-index: 1; // covers shadow from the top
   align-items: center;
@@ -181,7 +186,9 @@ const Title = styled(Text)`
 `;
 
 const BottomShadow = styled.div`
-  box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1.5px rgba(0, 0, 0, 0.13),
+  box-shadow:
+    0 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0 1px 1.5px rgba(0, 0, 0, 0.13),
     0 1px 4px rgba(0, 0, 0, 0.12);
   position: absolute;
   bottom: 0;

@@ -81,10 +81,6 @@ const (
 	// BreakerRatioMinExecutions is the minimum number of requests before the ratio tripper
 	// will consider examining the request pass rate
 	BreakerRatioMinExecutions = 10
-
-	// AssistCommandExecutionWorkers is the number of workers that will
-	// execute arbitrary remote commands on servers in parallel
-	AssistCommandExecutionWorkers = 30
 )
 
 var (
@@ -176,6 +172,21 @@ const (
 	// <some.cluster.com>=yes,<another.cluster.com>=no
 	// 0,<some.cluster.com>=1
 	//
-	// TODO(greedy52) DELETE IN 15.0
+	// TODO(greedy52) DELETE in ??. Note that this toggle was planned to be
+	// deleted in 15.0 when the feature exits preview. However, many users
+	// still rely on this manual toggle as IsALPNConnUpgradeRequired cannot
+	// detect many situations where connection upgrade is required. This can be
+	// deleted once IsALPNConnUpgradeRequired is improved.
 	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
+
+	// TLSRoutingConnUpgradeModeEnvVar overwrites the upgrade mode used when
+	// performing connection upgrades by the clients:
+	// - "websocket": client only requests "websocket" in the "Upgrade" header.
+	// - "legacy": client only requests legacy "alpn"/"alpn-ping" in the
+	//   "Upgrade" header.
+	// - "", "default", or any other value than above: client sends both
+	//   WebSocket and legacy in the "Upgrade" header.
+	//
+	// TODO(greedy52) DELETE in 17.0
+	TLSRoutingConnUpgradeModeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE"
 )

@@ -1,86 +1,93 @@
-### Kubernetes authentication
+To authenticate to a Kubernetes cluster via Teleport, your Teleport user's roles
+must allow access as at least one Kubernetes user or group.
 
-To authenticate to a Kubernetes cluster via Teleport, your Teleport roles must
-allow access as at least one Kubernetes user or group. Ensure that you have a
-Teleport role that grants access to the cluster you plan to interact with.
+1. Retrieve a list of your current user's Teleport roles. The example below
+   requires the `jq` utility for parsing JSON:
 
-Run the following command to get the Kubernetes user for your current context:
+   ```code
+   $ CURRENT_ROLES=$(tsh status -f json | jq -r '.active.roles | join ("\n")')
+   ```
 
-```code
-$ kubectl config view \
--o jsonpath="{.contexts[?(@.name==\"$(kubectl config current-context)\")].context.user}"
-```
+1. Retrieve the Kubernetes groups your roles allow you to access:
 
-Create a file called `kube-access.yaml` with the following content, replacing
-`USER` with the output of the command above.
+   ```code
+   $ echo "$CURRENT_ROLES" | xargs -I{} tctl get roles/{} --format json | \
+     jq '.[0].spec.allow.kubernetes_groups[]?'
+   ```
 
-```yaml
-kind: role
-metadata:
-  name: kube-access
-version: v7
-spec:
-  allow:
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
-    kubernetes_groups:
-    - viewers
-    kubernetes_users:
-    # Replace USER with the Kubernetes user for your current context.
-    - USER
-  deny: {}
-```
+1. Retrieve the Kubernetes users your roles allow you to access:
 
-Apply your changes:
+   ```code
+   $ echo "$CURRENT_ROLES" | xargs -I{} tctl get roles/{} --format json | \
+     jq '.[0].spec.allow.kubernetes_users[]?'
+   ```
 
-```code
-$ tctl create -f kube-access.yaml
-```
+1. If the output of one of the previous two commands is non-empty, your user can
+   access at least one Kubernetes user or group, so you can proceed to the next
+   step.
 
-(!docs/pages/includes/add-role-to-user.mdx role="kube-access"!)
+1. If both lists are empty, create a Teleport role for the purpose of this guide
+   that can view Kubernetes resources in your cluster.
 
-Now that Teleport RBAC is configured, you can authenticate to your Kubernetes
-cluster via Teleport. To interact with your Kubernetes cluster, you will need to
-configure authorization within Kubernetes.
 
-### Kubernetes authorization
+   Create a file called `kube-access.yaml` with the following content:
+   
+   ```yaml
+   kind: role
+   metadata:
+     name: kube-access
+   version: v7
+   spec:
+     allow:
+       kubernetes_labels:
+         '*': '*'
+       kubernetes_resources:
+         - kind: '*'
+           namespace: '*'
+           name: '*'
+           verbs: ['*']
+       kubernetes_groups:
+       - viewers
+     deny: {}
+   ```
 
-To configure authorization within your Kubernetes cluster, you need to create Kubernetes `RoleBinding`s or
-`ClusterRoleBindings` that grant permissions to the subjects listed in `kubernetes_users` and
-`kubernetes_groups`.
+1. Apply your changes:
 
-For example, you can grant some limited read-only permissions to the `viewers` group used in the `kube-access`
-role defined above:
+   ```code
+   $ tctl create -f kube-access.yaml
+   ```
 
-Create a file called `viewers-bind.yaml` with the following contents:
+1. (!docs/pages/includes/add-role-to-user.mdx role="kube-access"!)
 
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: viewers-crb
-subjects:
-- kind: Group
-  # Bind the group "viewers", corresponding to the kubernetes_groups we assigned our "kube-access" role above
-  name: viewers
-  apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: ClusterRole
-  # "view" is a default ClusterRole that grants read-only access to resources
-  # See: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
-  name: view
-  apiGroup: rbac.authorization.k8s.io
-```
+1. Configure the `viewers` group in your Kubernetes cluster to have the built-in
+   `view` ClusterRole. When your Teleport user assumes the `kube-access` role
+   and sends requests to the Kubernetes API server, the Teleport Kubernetes
+   Service impersonates the `viewers` group and proxies the requests.
 
-Apply the `ClusterRoleBinding` with `kubectl`:
+   Create a file called `viewers-bind.yaml` with the following contents, binding
+   the built-in `view` ClusterRole with the `viewers` group you enabled your
+   Teleport user to access:
+   
+   ```yaml
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRoleBinding
+   metadata:
+     name: viewers-crb
+   subjects:
+   - kind: Group
+     # Bind the group "viewers", corresponding to the kubernetes_groups we assigned our "kube-access" role above
+     name: viewers
+     apiGroup: rbac.authorization.k8s.io
+   roleRef:
+     kind: ClusterRole
+     # "view" is a default ClusterRole that grants read-only access to resources
+     # See: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+     name: view
+     apiGroup: rbac.authorization.k8s.io
+   ```
 
-```code
-$ kubectl apply -f viewers-bind.yaml
-```
+1. Apply the `ClusterRoleBinding` with `kubectl`:
 
-Log out of Teleport and log in again.
+   ```code
+   $ kubectl apply -f viewers-bind.yaml
+   ```

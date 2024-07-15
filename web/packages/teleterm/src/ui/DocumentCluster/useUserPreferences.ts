@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 
 import {
   useAsync,
@@ -31,11 +31,12 @@ import {
 } from 'shared/hooks/useAsync';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
-  ViewMode,
-  UnifiedResourcePreferences,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -43,7 +44,7 @@ import { routing, ClusterUri } from 'teleterm/ui/uri';
 
 import { UserPreferences } from 'teleterm/services/tshd/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import createAbortController from 'teleterm/services/tshd/createAbortController';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferencesAttempt: Attempt<void>;
@@ -51,7 +52,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferences: UserPreferences;
 } {
   const appContext = useAppContext();
-  const initialFetchAttemptAbortController = useRef(createAbortController());
+  const initialFetchAttemptAbortController = useRef(new AbortController());
   // Consider storing the unified resource view preferences on the document.
   // https://github.com/gravitational/teleport/pull/35251#discussion_r1424116275
   const [unifiedResourcePreferences, setUnifiedResourcePreferences] = useState<
@@ -62,27 +63,33 @@ export function useUserPreferences(clusterUri: ClusterUri): {
         routing.ensureRootClusterUri(clusterUri)
       )
     ) || {
-      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: ViewMode.VIEW_MODE_CARD,
-      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.NONE,
     }
   );
   const [clusterPreferences, setClusterPreferences] = useState<
     UserPreferences['clusterPreferences']
   >({
     // we pass an empty array, so pinning is enabled by default
-    pinnedResources: { resourceIdsList: [] },
+    pinnedResources: { resourceIds: [] },
   });
 
   const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
     useCallback(
       async () =>
-        retryWithRelogin(appContext, clusterUri, () =>
-          appContext.tshd.getUserPreferences(
+        retryWithRelogin(appContext, clusterUri, async () => {
+          const { response } = await appContext.tshd.getUserPreferences(
             { clusterUri },
-            initialFetchAttemptAbortController.current.signal
-          )
-        ),
+            {
+              abort: cloneAbortSignal(
+                initialFetchAttemptAbortController.current.signal
+              ),
+            }
+          );
+          return response.userPreferences;
+        }),
       [appContext, clusterUri]
     )
   );
@@ -95,13 +102,17 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     useState<Attempt<void>>(makeEmptyAttempt());
 
   const [, runUpdateAttempt] = useAsync(
-    async (newPreferences: UserPreferences) =>
-      retryWithRelogin(appContext, clusterUri, () =>
-        appContext.tshd.updateUserPreferences({
-          clusterUri,
-          userPreferences: newPreferences,
-        })
-      )
+    useCallback(
+      async (newPreferences: UserPreferences) =>
+        retryWithRelogin(appContext, clusterUri, async () => {
+          const { response } = await appContext.tshd.updateUserPreferences({
+            clusterUri,
+            userPreferences: newPreferences,
+          });
+          return response.userPreferences;
+        }),
+      [appContext, clusterUri]
+    )
   );
 
   const updateUnifiedResourcePreferencesStateAndWorkspace = useCallback(
@@ -190,15 +201,21 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   );
 
   return {
-    userPreferencesAttempt:
-      supersededInitialFetchAttempt.status !== ''
-        ? supersededInitialFetchAttempt
-        : mapAttempt(initialFetchAttempt, () => undefined),
+    userPreferencesAttempt: useMemo(
+      () =>
+        supersededInitialFetchAttempt.status !== ''
+          ? supersededInitialFetchAttempt
+          : mapAttempt(initialFetchAttempt, () => undefined),
+      [initialFetchAttempt, supersededInitialFetchAttempt]
+    ),
     updateUserPreferences,
-    userPreferences: {
-      unifiedResourcePreferences,
-      clusterPreferences,
-    },
+    userPreferences: useMemo(
+      () => ({
+        unifiedResourcePreferences,
+        clusterPreferences,
+      }),
+      [clusterPreferences, unifiedResourcePreferences]
+    ),
   };
 }
 
@@ -212,17 +229,22 @@ function mergeWithDefaultUnifiedResourcePreferences(
   return {
     defaultTab: unifiedResourcePreferences
       ? unifiedResourcePreferences.defaultTab
-      : DefaultTab.DEFAULT_TAB_ALL,
+      : DefaultTab.ALL,
     viewMode:
       unifiedResourcePreferences &&
-      unifiedResourcePreferences.viewMode !== ViewMode.VIEW_MODE_UNSPECIFIED
+      unifiedResourcePreferences.viewMode !== ViewMode.UNSPECIFIED
         ? unifiedResourcePreferences.viewMode
-        : ViewMode.VIEW_MODE_CARD,
+        : ViewMode.CARD,
     labelsViewMode:
       unifiedResourcePreferences &&
-      unifiedResourcePreferences.labelsViewMode !==
-        LabelsViewMode.LABELS_VIEW_MODE_UNSPECIFIED
+      unifiedResourcePreferences.labelsViewMode !== LabelsViewMode.UNSPECIFIED
         ? unifiedResourcePreferences.labelsViewMode
-        : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+        : LabelsViewMode.COLLAPSED,
+    availableResourceMode:
+      unifiedResourcePreferences &&
+      unifiedResourcePreferences.availableResourceMode !==
+        AvailableResourceMode.UNSPECIFIED
+        ? unifiedResourcePreferences.availableResourceMode
+        : AvailableResourceMode.NONE,
   };
 }

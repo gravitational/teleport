@@ -36,7 +36,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -103,8 +102,8 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 		remoteConns: make(map[connKey][]*remoteConn),
 		clock:       srv.Clock,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentReverseTunnelServer,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentKey: teleport.ComponentReverseTunnelServer,
+			teleport.ComponentFields: map[string]string{
 				"cluster": domainName,
 			},
 		}),
@@ -148,10 +147,10 @@ type localSite struct {
 	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
-	client auth.ClientI
+	client authclient.ClientI
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	accessPoint auth.RemoteProxyAccessPoint
+	accessPoint authclient.RemoteProxyAccessPoint
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
@@ -189,7 +188,7 @@ func (s *localSite) GetTunnelsCount() int {
 }
 
 // CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
-func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *localSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 
@@ -199,7 +198,7 @@ func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
 }
 
 // GetClient returns a client to the full Auth Server API.
-func (s *localSite) GetClient() (auth.ClientI, error) {
+func (s *localSite) GetClient() (authclient.ClientI, error) {
 	return s.client, nil
 }
 
@@ -534,14 +533,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.accessPoint)
-	if err != nil {
-		return nil, trace.BadParameter("failed to get issuer %v", err)
-	}
-
-	token, err := s.client.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := s.client.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
@@ -729,6 +721,8 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		}
 	}()
 
+	offlineThresholdTimer := s.clock.NewTimer(s.offlineThreshold)
+	defer offlineThresholdTimer.Stop()
 	for {
 		select {
 		case <-s.srv.ctx.Done():
@@ -778,14 +772,13 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 			log := logger
 			if roundtrip != 0 {
-				log = logger.WithField("latency", roundtrip)
+				log = logger.WithField("latency", roundtrip.String())
 			}
 			log.Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
-		// Note that time.After is re-created everytime a request is processed.
-		case t := <-s.clock.After(s.offlineThreshold):
+		case t := <-offlineThresholdTimer.Chan():
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
 			// terminate and remove the connection if offline, otherwise warn and wait for the next heartbeat
@@ -794,7 +787,15 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				return
 			}
 			logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", rconn.activeSessions())
+
+			offlineThresholdTimer.Reset(s.offlineThreshold)
+			continue
 		}
+
+		if !offlineThresholdTimer.Stop() {
+			<-offlineThresholdTimer.Chan()
+		}
+		offlineThresholdTimer.Reset(s.offlineThreshold)
 	}
 }
 

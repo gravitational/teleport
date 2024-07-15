@@ -1,4 +1,4 @@
-//go:build !piv
+//go:build !piv && !pivtest
 
 /*
 Copyright 2022 Gravitational, Inc.

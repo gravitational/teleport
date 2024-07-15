@@ -31,11 +31,27 @@ export default function parseError(json) {
 
 export class ApiError extends Error {
   response: Response;
+  /**
+   * messages contains a list of other user related errors
+   * aside from the main error set for the field `[Error].message`.
+   *
+   * messages is part of the Trace error object as well, where each
+   * time an error is wrapped with trace.Wrap, a new message gets
+   * added to messages.
+   */
+  messages: string[];
 
-  constructor(message: string, response: Response, opts?: ErrorOptions) {
+  constructor(
+    message: string,
+    response: Response,
+    opts?: ErrorOptions,
+    messages?: string[]
+  ) {
+    // message is the main error, usually the "cause" of the error.
     message = message || 'Unknown error';
     super(message, opts);
     this.response = response;
     this.name = 'ApiError';
+    this.messages = messages || [];
   }
 }

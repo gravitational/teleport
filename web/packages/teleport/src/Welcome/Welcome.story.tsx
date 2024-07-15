@@ -23,7 +23,7 @@ import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
 
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
-import Welcome from './Welcome';
+import { Welcome } from './Welcome';
 import { CardWelcome } from './CardWelcome';
 
 export default { title: 'Teleport/Welcome' };

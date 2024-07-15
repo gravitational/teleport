@@ -17,17 +17,20 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"log"
 	"math/big"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -35,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -52,6 +56,9 @@ func TestLoadTLS(t *testing.T) {
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
 	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+	expiry, ok := creds.Expiry()
+	require.False(t, ok, "Expiry should not be knows on creds built only from TLS Config")
+	require.True(t, expiry.IsZero(), "unknown expiry should be zero")
 
 	// Load invalid tls.Config.
 	invalidTLSCreds := LoadTLS(nil)
@@ -96,12 +103,18 @@ func TestLoadIdentityFile(t *testing.T) {
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 
+	expiry, ok := creds.Expiry()
+	require.True(t, ok, "Expiry should be known when we build creds from an identity file")
+	require.Equal(t, tlsCertNotAfter, expiry)
+
 	// Load invalid identity.
 	creds = LoadIdentityFile("invalid_path")
 	_, err = creds.TLSConfig()
 	require.Error(t, err)
 	_, err = creds.SSHClientConfig()
 	require.Error(t, err)
+	_, ok = creds.Expiry()
+	require.False(t, ok, "expiry should be unknown on a broken id file")
 }
 
 func TestLoadIdentityFileFromString(t *testing.T) {
@@ -142,12 +155,18 @@ func TestLoadIdentityFileFromString(t *testing.T) {
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 
+	expiry, ok := creds.Expiry()
+	require.True(t, ok, "expiry should be known when we build creds from an identity file")
+	require.Equal(t, tlsCertNotAfter, expiry)
+
 	// Load invalid identity.
 	creds = LoadIdentityFileFromString("invalid_creds")
 	_, err = creds.TLSConfig()
 	require.Error(t, err)
 	_, err = creds.SSHClientConfig()
 	require.Error(t, err)
+	_, ok = creds.Expiry()
+	require.False(t, ok, "expiry should be unknown on a broken id file")
 }
 
 func TestLoadKeyPair(t *testing.T) {
@@ -172,11 +191,16 @@ func TestLoadKeyPair(t *testing.T) {
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
 	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+	expiry, ok := creds.Expiry()
+	require.True(t, ok, "expiry should be known when we build creds from cert files")
+	require.Equal(t, tlsCertNotAfter, expiry)
 
 	// Load invalid keypairs.
 	invalidIdentityCreds := LoadKeyPair("invalid_path", "invalid_path", "invalid_path")
 	_, err = invalidIdentityCreds.TLSConfig()
 	require.Error(t, err)
+	_, ok = invalidIdentityCreds.Expiry()
+	require.False(t, ok, "expiry should be unknown on a broken credential")
 }
 
 func TestLoadProfile(t *testing.T) {
@@ -203,6 +227,8 @@ func TestLoadProfile(t *testing.T) {
 		require.Error(t, err)
 		_, err = creds.SSHClientConfig()
 		require.Error(t, err)
+		_, ok := creds.Expiry()
+		require.False(t, ok, "expiry should be unknown on a broken profile")
 	})
 }
 
@@ -222,6 +248,10 @@ func testProfileContents(t *testing.T, dir, name string) {
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+
+	expiry, ok := creds.Expiry()
+	require.True(t, ok, "expiry should be known when we build creds from a profile")
+	require.Equal(t, tlsCertNotAfter, expiry)
 }
 
 func writeProfile(t *testing.T, p *profile.Profile) {
@@ -302,6 +332,7 @@ m1gfG9yqEte7pxv3yWM+7X2bzEjCBds4feahuKPNxOAOSfLUZiTpmOVlRzrpRIhu
 WQdM2NXAMABGAofGrVklPIiraUoHzr0Xxpia4vQwRewYXv8bCPHW+8g8vGBGvoG2
 gtLit9DL5DR5ac/CRGJt
 -----END CERTIFICATE-----`)
+	tlsCertNotAfter = time.Date(2021, 2, 18, 8, 28, 21, 0, time.UTC)
 
 	keyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAzkUVoJ4rn2XAi2HJeBIIxlsdMPGzLroJub9eHAVspAueDJLS
@@ -416,6 +447,18 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
+	expiry, ok := cred.Expiry()
+	require.True(t, ok, "expiry should be known when we build creds from an identity file")
+	require.Equal(t, tlsCertNotAfter, expiry)
+
+	tlsCACertPEM, _ := pem.Decode(tlsCACert)
+	tlsCACertDER, err := x509.ParseCertificate(tlsCACertPEM.Bytes)
+	require.NoError(t, err)
+	wantCertPool := x509.NewCertPool()
+	wantCertPool.AddCert(tlsCACertDER)
+	require.True(t, wantCertPool.Equal(tlsConfig.RootCAs), "tlsconfig.RootCAs mismatch")
+
+	newExpiry := tlsCertNotAfter.Add(24 * time.Hour)
 	// Generate a new TLS certificate that contains the same private key as
 	// the original.
 	template := &x509.Certificate{
@@ -423,6 +466,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 		Subject: pkix.Name{
 			CommonName: "example",
 		},
+		NotAfter:              newExpiry,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		DNSNames:              []string{constants.APIDomain},
@@ -461,4 +505,47 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
+	expiry, ok = cred.Expiry()
+	require.True(t, ok, "expiry should be known when we build creds from an identity file")
+	require.Equal(t, newExpiry, expiry)
+}
+
+func ExampleDynamicIdentityFileCreds() {
+	// load credentials from identity files on disk
+	cred, err := NewDynamicIdentityFileCreds("./identity")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// periodically reload credentials from disk
+	go func() {
+		for {
+			log.Println("reloading credentials")
+			if err := cred.Reload(); err != nil {
+				log.Fatal(err)
+			}
+			log.Println("reloaded credentials")
+			time.Sleep(5 * time.Minute)
+		}
+	}()
+
+	ctx := context.Background()
+	clt, err := New(ctx, Config{
+		Addrs:       []string{"leaf.tele.ottr.sh:443"},
+		Credentials: []Credentials{cred},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		log.Println("Fetching nodes")
+		_, err := clt.GetNodes(ctx, defaults.Namespace)
+		if err != nil {
+			log.Printf("ERROR Fetching nodes: %v", err)
+		} else {
+			log.Println("Fetching nodes: OK")
+		}
+		time.Sleep(1 * time.Second)
+	}
 }

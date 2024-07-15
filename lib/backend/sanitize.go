@@ -36,12 +36,28 @@ const errorMessage = "special characters are not allowed in resource names, plea
 var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
 
 // denyPattern matches some unallowed combinations
-var denyPattern = regexp.MustCompile(`//`)
+var denyPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`//`),
+	regexp.MustCompile(`(^|/)\.\.?(/|$)`),
+}
 
 // isKeySafe checks if the passed in key conforms to whitelist
 func isKeySafe(s []byte) bool {
-	return allowPattern.Match(s) && !denyPattern.Match(s) && utf8.Valid(s)
+	return allowPattern.Match(s) && !denyPatternsMatch(s) && utf8.Valid(s)
 }
+
+// denyPatternsMatch checks if the passed in key conforms to the deny patterns.
+func denyPatternsMatch(s []byte) bool {
+	for _, pattern := range denyPatterns {
+		if pattern.Match(s) {
+			return true
+		}
+	}
+
+	return false
+}
+
+var _ Backend = (*Sanitizer)(nil)
 
 // Sanitizer wraps a Backend implementation to make sure all values requested
 // of the backend are whitelisted.
@@ -144,6 +160,16 @@ func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []b
 	}
 
 	return s.backend.DeleteRange(ctx, startKey, endKey)
+}
+
+func (s *Sanitizer) AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error) {
+	for _, ca := range condacts {
+		if !isKeySafe(ca.Key) {
+			return "", trace.BadParameter(errorMessage, ca.Key)
+		}
+	}
+
+	return s.backend.AtomicWrite(ctx, condacts)
 }
 
 // KeepAlive keeps object from expiring, updates lease on the existing object,

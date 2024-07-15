@@ -26,7 +26,7 @@ spec:
           - ${ROUTE53_ZONE}
       dns01:
         route53:
-          region: ${AWS_REGION}
+          region: ${REGION}
           hostedZoneID: ${ROUTE53_ZONE_ID}
 EOF
 
@@ -35,6 +35,7 @@ helm install cert-manager jetstack/cert-manager \
     --create-namespace \
     --namespace cert-manager \
     --set installCRDs=true \
+    --set global.leaderElection.namespace=cert-manager \
     --set extraArgs="{--issuer-ambient-credentials}" # required to automount ambient AWS credentials when using an Issuer
 
 

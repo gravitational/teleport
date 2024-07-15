@@ -62,13 +62,15 @@ The language supports the following operators:
 
 The language also supports the following functions:
 
-| Functions (with examples)             | Description                                                |
-|---------------------------------------|------------------------------------------------------------|
-| `equals(labels["env"], "prod")`       | resources with label key `env` equal to label value `prod` |
-| `exists(labels["env"])`               | resources with a label key `env`; label value unchecked    |
-| `!exists(labels["env"])`              | resources without a label key `env`; label value unchecked |
-| `search("foo", "bar", "some phrase")` | fuzzy match against common resource fields                 |
-| `hasPrefix(name, "foo")`              | resources with a name that starts with the prefix `foo`    |
+| Functions (with examples)                    | Description                                                |
+|----------------------------------------------|------------------------------------------------------------|
+| `equals(labels["env"], "prod")`              | resources with label key `env` equal to label value `prod` |
+| `exists(labels["env"])`                      | resources with a label key `env`; label value unchecked    |
+| `!exists(labels["env"])`                     | resources without a label key `env`; label value unchecked |
+| `search("foo", "bar", "some phrase")`        | fuzzy match against common resource fields                 |
+| `hasPrefix(name, "foo")`                     | resources with a name that starts with the prefix `foo`    |
+| `split(labels["foo"], ",")`                  | converts a delimited string into a list                    |
+| `contains(split(labels["foo"], ","), "bar")` | determines if a value exists in a list                     |
 
 See some [examples](cli.mdx#filter-examples) of the different ways you can filter resources.
 

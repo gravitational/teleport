@@ -61,7 +61,7 @@ const OnboardWrapper = styled.div`
   background-size: cover;
 
   // leveraging pseudo element for opacity/blur
-  ::after {
+  &::after {
     content: '';
     top: 0;
     left: 0;

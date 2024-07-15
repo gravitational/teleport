@@ -17,6 +17,7 @@ The primary commands for `tbot` are as follows:
 | `tbot init` | Initialize a certificate destination directory for writes from a separate bot user, configuring either file or POSIX ACL permissions. |
 | `tbot db` | Connects to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
 | `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS Routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+| `tbot tpm identify` | Output identifying information related to the TPM (Trusted Platform Module) detected on the system. |
 
 ## tbot db
 
@@ -32,7 +33,7 @@ Note that `tsh` must be installed to make use of this command.
 | `-d/--debug`        | Enable verbose logging to stderr.                                                                        |
 | `-c/--config`       | Path to a Machine ID configuration file. Required if not using other required configuration flags.                  |
 | `--destination-dir` | Path to the Machine ID destination dir that should be used for authentication. Required.                 |
-| `--proxy`           | The `host:port` of the Teleport Proxy Service to use to access resources. Required.                      |
+| `--proxy-server`    | The `host:port` of the Teleport Proxy Service to use to access resources. Required.                      |
 | `--cluster`         | The name of the cluster on which resources should be accessed. Extracted from the bot identity if unset. |
 
 All other flags and arguments are passed directly to `tsh db ...`, along
@@ -112,7 +113,7 @@ Note that `tsh` must be installed to make use of this command.
 | `-d/--debug`        | Enable verbose logging to stderr.                                                                        |
 | `-c/--config`       | Path to a Machine ID configuration file. Required if not using other required configuration flags.       |
 | `--destination-dir` | Path to the Machine ID destination dir that should be used for authentication. Required.                 |
-| `--proxy`           | The `host:port` of the Teleport Proxy Service through which resources will be accessed. Required.        |
+| `--proxy-server`    | The `host:port` of the Teleport Proxy Service through which resources will be accessed. Required.        |
 | `--cluster`         | The name of the cluster on which resources should be accessed. Extracted from the bot identity if unset. |
 
 All other flags and arguments are passed directly to `tsh proxy ...`, along
@@ -135,7 +136,7 @@ For this reason, it is recommended that settings are explicitly applied to a con
 The following command forwards standard input and output over a proxy suitable for use as an OpenSSH `ProxyCommand` for SSH access:
 
 ```code
-$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 ssh alice@node:3022
+$ tbot proxy --destination-dir=./tbot-user --proxy-server=proxy.example.com:3080 ssh alice@node:3022
 ```
 
   In this case:
@@ -150,7 +151,7 @@ The following example opens a local proxy server to the given database. Your dat
 must still be configured with client TLS certificates:
 
 ```code
-$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --port=1234 example
+$ tbot proxy --destination-dir=./tbot-user --proxy-server=proxy.example.com:3080 db --port=1234 example
 ```
 
 In this case:
@@ -162,7 +163,7 @@ the `--tunnel` flag may be used to perform authentication at the local proxy
 rather than within your client:
 
 ```code
-$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --tunnel --port=1234 example
+$ tbot proxy --destination-dir=./tbot-user --proxy-server=proxy.example.com:3080 db --tunnel --port=1234 example
 ```
 
 Note that this decreases security:
@@ -170,7 +171,7 @@ Note that this decreases security:
  - Your connection to the database will be unencrypted until it reaches the
    `tbot` proxy running on `localhost`.
 
-Refer to the [database guide](../../machine-id/access-guides/databases.mdx) for more information on
+Refer to the [database guide](../../enroll-resources/machine-id/access-guides/databases.mdx) for more information on
 using database proxies.
 
 ### Flags
@@ -179,7 +180,8 @@ using database proxies.
 |----------------------|------------------------------------------------------------------------------------------------|
 | `-d/--debug`         | Enable verbose logging to stderr.                                                              |
 | `-c/--config`        | Path to a configuration file.                                                                  |
-| `-a/--auth-server`   | Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.               |
+| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
+| `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
 | `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
 | `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
@@ -188,6 +190,7 @@ using database proxies.
 | `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
 | `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
 | `--oneshot`          | If set, quit after the first renewal.                                                          |
+
 ## tbot start
 
 Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval.
@@ -197,8 +200,10 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 | Flag                 | Description                                                                                    |
 |----------------------|------------------------------------------------------------------------------------------------|
 | `-d/--debug`         | Enable verbose logging to stderr.                                                              |
-| `-c/--config`        | Path to a Machine ID configuration file.                                                                  |
-| `-a/--auth-server`   | Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.               |
+| `-c/--config`        | Path to a Machine ID configuration file.                                                       |
+| `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
+| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
+| `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
 | `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
 | `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
@@ -220,7 +225,7 @@ $ tbot start \
    --token=00000000000000000000000000000000 \
    --join-method=token \
    --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
-   --auth-server=example.teleport.sh:443
+   --proxy-server=example.teleport.sh:443
 ```
 
   </TabItem>
@@ -233,9 +238,19 @@ $ tbot start \
    --token=00000000000000000000000000000000 \
    --join-method=token \
    --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
-   --auth-server=auth.example.com:3025
+   --proxy-server=teleport.example.com:443
 ```
 
   </TabItem>
 </Tabs>
 
+## tbot tpm identify
+
+Output identifying information related to the TPM (Trusted Platform Module)
+detected on the system.
+
+### Flags
+
+| Flag                 | Description                        |
+|----------------------|------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr.  |

@@ -21,17 +21,17 @@ import { resolve } from 'path';
 
 import { defineConfig } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
-
-import react from '@vitejs/plugin-react-swc';
-import tsconfigPaths from 'vite-tsconfig-paths';
 import wasm from 'vite-plugin-wasm';
 
 import { htmlPlugin, transformPlugin } from './html';
-import { getStyledComponentsConfig } from './styled';
+import { generateAppHashFile } from './apphash';
+import { reactPlugin } from './react.mjs';
+import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
 import type { UserConfig } from 'vite';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+const ENTRY_FILE_NAME = 'app/app.js';
 
 export function createViteConfig(
   rootDirectory: string,
@@ -69,24 +69,23 @@ export function createViteConfig(
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
+        rollupOptions: {
+          output: {
+            // removes hashing from our entry point file.
+            entryFileNames: ENTRY_FILE_NAME,
+            // the telemetry bundle breaks any websocket connections if included in the bundle. We will leave this file out of the bundle but without hashing so it is still discoverable.
+            // TODO (avatus): find out why this breaks websocket connectivity and unchunk
+            chunkFileNames: 'app/[name].js',
+            // this will remove hashing from asset (non-js) files.
+            assetFileNames: `app/[name].[ext]`,
+          },
+        },
       },
       plugins: [
-        react({
-          plugins: [
-            ['@swc/plugin-styled-components', getStyledComponentsConfig(mode)],
-          ],
-        }),
-        tsconfigPaths({
-          // Asking vite to crawl the root directory (by defining the `root` object, rather than `projects`) causes vite builds to fail
-          // with a:
-          //
-          // "Error: ENOTDIR: not a directory, scandir '/go/src/github.com/gravitational/teleport/docker/ansible/rdir/rdir/rdir'""
-          //
-          // on a Debian GNU/Linux 10 (buster) (buildbox-node) Docker image running on an arm64 Macbook macOS 14.1.2. It's not clear why
-          // this happens, however defining the tsconfig file directly works around the issue.
-          projects: [resolve(rootDirectory, 'tsconfig.json')],
-        }),
+        reactPlugin(mode),
+        tsconfigPathsPlugin(),
         transformPlugin(),
+        generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
       define: {
@@ -122,6 +121,13 @@ export function createViteConfig(
             secure: false,
             ws: true,
           },
+        // /webapi/sites/:site/kube/exec
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
         // /webapi/sites/:site/desktopplayback/:sid
         '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,

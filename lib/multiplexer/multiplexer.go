@@ -75,6 +75,14 @@ const (
 // We define our own version to not create dependency on the 'services' package, which causes circular references
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
+type (
+	// PreDetectFunc is used in [Mux]'s [Config] as the PreDetect hook.
+	PreDetectFunc = func(net.Conn) (PostDetectFunc, error)
+
+	// PostDetectFunc is optionally returned by a [PreDetectFunc].
+	PostDetectFunc = func(*Conn) net.Conn
+)
+
 // Config is a multiplexer config
 type Config struct {
 	// Listener is listener to multiplex connection on
@@ -89,6 +97,9 @@ type Config struct {
 	Clock clockwork.Clock
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode PROXYProtocolMode
+	// SuppressUnexpectedPROXYWarning makes multiplexer not issue warnings if it receives PROXY
+	// line when running in PROXYProtocolMode=PROXYProtocolUnspecified
+	SuppressUnexpectedPROXYWarning bool
 	// ID is an identifier used for debugging purposes
 	ID string
 	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
@@ -101,11 +112,14 @@ type Config struct {
 	// missing required PROXY header. This is needed since all connections in tests are self connections.
 	IgnoreSelfConnections bool
 
-	// FixedHeader contains data that's sent to the client at the beginning of
-	// every connection, before protocol detection happens. An equal amount of
-	// data is then skipped from the connection when the application writes into
-	// it. Mostly useful for SSH servers.
-	FixedHeader string
+	// PreDetect, if set, is called on each incoming connection before protocol
+	// detection; the returned [PostDetectFunc] (if any) will then be called
+	// after protocol detection, and will have the ability to modify or wrap the
+	// [*Conn] before it's passed to the listener; if the PostDetectFunc returns
+	// a nil [net.Conn], the connection will not be handled any further by the
+	// multiplexer, and it's the responsibility of the PostDetectFunc to arrange
+	// for it to be eventually closed.
+	PreDetect PreDetectFunc
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -144,7 +158,7 @@ func New(cfg Config) (*Mux, error) {
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component("mx", cfg.ID),
+			teleport.ComponentKey: teleport.Component("mx", cfg.ID),
 		}),
 		Config:      cfg,
 		context:     ctx,
@@ -160,13 +174,14 @@ type Mux struct {
 	sync.RWMutex
 	*log.Entry
 	Config
-	sshListener *Listener
-	tlsListener *Listener
-	dbListener  *Listener
-	context     context.Context
-	cancel      context.CancelFunc
-	waitContext context.Context
-	waitCancel  context.CancelFunc
+	sshListener  *Listener
+	tlsListener  *Listener
+	dbListener   *Listener
+	httpListener *Listener
+	context      context.Context
+	cancel       context.CancelFunc
+	waitContext  context.Context
+	waitCancel   context.CancelFunc
 	// logLimiter is a goroutine responsible for deduplicating multiplexer errors
 	// (over a 1min window) that occur when detecting the types of new connections.
 	// This ensures that health checkers / malicious actors cannot overpower /
@@ -203,6 +218,16 @@ func (m *Mux) DB() net.Listener {
 		m.dbListener = newListener(m.context, m.Config.Listener.Addr())
 	}
 	return m.dbListener
+}
+
+// HTTP returns listener that receives plain HTTP connections
+func (m *Mux) HTTP() net.Listener {
+	m.Lock()
+	defer m.Unlock()
+	if m.httpListener == nil {
+		m.httpListener = newListener(m.context, m.Config.Listener.Addr())
+	}
+	return m.httpListener
 }
 
 func (m *Mux) closeListener() {
@@ -276,6 +301,9 @@ func (m *Mux) protocolListener(proto Protocol) *Listener {
 		return m.sshListener
 	case ProtoPostgres:
 		return m.dbListener
+	case ProtoHTTP:
+		return m.httpListener
+
 	}
 	return nil
 }
@@ -291,10 +319,17 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	if m.FixedHeader != "" {
-		if _, err := conn.Write([]byte(m.FixedHeader)); err != nil {
+	var postDetect PostDetectFunc
+	if m.PreDetect != nil {
+		var err error
+		postDetect, err = m.PreDetect(conn)
+		if err != nil {
 			if !utils.IsOKNetworkError(err) {
-				m.WithError(err).Warn("Failed to send connection header.")
+				m.WithFields(log.Fields{
+					"src_addr":   conn.RemoteAddr(),
+					"dst_addr":   conn.LocalAddr(),
+					log.ErrorKey: err,
+				}).Warn("Failed to send early data.")
 			}
 			conn.Close()
 			return
@@ -303,7 +338,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 
 	connWrapper, err := m.detect(conn)
 	if err != nil {
-		if trace.Unwrap(err) != io.EOF {
+		if !errors.Is(trace.Unwrap(err), io.EOF) {
 			m.logLimiter.Log(m.Entry.WithFields(log.Fields{
 				"src_addr": conn.RemoteAddr(),
 				"dst_addr": conn.LocalAddr(),
@@ -335,7 +370,16 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	listener.HandleConnection(m.context, connWrapper)
+	conn = connWrapper
+	if postDetect != nil {
+		conn = postDetect(connWrapper)
+		if conn == nil {
+			// the post detect hook hijacked the connection or had an error
+			return
+		}
+	}
+
+	listener.HandleConnection(m.context, conn)
 }
 
 // JWTPROXYSigner provides ability to created JWT for signed PROXY headers.
@@ -484,7 +528,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 			unsignedPROXYLineReceived = true
 
-			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+			if m.PROXYProtocolMode == PROXYProtocolUnspecified && !m.SuppressUnexpectedPROXYWarning {
 				m.logLimiter.Log(m.WithFields(log.Fields{
 					"direct_src_addr": conn.RemoteAddr(),
 					"direct_dst_addr": conn.LocalAddr(),
@@ -562,7 +606,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 			unsignedPROXYLineReceived = true
 
-			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+			if m.PROXYProtocolMode == PROXYProtocolUnspecified && !m.SuppressUnexpectedPROXYWarning {
 				m.logLimiter.Log(m.WithFields(log.Fields{
 					"direct_src_addr": conn.RemoteAddr(),
 					"direct_dst_addr": conn.LocalAddr(),
@@ -585,11 +629,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			return &Conn{
-				protocol:       proto,
-				Conn:           conn,
-				reader:         reader,
-				proxyLine:      proxyLine,
-				alreadyWritten: []byte(m.FixedHeader),
+				protocol:  proto,
+				Conn:      conn,
+				reader:    reader,
+				proxyLine: proxyLine,
 			}, nil
 		}
 	}

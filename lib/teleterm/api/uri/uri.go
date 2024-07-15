@@ -32,6 +32,8 @@ var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
+var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
+var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -120,6 +122,21 @@ func (r ResourceURI) GetKubeName() string {
 	return ""
 }
 
+// GetAppName extracts the app name from r. Returns an empty string if the path is not an app URI.
+func (r ResourceURI) GetAppName() string {
+	result, ok := pathApps.Match(r.path)
+	if ok {
+		return result.Params["appName"]
+	}
+
+	result, ok = pathLeafApps.Match(r.path)
+	if ok {
+		return result.Params["appName"]
+	}
+
+	return ""
+}
+
 // GetServerUUID extracts the server UUID from r. Returns an empty string if path is not a server URI.
 func (r ResourceURI) GetServerUUID() string {
 	result, ok := pathServers.Match(r.path)
@@ -147,12 +164,7 @@ func (r ResourceURI) GetRootClusterURI() ResourceURI {
 // If called on a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 // If called on a root cluster URI or a leaf cluster URI, it's a noop.
 func (r ResourceURI) GetClusterURI() ResourceURI {
-	clusterURI := r.GetRootClusterURI()
-
-	if leafClusterName := r.GetLeafClusterName(); leafClusterName != "" {
-		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
-	}
-	return clusterURI
+	return r.GetRootClusterURI().AppendLeafCluster(r.GetLeafClusterName())
 }
 
 // AppendServer appends server segment to the URI
@@ -161,8 +173,12 @@ func (r ResourceURI) AppendServer(id string) ResourceURI {
 	return r
 }
 
-// AppendLeafCluster appends leaf cluster segment to the URI
+// AppendLeafCluster appends leaf cluster segment to the URI if name is not empty.
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
+	if name == "" {
+		return r
+	}
+
 	r.path = fmt.Sprintf("%v/leaves/%v", r.path, name)
 	return r
 }
@@ -210,4 +226,9 @@ func (r ResourceURI) IsDB() bool {
 // IsKube returns true if URI is a kube resource.
 func (r ResourceURI) IsKube() bool {
 	return r.GetKubeName() != ""
+}
+
+// IsApp returns true if URI is an app resource.
+func (r ResourceURI) IsApp() bool {
+	return r.GetAppName() != ""
 }

@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // accessListClient implements TeleportResourceClient and offers CRUD methods needed to reconcile access_lists.
@@ -63,15 +65,15 @@ func (r accessListClient) MutateExisting(new, existing *accesslist.AccessList) {
 }
 
 // NewAccessListReconciler instantiates a new Kubernetes controller reconciling access_list resources
-func NewAccessListReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[*accesslist.AccessList, *resourcesv1.TeleportAccessList] {
+func NewAccessListReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	accessListClient := &accessListClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		client,
 		accessListClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }

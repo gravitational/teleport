@@ -32,15 +32,6 @@ func init() {
 // TeleportGithubConnectorSpec defines the desired state of TeleportGithubConnector
 type TeleportGithubConnectorSpec types.GithubConnectorSpecV3
 
-// TeleportGithubConnectorStatus defines the observed state of TeleportGithubConnector
-type TeleportGithubConnectorStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -49,8 +40,8 @@ type TeleportGithubConnector struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportGithubConnectorSpec   `json:"spec,omitempty"`
-	Status TeleportGithubConnectorStatus `json:"status,omitempty"`
+	Spec   TeleportGithubConnectorSpec `json:"spec,omitempty"`
+	Status resources.Status            `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

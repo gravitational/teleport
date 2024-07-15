@@ -33,13 +33,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -267,6 +273,7 @@ func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	}
 }
 
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	var options testSuiteOptions
 	for _, opt := range opts {
@@ -306,7 +313,7 @@ func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess 
 		//
 		// It is also found that Azure metadata client can throw "Too many
 		// requests" during CI which fails services.NewTeleport.
-		cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+		cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	}
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err, trace.DebugReport(err))
@@ -472,4 +479,65 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 			assert.Contains(c, gotNames, name, "missing kube cluster")
 		}
 	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
+}
+
+func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) CliOption {
+	return func(c *CLIConf) error {
+		c.WebauthnLogin = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+			car, err := device.SignAssertion(origin, assertion)
+			if err != nil {
+				return nil, "", err
+			}
+
+			carProto := wantypes.CredentialAssertionResponseToProto(car)
+			if !success {
+				carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
+			}
+
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: carProto,
+				},
+			}, "", nil
+		}
+		return nil
+	}
+}
+
+func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2f.Key, username string, origin string) {
+	ctx := context.Background()
+	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	tokenID := token.GetName()
+	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID: tokenID,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err)
+}
+
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
+	require.NoError(t, err)
+	return fileConfPath
 }

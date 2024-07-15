@@ -118,7 +118,7 @@ func (b DiscordBot) SupportedApps() []common.App {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
@@ -151,6 +151,11 @@ func (b DiscordBot) BroadcastAccessRequestMessage(ctx context.Context, recipient
 // PostReviewReply does nothing as Discord does not have threaded replies
 func (b DiscordBot) PostReviewReply(ctx context.Context, channelID, timestamp string, review types.AccessReview) error {
 	return nil
+}
+
+// NotifyUser will send users a direct message with the access request status
+func (b DiscordBot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	return trace.NotImplemented("notify user not implemented for plugin")
 }
 
 // UpdateMessages updates already posted Discord messages

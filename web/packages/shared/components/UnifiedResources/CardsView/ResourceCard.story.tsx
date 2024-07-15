@@ -22,7 +22,7 @@ import { Meta, StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
-import { gap } from 'design/system';
+import { gap, GapProps } from 'design/system';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -32,6 +32,7 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
+import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import {
   makeUnifiedResourceViewItemApp,
@@ -87,7 +88,7 @@ const meta: Meta<typeof ResourceCard> = {
   title: 'Shared/UnifiedResources/Items',
 };
 
-const Grid = styled.div`
+const Grid = styled.div<GapProps>`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   ${gap}
@@ -104,7 +105,16 @@ export const Cards: Story = {
       <Grid gap={2}>
         {[
           ...apps.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            makeUnifiedResourceViewItemApp(resource, {
+              ActionButton: (
+                <ResourceActionButton
+                  resource={resource}
+                  setResourceSpec={() =>
+                    alert('Sets resource spec and opens update dialog')
+                  }
+                />
+              ),
+            })
           ),
           ...databases.map(resource =>
             makeUnifiedResourceViewItemDatabase(resource, {
@@ -115,7 +125,9 @@ export const Cards: Story = {
             makeUnifiedResourceViewItemKube(resource, { ActionButton })
           ),
           ...nodes.map(resource =>
-            makeUnifiedResourceViewItemNode(resource, { ActionButton })
+            makeUnifiedResourceViewItemNode(resource, {
+              ActionButton,
+            })
           ),
           ...additionalResources.map(resource =>
             makeUnifiedResourceViewItemApp(resource, { ActionButton })

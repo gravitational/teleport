@@ -61,6 +61,34 @@ MHeDg2Bs7/XZsIrn6vo7kXmQSoQKA8O2E7rYSigUayBKa/+5thbnjKlEP+slBzmp
 7JPquig/B6L2pNoxPa41VDGawQjJY5m4l3ap/oJj61HBB+Auf29BWXqg7V7B7XMB
 NFJgTFxC2o3mVBkQ/s6FeDl62hpMheCuO6jRYbZjsM2tUeAKORws
 -----END RSA PRIVATE KEY-----`),
+	"rsa-db-client": []byte(`-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA3scV81B4bpa0qkpBsJDUf3UOIs6A4+WZnf5eXJcJg7zDi5/J
+2vtBuk8CTvp8eQhu4Pq2G0RhHZzrYiBMWLf/ORzBSKrN+bQi9pRKNzN/hJ7SOq+T
+tkyv5tGNn+PIGzX712Ao9Iw5TIJTy2QpiWKQ7MFiVAs399B0Ow7aHNRmdrB3jcJN
+V/HizGkno8SF7EgMGwlIG+z8pE9PmlKV5ZkX0fz+W1IMMkiveGgy0tTNazTsnwOE
+meBDTyB8YbLGPqiQJxoTEHWaQUTLNfWXdvD2x15UBgWiKA/Ng05fPpDqR4cYgM+n
+Nv8lhwKprWcJmF34HVNO6xhFkMU78EIW4lFeYQIDAQABAoIBACIHsU+wnCTwenqE
+y1IIXZ12qQkiGEg3u2aKA6oLHFX2ULyUVQZRWTH3fbfIxZjLc/yD76tsn5UhckdT
+/bWTrbXwsYnDJaGeJbUa49dY04LTq/Nw/JRdVIViv0qMRfX6IhU9SCRLAzmvstMf
+4sRsvQydYcLKz+rX+dlHpIPA4kIA27wqEGbaCb4WatOYf4kUvIyBT/A/QrdRQfPK
+YTsQoQk8TNMdeTCGyyHqBSnbiI9r7EmWrH2r7FdNSFNsoH1FyX35sD4dLC/vjXNT
+dDT7cnwwIHHKpQIDdBKG8ivVM2nuvSNNVp+LUs9rWKZ3R2xyln3NOTLAHCMDUoAi
+TCY/YAECgYEA/VGBIoH4kozoY7SJAEjMPNzHFJDmUVo4U/bN/hGAcGM+YXjSnuO0
+ljgSn7h7U2Z09KfIO8GjWtHq6K2gCw23of1D/CRPDIRvrONCVrhWcqebAcFD9Zw0
+4EbPYDnTq4M9gC2RLsCIFVVL4Gsw9+4iSAKhCsHdW/dORUCDyBRbOwECgYEA4SLQ
+0Myni4U7v8QVnwREJifjAvE0xrALpdF82CFgyimkCsgzxxBwdc2qhbtiIoNEYx/X
+OEPpFU+SuCAQe6xYCsjP3rh1kCN8ETu9NlnpD5o2BUYVgPR7xYYQ3aci/UYWHfZ1
+BGus1PNkL+87d62bvMcpDC9VfAvjGAvOqqUPA2ECgYEAlB4EE9lLLuWVPDdjo/bs
+9OlivnO7N/Y42V+GMvio0Q42e2faP22FOhCvUxTbh3hxClzQh6BBk+kKIeLjoZLz
+vJQKHHRehEMryTtYnrxKT+AQkoYe5o3fnQPKXclyKuciHsCGE4AgEdk99Iq4pz9m
+bBSddVzFwfBoo7WFWIgOkAECgYEAzS1cnx4Uh5vJ4y/CAKTzss5hHlpTHcxtIRa1
+L4fj3PpsLQNd5Mp/o2znPm+StR9qoOfwza9eafSWI0Xdn8hmiJWQlEsJoW4lcNM/
+0pvIQlbpao7/pAGsF0zibA8ZXTeVioMFDB1RatXSdbkSOjS3HSloqFkvEBkJQu3n
+0C8TaqECgYAic82i4ZMIJNeFtI2eGw2a89ofO3gpJvGmaJwY8RgZYWtU7+YiI1ts
+RBeQG4aFIeOs/3nf0n8pp/xsgreLVZJBXjoWyvw7pDi60N4C07d2gA+hqK3rAvQC
+0Be4kdn0Jxx/OSYuGKl1PI0DB1RaCkWZHNay73amkkP+HD/BqcIeLA==
+-----END RSA PRIVATE KEY-----
+`),
 }
 
 // LocalhostCert is a PEM-encoded TLS cert with SAN IPs
@@ -100,6 +128,14 @@ f9Oeos0UUothgiDktdQHxdNEwLjQf7lJJBzV+5OtwswCWA==
 -----END RSA TESTING KEY-----`))
 
 func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "PRIVATE KEY") }
+
+var LocalhostTLSCertificate = func() tls.Certificate {
+	c, err := tls.X509KeyPair(LocalhostCert, LocalhostKey)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}()
 
 // TLSConfig is TLS configuration for running local TLS tests
 type TLSConfig struct {

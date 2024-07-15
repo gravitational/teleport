@@ -17,6 +17,8 @@ case "$TELEPORT_BACKEND" in
         ;;
     etcd)
         ;;
+    firestore)
+        ;;
     *)
         echo "invalid teleport backend '$TELEPORT_BACKEND', expected one of 'dynamo' or 'etcd'" >&2
         exit 1
@@ -39,9 +41,11 @@ log_info "installing monitoring stack..."
 
 ./monitoring/install-monitoring.sh
 
-log_info "setting up cert-manager..."
+if [[ "$TELEPORT_BACKEND" != "firestore" ]]; then
+  log_info "setting up cert-manager..."
 
-./dns/init-cert-manager.sh
+  ./dns/init-cert-manager.sh
+fi
 
 case "$TELEPORT_BACKEND" in
     dynamo)
@@ -54,6 +58,15 @@ case "$TELEPORT_BACKEND" in
 
         log_info "generating helm values for etcd-backed control plane..."
         ./teleport/gen-etcd-teleport.sh
+        ;;
+    firestore)
+        log_info "generating helm values for firestore-backed control plane..."
+
+        kubectl create namespace teleport
+        kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+        kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json="$GCP_CREDENTIALS"
+
+        ./teleport/gen-firestore-teleport.sh
         ;;
     *)
         echo "invalid teleport backend '$TELEPORT_BACKEND', expected one of 'dynamo' or 'etcd'" >&2
@@ -69,9 +82,11 @@ log_info "waiting for auths to report ready..."
 
 ./teleport/wait.sh auth
 
-log_info "setting up dns record..."
+if [[ "$TELEPORT_BACKEND" != "firestore" ]]; then
+  log_info "setting up dns record..."
 
-./dns/update-record.sh UPSERT # CREATE|UPSERT|DELETE
+  ./dns/update-record.sh UPSERT # CREATE|UPSERT|DELETE
+fi
 
 log_info "waiting for proxies to report ready..."
 

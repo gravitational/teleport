@@ -20,6 +20,7 @@ import Logger from 'shared/libs/logger';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
@@ -62,7 +63,7 @@ class Tty extends EventEmitterWebAuthnSender {
 
   connect(w: number, h: number) {
     const connStr = this._addressResolver.getConnStr(w, h);
-    this.socket = new WebSocket(connStr);
+    this.socket = new AuthenticatedWebSocket(connStr);
     this.socket.binaryType = 'arraybuffer';
     this.socket.onopen = this._onOpenConnection;
     this.socket.onmessage = this._onMessage;
@@ -81,6 +82,12 @@ class Tty extends EventEmitterWebAuthnSender {
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
     const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  sendKubeExecData(data: KubeExecData) {
+    const encoded = this._proto.encodeKubeExecData(JSON.stringify(data));
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }
@@ -181,6 +188,7 @@ class Tty extends EventEmitterWebAuthnSender {
     try {
       const uintArray = new Uint8Array(ev.data);
       const msg = this._proto.decode(uintArray);
+
       switch (msg.type) {
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
@@ -200,6 +208,9 @@ class Tty extends EventEmitterWebAuthnSender {
           } else {
             this.emit(TermEvent.DATA, msg.payload);
           }
+          break;
+        case MessageTypeEnum.ERROR:
+          this.emit(TermEvent.DATA, msg.payload + '\n');
           break;
         case MessageTypeEnum.LATENCY:
           this.emit(TermEvent.LATENCY, msg.payload);
@@ -255,5 +266,14 @@ class Tty extends EventEmitterWebAuthnSender {
     return this._pendingUploads[location];
   }
 }
+
+export type KubeExecData = {
+  kubeCluster: string;
+  namespace: string;
+  pod: string;
+  container: string;
+  command: string;
+  isInteractive: boolean;
+};
 
 export default Tty;

@@ -104,6 +104,7 @@ func TestNewDiscoveryConfig(t *testing.T) {
 							ScriptName:      "default-installer",
 							InstallTeleport: true,
 							SSHDConfig:      "/etc/ssh/sshd_config",
+							EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 						},
 					}},
 					Azure: make([]types.AzureMatcher, 0),
@@ -192,6 +193,54 @@ func TestNewDiscoveryConfig(t *testing.T) {
 						},
 					}},
 					Kube: make([]types.KubernetesMatcher, 0),
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "tag aws sync",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions: []string{"us-west-2"},
+						},
+					},
+				},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS:            make([]types.AWSMatcher, 0),
+					Azure:          make([]types.AzureMatcher, 0),
+					GCP:            make([]types.GCPMatcher, 0),
+					Kube:           []types.KubernetesMatcher{},
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{
+							{
+								Integration: "1234",
+								AssumeRole: &types.AssumeRole{
+									RoleARN: "arn:aws:iam::123456789012:role/teleport",
+								},
+								Regions: []string{"us-west-2"},
+							},
+						},
+					},
 				},
 			},
 			errCheck: require.NoError,

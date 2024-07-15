@@ -20,7 +20,6 @@ export { ActionButtons, AlternateInstructionButton } from './ActionButtons';
 export { ButtonBlueText } from './ButtonBlueText';
 export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
 export { Finished } from './Finished';
-export { Mark } from './Mark';
 export { PermissionsErrorMessage } from '../SelectResource/PermissionsErrorMessage';
 export { ResourceKind } from './ResourceKind';
 export { Step, StepContainer } from './Step';
@@ -35,7 +34,18 @@ export { StepBox } from './StepBox';
 export { SecurityGroupPicker } from './SecurityGroupPicker';
 export type { ViewRulesSelection } from './SecurityGroupPicker';
 export { AwsAccount } from './AwsAccount';
-export { DisableableCell, Labels, labelMatcher, RadioCell } from './Aws';
+export { StatusLight, ItemStatus } from './StatusLight';
+export {
+  DisableableCell,
+  Labels,
+  labelMatcher,
+  RadioCell,
+  StatusCell,
+} from './Aws';
+export {
+  AutoEnrollDialog,
+  SelfHostedAutoDiscoverDirections,
+} from './AutoDiscovery';
 export { StyledBox } from './StyledBox';
 
 export type { DiscoverLabel } from './LabelsCreater';

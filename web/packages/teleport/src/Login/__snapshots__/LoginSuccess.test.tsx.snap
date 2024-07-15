@@ -3,17 +3,25 @@
 exports[`renders 1`] = `
 .c1 {
   box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
+  padding: 48px;
   margin-top: 24px;
   margin-bottom: 24px;
-  padding: 48px;
+  margin-left: auto;
+  margin-right: auto;
   width: 540px;
   text-align: center;
 }
 
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA6;
+  margin-bottom: 16px;
+}
+
 .c2 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -21,28 +29,20 @@ exports[`renders 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 28px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 24px;
-}
-
-.c3 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #00BFA5;
-  margin-bottom: 16px;
 }
 
 .c0 {
   display: block;
   outline: none;
-  margin-left: auto;
-  margin-right: auto;
   margin-top: 48px;
   margin-bottom: 48px;
+  margin-left: auto;
+  margin-right: auto;
   max-width: 200px;
   max-height: 120px;
 }
@@ -58,7 +58,7 @@ exports[`renders 1`] = `
   >
     <span
       class="c3 icon icon-circlecheck"
-      color="success"
+      color="success.main"
     >
       <svg
         fill="currentColor"

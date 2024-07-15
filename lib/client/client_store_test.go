@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -46,7 +46,7 @@ import (
 type testAuthority struct {
 	keygen       *testauthority.Keygen
 	tlsCA        *tlsca.CertAuthority
-	trustedCerts auth.TrustedCerts
+	trustedCerts authclient.TrustedCerts
 }
 
 func newTestAuthority(t *testing.T) testAuthority {
@@ -106,15 +106,15 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	key.PrivateKey = priv
 	key.Cert = cert
 	key.TLSCert = tlsCert
-	key.TrustedCerts = []auth.TrustedCerts{s.trustedCerts}
+	key.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
 	key.DBTLSCerts["example-db"] = tlsCert
 	return key
 }
 
-func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
+func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
 	priv, err := keys.ParsePrivateKey(privateKey)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 
 	cert, err := tlsca.GenerateSelfSignedCAWithSigner(priv, pkix.Name{
@@ -122,17 +122,17 @@ func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, a
 		Organization: []string{cluster},
 	}, nil, defaults.CATTL)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 	ca, err := tlsca.FromCertAndSigner(cert, priv)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 	sshPub, err := ssh.NewPublicKey(priv.Public())
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
-	return ca, auth.TrustedCerts{
+	return ca, authclient.TrustedCerts{
 		ClusterName:     cluster,
 		TLSCertificates: [][]byte{cert},
 		AuthorizedKeys:  [][]byte{ssh.MarshalAuthorizedKey(sshPub)},
@@ -307,7 +307,7 @@ func TestProxySSHConfig(t *testing.T) {
 			"test",
 			utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 			handler,
-			[]ssh.Signer{hostSigner},
+			sshutils.StaticHostSigners(hostSigner),
 			sshutils.AuthMethods{
 				PublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 					certChecker := apisshutils.CertChecker{

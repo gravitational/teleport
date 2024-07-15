@@ -28,4 +28,12 @@ export type Resource<T extends Kind> = {
 export type KindRole = 'role';
 export type KindTrustedCluster = 'trusted_cluster';
 export type KindAuthConnectors = 'github' | 'saml' | 'oidc';
-export type Kind = KindRole | KindTrustedCluster | KindAuthConnectors;
+export type KindJoinToken = 'join_token';
+export type Kind =
+  | KindRole
+  | KindTrustedCluster
+  | KindAuthConnectors
+  | KindJoinToken;
+
+/** Describes a Teleport role. */
+export type RoleResource = Resource<KindRole>;

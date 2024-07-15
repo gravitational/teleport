@@ -1,17 +1,35 @@
-Prior to Teleport `13.0`, using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is generally not supported, due to
-these proxies terminating TLS themselves and then rewriting their requests to the upstream service, stripping
-the additional SNI/ALPN parts of the request in the process.
+#### Teleport version 13.0+
 
 Support for TLS routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
-proxies is available starting from Teleport `13.0`. Please ensure your Teleport
+proxies is available starting from Teleport 13.0. Please ensure your Teleport
 cluster and Teleport clients are up to date. If the problem persists, please
 submit a [GitHub
 issue](https://github.com/gravitational/teleport/issues/new/choose).
 
+You must ensure that your reverse proxy is communicating with Teleport using HTTPS.
+When running Teleport in Kubernetes and using nginx as an ingress, this requires adding
+an annotation to the chart values:
+
+```yaml
+annotations:
+  ingress:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+```
+
+Deploying Teleport behind Cloudflare, whether using its proxy ("orange-clouding") or tunnels
+(`cloudflared`) should work with Teleport version 15.1 or higher. See the
+[TLS Routing FAQ](../architecture/tls-routing.mdx#will-tls-routing-work-behind-my-reverse-proxy) for more details.
+
+#### Prior to Teleport version 13.0
+
+Prior to Teleport version 13.0, using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is not supported,
+due to these proxies terminating TLS themselves and then rewriting their requests to the upstream service, stripping
+the additional SNI/ALPN parts of the request in the process.
+
 For older versions, in order for ALPN to work correctly, the Teleport Proxy
 Service must terminate TLS itself.
 
-Broadly, this means that Teleport's TLS routing functionality is incompatible with:
+Broadly, this means that prior to Teleport version 13.0, Teleport's TLS routing functionality is incompatible with:
 - AWS ALBs (Application Load Balancers)
 - AWS NLBs (Network Load Balancers), when using a TLS listener and a public ACM (Amazon Certificate Manager) certificate
 - Commonly used HTTP reverse proxies including nginx, Apache, Caddy, Traefik, HAProxy and many others
@@ -25,10 +43,10 @@ of a correctly configured Teleport cluster.
 If in doubt, remove all load balancers/proxies from the equation and connect Teleport clients or agent processes directly to
 Teleport's web port to isolate the issue.
 
-To use Teleport behind a reverse proxy, you should either:
+To use Teleport behind a reverse proxy prior to Teleport version 13.0, you should either:
 - use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
 - disable Teleport's TLS routing mode by adding `version: v1` to your config file and removing `proxy_listener_mode: multiplex`
- 
+
 You can get an example `v1` config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
 
-If disabling TLS routing, you can find the list of default ports to use for connecting different Teleport services at [ports without TLS routing](../reference/networking.mdx#ports-without-tls-routing)
+If disabling TLS routing, consult the [list of default ports](../reference/networking.mdx#ports-without-tls-routing) to use for connecting different Teleport services.

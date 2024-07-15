@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -31,10 +31,6 @@ import (
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
-)
-
-const (
-	boundarySuffix = "Boundary"
 )
 
 var taskRoleDescription = "Used by Teleport Database Service deployed in Amazon ECS."
@@ -62,10 +58,6 @@ type DeployServiceIAMConfigureRequest struct {
 
 	// TaskRole is the AWS Role used by the deployed service.
 	TaskRole string
-
-	// TaskRoleBoundaryPolicyName is the name to be used to create a Policy to be used as boundary for the TaskRole.
-	// Defaults to <TaskRole>Boundary
-	TaskRoleBoundaryPolicyName string
 
 	// AccountID is the AWS Account ID.
 	// Optional. sts.GetCallerIdentity is used if not provided.
@@ -110,10 +102,6 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("task role is required")
 	}
 
-	if r.TaskRoleBoundaryPolicyName == "" {
-		r.TaskRoleBoundaryPolicyName = r.TaskRole + boundarySuffix
-	}
-
 	if len(r.ResourceCreationTags) == 0 {
 		r.ResourceCreationTags = defaultResourceCreationTags(r.Cluster, r.IntegrationName)
 	}
@@ -127,9 +115,6 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 type DeployServiceIAMConfigureClient interface {
 	// GetCallerIdentity returns information about the caller identity.
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-
-	// CreatePolicy creates a new IAM Policy.
-	CreatePolicy(ctx context.Context, params *iam.CreatePolicyInput, optFns ...func(*iam.Options)) (*iam.CreatePolicyOutput, error)
 
 	// CreateRole creates a new IAM Role.
 	CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*iam.Options)) (*iam.CreateRoleOutput, error)
@@ -170,18 +155,14 @@ func (d defaultDeployServiceIAMConfigureClient) GetCallerIdentity(ctx context.Co
 //
 // A) Role to be used by the deployed service, also known as _TaskRole_.
 // The Role is able to manage policies and create logs.
-// To ensure there's no priv escalation, we also set up a boundary policy.
-// The boundary policy only allows the above permissions and the `rds-db:connect`.
 //
 // B) Create a Policy in the Integration Role - the role used when setting up the integration.
 // This policy allows for the required API Calls to set up the Amazon ECS TaskDefinition, Cluster and Service.
 // It also allows to 'iam:PassRole' only for the _TaskRole_.
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
-// - iam:CreatePolicy
 // - iam:CreateRole
 // - iam:PutRolePolicy
-// - iam:TagPolicy
 // - iam:TagRole
 func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -194,10 +175,6 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 			return trace.Wrap(err)
 		}
 		req.AccountID = aws.ToString(callerIdentity.Account)
-	}
-
-	if err := createBoundaryPolicyForTaskRole(ctx, clt, req); err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err := createTaskRole(ctx, clt, req); err != nil {
@@ -215,41 +192,7 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 	return nil
 }
 
-// createBoundaryPolicyForTaskRole creates a Policy to be used as TaskRole's Role Boundary.
-// It allows for the TaskRole to:
-// - connect to any RDS DB
-// - Get, Put and Delete Role Policies to manage the Policy Statements when adding other rds-db:connect entries
-// - write application logs to CloudWatch
-func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
-	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
-
-	taskRoleBoundaryPolicyDocument, err := awslib.NewPolicyDocument(
-		awslib.StatementForRDSDBConnect(),
-		awslib.StatementForIAMEditRolePolicy(taskRoleARN),
-		awslib.StatementForWritingLogs(),
-	).Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = clt.CreatePolicy(ctx, &iam.CreatePolicyInput{
-		PolicyName:     &req.TaskRoleBoundaryPolicyName,
-		PolicyDocument: &taskRoleBoundaryPolicyDocument,
-		Tags:           req.ResourceCreationTags.ToIAMTags(),
-	})
-	if err != nil {
-		convertedErr := awslib.ConvertIAMv2Error(err)
-		if trace.IsAlreadyExists(convertedErr) {
-			return trace.AlreadyExists("Policy %q already exists, please remove it and try again.", req.TaskRoleBoundaryPolicyName)
-		}
-		return trace.Wrap(convertedErr)
-	}
-
-	log.Printf("TaskRole: Boundary Policy %q created.\n", req.TaskRoleBoundaryPolicyName)
-	return nil
-}
-
-// createTaskRole creates the TaskRole and sets up the Role Boundary and its Trust Relationship.
+// createTaskRole creates the TaskRole and sets up its permissions and trust relationship.
 func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForECSTaskRoleTrustRelationships(),
@@ -258,13 +201,10 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 		return trace.Wrap(err)
 	}
 
-	policyARNForRoleBoundary := awslibutils.PolicyARN(req.partitionID, req.AccountID, req.TaskRoleBoundaryPolicyName)
-
 	_, err = clt.CreateRole(ctx, &iam.CreateRoleInput{
 		RoleName:                 &req.TaskRole,
 		Description:              &taskRoleDescription,
 		AssumeRolePolicyDocument: &taskRoleAssumeRoleDocument,
-		PermissionsBoundary:      &policyARNForRoleBoundary,
 		Tags:                     req.ResourceCreationTags.ToIAMTags(),
 	})
 	if err != nil {
@@ -275,7 +215,9 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 		return trace.Wrap(convertedErr)
 	}
 
-	log.Printf("TaskRole: Role %q created with Boundary %q.\n", req.TaskRole, policyARNForRoleBoundary)
+	slog.InfoContext(ctx, "Task role created",
+		"task_role", req.TaskRole,
+	)
 	return nil
 }
 
@@ -283,10 +225,8 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 // - manage Policies of the TaskRole
 // - write logs to CloudWatch
 func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
-	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
-
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
-		awslib.StatementForIAMEditRolePolicy(taskRoleARN),
+		awslib.StatementForRDSDBConnect(),
 		awslib.StatementForWritingLogs(),
 	).Marshal()
 	if err != nil {
@@ -302,7 +242,10 @@ func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClien
 		return trace.Wrap(err)
 	}
 
-	log.Printf("TaskRole: IAM Policy %q added to Role %q.\n", req.TaskRole, req.TaskRole)
+	slog.InfoContext(ctx, "IAM Policy added to Task Role",
+		"task_role", req.TaskRole,
+		"policy", req.TaskRole,
+	)
 	return nil
 }
 
@@ -331,6 +274,9 @@ func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigu
 		return trace.Wrap(err)
 	}
 
-	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleDeployServicePolicy, req.IntegrationRole)
+	slog.InfoContext(ctx, "IAM Policy added to Integration Role",
+		"policy", req.IntegrationRoleDeployServicePolicy,
+		"role", req.TaskRole,
+	)
 	return nil
 }

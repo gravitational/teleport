@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -71,8 +72,8 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	}
 
 	logger := logrus.WithFields(logrus.Fields{
-		trace.Component: "aws",
-		"db":            config.database.GetName(),
+		teleport.ComponentKey: "aws",
+		"db":                  config.database.GetName(),
 	})
 	dbConfigurator, err := getDBConfigurator(ctx, logger, config.clients, config.database)
 	if err != nil {

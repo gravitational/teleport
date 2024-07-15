@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 
@@ -28,40 +29,46 @@ export default {
   title: 'Teleport/Support',
 };
 
-export const SupportOSS = () => (
+const Provider = ({ children }) => (
   <ContextProvider ctx={ctx}>
-    <Support {...props} />
+    <MemoryRouter>{children}</MemoryRouter>
   </ContextProvider>
+);
+
+export const SupportOSS = () => (
+  <Provider>
+    <Support {...props} />
+  </Provider>
 );
 
 export const SupportOSSWithCTA = () => (
-  <ContextProvider ctx={ctx}>
+  <Provider>
     <Support {...props} showPremiumSupportCTA={true} />
-  </ContextProvider>
+  </Provider>
 );
 
 export const SupportCloud = () => (
-  <ContextProvider ctx={ctx}>
+  <Provider>
     <Support {...props} isCloud={true} />;
-  </ContextProvider>
+  </Provider>
 );
 
 export const SupportEnterprise = () => (
-  <ContextProvider ctx={ctx}>
+  <Provider>
     <Support {...props} isEnterprise={true} />
-  </ContextProvider>
+  </Provider>
 );
 
 export const SupportEnterpriseWithCTA = () => (
-  <ContextProvider ctx={ctx}>
+  <Provider>
     <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
-  </ContextProvider>
+  </Provider>
 );
 
 export const SupportWithTunnelAddress = () => (
-  <ContextProvider ctx={ctx}>
+  <Provider>
     <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
-  </ContextProvider>
+  </Provider>
 );
 
 const ctx = createTeleportContext();

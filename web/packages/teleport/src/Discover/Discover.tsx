@@ -17,20 +17,24 @@
  */
 
 import React from 'react';
-
+import { useLocation } from 'react-router';
 import { Prompt } from 'react-router-dom';
 import { Box } from 'design';
 
+import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { FeatureBox } from 'teleport/components/Layout';
-
-import { Navigation } from 'teleport/Discover/Navigation/Navigation';
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import cfg from 'teleport/config';
+import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 
 import { EViewConfigs } from './types';
-import { findViewAtIndex } from './flow';
 
-import { DiscoverProvider, useDiscover } from './useDiscover';
+import {
+  DiscoverProvider,
+  useDiscover,
+  DiscoverUpdateProps,
+} from './useDiscover';
+import { DiscoverIcon } from './SelectResource/icons';
 
 function DiscoverContent() {
   const {
@@ -63,11 +67,16 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Navigation
-            currentStep={currentStep}
-            views={indexedViews}
-            selectedResource={agentProps.resourceSpec}
-          />
+          <Box mt={2} mb={7}>
+            <Navigation
+              currentStep={currentStep}
+              views={indexedViews}
+              startWithIcon={{
+                title: agentProps.resourceSpec.name,
+                component: <DiscoverIcon name={agentProps.resourceSpec.icon} />,
+              }}
+            />
+          </Box>
         )}
         <Box>{content}</Box>
       </FeatureBox>
@@ -89,9 +98,17 @@ function DiscoverContent() {
   );
 }
 
-export function DiscoverComponent({ eViewConfigs = [] }: Props) {
+export function DiscoverComponent({
+  eViewConfigs = [],
+  updateFlow,
+}: DiscoverComponentProps) {
+  const location = useLocation();
   return (
-    <DiscoverProvider eViewConfigs={eViewConfigs}>
+    <DiscoverProvider
+      eViewConfigs={eViewConfigs}
+      key={location.key}
+      updateFlow={updateFlow}
+    >
       <DiscoverContent />
     </DiscoverProvider>
   );
@@ -101,6 +118,7 @@ export function Discover() {
   return <DiscoverComponent />;
 }
 
-type Props = {
+export type DiscoverComponentProps = {
   eViewConfigs?: EViewConfigs;
+  updateFlow?: DiscoverUpdateProps;
 };

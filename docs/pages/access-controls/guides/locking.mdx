@@ -97,7 +97,7 @@ a lock:
 ERROR: access denied to perform action "create" on "lock"
 ```
 
-Create a role `locksmith`:
+Define a role `locksmith`:
 
 ```yaml
 kind: role
@@ -110,6 +110,8 @@ spec:
       - resources: [lock]
         verbs: [list, create, read, update, delete]
 ```
+
+Create the role:
 
 ```code
 $ tctl create -f locksmith.yaml

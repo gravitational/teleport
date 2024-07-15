@@ -166,7 +166,7 @@ func NewOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 		return nil, trace.Wrap(err)
 	}
 
-	awsCredProvider, err := newAWSCredentialsProvider(ctx, clientReq)
+	awsCredProvider, err := NewAWSCredentialsProvider(ctx, clientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

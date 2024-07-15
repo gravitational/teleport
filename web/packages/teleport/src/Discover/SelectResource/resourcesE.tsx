@@ -17,6 +17,7 @@
  */
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { ResourceKind } from '../Shared';
 
@@ -26,15 +27,25 @@ export const SAML_APPLICATIONS: ResourceSpec[] = [
   {
     name: 'SAML Application',
     kind: ResourceKind.SamlApplication,
+    samlMeta: { preset: SamlServiceProviderPreset.Unspecified },
     keywords: 'saml sso application idp',
     icon: 'Application',
     event: DiscoverEventResource.SamlApplication,
   },
   {
-    name: 'SAML Application (Grafana)',
+    name: 'Grafana',
     kind: ResourceKind.SamlApplication,
+    samlMeta: { preset: SamlServiceProviderPreset.Grafana },
     keywords: 'saml sso application idp grafana',
     icon: 'Grafana',
+    event: DiscoverEventResource.SamlApplication,
+  },
+  {
+    name: 'Workforce Identity Federation',
+    kind: ResourceKind.SamlApplication,
+    samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
+    keywords: 'saml sso application idp gcp workforce federation',
+    icon: 'Gcp',
     event: DiscoverEventResource.SamlApplication,
   },
 ];

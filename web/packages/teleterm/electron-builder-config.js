@@ -1,6 +1,6 @@
 const { env, platform } = require('process');
 const fs = require('fs');
-
+const { spawnSync } = require('child_process');
 const isMac = platform === 'darwin';
 
 // The following checks make no sense when cross-building because they check the platform of the
@@ -70,15 +70,7 @@ module.exports = {
       fs.writeFileSync(path, tshAppPlist);
     }
   },
-  files: [
-    'build/app/dist',
-    // node-pty creates some files that differ across architecture builds causing
-    // the error "can't reconcile the non-macho files" as they cant be combined
-    // with lipo for a universal build. They aren't needed so skip them.
-    '!node_modules/node-pty/build/*/.forge-meta',
-    '!node_modules/node-pty/build/Debug/.deps/**',
-    '!node_modules/node-pty/bin',
-  ],
+  files: ['build/app'],
   protocols: [
     {
       // name ultimately becomes CFBundleURLName which is the URL identifier. [1] Apple recommends
@@ -132,6 +124,9 @@ module.exports = {
   },
   dmg: {
     artifactName: '${productName}-${version}-${arch}.${ext}',
+    // Turn off blockmaps since we don't support automatic updates.
+    // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
+    writeUpdateInfo: false,
     contents: [
       {
         x: 130,
@@ -147,6 +142,30 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
+    // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
+    // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
+    signingHashAlgorithms: ['sha256'],
+    sign: customSign => {
+      if (process.env.CI !== 'true') {
+        console.warn('Not running in CI pipeline: signing will be skipped');
+        return;
+      }
+
+      spawnSync(
+        'powershell',
+        [
+          '-noprofile',
+          '-executionpolicy',
+          'bypass',
+          '-c',
+          "$ProgressPreference = 'SilentlyContinue'; " +
+            "$ErrorActionPreference = 'Stop'; " +
+            '. ../../../build.assets/windows/build.ps1; ' +
+            `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+        ],
+        { stdio: 'inherit' }
+      );
+    },
     artifactName: '${productName} Setup-${version}.${ext}',
     icon: 'build_resources/icon-win.ico',
     extraResources: [
@@ -155,6 +174,11 @@ module.exports = {
         to: './bin/tsh.exe',
       },
     ].filter(Boolean),
+  },
+  nsis: {
+    // Turn off blockmaps since we don't support automatic updates.
+    // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
+    differentialPackage: false,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
@@ -180,10 +204,27 @@ module.exports = {
         from: env.CONNECT_TSH_BIN_PATH,
         to: './bin/tsh',
       },
+      {
+        from: 'build_resources/linux/apparmor-profile',
+        to: './apparmor-profile',
+      },
     ].filter(Boolean),
   },
   directories: {
     buildResources: 'build_resources',
     output: 'build/release',
   },
+  // TODO(gzdunek): Remove once @electron/rebuild migrates to node-gyp@10.
+  // https://github.com/electron/rebuild/blob/main/package.json#L50
+  // (and remove the node-gyp resolution from the main package.json).
+  // The `legacy` option makes the builder use an app-builder binary as in previous
+  // versions of electron-builder. Without this option, it uses @electron/rebuild.
+  //
+  // We have to use node-gyp@10 because the macOS builder uses Python@3.12
+  // which is not compatible with node-gyp@9 (and we don't install distutils
+  // separately there)
+  // https://github.com/nodejs/node-gyp/issues/2869#issuecomment-1769572922.
+  // I tried to use @electron/rebuild with node-gyp@10, but it didn't work,
+  // rebuilding native deps simply hung forever.
+  nativeRebuilder: 'legacy',
 };

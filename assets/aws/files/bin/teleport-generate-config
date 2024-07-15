@@ -215,7 +215,7 @@ fi
 touch ${USE_CONFIG_PATH}
 chmod 664 ${USE_CONFIG_PATH}
 
-# Use letsencrypt by default unless we are explicitly using ACM here
+# Use Let's Encrypt by default unless we are explicitly using ACM here
 if [[ "${USE_ACM}" != "true" ]]; then
     rm -f ${USE_CONFD_DIR}/role.all-acm
     echo "use-letsencrypt" > ${USE_CONFD_DIR}/use-letsencrypt
@@ -264,6 +264,7 @@ proxy_service:
 
 auth_service:
   enabled: yes
+  proxy_protocol: on
   public_addr: ${TELEPORT_AUTH_SERVER_LB}:3025
   keep_alive_interval: 1m
   keep_alive_count_max: 3
@@ -358,8 +359,13 @@ EOF
         write_ssh_and_tunnel_section 443
     fi
 
-    # if we are using letsencrypt (i.e. not ACM) then append config lines
+    # if we are using Let's Encrypt (i.e. not ACM) then append config lines
     if [[ "${USE_ACM}" != "true" ]]; then
+        # enable proxy protocol whenever ACM is not being used
+        # it cannot be enabled when there is a layer 7 LB in front of the teleport proxy, as with ACM
+        cat >>${USE_CONFIG_PATH} <<EOF
+  proxy_protocol: on
+EOF
         write_https_keypairs_section
     else
         # trust X-Forwarded-For headers sent by ALB
@@ -427,15 +433,6 @@ EOF
     systemctl_wrap enable teleport-node.service
     systemctl_wrap start --no-block teleport-node.service
 
-elif [[ "${TELEPORT_ROLE}" == "monitor" ]]; then
-    echo "monitor" > ${USE_CONFD_DIR}/role.monitor
-    # disable teleport service if this has the monitor role
-    systemctl_wrap disable teleport.service
-    # no teleport config needed
-    rm -f ${USE_CONFIG_PATH}
-    # run monitor setup as an independent service
-    systemctl_wrap start --no-block teleport-monitor-setup.service
-
 # starter cluster configuration
 elif [[ "${TELEPORT_ROLE}" == "auth,node,proxy" ]]; then
     echo "Teleport all-in-one configuration selected."
@@ -445,7 +442,7 @@ elif [[ "${TELEPORT_ROLE}" == "auth,node,proxy" ]]; then
         # always enable TLS routing when ACM is enabled
         USE_TLS_ROUTING=true
         sed -i 's/USE_TLS_ROUTING=false/USE_TLS_ROUTING=true/g' ${USE_CONFD_DIR}/conf
-        # remove letsencrypt config
+        # remove Let's Encrypt config
         rm -f ${USE_CONFD_DIR}/use-letsencrypt
         sed -i 's/USE_LETSENCRYPT=true/USE_LETSENCRYPT=false/g' ${USE_CONFD_DIR}/conf
         # enable ACM role to use alternative unit file
@@ -563,10 +560,10 @@ EOF
 
         systemctl_wrap enable teleport-acm.service
         systemctl_wrap start --no-block teleport-acm.service
-    # alternatively, if we are using letsencrypt, append config lines
+    # alternatively, if we are using Let's Encrypt, append config lines
     elif [[ "${USE_LETSENCRYPT}" == "true" ]] && [[ "${USE_ACM}" == "false" ]]; then
-        echo "Letsencrypt support enabled"
-        # these variables must all be set for letsencrypt to work
+        echo "Let's Encrypt support enabled"
+        # these variables must all be set for Let's Encrypt to work
         # it also needs the running instance to have permissions to read from/write to the S3 bucket
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
             write_https_keypairs_section
@@ -662,10 +659,10 @@ EOF
         write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
     fi
 
-    # if we are using letsencrypt, append config lines
+    # if we are using Let's Encrypt, append config lines
     if [[ "${USE_LETSENCRYPT}" == "true" ]]; then
-        echo "Letsencrypt support enabled"
-        # these variables must all be set for letsencrypt to work
+        echo "Let's Encrypt support enabled"
+        # these variables must all be set for Let's Encrypt to work
         # it also needs the running instance to have permissions to read from/write to the S3 bucket
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
             write_https_keypairs_section
@@ -693,145 +690,8 @@ EOF
     fi
 fi
 
-# enable telegraf service if running in cluster mode
-if [[ "${TELEPORT_ROLE}" == "auth" || "${TELEPORT_ROLE}" == "node" || "${TELEPORT_ROLE}" == "proxy" ]]; then
-    # Install teleport telegraf configuration
-    # Telegraf will collect prometheus metrics and send to influxdb collector
-    cat >/etc/telegraf/telegraf.conf <<EOF
-# Configuration for telegraf agent
-[agent]
-  ## Default data collection interval for all inputs
-  interval = "10s"
-  ## Rounds collection interval to 'interval'
-  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
-  round_interval = true
-
-  ## Telegraf will send metrics to outputs in batches of at
-  ## most metric_batch_size metrics.
-  metric_batch_size = 1000
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  metric_buffer_limit = 10000
-
-  ## Collection jitter is used to jitter the collection by a random amount.
-  ## Each plugin will sleep for a random time within jitter before collecting.
-  ## This can be used to avoid many plugins querying things like sysfs at the
-  ## same time, which can have a measurable effect on the system.
-  collection_jitter = "0s"
-
-  ## Default flushing interval for all outputs. You shouldn't set this below
-  ## interval. Maximum flush_interval will be flush_interval + flush_jitter
-  flush_interval = "10s"
-  ## Jitter the flush interval by a random amount. This is primarily to avoid
-  ## large write spikes for users running a large number of telegraf instances.
-  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
-  flush_jitter = "0s"
-
-  ## By default, precision will be set to the same timestamp order as the
-  ## collection interval, with the maximum being 1s.
-  ## Precision will NOT be used for service inputs, such as logparser and statsd.
-  precision = ""
-  ## Run telegraf in debug mode
-  debug = false
-  ## Run telegraf in quiet mode
-  quiet = false
-  ## Override default hostname, if empty use os.Hostname()
-  hostname = ""
-  ## If set to true, do no set the "host" tag in the telegraf agent.
-  omit_hostname = false
-
-###############################################################################
-#                            INPUT PLUGINS                                    #
-###############################################################################
-
-[[inputs.procstat]]
-  exe = "teleport"
-  prefix = "teleport"
-
-[[inputs.prometheus]]
-  # An array of urls to scrape metrics from.
-  urls = ["http://127.0.0.1:3000/metrics"]
-  # Add a metric name prefix
-  name_prefix = "teleport_"
-  # Add tags to be able to make beautiful dashboards
-  [inputs.prometheus.tags]
-    teleservice = "teleport"
-
-# Read metrics about cpu usage
-[[inputs.cpu]]
-  ## Whether to report per-cpu stats or not
-  percpu = true
-  ## Whether to report total system cpu stats or not
-  totalcpu = true
-  ## If true, collect raw CPU time metrics.
-  collect_cpu_time = false
-  ## If true, compute and report the sum of all non-idle CPU states.
-  report_active = false
-
-# Read metrics about disk usage by mount point
-[[inputs.disk]]
-  ## By default, telegraf gather stats for all mountpoints.
-  ## Setting mountpoints will restrict the stats to the specified mountpoints.
-  # mount_points = ["/"]
-
-  ## Ignore some mountpoints by filesystem type. For example (dev)tmpfs (usually
-  ## present on /run, /var/run, /dev/shm or /dev).
-  ignore_fs = ["tmpfs", "devtmpfs", "devfs"]
-
-# Read metrics about disk IO by device
-[[inputs.diskio]]
-
-# Get kernel statistics from /proc/stat
-[[inputs.kernel]]
-  # no configuration
-
-# Read metrics about memory usage
-[[inputs.mem]]
-  # no configuration
-
-# Read metrics about network usage
-[[inputs.net]]
-  # no configuration
-
-# Get the number of processes and group them by status
-[[inputs.processes]]
-  # no configuration
-
-# Read metrics about swap memory usage
-[[inputs.swap]]
-  # no configuration
-
-# Read metrics about system load & uptime
-[[inputs.system]]
-  # no configuration
-
-###############################################################################
-#                            OUTPUT PLUGINS                                   #
-###############################################################################
-
-# Configuration for influxdb server to send metrics to
-[[outputs.influxdb]]
-  ## The full HTTP or UDP endpoint URL for your InfluxDB instance.
-  ## Multiple urls can be specified as part of the same cluster,
-  ## this means that only ONE of the urls will be written to each interval.
-  urls = ["${TELEPORT_INFLUXDB_ADDRESS}"] # required
-  ## The target database for metrics (telegraf will create it if not exists).
-  database = "telegraf" # required
-
-  ## Retention policy to write to. Empty string writes to the default rp.
-  retention_policy = ""
-  ## Write consistency (clusters only), can be: "any", "one", "quorum", "all"
-  write_consistency = "any"
-
-  ## Write timeout (for the InfluxDB client), formatted as a string.
-  ## If not provided, will default to 5s. 0s means no timeout (not recommended).
-  timeout = "5s"
-EOF
-    systemctl_wrap enable telegraf.service
-    systemctl_wrap restart telegraf.service
 # handle configuration for agent mode
-elif [[ "${TELEPORT_ROLE}" == "agent" ]]; then
+if [[ "${TELEPORT_ROLE}" == "agent" ]]; then
     echo "agent" > ${USE_CONFD_DIR}/role.agent
     cat >${USE_CONFIG_PATH} <<EOF
 version: v3

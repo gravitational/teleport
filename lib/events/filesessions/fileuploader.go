@@ -74,7 +74,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeFile),
+			teleport.ComponentKey: teleport.Component(teleport.SchemeFile),
 		}),
 		Config: cfg,
 	}

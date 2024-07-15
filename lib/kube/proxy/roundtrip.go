@@ -88,6 +88,8 @@ type roundTripperConfig struct {
 	// auth.TeleportImpersonateUserHeader and auth.TeleportImpersonateIPHeader
 	// headers instead of relying on the certificate to transport it.
 	useIdentityForwarding bool
+	// log specifies the logger.
+	log log.FieldLogger
 
 	proxier func(*http.Request) (*url.URL, error)
 }

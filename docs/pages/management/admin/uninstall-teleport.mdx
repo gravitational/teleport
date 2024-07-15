@@ -69,12 +69,22 @@ $ docker stop teleport
 
 ## Step 2/3. Remove Teleport binaries
 
-<Tabs dropdownView dropdownCaption="Teleport Edition">
-  <TabItem label="Teleport Community Edition/Teleport Team" scope={["oss","team"]}>
-  <Tabs>
+Follow the steps for your operating system to remove Teleport binaries.
+
+### Linux
+
+Follow the instructions for your Linux distribution:
+
+<Tabs>
   <TabItem label="Debian/Ubuntu Linux (DEB)">
 
   Uninstall the Teleport binary using APT:
+
+  ```code
+  $ sudo apt-get -y remove teleport-ent
+  ```
+
+  For Teleport Community Edition, use the following command:
 
   ```code
   $ sudo apt-get -y remove teleport
@@ -90,119 +100,8 @@ $ docker stop teleport
   If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
 
   ```code
-  $ sudo dpkg -r teleport
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
-
-  Uninstall the Teleport binary using YUM:
-
-  ```code
-  $ sudo yum -y remove teleport
-  # Optional: Use DNF on newer distributions
-  # $ sudo dnf -y remove teleport
-  ```
-
-  Uninstall the Teleport YUM repo:
-
-  ```code
-  $ sudo rm -f /etc/yum.repos.d/teleport.repo
-  ```
-
-  <Admonition type="notice" title="Uninstall standalone RPM package">
-  If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
-
-  ```code
-  $ sudo rpm -e teleport
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Linux Tarball">
-
-  <Admonition type="notice">
-  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
-  You can use `dirname $(which teleport)` to look this up automatically.
-  </Admonition>
-
-  Remove the Teleport binaries from the machine:
-
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  ```
-
-  </TabItem>
-  <TabItem label="MacOS">
-
-  <Admonition type="notice">
-  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
-  You can use `dirname $(which teleport)` to look this up automatically.
-  </Admonition>
-
-  Remove the Teleport binaries from the machine:
-
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  ```
-
-  <Admonition type="notice" title="Uninstall MacOS client tools">
-  If you installed the MacOS `tsh`-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
-
-  ```code
-  $ sudo rm -rf /Applications/tsh.app
-  $ sudo rm -rf /Applications/Teleport\ Connect.app
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Windows">
-
-  Remove the `tsh.exe` binary from the machine:
-
-  ```code
-  $ del C:\Path\To\tsh.exe
-  ```
-
-(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
-
-  </TabItem>
-  </Tabs>
-  </TabItem>
-  <TabItem label="Enterprise" scope="enterprise">
-
-  <Tabs>
-  <TabItem label="Debian/Ubuntu Linux (DEB)">
-
-  Uninstall the Teleport binary using APT:
-
-  ```code
-  $ sudo apt-get -y remove teleport-ent
-  # Optional: If using the Teleport FIPS package
-  # $ sudo apt-get -y remove teleport-ent-fips
-  ```
-
-  Uninstall the Teleport APT repo:
-
-  ```code
-  $ sudo rm -f /etc/apt/sources.list.d/teleport.list
-  ```
-
-  <Admonition type="notice" title="Uninstall standalone DEB package">
-  If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
-
-  ```code
-  # Enterprise
+  # Use "teleport" instead of "teleport-ent" for Teleport Community Edition
   $ sudo dpkg -r teleport-ent
-  # Enterprise FIPS
-  # $ sudo dpkg -r teleport-ent-fips
   ```
   </Admonition>
 
@@ -212,12 +111,10 @@ $ docker stop teleport
   Uninstall the Teleport binary using YUM:
 
   ```code
+  # Change the package name to "teleport" for Teleport Community Edition
   $ sudo yum -y remove teleport-ent
   # Optional: Use DNF on newer distributions
   # $ sudo dnf -y remove teleport-ent
-  # Optional: If using the Teleport FIPS package
-  # $ sudo yum -y remove teleport-ent-fips
-  # $ sudo dnf -y remove teleport-ent-fips
   ```
 
   Uninstall the Teleport YUM repo:
@@ -230,10 +127,8 @@ $ docker stop teleport
   If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
 
   ```code
-  # Enterprise
+  # Use "teleport" for Teleport Community Edition
   $ sudo rpm -e teleport-ent
-  # Enterprise FIPS
-  # $ sudo rpm -e teleport-ent-fips
   ```
   </Admonition>
 
@@ -254,162 +149,43 @@ $ docker stop teleport
   $ sudo rm -f /usr/local/bin/tsh
   ```
 
-  </TabItem>
-  <TabItem label="MacOS">
-
-  <Admonition type="notice">
-  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
-  You can use `dirname $(which teleport)` to look this up automatically.
-  </Admonition>
-
-  Remove the Teleport binaries from the machine:
-
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  ```
-
-  <Admonition type="notice" title="Uninstall MacOS client tools">
-  If you installed the MacOS `tsh` client-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
-
-  ```code
-  $ sudo rm -rf /Applications/tsh.app
-  $ sudo rm -rf /Applications/Teleport\ Connect.app
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Windows">
-
-  Remove the `tsh.exe` binary from the machine:
-
-  ```code
-  $ del C:\Path\To\tsh.exe
-  ```
-
-(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
-
-  </TabItem>
-  </Tabs>
-  </TabItem>
-  <TabItem label="Teleport Enterprise Cloud" scope="cloud">
-
-  <Tabs>
-  <TabItem label="Debian/Ubuntu Linux (DEB)">
-
-  Uninstall the Teleport binary using APT:
-
-  ```code
-  $ sudo apt-get -y remove teleport-ent
-  # NOTE: Older Cloud users may be running Teleport Community Edition binaries instead
-  # $ sudo apt-get -y remove teleport
-  ```
-
-  Uninstall the Teleport APT repo:
-
-  ```code
-  $ sudo rm -f /etc/apt/sources.list.d/teleport.list
-  ```
-
-  <Admonition type="notice" title="Uninstall standalone DEB package">
-  If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
-
-  ```code
-  $ sudo dpkg -r teleport-ent
-  # NOTE: Older Cloud users may be running Teleport Community Edition binaries instead
-  # $ sudo dpkg -r teleport
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
-
-  Uninstall the Teleport binary using YUM:
-
-  ```code
-  $ sudo yum -y remove teleport-ent
-  # Optional: Use DNF on newer distributions
-  # $ sudo dnf -y remove teleport-ent
-  # NOTE: Older Cloud users may be running Teleport Community Edition binaries instead
-  # $ sudo yum -y remove teleport
-  # $ sudo dnf -y remove teleport
-  ```
-
-  Uninstall the Teleport YUM repo:
-
-  ```code
-  $ sudo rm -f /etc/yum.repos.d/teleport.repo
-  ```
-
-  <Admonition type="notice" title="Uninstall standalone RPM package">
-  If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
-
-  ```code
-  $ sudo rpm -e teleport-ent
-  # NOTE: Older Cloud users may be running Teleport Community Edition binaries instead
-  # $ sudo rpm -e teleport
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Linux Tarball">
-
-  <Admonition type="notice">
-  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
-  You can use `dirname $(which teleport)` to look this up automatically.
-  </Admonition>
-
-  Remove the Teleport binaries from the machine:
-
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  ```
-
-  </TabItem>
-  <TabItem label="MacOS">
-
-  <Admonition type="notice">
-  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
-  You can use `dirname $(which teleport)` to look this up automatically.
-  </Admonition>
-
-  Remove the Teleport binaries from the machine:
-
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  ```
-
-  <Admonition type="notice" title="Uninstall MacOS client tools">
-  If you installed the MacOS `tsh` client-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
-
-  ```code
-  $ sudo rm -rf /Applications/tsh.app
-  $ sudo rm -rf /Applications/Teleport\ Connect.app
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="Windows">
-
-  Remove the `tsh.exe` binary from the machine:
-
-  ```code
-  $ del C:\Path\To\tsh.exe
-  ```
-(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
-
-  </TabItem>
-  </Tabs>
   </TabItem>
 </Tabs>
+
+
+### macOS
+
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
+
+  Remove the Teleport binaries from the machine:
+
+  ```code
+  $ sudo rm -f /usr/local/bin/tbot
+  $ sudo rm -f /usr/local/bin/tctl
+  $ sudo rm -f /usr/local/bin/teleport
+  $ sudo rm -f /usr/local/bin/tsh
+  ```
+
+  <Admonition type="notice" title="Uninstall MacOS client tools">
+  If you installed the MacOS `tsh` client-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
+
+  ```code
+  $ sudo rm -rf /Applications/tsh.app
+  $ sudo rm -rf /Applications/Teleport\ Connect.app
+  ```
+  </Admonition>
+
+### Windows
+
+  Remove the `tsh.exe` binary from the machine:
+
+  ```code
+  $ del C:\Path\To\tsh.exe
+  ```
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
 
 ## Step 3/3. Remove Teleport data and configuration files
 

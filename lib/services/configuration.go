@@ -28,7 +28,7 @@ import (
 // the resources modified by this interface can only have a single instance
 // in the backend.
 type ClusterConfiguration interface {
-	// SetClusterName gets services.ClusterName from the backend.
+	// GetClusterName gets types.ClusterName from the backend.
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// SetClusterName sets services.ClusterName on the backend.
 	SetClusterName(types.ClusterName) error
@@ -54,29 +54,47 @@ type ClusterConfiguration interface {
 
 	// GetAuthPreference gets types.AuthPreference from the backend.
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
-	// SetAuthPreference sets types.AuthPreference from the backend.
-	SetAuthPreference(context.Context, types.AuthPreference) error
+	// CreateAuthPreference creates an auth preference if once does not already exist.
+	CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
+	// UpdateAuthPreference updates an existing auth preference.
+	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
+	// UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
+	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
 	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
-	GetSessionRecordingConfig(context.Context, ...MarshalOption) (types.SessionRecordingConfig, error)
-	// SetSessionRecordingConfig sets SessionRecordingConfig from the backend.
-	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
+	GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error)
+	// CreateSessionRecordingConfig creates a session recording config if once does not already exist.
+	CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
+	// UpdateSessionRecordingConfig updates an existing session recording config.
+	UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
+	// UpsertSessionRecordingConfig creates a new session recording config or overwrites the existing session recording.
+	UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
 	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(context.Context) (types.ClusterAuditConfig, error)
+	// CreateClusterAuditConfig creates a cluster audit config if once does not already exist.
+	CreateClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
+	// UpdateClusterAuditConfig updates an existing cluster audit config.
+	UpdateClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
+	// UpsertClusterAuditConfig creates a new cluster audit config or overwrites the existing cluster audit config.
+	UpsertClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
 	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
 	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
 	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
 	DeleteClusterAuditConfig(ctx context.Context) error
 
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
-	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.
-	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
+	// CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
+	CreateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
+	// UpdateClusterNetworkingConfig updates an existing cluster networking config.
+	UpdateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
+	// UpsertClusterNetworkingConfig creates a new cluster networking config or overwrites the existing cluster networking config.
+	UpsertClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
 

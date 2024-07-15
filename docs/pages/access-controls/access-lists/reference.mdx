@@ -72,11 +72,24 @@ spec:
   # audit defines how frequently an Access List and its membership must be audited, along
   # with the next audit date.
   audit:
-    # Audit frequency defaults to 6 months. Format to golang's time.ParseDuration function:
-    # https://pkg.go.dev/time#ParseDuration
-    frequency: 4380h
+    recurrence:
+      # Frequency is the frequency between access list reviews.
+      # Defaults to 6months.
+      # Possible values are: 1month, 3months, 6months, 1year
+      frequency: 6months
+      # DayOfMonth is the day of month subsequent reviews will be scheduled on.
+      # Defaults to 1.
+      # Possible values are: 1, 15, last
+      day_of_month: "1"
     # The next time this Access List must be audited by.
-    next_audit_date: "2024-01-01T00:00:00Z"
+    # If not set, the next audit date will be picked up automatically.
+    notifications:
+      # When the access-request plugins will start to notify before the audit
+      # deadline.  Format to golang's time.ParseDuration function:
+      # https://pkg.go.dev/time#ParseDuration
+      # Defaults to two weeks.
+      start: 336h # two weeks
+    next_audit_date: "2025-01-01T00:00:00Z"
   description: "A description of the Access List and its purpose"
   # owners are a list of Teleport users who own the Access List. Provided the owners
   # meet the ownership requirements, these users can control membership requirements
@@ -89,6 +102,14 @@ spec:
   ownership_requires:
     roles:
     - access
+  # grants controls which roles and traits are granted to users who are owners
+  # of this Access List.
+  owner_grants:
+    roles:
+    - access
+    traits:
+      trait1:
+      - value1
   # grants controls which roles and traits are granted to users who are members
   # of this Access List.
   grants:

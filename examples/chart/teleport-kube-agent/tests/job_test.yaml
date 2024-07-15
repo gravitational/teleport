@@ -31,24 +31,30 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
-          value: false
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.capabilities
+          path: spec.template.spec.containers[0].securityContext
           value:
-            drop:
-              - all
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: should set extraLabels for Job in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
       - equal:
-          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
-          value: true
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
-          value: true
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.runAsUser
-          value: 9807
-      - matchSnapshot:
-          path: spec.template.spec
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "job"
 
   - it: should set nodeSelector in post-delete hook
     template: delete_hook.yaml
@@ -98,6 +104,19 @@ tests:
           path: metadata.name
           value: lint-serviceaccount-delete-hook
 
+  - it: should set extraLabels for ServiceAccount in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 0
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "serviceaccount"
+
   - it: should create Role for post-delete hook by default
     template: delete_hook.yaml
     values:
@@ -107,6 +126,19 @@ tests:
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
 
+  - it: should set extraLabels for Role in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 1
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "role"
+
   - it: should create RoleBinding for post-delete hook by default
     template: delete_hook.yaml
     values:
@@ -115,6 +147,19 @@ tests:
       - containsDocument:
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should set extraLabels for RoleBinding in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 2
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "rolebinding"
 
   - it: should not create ServiceAccount for post-delete hook if serviceAccount.create is false
     template: delete_hook.yaml

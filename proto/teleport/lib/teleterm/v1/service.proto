@@ -20,8 +20,12 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/devicetrust/v1/device_confirmation_token.proto";
+import "teleport/devicetrust/v1/device_web_token.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
+import "teleport/lib/teleterm/v1/app.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
 import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
@@ -81,6 +85,8 @@ service TerminalService {
 
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
+  // GetApps returns a filtered and paginated list of apps.
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -142,8 +148,6 @@ service TerminalService {
   rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
   // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
   rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
-  // DeleteConnectMyComputerToken deletes a join token
-  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (DeleteConnectMyComputerTokenResponse);
   // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
   // that the Connect My Computer node for the particular cluster has joined the cluster (the
   // OpPut event).
@@ -162,6 +166,13 @@ service TerminalService {
   // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
   // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
   rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse);
+
+  // AuthenticateWebDevice blesses a web session with device trust by performing
+  // the on-behalf-of device authentication ceremony.
+  //
+  // See
+  // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+  rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
 }
 
 message EmptyResponse {}
@@ -224,9 +235,23 @@ message DeleteAccessRequestRequest {
 message CreateAccessRequestRequest {
   string root_cluster_uri = 1;
   string reason = 2;
+  // a list of roles requested
   repeated string roles = 3;
+  // suggested_reviewers is a suggested list of reviewers that can review a request.
   repeated string suggested_reviewers = 4;
+  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
+  // a list of resourceIDs requested in the AccessRequest
   repeated ResourceID resource_ids = 5;
+  // assume_start_time is the time after which the requested access can be assumed.
+  google.protobuf.Timestamp assume_start_time = 6;
+  // dry_run is a flag that indicates whether the request is a dry run to check and set defaults,
+  // and return before actually creating the request in the backend.
+  bool dry_run = 7;
+  // max_duration is the maximum duration for which the request is valid.
+  google.protobuf.Timestamp max_duration = 8;
+  // request_ttl is the expiration time of the request (how long it will await
+  // approval).
+  google.protobuf.Timestamp request_ttl = 9;
 }
 
 message CreateAccessRequestResponse {
@@ -255,6 +280,8 @@ message ReviewAccessRequestRequest {
   string reason = 3;
   repeated string roles = 4;
   string access_request_id = 5;
+  // Overwrites the requested start time (optional).
+  google.protobuf.Timestamp assume_start_time = 6;
 }
 
 message ReviewAccessRequestResponse {
@@ -474,6 +501,22 @@ message GetKubesResponse {
   string start_key = 3;
 }
 
+message GetAppsRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetAppsResponse {
+  repeated App agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
 message GetAuthSettingsRequest {
   string cluster_uri = 1;
 }
@@ -517,12 +560,6 @@ message CreateConnectMyComputerNodeTokenResponse {
   reserved "labels";
 }
 
-message DeleteConnectMyComputerTokenRequest {
-  string root_cluster_uri = 1;
-  string token = 2;
-}
-message DeleteConnectMyComputerTokenResponse {}
-
 message WaitForConnectMyComputerNodeJoinRequest {
   string root_cluster_uri = 1;
 }
@@ -565,6 +602,8 @@ message ListUnifiedResourcesRequest {
   bool search_as_roles = 8;
   // Only the pinned resources will be returned for the requesting user.
   bool pinned_only = 9;
+  // include_requestable indicates that the response should include resources that the user must request access to.
+  bool include_requestable = 10;
 }
 
 message SortBy {
@@ -586,7 +625,9 @@ message PaginatedResource {
     Database database = 1;
     Server server = 2;
     Kube kube = 3;
+    App app = 4;
   }
+  bool requires_request = 5;
 }
 
 message GetUserPreferencesRequest {
@@ -611,4 +652,19 @@ message UpdateUserPreferencesResponse {
 message UserPreferences {
   teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
   teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
+}
+
+// Request for AuthenticateWebDevice.
+message AuthenticateWebDeviceRequest {
+  // Device web token to be spent in exchange for the device authentication
+  // attempt.
+  teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
+  string root_cluster_uri = 2;
+}
+
+// Response for AuthenticateWebDevice.
+message AuthenticateWebDeviceResponse {
+  // Device confirmation token to be sent to the browser that originated the
+  // authentication attempt.
+  teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
 }

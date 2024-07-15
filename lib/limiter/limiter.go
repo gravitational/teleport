@@ -180,7 +180,7 @@ func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.Ser
 
 // WrapListener returns a [Listener] that wraps the provided listener
 // with one that limits connections
-func (l *Limiter) WrapListener(ln net.Listener) *Listener {
+func (l *Limiter) WrapListener(ln net.Listener) (*Listener, error) {
 	return NewListener(ln, l.ConnectionsLimiter)
 }
 

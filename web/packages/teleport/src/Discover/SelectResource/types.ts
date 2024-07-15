@@ -18,12 +18,18 @@
 
 import { Platform } from 'design/platform';
 
-import { ClusterResource } from 'teleport/services/userPreferences/types';
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import { AuthType } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
-import type { DiscoverEventResource } from 'teleport/services/userEvent';
+import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+
+import type {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import type { ResourceIconName } from 'design/ResourceIcon';
 
@@ -60,9 +66,20 @@ export enum ServerLocation {
   Aws,
 }
 
+export enum KubeLocation {
+  SelfHosted,
+  Aws,
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
-  nodeMeta?: { location: ServerLocation };
+  appMeta?: { awsConsole?: boolean };
+  nodeMeta?: {
+    location: ServerLocation;
+    discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+  };
+  kubeMeta?: { location: KubeLocation };
+  samlMeta?: { preset: SamlServiceProviderPreset };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
@@ -126,6 +143,6 @@ export enum SearchResource {
 }
 
 export type PrioritizedResources = {
-  preferredResources: ClusterResource[];
+  preferredResources: Resource[];
   hasPreferredResources: boolean;
 };

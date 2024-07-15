@@ -24,11 +24,15 @@ import Modal from './../Modal';
 
 export default class Dialog extends React.Component {
   render() {
-    const { children, dialogCss, ...modalProps } = this.props;
+    const { children, dialogCss, className, ...modalProps } = this.props;
     return (
       <Modal role="dialog" {...modalProps}>
         <ModalBox>
-          <DialogBox data-testid="dialogbox" dialogCss={dialogCss}>
+          <DialogBox
+            data-testid="dialogbox"
+            dialogCss={dialogCss}
+            className={className}
+          >
             {children}
           </DialogBox>
         </ModalBox>
@@ -46,6 +50,7 @@ Dialog.propTypes = {
   ...Modal.propTypes,
   children: PropTypes.node,
   dialogCss: PropTypes.func,
+  className: PropTypes.string,
 };
 
 const ModalBox = styled.div`

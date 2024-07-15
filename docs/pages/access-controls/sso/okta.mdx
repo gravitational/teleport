@@ -13,6 +13,28 @@ Teleport administrators to define policies like:
 - Developers must never SSH into production servers.
 - Members of the HR group can view audit logs but not production environments.
 
+
+<Details title="Automated SSO connection with Okta integration" open={false}>
+
+In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can
+automatically configure an SSO connector for you when as part of [enrolling the
+hosted Okta integration](../../index.mdx).
+
+You can enroll the Okta integration from the Teleport Web UI.
+
+Visit the Teleport Web UI and find the dropdown menu on the upper left of the
+screen. Select the **Management** option.
+
+On the left sidebar, click **Enroll New Integration** to visit the "Enroll New
+Integration" page: 
+
+![Enroll an Access Request plugin](../../../img/enterprise/plugins/enroll.png)
+
+On the "Select Integration Type" menu, click the Okta tile. Teleport will then
+guide you through configuring the Okta integration.
+
+</Details>
+
 ## Prerequisites
 
 - An Okta account with admin access. Your account must include users and at

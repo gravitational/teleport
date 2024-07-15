@@ -64,7 +64,8 @@ class Menu extends React.Component {
   };
 
   render() {
-    const { children, popoverCss, menuListCss, ...other } = this.props;
+    const { children, popoverCss, menuListCss, menuListProps, ...other } =
+      this.props;
 
     return (
       <Popover
@@ -75,7 +76,11 @@ class Menu extends React.Component {
         transformOrigin={POSITION}
         {...other}
       >
-        <MenuList menuListCss={menuListCss} ref={this.handleMenuListRef}>
+        <MenuList
+          {...menuListProps}
+          menuListCss={menuListCss}
+          ref={this.handleMenuListRef}
+        >
           {children}
         </MenuList>
       </Popover>
@@ -116,6 +121,10 @@ Menu.propTypes = {
    * `menuListCss` property applied to the [`MenuList`] css.
    */
   menuListCss: PropTypes.func,
+  /**
+   * `menuListProps` are props passed to the underlying [`MenuList`].
+   */
+  menuListProps: PropTypes.shape(MenuList.propTypes),
 };
 
 export default Menu;

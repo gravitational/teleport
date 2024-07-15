@@ -22,9 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,6 +59,8 @@ type Server struct {
 	SSHLogins []string `json:"sshLogins"`
 	// AWS contains metadata for instances hosted in AWS.
 	AWS *AWSMetadata `json:"aws,omitempty"`
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -84,10 +85,7 @@ func (s sortedLabels) Less(i, j int) bool {
 	labelA := strings.ToLower(s[i].Name)
 	labelB := strings.ToLower(s[j].Name)
 
-	// types.CloudLabelPrefixes are label names that we want to always be at the end of
-	// the sorted labels list to reduce visual clutter. This will generally be automatically
-	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
-	for _, sortName := range types.CloudLabelPrefixes {
+	for _, sortName := range types.BackSortedLabelPrefixes {
 		name := strings.ToLower(sortName)
 		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
 			return false // labelA should be at the end
@@ -106,26 +104,22 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServer creates a server object for the web ui
-func MakeServer(clusterName string, server types.Server, accessChecker services.AccessChecker) (Server, error) {
+func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
 	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
-	serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
-	if err != nil {
-		return Server{}, trace.Wrap(err)
-	}
-
 	uiServer := Server{
-		Kind:        server.GetKind(),
-		ClusterName: clusterName,
-		Labels:      uiLabels,
-		Name:        server.GetName(),
-		Hostname:    server.GetHostname(),
-		Addr:        server.GetAddr(),
-		Tunnel:      server.GetUseTunnel(),
-		SubKind:     server.GetSubKind(),
-		SSHLogins:   serverLogins,
+		Kind:            server.GetKind(),
+		ClusterName:     clusterName,
+		Labels:          uiLabels,
+		Name:            server.GetName(),
+		Hostname:        server.GetHostname(),
+		Addr:            server.GetAddr(),
+		Tunnel:          server.GetUseTunnel(),
+		SubKind:         server.GetSubKind(),
+		RequiresRequest: requiresRequest,
+		SSHLogins:       logins,
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
@@ -140,21 +134,17 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 		}
 	}
 
-	return uiServer, nil
+	return uiServer
 }
 
-// MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server, accessChecker services.AccessChecker) ([]Server, error) {
-	uiServers := []Server{}
-	for _, s := range servers {
-		server, err := MakeServer(clusterName, s, accessChecker)
-		if err != nil {
-			return nil, trace.Wrap(err, "making server for ui")
-		}
-		uiServers = append(uiServers, server)
-	}
-
-	return uiServers, nil
+// EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
+type EKSCluster struct {
+	Name       string  `json:"name"`
+	Region     string  `json:"region"`
+	Arn        string  `json:"arn"`
+	Labels     []Label `json:"labels"`
+	JoinLabels []Label `json:"joinLabels"`
+	Status     string  `json:"status"`
 }
 
 // KubeCluster describes a kube cluster.
@@ -169,21 +159,41 @@ type KubeCluster struct {
 	KubeUsers []string `json:"kubernetes_users"`
 	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
 	KubeGroups []string `json:"kubernetes_groups"`
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // MakeKubeCluster creates a kube cluster object for the web ui
-func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker) KubeCluster {
+func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
 	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
-		Kind:       cluster.GetKind(),
-		Name:       cluster.GetName(),
-		Labels:     uiLabels,
-		KubeUsers:  kubeUsers,
-		KubeGroups: kubeGroups,
+		Kind:            cluster.GetKind(),
+		Name:            cluster.GetName(),
+		Labels:          uiLabels,
+		KubeUsers:       kubeUsers,
+		RequiresRequest: requiresRequest,
+		KubeGroups:      kubeGroups,
 	}
+}
+
+// MakeEKSClusters creates EKS objects for the web UI.
+func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
+	uiEKSClusters := make([]EKSCluster, 0, len(clusters))
+
+	for _, cluster := range clusters {
+		uiEKSClusters = append(uiEKSClusters, EKSCluster{
+			Name:       cluster.Name,
+			Region:     cluster.Region,
+			Arn:        cluster.Arn,
+			Labels:     makeLabels(cluster.Labels),
+			JoinLabels: makeLabels(cluster.JoinLabels),
+			Status:     cluster.Status,
+		})
+	}
+	return uiEKSClusters
 }
 
 // MakeKubeClusters creates ui kube objects and returns a list.
@@ -326,6 +336,8 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -343,20 +355,21 @@ const (
 )
 
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
+func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
-		Kind:          database.GetKind(),
-		Name:          database.GetName(),
-		Desc:          database.GetDescription(),
-		Protocol:      database.GetProtocol(),
-		Type:          database.GetType(),
-		Labels:        uiLabels,
-		DatabaseUsers: dbUsers,
-		DatabaseNames: dbNames,
-		Hostname:      stripProtocolAndPort(database.GetURI()),
-		URI:           database.GetURI(),
+		Kind:            database.GetKind(),
+		Name:            database.GetName(),
+		Desc:            database.GetDescription(),
+		Protocol:        database.GetProtocol(),
+		Type:            database.GetType(),
+		Labels:          uiLabels,
+		DatabaseUsers:   dbUsers,
+		DatabaseNames:   dbNames,
+		Hostname:        stripProtocolAndPort(database.GetURI()),
+		URI:             database.GetURI(),
+		RequiresRequest: requiresRequest,
 	}
 
 	if database.IsAWSHosted() {
@@ -374,10 +387,10 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames)
+		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 
@@ -427,10 +440,12 @@ type Desktop struct {
 	HostID string `json:"host_id"`
 	// Logins is the list of logins this user can use on this desktop.
 	Logins []string `json:"logins"`
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.AccessChecker) (Desktop, error) {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -442,35 +457,16 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.Acc
 
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
-	logins, err := accessChecker.GetAllowedLoginsForResource(windowsDesktop)
-	if err != nil {
-		return Desktop{}, trace.Wrap(err)
-	}
-
 	return Desktop{
-		Kind:   windowsDesktop.GetKind(),
-		OS:     constants.WindowsOS,
-		Name:   windowsDesktop.GetName(),
-		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
-		Labels: uiLabels,
-		HostID: windowsDesktop.GetHostID(),
-		Logins: logins,
-	}, nil
-}
-
-// MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop, accessChecker services.AccessChecker) ([]Desktop, error) {
-	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
-
-	for _, windowsDesktop := range windowsDesktops {
-		uiDesktop, err := MakeDesktop(windowsDesktop, accessChecker)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		uiDesktops = append(uiDesktops, uiDesktop)
+		Kind:            windowsDesktop.GetKind(),
+		OS:              constants.WindowsOS,
+		Name:            windowsDesktop.GetName(),
+		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
+		Labels:          uiLabels,
+		HostID:          windowsDesktop.GetHostID(),
+		Logins:          logins,
+		RequiresRequest: requiresRequest,
 	}
-
-	return uiDesktops, nil
 }
 
 // DesktopService describes a desktop service to pass to the ui.
@@ -485,7 +481,7 @@ type DesktopService struct {
 	Labels []Label `json:"labels"`
 }
 
-// MakeDesktop converts a desktop from its API form to a type the UI can display.
+// MakeDesktopService converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
 	uiLabels := makeLabels(desktopService.GetAllLabels())
 

@@ -2,3 +2,4 @@ type: kubernetes
 destination:
   type: memory
 kubernetes_cluster: k8s.example.com
+disable_exec_plugin: false

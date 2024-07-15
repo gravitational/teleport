@@ -9,12 +9,12 @@ generates signed credentials, and writes an identity file to the local
 directory:
 
 ```code
-$ tctl auth sign --user={{ user }} --out=auth.pem
+$ tctl auth sign --user={{ user }} --out=identity
 ```
 
 The {{ client }} connects to the Teleport Auth Service's gRPC endpoint over TLS.
 
-The identity file, `auth.pem`, includes both TLS and SSH credentials. The 
+The identity file, `identity`, includes both TLS and SSH credentials. The
 {{ client }} uses the SSH credentials to connect to the Proxy Service, which
 establishes a reverse tunnel connection to the Auth Service. The {{ client }}
 uses this reverse tunnel, along with your TLS credentials, to connect to the
@@ -26,9 +26,9 @@ Auth Service's gRPC endpoint.
 
   By default, `tctl auth sign` produces certificates with a relatively short
   lifetime. For production deployments, we suggest using [Machine
-  ID](../../machine-id/introduction.mdx) to programmatically issue and renew
+  ID](../../enroll-resources/machine-id/introduction.mdx) to programmatically issue and renew
   certificates for your plugin. See our Machine ID [getting started
-  guide](../../machine-id/getting-started.mdx) to learn more.
+  guide](../../enroll-resources/machine-id/getting-started.mdx) to learn more.
 
   Note that you cannot issue certificates that are valid longer than your existing credentials.
   For example, to issue certificates with a 1000-hour TTL, you must be logged in with a session that is
@@ -47,14 +47,14 @@ to hold certificate files for the {{ client }}:
 
 ```code
 $ sudo mkdir -p /var/lib/teleport/api-credentials
-$ sudo mv auth.* /var/lib/teleport/plugins/api-credentials
+$ sudo mv identity /var/lib/teleport/plugins/api-credentials
 ```
 
 If you are running the {{ client }} on Kubernetes, Create a Kubernetes secret
 that contains the Teleport identity file:
 
 ```code
-$ kubectl -n teleport create secret generic --from-file=auth.pem {{ secret }}
+$ kubectl -n teleport create secret generic --from-file=identity {{ secret }}
 ```
 
 Once the Teleport credentials expire, you will need to renew them by running the

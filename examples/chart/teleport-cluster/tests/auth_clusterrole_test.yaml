@@ -17,3 +17,20 @@ tests:
       - isKind:
           of: ClusterRole
       - matchSnapshot: {}
+  - it: sets extraLabels on ClusterRole
+    set:
+      extraLabels:
+        clusterRole:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          clusterRole:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden

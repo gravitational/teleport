@@ -18,17 +18,24 @@
 
 import styled from 'styled-components';
 
-export const ButtonIconContainer = styled.div`
+export const ButtonIconContainer = styled.div<{ open?: boolean }>`
   padding: 0 10px;
-  height: 48px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 5px;
+  padding-left: 12px;
+  padding-right: 12px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
   cursor: pointer;
   user-select: none;
   margin-right: 5px;
 
+  background: ${props =>
+    props.open ? props.theme.colors.spotBackground[0] : ''};
   &:hover {
     background: ${props => props.theme.colors.spotBackground[0]};
   }

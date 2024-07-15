@@ -58,7 +58,6 @@ as well as an upgrade of the previous version of Teleport.
     Windows Webauthn requires Windows 10 19H1 and device capable of Windows
     Hello.
 
-  - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
     - [ ] macOS/Linux
@@ -77,10 +76,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
-    - [ ] Attempt removing the last MFA device on the user
-      - [ ] with `second_factor: on` in `auth_service`, should fail
-      - [ ] with `second_factor: optional` in `auth_service`, should succeed
-  - [ ] Login Password Only
+    - [ ] Removing the last MFA device on the user fails
   - [ ] Login with MFA
     - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
@@ -165,6 +161,23 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
+- [ ] External Audit Storage
+
+    External Audit Storage must be tested on an Enterprise Cloud tenant.
+    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
+
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+    - [ ] Docs (including screenshots) are up to date
+    - [ ] Discover flow works with or without an existing AWS OIDC integration
+    - [ ] Draft configuration can be resumed after navigating away
+    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
+    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
+    - [ ] `tsh play <session-id>` works
+  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
+  - [ ] Existing EAS configuration can be deleted (disabling EAS)
+
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -195,6 +208,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh -L \<node-remote-cluster\>
   - [ ] tsh ssh -L \<agentless-node\>
   - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
+  - [ ] tsh ssh -R \<regular-node\>
+  - [ ] tsh ssh -R \<node-remote-cluster\>
+  - [ ] tsh ssh -R \<agentless-node\>
+  - [ ] tsh ssh -R \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -220,6 +237,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] ssh -L \<node-remote-cluster\>
   - [ ] ssh -L \<agentless-node\>
   - [ ] ssh -L \<agentless-node-remote-cluster\>
+  - [ ] ssh -R \<regular-node\>
+  - [ ] ssh -R \<node-remote-cluster\>
+  - [ ] ssh -R \<agentless-node\>
+  - [ ] ssh -R \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -235,14 +256,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a OpenSSH node
   - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
-
-- [ ] `tsh` CA loading
-
-  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
-  - [ ] `load_all_cas` on the root auth server is `false` (default) -
-  `tsh ssh leaf.node.example.com` results in access denied.
-  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
-  succeeds.
 
 - [ ] X11 Forwarding
   - Install `xeyes` and `xclip`:
@@ -328,7 +341,27 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
-* [ ] Test Kubernetes exec via WebSockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
+### Kubernetes exec via WebSockets/SPDY
+
+To control usage of websockets on kubectl side environment variable `KUBECTL_REMOTE_COMMAND_WEBSOCKETS` can be used:
+`KUBECTL_REMOTE_COMMAND_WEBSOCKETS=true kubectl -v 8 exec -n namespace podName -- /bin/bash --version`. With `-v 8` logging level
+you should be able to see `X-Stream-Protocol-Version: v5.channel.k8s.io` in case kubectl is connected over websockets to Teleport.
+To do tests you'll need kubectl version at least 1.29, Kubernetes cluster v1.29 or less (doesn't support websockets stream protocol v5)
+and cluster v1.30 (does support it by default) and to access them both through kube agent and kubeconfig each.
+
+* [ ] Check that you can exec into a cluster with `KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false`
+  * [ ] Cluster v1.29 in agent mode
+  * [ ] Cluster v1.29 in kubeconfig mode
+  * [ ] Cluster v1.30 in agent mode
+  * [ ] Cluster v1.30 in kubeconfig mode
+* [ ] Check that you can exec into a cluster with `KUBECTL_REMOTE_COMMAND_WEBSOCKETS=true`
+  * [ ] Cluster v1.29 in agent mode
+  * [ ] Cluster v1.29 in kubeconfig mode
+  * [ ] Cluster v1.30 in agent mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+  * [ ] Cluster v1.30 in kubeconfig mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+* [ ] Test Kubernetes exec via javascript client - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
 
 ### Kubernetes auto-discovery
 
@@ -379,7 +412,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 
 ### Migrations
 
-* [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
+* [ ] Migrate trusted clusters
   * [ ] Migrate auth server on main cluster, then rest of the servers on main cluster
         SSH should work for both main and old clusters
   * [ ] Migrate auth server on remote cluster, then rest of the remote cluster
@@ -440,8 +473,6 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
-- [ ] SAML IdP guide instructions work
-    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -472,6 +503,16 @@ connectors are accepted, invalid are rejected with sensible error messages.
     - [ ] OIDC
         - [ ] Google Workspace
         - [ ] Non-Google IdP
+
+### SSO login on remote host
+
+- [ ] SSO login on a remote host
+
+`tsh` should be running on a remote host (e.g. over an SSH session) and use the
+local browser to complete and SSO login. Run
+`tsh login --callback <remote.host>:<port> --bind-addr localhost:<port> --auth <auth>`
+on the remote host. Note that the `--callback` URL must be able to resolve to the
+`--bind-addr` over HTTPS.
 
 ### Teleport Plugins
 
@@ -514,12 +555,16 @@ and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
+- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+and with [label](https://cloud.google.com/compute/docs/labeling-resources)
+`foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
+`baz`: `quux`. Verify that a node running on the instance has labels
+`gcp/label/foo=bar` and `gcp/tag/baz=quux`.
 
 ### Passwordless
 
 This feature has additional build requirements, so it should be tested with a
-pre-release build from Drone (eg:
-`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
+pre-release build (eg: `https://cdn.teleport.dev/tsh-v16.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
@@ -580,11 +625,13 @@ FIDO2 items.
 Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
-pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
+
+Additionally, Device Trust Web requires Teleport Connect to be installed (device
+authentication for the Web is handled by Connect).
 
 A simple formula for testing device authorization is:
 
@@ -594,12 +641,8 @@ A simple formula for testing device authorization is:
 tsh ssh node-that-requires-device-trust
 > ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
-# Register the device.
-# Get the serial number from `tsh device asset-tag`.
-tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
-
-# Enroll the device.
-tsh device enroll --token=<TOKEN_FROM_COMMAND_ABOVE>
+# Register/enroll the device.
+tsh device enroll --current-device
 tsh logout; tsh login
 
 # After enrollment
@@ -646,41 +689,56 @@ tsh ssh node-that-requires-device-trust
     teleport-device-id ...
     ```
 
+- [ ] Device authentication
+  - [ ] tsh or Connect
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+  - [ ] Web UI (requires Connect)
+    - [ ] SSH
+    - [ ] App Access
+    - [ ] Desktop Access
+
+    Confirm that it works by failing first. Most protocols can be tested using
+    device_trust.mode="required". App Access and Desktop Access require a custom
+    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
+
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
   - [ ] device_trust.mode="off" doesn't impede access (Enterprise and OSS)
   - [ ] device_trust.mode="optional" doesn't impede access, but issues device
         extensions on login
   - [ ] device_trust.mode="required" enforces enrolled devices
-  - [ ] device_trust.mode="required" is enforced by processes, and not only by
-        Auth APIs
-
-    Testing this requires issuing a certificate without device extensions
-    (mode="off"), then changing the cluster configuration to mode="required" and
-    attempting to access a process directly, without a login attempt.
-
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access NOT enforced in global mode
+    - [ ] Desktop Access NOT enforced in global mode
   - [ ] Role-based authz enforces enrolled devices
-        (device_trust.mode="off" or "optional",
-        role.spec.options.device_trust_mode="required")
-  - [ ] Device authorization works correctly for both require_session_mfa=false
+        (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access
+    - [ ] Desktop Access
+  - [ ] Device authentication works correctly for both require_session_mfa=false
         and require_session_mfa=true
-
-  - [ ] Device authorization applies to SSH access (all items above)
-  - [ ] Device authorization applies to Trusted Clusters (root with
-        mode="optional" and leaf with mode="required")
-  - [ ] Device authorization applies to Database access (all items above)
-  - [ ] Device authorization applies to Kubernetes access (all items above)
-
-  - [ ] Cluster-wide device authorization __does not apply__ to App access
-  - [ ] Role-based device authorization __applies__ to App access
-
-  - [ ] Device authorization __does not apply__ to Windows Desktop access
-        (both cluster-wide and role)
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] Desktop Access
+  - [ ] Device authorization applies to Trusted Clusters
+        (root with mode="optional" and leaf with mode="required")
 
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
-  - [ ] Device authorization issues device event (any outcomes)
+  - [ ] Device authentication issues device event (any outcomes)
+  - [ ] Device web authentication issues "Device Web Token Created" and "Device
+        Web Authentication Confirmed" events
+  - [ ] Device web authentication events have web_authentication_id set.
+        Corresponding "Device Authenticated" events have both
+        web_authentication=true and web_authentication_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -705,42 +763,21 @@ Hardware Key Support is an Enterprise feature and is not available for OSS.
 
 You will need a YubiKey 4.3+ to test this feature.
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 #### Server Access
 
-These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
+This test should be carried out on Linux, MacOS, and Windows.
 
-1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
-2. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key` - `tsh login --request-roles=hardware_key_required`
-  - [ ] Assuming the role should force automatic re-login with yubikey
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for per-session MFA
-3. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key_touch` - `tsh login --request-roles=hardware_key_touch_required`
-  - [ ] Assuming the role should force automatic re-login with yubikey
-    - [ ] Prompts for touch if not cached (last touch within 15 seconds)
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for touch if not cached
-4. [ ] `tsh logout` and `tsh login` as the user with no hardware key requirement.
-5. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key`
-  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for per-session MFA
-6. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key_touch`
-  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
-    - [ ] Prompts for touch if not cached
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for touch if not cached
-
-#### Other
-
-Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
-
+Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings and login.
+- [ ] `tsh login`
+  - [ ] Prompts for Yubikey touch with message "Tap your YubiKey" (separate from normal MFA prompt).
+- [ ] Server Access `tsh ssh`
+  - [ ] Requires yubikey to be connected
+  - [ ] Prompts for touch (if not cached)
 - [ ] Database Access: `tsh proxy db --tunnel`
+  - [ ] Requires yubikey to be connected
+  - [ ] Prompts for touch (if not cached)
 
 ### HSM Support
 
@@ -756,20 +793,58 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
   - [ ] CA rotation works
+- [ ] AWS KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with AWS KMS CA works
+  - [ ] Migrating a software cluster to AWS KMS works
+  - [ ] CA rotation works
 - [ ] GCP KMS Support
   - [ ] Make sure docs/links are up to date
   - [ ] New cluster with GCP KMS CA works
   - [ ] Migrating a software cluster to GCP KMS works
   - [ ] CA rotation works
 
+Run the full test suite with each HSM/KMS:
+
+```shell
+$ make run-etcd # in background shell
+$
+$ # test YubiHSM
+$ yubihsm-connector -d # in a background shell
+$ cat /etc/yubihsm_pkcs11.conf
+# /etc/yubihsm_pkcs11.conf
+connector = http://127.0.0.1:12345
+debug
+$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1 --timeout 20m # this takes ~12 minutes
+$
+$ # test AWS KMS
+$ # login in to AWS locally
+$ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$
+$ # test AWS CloudHSM
+$ # set up the CloudHSM cluster and run this on an EC2 that can reach it
+$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$
+$ # test GCP KMS
+$ # login in to GCP locally
+$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+```
+
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
- - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
+Create two Teleport users, a moderator and a user. Configure Teleport roles to require that the moderator moderate the user's sessions. Use `TELEPORT_HOME` to `tsh login` as the user in one terminal, and the moderator in another.
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants.
+Ensure the default `terminationPolicy` of `terminate` has not been changed.
+
+For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --role moderator`:
+ - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
+ - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
+ - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
 
 ## Performance
 
@@ -887,11 +962,15 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
+Some tests are marked with "coverved by E2E test" and automatically completed
+by default. In cases the E2E test is flaky or disabled, deselect the task for
+manualy testing.
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -901,6 +980,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
@@ -909,9 +989,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -941,9 +1022,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -958,9 +1040,12 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [ ] AWS RDS Postgres.
-  - [ ] AWS RDS MySQL.
+  - [x] AWS RDS Postgres. (covered by E2E test)
+  - [x] AWS RDS MySQL. (coverved by E2E test)
   - [ ] AWS RDS MariaDB.
+  - [x] AWS Redshift (coverved by E2E test).
+- [ ] Verify Database Access Control
+  - [ ] Postgres (tables)
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -983,13 +1068,14 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
-      - [ ] Can detect and register RDS instances.
-        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
+      - [x] Can detect and register RDS instances. (covered by E2E test)
+        - [x] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
-      - [ ] Can detect and register Redshift clusters.
-      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
+      - [x] Can detect and register Redshift clusters. (covered by E2E test)
+      - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
@@ -1006,8 +1092,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
-- [ ] Other
-  - [ ] MySQL server version reported by Teleport is correct.
+- [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
 
 ## TLS Routing
 
@@ -1139,7 +1224,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
-    - [ ] Attempting to share directory logs a sensible warning in the warning dropdown
+    - [ ] Directory sharing option is not available in the dropdown
   - On supported, chromium based browsers (Chrome/Edge)
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
@@ -1176,7 +1261,7 @@ tsh bench web sessions --max=5000 --web user ls
         - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
   - RBAC
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
-- Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
+- Per-Session MFA
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
@@ -1201,7 +1286,7 @@ tsh bench web sessions --max=5000 --web user ls
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
-    start (due to RBAC, for example)
+    start (due to RBAC, or a desktop lock, for example)
   - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
     to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
@@ -1215,11 +1300,23 @@ tsh bench web sessions --max=5000 --web user ls
 - Warnings/Errors (test by applying [this patch](https://gist.github.com/ibeckermayer/7591333275e87ad0d7afa028a7bb54cb))
   - [ ] Induce the backend to send a TDP Notification of severity warning (1), confirm that a warning is logged in the warning dropdown
   - [ ] Induce the backend to send a TDP Notification of severity error (2), confirm that session is terminated and error popup is shown
-  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown (confirms backwards compatibility w/ older w_d_s starting in Teleport 12)
+  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown. Confirm that the error is
+        shown at the end of the playback of this session (confirms backwards compatibility w/ recordings from older w_d_s pre Teleport 12).
 - Trusted Cluster / Tunneling
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Screen size/resize
+  - resize
+    - [ ] Screen can be resized during an active session
+    - [ ] Screen can be resized during login (meaning before resize dvc is opened).
+          The screen won't resize immediately, but it should resize when the dvc is opened (about when login completes).
+    - [ ] Screen can be resized during mfa dialog without losing the session
+    - [ ] Screen can be resized during "Active Session" dialog without losing the session
+  - `screen_size`
+    - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
+    - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
+    - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
@@ -1229,8 +1326,8 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Connecting to non-AD instance works with OSS if there are no more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance fails with OSS if there are more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance works with Enterprise license always
-  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade
-  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5
+  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade (check occurs every 5 minutes so you may need to wait to confirm)
+  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5 (check occurs every 5 minutes so you may need to wait to confirm)
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
@@ -1243,6 +1340,9 @@ https://goteleport.com/docs/installation/#operating-system-support
 
 - [ ] `tsh` runs on the minimum supported Windows version
 - [ ] Teleport Connect runs on the minimum supported Windows version
+
+Azure offers virtual machines with the Windows 10 2016 LTSB image. This image runs on Windows 10
+rev. 1607, which is the exact minimum Windows version that we support.
 
 ### macOS
 
@@ -1272,6 +1372,7 @@ With an SSH node registered to the Teleport cluster:
 
 - [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
 - [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
+- [ ] Verify you are able to connect to the SSH node using the SSH multiplexer service
 
 With a Postgres DB registered to the Teleport cluster:
 
@@ -1282,6 +1383,8 @@ With a Postgres DB registered to the Teleport cluster:
 With a Kubernetes cluster registered to the Teleport cluster:
 
 - [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+  - [ ] With ALPN routing
+  - [ ] Without ALPN routing
 
 With a HTTP application registered to the Teleport cluster:
 
@@ -1344,6 +1447,29 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Database
   - [ ] Windows Desktop
   - [ ] App Access
+
+## SSH Connection Resumption
+
+Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
+|   | Standard node | Non-resuming node | Peered node | Agentless node |
+|---|---|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (changing `ProxyCommand` to `tsh proxy ssh --no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+
+Verify that SSH works, and that resumable SSH is not interrupted across a control plane restart (of either the root or the leaf cluster).
+
+|   | Tunnel node | Direct dial node |
+|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
+| OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
 
 ## EC2 Discovery
 
@@ -1417,33 +1543,50 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] You can access Desktop service on leaf cluster
   - [ ] If you change your IP you no longer can access Desktop services.
 
-## Assist
+## IGS:
+- [ ] Access Monitoring
+  - [ ] Verify that users can run custom audit queries.
+  - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
-Assist is not supported by `tsh` and WebUI is the only way to use it.
-Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
+- [ ] Access List
+  - [ ] Verify Access List membership/ownership/expiration date.
+    - [ ] Verify permissions granted by Access List membership.
+    - [ ] Verify permissions granted by Access List ownership.
+    - [ ] Verify Access List Review.
+    - [ ] verify Access LIst Promotion.
+    - [ ] Verify that owners can only add/remove members and not change other properties.
 
-- Configuration
-  - [ ] Assist is disabled by default (OSS, Enterprise)
-  - [ ] Assist can be enabled in the configuration file.
-  - [ ] Assist is disabled in the Cloud.
-  - [ ] Assist is enabled by default in the Cloud Team plan.
-  - [ ] Assist is always disabled when etcd is used as a backend.
+- [ ] Verify Okta Sync Service
+  - [ ] Verify Okta Plugin configuration.
+    - [ ] Verify that the Okta Plugin can be configured.
+    - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
+  - [ ] Verify Okta users/apps/groups sync.
+    - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
+    - [ ] Verify the custom `okta_import_rule` rule configuration.
+    - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
+  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
+  - [ ] Verify access to Okta apps granted by access_list/access_request.
 
-- Conversations
-  - [ ] A new conversation can be started.
-  - [ ] SSH command can be executed on one server.
-  - [ ] SSH command can be executed on multiple servers.
-  - [ ] SSH command can be executed on a node with per session MFA enabled.
-  - [ ] Execution output is explained when it fits the context window.
-  - [ ] Assist can list all nodes/execute a command on all nodes (using embeddings).
-  - [ ] Access request can be created.
-  - [ ] Access request is created when approved.
-  - [ ] Conversation title is set after the first message.
+## Teleport SAML Identity Provider
+Verify SAML IdP service provider resource management.
 
-- SSH integration
-  - [ ] Assist icon is visible in WebUI's Terminal
-  - [ ] A Bash command can be generated in the above window.
-  - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
+### Docs:
+- [ ] Verify SAML IdP guide instructions work.
+
+### Manage Service Provider (SP)
+- [ ] `saml_idp_service_provider` resource can be created, updated and deleted with `tctl create/update/delete sp.yaml` command.
+  - [ ] SP can be created with `name` and `entity descriptor`.
+  - [ ] SP can be created with `name`, `entity_id`, `acs_url`.
+    - [ ] Verify Entity descriptor is generated.
+  - [ ] Verify attribute mapping configuration works.
+  - [ ] Verify test attribute mapping command. `$ tctl idp saml test-attribute-mapping --users <usernames or name of file containing user spec> --sp <name of file containing user spec> --format <json/yaml/defaults to text>`
+
+### SAML service provider catalog
+- [ ] GCP Workforce Identity Federation
+  - [ ] Verify guided flow works end-to-end, signing into GCP web console from Teleport resource page.
+  - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
+        relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
+
 
 ## Resources
 

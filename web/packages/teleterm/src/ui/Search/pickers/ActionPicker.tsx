@@ -38,6 +38,7 @@ import {
   SearchResultCluster,
   SearchResultDatabase,
   SearchResultKube,
+  SearchResultApp,
   SearchResultResourceType,
   SearchResultServer,
   DisplayResults,
@@ -48,6 +49,8 @@ import * as uri from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { isWebApp } from 'teleterm/services/tshd/app';
+import { useVnetContext } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
@@ -84,6 +87,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     resourceActionsAttempt,
     resourceSearchAttempt,
   } = useActionAttempts();
+  const { isSupported: isVnetSupported } = useVnetContext();
   const totalCountOfClusters = clustersService.getClusters().length;
 
   const getClusterName = useCallback(
@@ -209,6 +213,7 @@ export function ActionPicker(props: { input: ReactElement }) {
               <Component
                 searchResult={item.searchResult}
                 getOptionalClusterName={getOptionalClusterName}
+                isVnetSupported={isVnetSupported}
               />
             ),
           };
@@ -232,11 +237,11 @@ export function ActionPicker(props: { input: ReactElement }) {
 function getKey(searchResult: SearchResult): string {
   switch (searchResult.kind) {
     case 'resource-type-filter':
-      return searchResult.resource;
+      return `${searchResult.kind}-${searchResult.resource}`;
     case 'display-results':
-      return searchResult.value;
+      return `${searchResult.kind}-${searchResult.documentUri}-${searchResult.value}`;
     default:
-      return searchResult.resource.uri;
+      return `${searchResult.kind}-${searchResult.resource.uri}`;
   }
 }
 
@@ -299,7 +304,8 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
-                  advancedSearch={advancedSearch}
+                  // We show the advanced search in TypeToSearchItem.
+                  advancedSearch={undefined}
                 />
               )}
             </>
@@ -499,6 +505,7 @@ export const ComponentMap: Record<
   server: ServerItem,
   kube: KubeItem,
   database: DatabaseItem,
+  app: AppItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
   'display-results': DisplayResultsItem,
@@ -507,6 +514,7 @@ export const ComponentMap: Record<
 type SearchResultItem<T> = {
   searchResult: T;
   getOptionalClusterName: (uri: uri.ClusterOrResourceUri) => string;
+  isVnetSupported: boolean;
 };
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
@@ -572,6 +580,7 @@ const resourceIcons: Record<
   kube_cluster: icons.Kubernetes,
   node: icons.Server,
   db: icons.Database,
+  app: icons.Application,
 };
 
 function ResourceTypeFilterItem(
@@ -603,7 +612,11 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <IconAndContent Icon={icons.Server} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Server}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -611,7 +624,9 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
         gap={1}
       >
         <Text typography="body1">
-          Connect over SSH to{' '}
+          {props.searchResult.requiresRequest
+            ? 'Request access to server '
+            : 'Connect over SSH to '}
           <strong>
             <HighlightField field="hostname" searchResult={searchResult} />
           </strong>
@@ -677,7 +692,11 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <IconAndContent Icon={icons.Database} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Database}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -685,7 +704,9 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         gap={1}
       >
         <Text typography="body1">
-          Set up a db connection to{' '}
+          {props.searchResult.requiresRequest
+            ? 'Request access to db '
+            : 'Set up a db connection to '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
@@ -712,11 +733,53 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 }
 
-export function KubeItem(props: SearchResultItem<SearchResultKube>) {
+export function AppItem(props: SearchResultItem<SearchResultApp>) {
   const { searchResult } = props;
+  const app = searchResult.resource;
+
+  const $appName = (
+    <strong>
+      <HighlightField
+        field={app.friendlyName ? 'friendlyName' : 'name'}
+        searchResult={searchResult}
+      />
+    </strong>
+  );
+
+  const $resourceFields = (app.addrWithProtocol || app.desc) && (
+    <ResourceFields>
+      {app.addrWithProtocol && (
+        <span
+          css={`
+            flex-shrink: 0;
+          `}
+        >
+          <HighlightField
+            field="addrWithProtocol"
+            searchResult={searchResult}
+          />
+        </span>
+      )}
+      {app.desc && (
+        <span
+          css={`
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          <HighlightField field="desc" searchResult={searchResult} />
+        </span>
+      )}
+    </ResourceFields>
+  );
 
   return (
-    <IconAndContent Icon={icons.Kubernetes} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Application}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -724,7 +787,77 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
         gap={1}
       >
         <Text typography="body1">
-          Log in to Kubernetes cluster{' '}
+          {getAppItemCopy(
+            $appName,
+            app,
+            searchResult.requiresRequest,
+            props.isVnetSupported
+          )}
+        </Text>
+        <Box ml="auto">
+          <Text typography="body2" fontSize={0}>
+            {props.getOptionalClusterName(app.uri)}
+          </Text>
+        </Box>
+      </Flex>
+
+      {/* If the description is long, put the resource fields on a separate line.
+          Otherwise, show the resource fields and the labels together in a single line.
+       */}
+      {app.desc.length >= 30 ? (
+        <>
+          {$resourceFields}
+          <Labels searchResult={searchResult} />
+        </>
+      ) : (
+        <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+      )}
+    </IconAndContent>
+  );
+}
+
+function getAppItemCopy(
+  $appName: React.JSX.Element,
+  app: tsh.App,
+  requiresRequest: boolean,
+  isVnetSupported: boolean
+) {
+  if (requiresRequest) {
+    return <>Request access to app {$appName}</>;
+  }
+  if (app.samlApp) {
+    return <>Log in to {$appName} in the browser</>;
+  }
+  if (isWebApp(app) || app.awsConsole) {
+    return <>Launch {$appName} in the browser</>;
+  }
+
+  // TCP app
+  if (isVnetSupported) {
+    return <>Connect with VNet to {$appName}</>;
+  }
+  return <>Set up an app connection to {$appName}</>;
+}
+
+export function KubeItem(props: SearchResultItem<SearchResultKube>) {
+  const { searchResult } = props;
+
+  return (
+    <IconAndContent
+      Icon={icons.Kubernetes}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body1">
+          {props.searchResult.requiresRequest
+            ? 'Request access to Kubernetes cluster '
+            : 'Log in to Kubernetes cluster '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
@@ -883,7 +1016,7 @@ function Labels(
     scoreMap.set(match.labelName, currentScore + match.score);
   });
 
-  const sortedLabelsList = [...searchResult.resource.labelsList];
+  const sortedLabelsList = [...searchResult.resource.labels];
   sortedLabelsList.sort(
     (a, b) =>
       // Highest score first.
@@ -911,6 +1044,7 @@ const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
 
   // Make the children not shrink, otherwise they would shrink in attempt to render all labels in
   // the same row.
+
   & > * {
     flex-shrink: 0;
   }
@@ -981,7 +1115,6 @@ function FilterButton(props: { text: string; onClick(): void }) {
         border-radius: ${props => props.theme.radii[2]}px;
       `}
       px="6px"
-      size="small"
     >
       <CloseIcon
         color="buttons.text"
@@ -993,7 +1126,7 @@ function FilterButton(props: { text: string; onClick(): void }) {
           cursor: pointer;
           border-radius: ${props => props.theme.radii[1]}px;
 
-          :hover {
+          &:hover {
             background: ${props => props.theme.colors.spotBackground[1]};
           }
 
@@ -1030,17 +1163,13 @@ function ContentAndAdvancedSearch(
     <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
       {props.children}
       {props.advancedSearch && (
-        <AdvancedSearchToggle
-          {...props.advancedSearch}
-          css={`
-            //TODO(gzdunek): Remove when we get a toggle that can be displayed
-            // on a white background
-            label > div {
-              border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-            }
-          `}
-        />
+        <AdvancedSearchToggle {...props.advancedSearch} />
       )}
     </Flex>
   );
+}
+
+function getRequestableResourceIconOpacity(args: { requiresRequest: boolean }) {
+  // Unified resources use 0.5 opacity for the requestable resources.
+  return args.requiresRequest ? 0.5 : 1;
 }

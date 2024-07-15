@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // AuthorizationCheckerMiddleware is a middleware that checks `Authorization` header of incoming requests.
@@ -43,7 +45,7 @@ var _ LocalProxyHTTPMiddleware = (*AuthorizationCheckerMiddleware)(nil)
 // CheckAndSetDefaults checks configuration validity and sets defaults.
 func (m *AuthorizationCheckerMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = logrus.WithField(trace.Component, "gcp")
+		m.Log = logrus.WithField(teleport.ComponentKey, "gcp")
 	}
 
 	if m.Secret == "" {

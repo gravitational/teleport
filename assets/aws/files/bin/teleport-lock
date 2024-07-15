@@ -1,6 +1,6 @@
 #!/bin/bash
 # Locking service makes sure that there is only one auth server performing certain action,
-# for example renewing or getting letsencrypt certificates
+# for example renewing or getting Let's Encrypt certificates
 
 set -e
 if [[ "${DEBUG:-false}" == "true" ]]; then

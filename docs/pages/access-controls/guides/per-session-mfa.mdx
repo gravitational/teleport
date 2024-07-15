@@ -10,6 +10,7 @@ when starting new:
 - SSH connections (a single `tsh ssh` call, Web UI SSH session or Teleport Connect SSH session)
 - Kubernetes sessions (a single `kubectl` call)
 - Database sessions (a single `tsh db connect` call)
+- Application sessions
 - Desktop sessions
 
 This is an advanced security feature that protects users against compromises of
@@ -42,7 +43,7 @@ per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
 teleport:
   auth_service:
     local_auth: false
-    second_factor: optional
+    second_factor: on
     webauthn:
       rp_id: teleport.example.com
 ```
@@ -82,8 +83,6 @@ Obtain your existing `cluster_auth_preference` resource:
 $ tctl get cap > cap.yaml
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
 Ensure that `cap.yaml` contains the following content:
 
 ```yaml
@@ -112,8 +111,6 @@ Obtain your existing `cluster_auth_preference` resource:
 ```code
 $ tctl get cap > cap.yaml
 ```
-
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
 
 Ensure that `cap.yaml` contains the following content:
 
@@ -224,7 +221,7 @@ $ tsh ssh jerry@prod3.example.com
 If you are using `tsh` in a constrained environment, you can tell it to use
 OTP by doing `tsh --mfa-mode=otp ssh prod3.example.com`.
 
-OTP can only be used with per-session MFA when using the `tsh` client to
+OTP can only be used with per-session MFA when using `tsh` or Teleport Connect to
 establish connections. A hardware MFA key is required for using per-session
 MFA with Teleport's Web UI.
 </Admonition>
@@ -266,11 +263,4 @@ Current limitations for this feature are:
 - For SSH connections besides the Web UI, the `tsh` or Teleport Connect client must be used for per-session MFA.
   (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
-- Database access with per-session MFA only works with `tsh db connect`.
-  Per-session MFA for databases is not supported in Teleport Connect.
-- Application access clients don't support per-session MFA
-  authentication yet, although cluster and role configuration applies to them.
-  If you enable per-session MFA checks cluster-wide, you will not be able to
-  use Application access. We're working on integrating per-session
-  MFA checks for these clients.
 - For desktop access, only WebAuthn devices are supported.

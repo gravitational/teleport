@@ -25,7 +25,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -35,11 +39,15 @@ import (
 // DynamicAccessService manages dynamic RBAC
 type DynamicAccessService struct {
 	backend.Backend
+	log *logrus.Entry
 }
 
 // NewDynamicAccessService returns new dynamic access service instance
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
-	return &DynamicAccessService{Backend: backend}
+	return &DynamicAccessService{
+		Backend: backend,
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "DynamicAccess"}),
+	}
 }
 
 // CreateAccessRequest stores a new access request.
@@ -50,6 +58,9 @@ func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req type
 
 // CreateAccessRequestV2 stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	if req.GetCreationTime().IsZero() {
+		req.SetCreationTime(time.Now().UTC())
+	}
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,6 +118,13 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 				}
 			}
 			req.SetRoles(params.Roles)
+		}
+
+		if params.AssumeStartTime != nil {
+			if err := types.ValidateAssumeStartTime(*params.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			req.SetAssumeStartTime(*params.AssumeStartTime)
 		}
 
 		// approved requests should have a resource expiry which matches
@@ -196,6 +214,10 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 }
 
 func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (types.AccessRequest, error) {
+	return s.getAccessRequest(ctx, name)
+}
+
+func (s *DynamicAccessService) getAccessRequest(ctx context.Context, name string) (*types.AccessRequestV3, error) {
 	item, err := s.Get(ctx, accessRequestKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -254,6 +276,101 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 		requests = append(requests, req)
 	}
 	return requests, nil
+}
+
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	const maxPageSize = 16_000
+
+	if req.Filter == nil {
+		req.Filter = &types.AccessRequestFilter{}
+	}
+
+	var rsp proto.ListAccessRequestsResponse
+
+	// filters that specify an ID are a special case since they match exactly zero or one requests and we serve them via direct lookup.
+	// note that we perform this fallback *before* checking parameters like page size and sort order. those values don't matter for this case,
+	// and enforcing them may cause confusing behavior since single-request lookups are often forwarded here from the access request cache, which
+	// supports some options that aren't supported in the context of direct backend lookup.
+	if req.Filter.ID != "" {
+		accessRequest, err := s.getAccessRequest(ctx, req.Filter.ID)
+		if err != nil {
+			// A filter with zero matches is still a success, it just
+			// happens to return an empty page.
+			if trace.IsNotFound(err) {
+				return &rsp, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		if !req.Filter.Match(accessRequest) {
+			// A filter with zero matches is still a success, it just
+			// happens to return an empty page.
+			return &rsp, nil
+		}
+		rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+		return &rsp, nil
+	}
+
+	limit := int(req.Limit)
+
+	if limit < 1 {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	if limit > maxPageSize {
+		return nil, trace.BadParameter("page size of %d is too large", limit)
+	}
+
+	if req.Sort != proto.AccessRequestSort_DEFAULT {
+		return nil, trace.BadParameter("access request sort indexes other than DEFAULT cannot be used to load directly from the backend (expected %v, got %v)", proto.AccessRequestSort_DEFAULT, req.Sort)
+	}
+
+	if req.Descending {
+		return nil, trace.BadParameter("access requests cannot be loaded directly from the backend with descending sort order")
+	}
+
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	if req.StartKey != "" {
+		startKey = backend.Key(accessRequestsPrefix, req.StartKey)
+	}
+	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
+
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(rsp.AccessRequests) > limit {
+				return true, nil
+			}
+
+			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+				// Item represents a different resource type in the
+				// same namespace.
+				continue
+			}
+
+			accessRequest, err := itemToAccessRequest(item)
+			if err != nil {
+				s.log.Warnf("Failed to unmarshal access request at %q: %v", item.Key, err)
+				continue
+			}
+
+			if !req.Filter.Match(accessRequest) {
+				continue
+			}
+
+			rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+		}
+
+		return len(rsp.AccessRequests) > limit, nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(rsp.AccessRequests) > limit {
+		rsp.NextKey = rsp.AccessRequests[limit].GetName()
+		rsp.AccessRequests = rsp.AccessRequests[:limit]
+	}
+
+	return &rsp, nil
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -335,7 +452,6 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
 		Expires:  req.Expiry(),
-		ID:       req.GetResourceID(),
 		Revision: rev,
 	}, nil
 }
@@ -349,15 +465,13 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 		Key:      AccessRequestAllowedPromotionKey(req.GetName()),
 		Value:    value,
 		Expires:  req.Expiry(), // expire the promotion at the same time as the access request
-		ID:       req.GetResourceID(),
 		Revision: req.GetRevision(),
 	}, nil
 }
 
-func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (types.AccessRequest, error) {
+func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)

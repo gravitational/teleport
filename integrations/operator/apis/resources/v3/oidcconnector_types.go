@@ -34,15 +34,6 @@ func init() {
 // TeleportOIDCConnectorSpec defines the desired state of TeleportOIDCConnector
 type TeleportOIDCConnectorSpec types.OIDCConnectorSpecV3
 
-// TeleportOIDCConnectorStatus defines the observed state of TeleportOIDCConnector
-type TeleportOIDCConnectorStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -51,8 +42,8 @@ type TeleportOIDCConnector struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportOIDCConnectorSpec   `json:"spec,omitempty"`
-	Status TeleportOIDCConnectorStatus `json:"status,omitempty"`
+	Spec   TeleportOIDCConnectorSpec `json:"spec,omitempty"`
+	Status resources.Status          `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -153,6 +153,53 @@ to the original set of roles.
 
 ## Next Steps
 
+### Automatically request access for SSH
+
+Once you have configured Role Access Requests,
+`tsh ssh` is able to automatically create a Role Access Request for you when access is denied,
+allowing you to skip the `tsh request search` and `tsh request create` steps.
+If more than one role would grant access to the target node, you will be prompted
+to select a role to request.
+
+```code
+$ tsh ssh --request-mode role alice@iot
+ERROR: access denied to alice connecting to iot on cluster teleport.example.com
+
+You do not currently have access to alice@iot, attempting to request access.
+
+Choose role to request [node-access, node-access-alt]: node-access
+Enter request reason: please
+Creating request...
+
+Waiting for request approval...
+
+Approval received, reason="okay"
+Getting updated certificates...
+
+iot:~ alice$
+```
+
+Note that in order to make a Role Access Request this way, the role you request
+access with must have `search_as_role` set so you can read the node you want to
+ssh into.
+
+```yaml
+# requester.yaml
+kind: role
+version: v5
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      roles:
+        - node-access
+      search_as_roles:
+        # does not need to match roles, just needs to be able to access nodes
+        # that you want to ssh into
+        - access
+```
+
 ### Integrate with an external tool
 
 With Teleport's Access Request plugins, users can manage Access Requests from

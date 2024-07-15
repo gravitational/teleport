@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/square/go-jose.v2"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -185,25 +185,30 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	return kubeVersion.AtLeast(minKubeVersion), nil
 }
 
-type podSubClaim struct {
+// PodSubClaim are the Pod-specific claims we expect to find on a Kubernetes Service Account JWT.
+type PodSubClaim struct {
 	Name string `json:"name"`
 	UID  string `json:"uid"`
 }
 
-type serviceAccountSubClaim struct {
+// ServiceAccountSubClaim are the Service Account-specific claims we expect to find on a Kubernetes Service Account JWT.
+type ServiceAccountSubClaim struct {
 	Name string `json:"name"`
 	UID  string `json:"uid"`
 }
 
-type kubernetesSubClaim struct {
+// KubernetesSubClaim are the Kubernetes-specific claims (under kubernetes.io)
+// we expect to find on a Kubernetes Service Account JWT.
+type KubernetesSubClaim struct {
 	Namespace      string                  `json:"namespace"`
-	ServiceAccount *serviceAccountSubClaim `json:"serviceaccount"`
-	Pod            *podSubClaim            `json:"pod"`
+	ServiceAccount *ServiceAccountSubClaim `json:"serviceaccount"`
+	Pod            *PodSubClaim            `json:"pod"`
 }
 
-type serviceAccountClaims struct {
+// ServiceAccountClaims are the claims we expect to find on a Kubernetes Service Account JWT.
+type ServiceAccountClaims struct {
 	josejwt.Claims
-	Kubernetes *kubernetesSubClaim `json:"kubernetes.io"`
+	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
 }
 
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
@@ -224,7 +229,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := serviceAccountClaims{}
+	claims := ServiceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}

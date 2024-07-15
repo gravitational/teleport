@@ -24,6 +24,11 @@ inputs:
     required: false
     default: ${GITHUB_WORKSPACE}
 
+  directory:
+    description: The directory to run the command from
+    required: false
+    default: .
+
 runs:
   using: "composite"
   steps:
@@ -34,10 +39,12 @@ runs:
     - name: Show
       id: diffs
       shell: bash
+      working-directory: ${{ inputs.directory }}
       run: |
         ${{ inputs.bin }} diff --path ${{ inputs.path }} --branch remotes/origin/${GITHUB_BASE_REF} ${{ inputs.flags }}
         echo "subject=$(${{ inputs.bin }} test --path ${{ inputs.path }} --branch remotes/origin/${GITHUB_BASE_REF} ${{ inputs.flags }} -d)" > $GITHUB_OUTPUT
 
     - name: Run
       shell: bash
+      working-directory: ${{ inputs.directory }}
       run: SUBJECT='${{ steps.diffs.outputs.subject }}' ADDFLAGS='-count ${{ inputs.attempts }}' make ${{ inputs.target }}

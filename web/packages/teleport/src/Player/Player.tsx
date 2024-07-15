@@ -36,7 +36,9 @@ import { DesktopPlayer } from './DesktopPlayer';
 import SshPlayer from './SshPlayer';
 import Tabs, { TabItem } from './PlayerTabs';
 
-export default function Player() {
+const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
+
+export function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
 
@@ -46,13 +48,10 @@ export default function Player() {
   ) as RecordingType;
   const durationMs = Number(getUrlParameter('durationMs', search));
 
-  const validRecordingType =
-    recordingType === 'ssh' ||
-    recordingType === 'k8s' ||
-    recordingType === 'desktop';
+  const validRecordingType = validRecordingTypes.includes(recordingType);
   const validDurationMs = Number.isInteger(durationMs) && durationMs > 0;
 
-  document.title = `${clusterId} • Play ${sid}`;
+  document.title = `Play ${sid} • ${clusterId}`;
 
   function onLogout() {
     session.logout();
@@ -64,14 +63,14 @@ export default function Player() {
         <Box textAlign="center" mx={10} mt={5}>
           <Danger mb={0}>
             Invalid query parameter recordingType: {recordingType}, should be
-            'ssh' or 'desktop'
+            one of {validRecordingTypes.join(', ')}.
           </Danger>
         </Box>
       </StyledPlayer>
     );
   }
 
-  if (recordingType === 'desktop' && !validDurationMs) {
+  if (!validDurationMs) {
     return (
       <StyledPlayer>
         <Box textAlign="center" mx={10} mt={5}>
@@ -106,7 +105,7 @@ export default function Player() {
             durationMs={durationMs}
           />
         ) : (
-          <SshPlayer sid={sid} clusterId={clusterId} />
+          <SshPlayer sid={sid} clusterId={clusterId} durationMs={durationMs} />
         )}
       </Flex>
     </StyledPlayer>

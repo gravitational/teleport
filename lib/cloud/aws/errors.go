@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	"github.com/aws/aws-sdk-go-v2/config"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -36,8 +35,8 @@ import (
 // to trace errors. If the provided error is not an `RequestFailure` it returns
 // the error without modifying it.
 func ConvertRequestFailureError(err error) error {
-	requestErr, ok := err.(awserr.RequestFailure)
-	if !ok {
+	var requestErr awserr.RequestFailure
+	if !errors.As(err, &requestErr) {
 		return err
 	}
 
@@ -66,7 +65,8 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 // ConvertIAMError converts common errors from IAM clients to trace errors.
 func ConvertIAMError(err error) error {
 	// By error code.
-	if awsErr, ok := err.(awserr.Error); ok {
+	var awsErr awserr.Error
+	if errors.As(err, &awsErr) {
 		switch awsErr.Code() {
 		case iam.ErrCodeUnmodifiableEntityException:
 			return trace.AccessDenied(awsErr.Error())
@@ -86,15 +86,6 @@ func ConvertIAMError(err error) error {
 
 	// By status code.
 	return ConvertRequestFailureError(err)
-}
-
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(err error) error {
-	var httpError interface{ HTTPStatusCode() int }
-	if errors.As(err, &httpError) {
-		return trace.ReadError(httpError.HTTPStatusCode(), nil)
-	}
-	return trace.Wrap(err)
 }
 
 // ConvertIAMv2Error converts common errors from IAM clients to trace errors.
@@ -124,14 +115,4 @@ func ConvertIAMv2Error(err error) error {
 	}
 
 	return err
-}
-
-// ConvertLoadConfigError converts common AWS config loading errors to trace errors.
-func ConvertLoadConfigError(configErr error) error {
-	switch configErr.(type) {
-	case config.SharedConfigProfileNotExistError:
-		return trace.NotFound(configErr.Error())
-	}
-
-	return configErr
 }

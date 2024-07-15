@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Text, Flex } from 'design';
-import { StyledPanel } from 'design/DataTable';
+import { Flex } from 'design';
 import InputSearch from 'design/DataTable/InputSearch';
+import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 import { ResourceFilter } from 'teleport/services/agents';
 
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
@@ -32,14 +32,16 @@ export function SearchPanel({
   filter,
   showSearchBar,
   disableSearch,
+  hideAdvancedSearch,
   extraChildren,
 }: {
   updateQuery(s: string): void;
   updateSearch(s: string): void;
-  pageIndicators: { from: number; to: number; total: number };
+  pageIndicators?: { from: number; to: number; total: number };
   filter: ResourceFilter;
   showSearchBar: boolean;
   disableSearch: boolean;
+  hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
 }) {
   const [query, setQuery] = useState(filter.search || filter.query || '');
@@ -66,40 +68,44 @@ export function SearchPanel({
   }
 
   return (
-    <StyledPanel
+    <Flex
+      justifyContent="space-between"
+      alignItems="center"
+      width="100%"
       onSubmit={handleOnSubmit}
-      borderTopLeftRadius={3}
-      borderTopRightRadius={3}
+      mb={3}
     >
-      <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Flex as="form" style={{ width: '70%' }} alignItems="center">
-          <StyledFlex
-            mr={3}
-            alignItems="center"
-            width="100%"
-            className={disableSearch ? 'disabled' : ''}
-          >
-            {showSearchBar && (
-              <InputSearch searchValue={query} setSearchValue={setQuery}>
+      <Flex as="form" style={{ width: '100%' }} alignItems="center">
+        <StyledFlex
+          mr={3}
+          alignItems="center"
+          width="100%"
+          className={disableSearch ? 'disabled' : ''}
+        >
+          {showSearchBar && (
+            <InputSearch searchValue={query} setSearchValue={setQuery}>
+              {!hideAdvancedSearch && (
                 <AdvancedSearchToggle
                   isToggled={isAdvancedSearch}
                   onToggle={onToggle}
                   px={3}
                 />
-              </InputSearch>
-            )}
-          </StyledFlex>
-        </Flex>
-        <Flex alignItems="center">
+              )}
+            </InputSearch>
+          )}
+        </StyledFlex>
+      </Flex>
+      <Flex alignItems="center">
+        {pageIndicators && (
           <PageIndicatorText
             from={pageIndicators.from}
             to={pageIndicators.to}
             count={pageIndicators.total}
           />
-          {extraChildren && extraChildren}
-        </Flex>
+        )}
+        {extraChildren}
       </Flex>
-    </StyledPanel>
+    </Flex>
   );
 }
 
@@ -107,31 +113,10 @@ const StyledFlex = styled(Flex)`
   // The timing functions of transitions have been chosen so that the element loses opacity slowly
   // when entering the disabled state but gains it quickly when going out of the disabled state.
   transition: opacity 150ms ease-out;
+
   &.disabled {
     pointer-events: none;
     opacity: 0.7;
     transition: opacity 150ms ease-in;
   }
 `;
-
-export function PageIndicatorText({
-  from,
-  to,
-  count,
-}: {
-  from: number;
-  to: number;
-  count: number;
-}) {
-  return (
-    <Text
-      typography="body2"
-      color="text.main"
-      style={{ textTransform: 'uppercase' }}
-      mr={1}
-    >
-      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
-      <strong>{count}</strong>
-    </Text>
-  );
-}

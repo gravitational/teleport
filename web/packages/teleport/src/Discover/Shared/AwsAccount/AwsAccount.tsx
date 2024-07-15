@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Box,
@@ -28,12 +28,13 @@ import {
   Flex,
 } from 'design';
 import FieldSelect from 'shared/components/FieldSelect';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useAsync } from 'shared/hooks/useAsync';
 import { Option as BaseOption } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
+import { App } from 'teleport/services/apps';
 import cfg from 'teleport/config';
 import {
   Integration,
@@ -44,8 +45,10 @@ import {
   integrationRWE,
   integrationRWEAndNodeRWE,
   integrationRWEAndDbCU,
+  integrationAndAppRW,
 } from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
+import ResourceService from 'teleport/services/resources';
 
 import {
   ActionButtons,
@@ -59,7 +62,6 @@ import { DiscoverUrlLocationState, useDiscover } from '../../useDiscover';
 type Option = BaseOption<Integration>;
 
 export function AwsAccount() {
-  const { storeUser } = useTeleport();
   const {
     prevStep,
     nextStep,
@@ -68,8 +70,34 @@ export function AwsAccount() {
     eventState,
     resourceSpec,
     currentStep,
-    viewConfig,
   } = useDiscover();
+
+  // if true, requires an additional step where we fetch for
+  // apps matching fetched aws integrations to determine
+  // if an app already exists for the integration the user
+  // will select
+  const isAddingAwsApp =
+    resourceSpec.kind === ResourceKind.Application &&
+    resourceSpec.appMeta.awsConsole;
+
+  const { storeUser } = useTeleport();
+  const clusterId = storeUser.getClusterId();
+
+  const [attempt, fetch] = useAsync(
+    useCallback(async () => {
+      const response = await fetchAwsIntegrationsWithApps(
+        clusterId,
+        isAddingAwsApp
+      );
+      // Auto select the only option.
+      if (response.awsIntegrations.length === 1) {
+        setSelectedAwsIntegration(
+          makeAwsIntegrationOption(response.awsIntegrations[0])
+        );
+      }
+      return response;
+    }, [clusterId, isAddingAwsApp])
+  );
 
   const integrationAccess = storeUser.getIntegrationsAccess();
 
@@ -81,12 +109,12 @@ export function AwsAccount() {
     integrationAccess.read;
 
   // Ensure required permissions based on which flow this is in.
-  if (viewConfig.kind === ResourceKind.Database) {
+  if (resourceSpec.kind === ResourceKind.Database) {
     roleTemplate = integrationRWEAndDbCU;
     const databaseAccess = storeUser.getDatabaseAccess();
     hasAccess = hasAccess && databaseAccess.create; // required to enroll AWS RDS db
   }
-  if (viewConfig.kind === ResourceKind.Server) {
+  if (resourceSpec.kind === ResourceKind.Server) {
     roleTemplate = integrationRWEAndNodeRWE;
     const nodesAccess = storeUser.getNodeAccess();
     hasAccess =
@@ -96,41 +124,34 @@ export function AwsAccount() {
       nodesAccess.list &&
       nodesAccess.read; // Needed for TestConnection flow
   }
+  if (isAddingAwsApp) {
+    roleTemplate = integrationAndAppRW;
+    const appAccess = storeUser.getAppServerAccess();
+    hasAccess =
+      hasAccess &&
+      // required to upsert app server
+      appAccess.create &&
+      appAccess.edit &&
+      // required to list and read app servers
+      appAccess.list &&
+      appAccess.read;
+  }
 
-  const { attempt, run } = useAttempt(hasAccess ? 'processing' : '');
-
-  const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
   const [selectedAwsIntegration, setSelectedAwsIntegration] =
     useState<Option>();
 
   useEffect(() => {
-    if (hasAccess) {
-      fetchAwsIntegrations();
+    if (hasAccess && attempt.status === '') {
+      fetch();
     }
-  }, []);
-
-  function fetchAwsIntegrations() {
-    run(() =>
-      integrationService.fetchIntegrations().then(res => {
-        const options = res.items.map(i => {
-          if (i.kind === 'aws-oidc') {
-            return {
-              value: i,
-              label: i.name,
-            };
-          }
-        });
-        setAwsIntegrations(options);
-      })
-    );
-  }
+  }, [attempt.status, fetch, hasAccess]);
 
   if (!hasAccess) {
     return (
       <Box maxWidth="700px">
         <Heading />
         <Box maxWidth="700px">
-          <Text mt={4} width="100px">
+          <Text mt={4}>
             You don’t have the required permissions for integrating.
             <br />
             Ask your Teleport administrator to update your role with the
@@ -144,11 +165,12 @@ export function AwsAccount() {
             />
           </Flex>
         </Box>
+        <ActionButtons onPrev={prevStep} />
       </Box>
     );
   }
 
-  if (attempt.status === 'processing') {
+  if (attempt.status === '' || attempt.status === 'processing') {
     return (
       <Box maxWidth="700px">
         <Heading />
@@ -159,12 +181,12 @@ export function AwsAccount() {
     );
   }
 
-  if (attempt.status === 'failed') {
+  if (attempt.status === 'error') {
     return (
       <Box maxWidth="700px">
         <Heading />
         <Alert kind="danger" children={attempt.statusText} />
-        <ButtonPrimary mt={2} onClick={fetchAwsIntegrations}>
+        <ButtonPrimary mt={2} onClick={fetch}>
           Retry
         </ButtonPrimary>
       </Box>
@@ -176,6 +198,30 @@ export function AwsAccount() {
       return;
     }
 
+    if (
+      isAddingAwsApp &&
+      attempt.status === 'success' &&
+      attempt.data.apps.length > 0
+    ) {
+      // See if an application already exists for selected integration
+      const foundApp = attempt.data.apps.find(
+        app =>
+          app.integration === selectedAwsIntegration.value.name &&
+          app.awsConsole
+      );
+      if (foundApp) {
+        updateAgentMeta({
+          ...agentMeta,
+          awsIntegration: selectedAwsIntegration.value,
+          app: foundApp,
+        });
+        // skips the next step (creating an app server)
+        // since it already exists
+        nextStep(2);
+        return;
+      }
+    }
+
     updateAgentMeta({
       ...agentMeta,
       awsIntegration: selectedAwsIntegration.value,
@@ -184,6 +230,7 @@ export function AwsAccount() {
     nextStep();
   }
 
+  const { awsIntegrations } = attempt.data;
   const hasAwsIntegrations = awsIntegrations.length > 0;
 
   // When a user clicks to create a new AWS integration, we
@@ -222,7 +269,7 @@ export function AwsAccount() {
                       isSimpleValue
                       value={selectedAwsIntegration}
                       onChange={i => setSelectedAwsIntegration(i as Option)}
-                      options={awsIntegrations}
+                      options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
                   <ButtonText as={Link} to={locationState} pl={0}>
@@ -252,6 +299,49 @@ export function AwsAccount() {
       </Box>
     </Box>
   );
+}
+
+function makeAwsIntegrationOption(integration: Integration): Option {
+  return {
+    value: integration,
+    label: integration.name,
+  };
+}
+
+async function fetchAwsIntegrationsWithApps(
+  clusterId: string,
+  isAddingAwsApp: boolean
+): Promise<{
+  awsIntegrations: Integration[];
+  apps: App[];
+}> {
+  const integrationPage = await integrationService.fetchIntegrations();
+  const awsIntegrations = integrationPage.items.filter(
+    i => i.kind === 'aws-oidc'
+  );
+  if (!isAddingAwsApp || awsIntegrations.length === 0) {
+    // Skip fetching for apps
+    return { awsIntegrations, apps: [] };
+  }
+
+  const resourceSvc = new ResourceService();
+  // fetch for apps that match fetched integration names.
+  // used later to determine if the integration user selected
+  // already has an application created for it.
+  const query = awsIntegrations
+    .map(i => `resource.spec.integration == "${i.name}"`)
+    .join(' || ');
+
+  const { agents: resources } = await resourceSvc.fetchUnifiedResources(
+    clusterId,
+    {
+      query,
+      limit: awsIntegrations.length,
+      kinds: ['app'],
+      sort: { fieldName: 'name', dir: 'ASC' },
+    }
+  );
+  return { awsIntegrations, apps: resources as App[] };
 }
 
 const Heading = () => (

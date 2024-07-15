@@ -27,12 +27,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	server *auth.Server
 }
 
@@ -46,6 +49,11 @@ func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.Ce
 
 func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return m.server.GetCertAuthority(ctx, id, loadKeys)
+}
+
+func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	// return MFA not required to gracefully skip the MFA prompt.
+	return nil, &mfa.ErrMFANotRequired
 }
 
 func TestExportAuthorities(t *testing.T) {
@@ -203,9 +211,36 @@ func TestExportAuthorities(t *testing.T) {
 				assertSecrets: validatePrivateKeyPEMFunc,
 			},
 			{
+				name: "db",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificatePEMFunc,
+				assertSecrets:   validatePrivateKeyPEMFunc,
+			},
+			{
 				name: "db-der",
 				req: ExportAuthoritiesRequest{
 					AuthType: "db-der",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificateDERFunc,
+				assertSecrets:   validatePrivateKeyDERFunc,
+			},
+			{
+				name: "db-client",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db-client",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificatePEMFunc,
+				assertSecrets:   validatePrivateKeyPEMFunc,
+			},
+			{
+				name: "db-client-der",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db-client-der",
 				},
 				errorCheck:      require.NoError,
 				assertNoSecrets: validateTLSCertificateDERFunc,

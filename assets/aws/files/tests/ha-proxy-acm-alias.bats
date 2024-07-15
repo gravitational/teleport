@@ -5,7 +5,6 @@ EC2_REGION=us-west-2
 TELEPORT_AUTH_SERVER_LB=gus-tftestkube4-auth-0f66dd17f8dd9825.elb.us-east-1.amazonaws.com
 TELEPORT_CLUSTER_NAME=gus-tftestkube4
 TELEPORT_DOMAIN_NAME=gus-tftestkube4.gravitational.io
-TELEPORT_INFLUXDB_ADDRESS=http://gus-tftestkube4-monitor-ae7983980c3419ab.elb.us-east-1.amazonaws.com:8086
 TELEPORT_PROXY_SERVER_LB=gus-tftestkube4-proxy-bc9ba568645c3d80.elb.us-east-1.amazonaws.com
 TELEPORT_PROXY_SERVER_NLB_ALIAS=gus-tftestkube-nlb.gravitational.io
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
@@ -119,4 +118,11 @@ load fixtures/common
     echo "${PROXY_BLOCK?}"
     # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
     echo "${PROXY_BLOCK?}" | { ! grep -qE "^  https_keypairs:"; }
+}
+
+@test "[${TEST_SUITE?}] proxy_service.proxy_protocol is not set to on" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
+    echo "${PROXY_BLOCK?}" | { ! grep -qE "^  proxy_protocol: on"; }
 }

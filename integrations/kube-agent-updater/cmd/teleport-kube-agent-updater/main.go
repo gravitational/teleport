@@ -20,6 +20,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/url"
 	"os"
 	"strings"
@@ -68,21 +69,29 @@ func main() {
 	var versionServer string
 	var versionChannel string
 	var insecureNoVerify bool
+	var insecureNoResolve bool
 	var disableLeaderElection bool
+	var credSource string
 
 	flag.StringVar(&agentName, "agent-name", "", "The name of the agent that should be updated. This is mandatory.")
 	flag.StringVar(&agentNamespace, "agent-namespace", "", "The namespace of the agent that should be updated. This is mandatory.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "healthz-addr", ":8081", "The address the probe endpoint binds to.")
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
-	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification.")
+	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification. The image tag is still resolved and image must exist.")
+	flag.BoolVar(&insecureNoResolve, "insecure-no-resolve-image", false, "Disable image signature verification AND resolution. The updater can update to non-existing images.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used when running the kube-agent-updater outside of Kubernetes.")
 	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
-	flag.StringVar(&versionChannel, "version-channel", "cloud/stable", "Version channel to get updates from.")
+	flag.StringVar(&versionChannel, "version-channel", "stable/cloud", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
+	flag.StringVar(&credSource, "pull-credentials", img.NoCredentialSource,
+		fmt.Sprintf("Where to get registry pull credentials, values are '%s', '%s', '%s', '%s'.",
+			img.DockerCredentialSource, img.GoogleCredentialSource, img.AmazonCredentialSource, img.NoCredentialSource,
+		),
+	)
 
 	opts := zap.Options{
-		Development: true,
+		Development: false,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -123,7 +132,7 @@ func main() {
 
 	versionServerURL, err := url.Parse(strings.TrimRight(versionServer, "/") + "/" + versionChannel)
 	if err != nil {
-		ctrl.Log.Error(err, "failed to pasre version server URL, exiting")
+		ctrl.Log.Error(err, "failed to parse version server URL, exiting")
 		os.Exit(1)
 	}
 	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
@@ -134,11 +143,19 @@ func main() {
 	}
 
 	var imageValidators img.Validators
-	if insecureNoVerify {
+	switch {
+	case insecureNoResolve:
+		ctrl.Log.Info("INSECURE: Image validation and resolution disabled")
+		imageValidators = append(imageValidators, img.NewNopValidator("insecure no resolution"))
+	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
-		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verify"))
-	} else {
-		validator, err := img.NewCosignSingleKeyValidator(teleportProdOCIPubKey, "cosign signature validator")
+		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified"))
+	default:
+		kc, err := img.GetKeychain(credSource)
+		if err != nil {
+			ctrl.Log.Error(err, "failed to get keychain for registry auth")
+		}
+		validator, err := img.NewCosignSingleKeyValidator(teleportProdOCIPubKey, "cosign signature validator", kc)
 		if err != nil {
 			ctrl.Log.Error(err, "failed to build image validator, exiting")
 			os.Exit(1)

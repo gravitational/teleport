@@ -23,8 +23,8 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
-import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
+import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
 import serviceSession, {
@@ -33,11 +33,17 @@ import serviceSession, {
   ParticipantMode,
 } from 'teleport/services/session';
 import ServiceNodes from 'teleport/services/nodes';
-import serviceClusters from 'teleport/services/clusters';
+import ClustersService from 'teleport/services/clusters';
 import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
 
-import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
+import {
+  StoreParties,
+  StoreDocs,
+  DocumentSsh,
+  DocumentKubeExec,
+  Document,
+} from './stores';
 
 const logger = Logger.create('teleport/console');
 
@@ -51,6 +57,7 @@ export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
   nodesService = new ServiceNodes();
+  clustersService = new ClustersService();
   storeUser = new StoreUserContext();
 
   constructor() {
@@ -88,6 +95,10 @@ export default class ConsoleContext {
     this.storeDocs.update(id, partial);
   }
 
+  updateKubeExecDocument(id: number, partial: Partial<DocumentKubeExec>) {
+    this.storeDocs.update(id, partial);
+  }
+
   addNodeDocument(clusterId = cfg.proxyCluster) {
     return this.storeDocs.add({
       clusterId,
@@ -95,6 +106,27 @@ export default class ConsoleContext {
       kind: 'nodes',
       url: cfg.getConsoleNodesRoute(clusterId),
       created: new Date(),
+    });
+  }
+
+  addKubeExecDocument(params: UrlKubeExecParams) {
+    const url = this.getKubeExecDocumentUrl(params);
+
+    return this.storeDocs.add({
+      kind: 'kubeExec',
+      status: 'disconnected',
+      clusterId: params.clusterId,
+      title: params.kubeId,
+      url,
+      created: new Date(),
+      mode: null,
+
+      kubeCluster: params.kubeId,
+      kubeNamespace: '',
+      pod: '',
+      container: '',
+      isInteractive: true,
+      command: '',
     });
   }
 
@@ -137,6 +169,10 @@ export default class ConsoleContext {
       : cfg.getSshConnectRoute(sshParams);
   }
 
+  getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
+    return cfg.getKubeExecConnectRoute(kubeExecParams);
+  }
+
   refreshParties() {
     return tracer.startActiveSpan('refreshParties', span => {
       // Finds unique clusterIds from all active ssh sessions
@@ -172,14 +208,6 @@ export default class ConsoleContext {
     });
   }
 
-  fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params);
-  }
-
-  fetchClusters() {
-    return serviceClusters.fetchClusters();
-  }
-
   logout() {
     webSession.logout();
   }
@@ -193,21 +221,31 @@ export default class ConsoleContext {
     const ctx = context.active();
 
     propagator.inject(ctx, carrier, defaultTextMapSetter);
+    const baseUrl =
+      session.kind === 'k8s' ? cfg.api.ttyKubeExecWsAddr : cfg.api.ttyWsAddr;
 
-    const ttyUrl = cfg.api.ttyWsAddr
+    let ttyParams = {};
+    switch (session.kind) {
+      case 'ssh':
+        ttyParams = {
+          login,
+          sid,
+          server_id: serverId,
+          mode,
+        };
+        break;
+      case 'k8s':
+        break;
+    }
+
+    const ttyUrl = baseUrl
       .replace(':fqdn', getHostName())
-      .replace(':token', getAccessToken())
       .replace(':clusterId', clusterId)
       .replace(':traceparent', carrier['traceparent']);
 
     const addressResolver = new TtyAddressResolver({
       ttyUrl,
-      ttyParams: {
-        login,
-        sid,
-        server_id: serverId,
-        mode,
-      },
+      ttyParams,
     });
 
     return new Tty(addressResolver);

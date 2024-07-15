@@ -18,8 +18,6 @@
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-import { RDPFastPathPDU } from 'teleport/ironrdp/pkg/ironrdp';
-
 export type Message = ArrayBuffer;
 
 export enum MessageType {
@@ -53,7 +51,10 @@ export enum MessageType {
   NOTIFICATION = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
-  RDP_CHANNEL_IDS = 31,
+  RDP_CONNECTION_ACTIVATED = 31,
+  SYNC_KEYS = 32,
+  SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
+  SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
   __LAST, // utility value
 }
 
@@ -87,6 +88,17 @@ export type PngFrame = {
   data: HTMLImageElement;
 };
 
+/**
+ * `| message type (29) | data_length uint32 | data []byte |`
+ *
+ * `RdpFastPathPdu` is an alias to a `Uint8Array` so that it can
+ * be passed into the `FastPathProcessor`'s `process` method and
+ * used without copying. See [the wasm-bindgen guide].
+ *
+ * [the wasm-bindgen guide]: (https://rustwasm.github.io/docs/wasm-bindgen/reference/types/number-slices.html#number-slices-u8-i8-u16-i16-u32-i32-u64-i64-f32-and-f64)
+ */
+export type RdpFastPathPdu = Uint8Array;
+
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
 export type ClipboardData = {
@@ -95,10 +107,12 @@ export type ClipboardData = {
   data: string;
 };
 
-// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-export type RDPChannelIDs = {
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+export type RdpConnectionActivated = {
   ioChannelId: number;
   userChannelId: number;
+  screenWidth: number;
+  screenHeight: number;
 };
 
 export enum Severity {
@@ -132,6 +146,14 @@ export type Notification = {
 export type MfaJson = {
   mfaType: 'u' | 'n';
   jsonString: string;
+};
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+export type SyncKeys = {
+  scrollLockState: ButtonState;
+  numLockState: ButtonState;
+  capsLockState: ButtonState;
+  kanaLockState: ButtonState;
 };
 
 // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
@@ -256,6 +278,20 @@ export type SharedDirectoryListResponse = {
   fsoList: FileSystemObject[];
 };
 
+// | message type (33) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | end_of_file uint32 |
+export type SharedDirectoryTruncateRequest = {
+  completionId: number;
+  directoryId: number;
+  path: string;
+  endOfFile: number;
+};
+
+// | message type (34) | completion_id uint32 | err_code uint32 |
+export type SharedDirectoryTruncateResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
+};
+
 // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
 export type FileSystemObject = {
   lastModified: bigint;
@@ -299,163 +335,6 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
 export default class Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
-
-  // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
-  private _keyScancodes = {
-    Escape: 0x0001,
-    Digit1: 0x0002,
-    Digit2: 0x0003,
-    Digit3: 0x0004,
-    Digit4: 0x0005,
-    Digit5: 0x0006,
-    Digit6: 0x0007,
-    Digit7: 0x0008,
-    Digit8: 0x0009,
-    Digit9: 0x000a,
-    Digit0: 0x000b,
-    Minus: 0x000c,
-    Equal: 0x000d,
-    Backspace: 0x000e,
-    Tab: 0x000f,
-    KeyQ: 0x0010,
-    KeyW: 0x0011,
-    KeyE: 0x0012,
-    KeyR: 0x0013,
-    KeyT: 0x0014,
-    KeyY: 0x0015,
-    KeyU: 0x0016,
-    KeyI: 0x0017,
-    KeyO: 0x0018,
-    KeyP: 0x0019,
-    BracketLeft: 0x001a,
-    BracketRight: 0x001b,
-    Enter: 0x001c,
-    ControlLeft: 0x001d,
-    KeyA: 0x001e,
-    KeyS: 0x001f,
-    KeyD: 0x0020,
-    KeyF: 0x0021,
-    KeyG: 0x0022,
-    KeyH: 0x0023,
-    KeyJ: 0x0024,
-    KeyK: 0x0025,
-    KeyL: 0x0026,
-    Semicolon: 0x0027,
-    Quote: 0x0028,
-    Backquote: 0x0029,
-    ShiftLeft: 0x002a,
-    Backslash: 0x002b,
-    KeyZ: 0x002c,
-    KeyX: 0x002d,
-    KeyC: 0x002e,
-    KeyV: 0x002f,
-    KeyB: 0x0030,
-    KeyN: 0x0031,
-    KeyM: 0x0032,
-    Comma: 0x0033,
-    Period: 0x0034,
-    Slash: 0x0035,
-    ShiftRight: 0x0036,
-    NumpadMultiply: 0x0037,
-    AltLeft: 0x0038,
-    Space: 0x0039,
-    CapsLock: 0x003a,
-    F1: 0x003b,
-    F2: 0x003c,
-    F3: 0x003d,
-    F4: 0x003e,
-    F5: 0x003f,
-    F6: 0x0040,
-    F7: 0x0041,
-    F8: 0x0042,
-    F9: 0x0043,
-    F10: 0x0044,
-    Pause: 0x0045,
-    ScrollLock: 0x0046,
-    Numpad7: 0x0047,
-    Numpad8: 0x0048,
-    Numpad9: 0x0049,
-    NumpadSubtract: 0x004a,
-    Numpad4: 0x004b,
-    Numpad5: 0x004c,
-    Numpad6: 0x004d,
-    NumpadAdd: 0x004e,
-    Numpad1: 0x004f,
-    Numpad2: 0x0050,
-    Numpad3: 0x0051,
-    Numpad0: 0x0052,
-    NumpadDecimal: 0x0053,
-    IntlBackslash: 0x0056,
-    F11: 0x0057,
-    F12: 0x0058,
-    NumpadEqual: 0x0059,
-    F13: 0x0064,
-    F14: 0x0065,
-    F15: 0x0066,
-    F16: 0x0067,
-    F17: 0x0068,
-    F18: 0x0069,
-    F19: 0x006a,
-    F20: 0x006b,
-    F21: 0x006c,
-    F22: 0x006d,
-    F23: 0x006e,
-    KanaMode: 0x0070,
-    IntlRo: 0x0073,
-    F24: 0x0076,
-    Lang4: 0x0077,
-    Lang3: 0x0077,
-    Convert: 0x0079,
-    NonConvert: 0x007b,
-    IntlYen: 0x007d,
-    NumpadComma: 0x007e,
-    Undo: 0xe008,
-    Paste: 0xe00a,
-    MediaTrackPrevious: 0xe010,
-    Cut: 0xe017,
-    Copy: 0xe018,
-    MediaTrackNext: 0xe019,
-    NumpadEnter: 0xe01c,
-    ControlRight: 0xe01d,
-    AudioVolumeMute: 0xe020,
-    LaunchApp2: 0xe021,
-    MediaPlayPause: 0xe022,
-    MediaStop: 0xe024,
-    AudioVolumeDown: 0xe02e, // Chromium, Gecko
-    VolumeDown: 0xe02e, // Firefox
-    AudioVolumeUp: 0xe030, // Chromium, Gecko
-    VolumeUp: 0xe030, // Firefox
-    BrowserHome: 0xe032,
-    NumpadDivide: 0xe035,
-    PrintScreen: 0xe037,
-    AltRight: 0xe038,
-    NumLock: 0xe045,
-    Home: 0xe047,
-    ArrowUp: 0xe048,
-    PageUp: 0xe049,
-    ArrowLeft: 0xe04b,
-    ArrowRight: 0xe04d,
-    End: 0xe04f,
-    ArrowDown: 0xe050,
-    PageDown: 0xe051,
-    Insert: 0xe052,
-    Delete: 0xe053,
-    MetaLeft: 0xe05b, // Chromium
-    OSLeft: 0xe05b, // Firefox, Gecko
-    MetaRight: 0xe05c, // Chromium
-    OSRight: 0xe05c, // Firefox, Gecko
-    ContextMenu: 0xe05d,
-    Power: 0xe05e,
-    BrowserSearch: 0xe065,
-    BrowserFavorites: 0xe066,
-    BrowserRefresh: 0xe067,
-    BrowserStop: 0xe068,
-    BrowserForward: 0xe069,
-    BrowserBack: 0xe06a,
-    LaunchApp1: 0xe06b,
-    LaunchMail: 0xe06c,
-    MediaSelect: 0xe06d,
-  };
 
   // encodeClientScreenSpec encodes the client's screen spec.
   // | message type (1) | width uint32 | height uint32 |
@@ -504,18 +383,42 @@ export default class Codec {
   }
 
   // encodeKeyboardInput encodes a keyboard action.
-  // Returns null if an unsupported code is passed.
+  // Returns an empty array if an unsupported code is passed.
   // | message type (5) | key_code uint32 | state byte |
-  encodeKeyboardInput(code: string, state: ButtonState): Message | null {
-    const scanCode = this._keyScancodes[code];
-    if (!scanCode) {
-      return null;
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+    const scancodes = KEY_SCANCODES[code];
+    if (!scancodes) {
+      // eslint-disable-next-line no-console
+      console.warn(`unsupported key code: ${code}`);
+      return [];
     }
+
+    return scancodes.map(scancode => this.encodeScancode(scancode, state));
+  }
+
+  private encodeScancode(scancode: number, state: ButtonState): Message {
     const buffer = new ArrayBuffer(6);
     const view = new DataView(buffer);
     view.setUint8(0, MessageType.KEYBOARD_BUTTON);
-    view.setUint32(1, scanCode);
+    view.setUint32(1, scancode);
     view.setUint8(5, state);
+    return buffer;
+  }
+
+  // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
+  // and resets the server key state to all keys up.
+  // | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    const buffer = new ArrayBuffer(BYTE_LEN * 5);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SYNC_KEYS);
+    view.setUint8(offset++, syncKeys.scrollLockState);
+    view.setUint8(offset++, syncKeys.numLockState);
+    view.setUint8(offset++, syncKeys.capsLockState);
+    view.setUint8(offset++, syncKeys.kanaLockState);
+
     return buffer;
   }
 
@@ -527,14 +430,14 @@ export default class Codec {
     // bufLen is 1 byte for the `message type`,
     // 4 bytes for the `length uint32`,
     // and enough bytes for the full `data []byte`
-    const bufLen = byteLength + uint32Length + dataUtf8array.length;
+    const bufLen = BYTE_LEN + UINT_32_LEN + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
     view.setUint8(offset++, messageType);
     view.setUint32(offset, dataUtf8array.length);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
@@ -575,8 +478,7 @@ export default class Codec {
   encodeMfaJson(mfaJson: MfaJson): Message {
     const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
 
-    const bufLen =
-      byteLength + byteLength + uint32Length + dataUtf8array.length;
+    const bufLen = BYTE_LEN + BYTE_LEN + UINT_32_LEN + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
@@ -584,7 +486,7 @@ export default class Codec {
     view.setUint8(offset++, MessageType.MFA_JSON);
     view.setUint8(offset++, mfaJson.mfaType.charCodeAt(0));
     view.setUint32(offset, dataUtf8array.length);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
@@ -598,7 +500,7 @@ export default class Codec {
   ): Message {
     const dataUtf8array = this.encoder.encode(sharedDirAnnounce.name);
 
-    const bufLen = byteLength + 3 * uint32Length + dataUtf8array.length;
+    const bufLen = BYTE_LEN + 3 * UINT_32_LEN + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
@@ -607,11 +509,11 @@ export default class Codec {
     // TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
     // for now in order that the proxy stay compatible with previous versions of the wds.
     view.setUint32(offset, sharedDirAnnounce.discard);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, sharedDirAnnounce.directoryId);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, dataUtf8array.length);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
@@ -621,16 +523,16 @@ export default class Codec {
 
   // | message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
-    const bufLenSansFso = byteLength + 2 * uint32Length;
+    const bufLenSansFso = BYTE_LEN + 2 * UINT_32_LEN;
     const bufferSansFso = new ArrayBuffer(bufLenSansFso);
     const view = new DataView(bufferSansFso);
     let offset = 0;
 
     view.setUint8(offset++, MessageType.SHARED_DIRECTORY_INFO_RESPONSE);
     view.setUint32(offset, res.completionId);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.errCode);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
 
     const fsoBuffer = this.encodeFileSystemObject(res.fso);
 
@@ -645,17 +547,17 @@ export default class Codec {
   encodeSharedDirectoryCreateResponse(
     res: SharedDirectoryCreateResponse
   ): Message {
-    const bufLenSansFso = byteLength + 2 * uint32Length;
+    const bufLenSansFso = BYTE_LEN + 2 * UINT_32_LEN;
     const bufferSansFso = new ArrayBuffer(bufLenSansFso);
     const view = new DataView(bufferSansFso);
     let offset = 0;
 
     view.setUint8(offset, MessageType.SHARED_DIRECTORY_CREATE_RESPONSE);
-    offset += byteLength;
+    offset += BYTE_LEN;
     view.setUint32(offset, res.completionId);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.errCode);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
 
     const fsoBuffer = this.encodeFileSystemObject(res.fso);
 
@@ -670,37 +572,27 @@ export default class Codec {
   encodeSharedDirectoryDeleteResponse(
     res: SharedDirectoryDeleteResponse
   ): Message {
-    const bufLen = byteLength + 2 * uint32Length;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_DELETE_RESPONSE);
-    offset += byteLength;
-    view.setUint32(offset, res.completionId);
-    offset += uint32Length;
-    view.setUint32(offset, res.errCode);
-    offset += uint32Length;
-
-    return buffer;
+    return this.encodeGenericResponse(
+      MessageType.SHARED_DIRECTORY_DELETE_RESPONSE,
+      res
+    );
   }
 
   // | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
-    const bufLen =
-      byteLength + 3 * uint32Length + byteLength * res.readDataLength;
+    const bufLen = BYTE_LEN + 3 * UINT_32_LEN + BYTE_LEN * res.readDataLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
     view.setUint8(offset, MessageType.SHARED_DIRECTORY_READ_RESPONSE);
-    offset += byteLength;
+    offset += BYTE_LEN;
     view.setUint32(offset, res.completionId);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.errCode);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.readDataLength);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     res.readData.forEach(byte => {
       view.setUint8(offset++, byte);
     });
@@ -712,54 +604,45 @@ export default class Codec {
   encodeSharedDirectoryWriteResponse(
     res: SharedDirectoryWriteResponse
   ): Message {
-    const bufLen = byteLength + 3 * uint32Length;
+    const bufLen = BYTE_LEN + 3 * UINT_32_LEN;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
     view.setUint8(offset, MessageType.SHARED_DIRECTORY_WRITE_RESPONSE);
-    offset += byteLength;
+    offset += BYTE_LEN;
     view.setUint32(offset, res.completionId);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.errCode);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.bytesWritten);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
 
     return buffer;
   }
 
   // | message type (24) | completion_id uint32 | err_code uint32 |
   encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
-    const bufLen = byteLength + 2 * uint32Length;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_MOVE_RESPONSE);
-    offset += byteLength;
-    view.setUint32(offset, res.completionId);
-    offset += uint32Length;
-    view.setUint32(offset, res.errCode);
-    offset += uint32Length;
-
-    return buffer;
+    return this.encodeGenericResponse(
+      MessageType.SHARED_DIRECTORY_MOVE_RESPONSE,
+      res
+    );
   }
 
   // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
   encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
-    const bufLenSansFsoList = byteLength + 3 * uint32Length;
+    const bufLenSansFsoList = BYTE_LEN + 3 * UINT_32_LEN;
     const bufferSansFsoList = new ArrayBuffer(bufLenSansFsoList);
     const view = new DataView(bufferSansFsoList);
     let offset = 0;
 
     view.setUint8(offset++, MessageType.SHARED_DIRECTORY_LIST_RESPONSE);
     view.setUint32(offset, res.completionId);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.errCode);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint32(offset, res.fsoList.length);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
 
     let withFsoList = new Uint8Array(bufferSansFsoList);
     res.fsoList.forEach(fso => {
@@ -775,25 +658,56 @@ export default class Codec {
     return withFsoList.buffer;
   }
 
+  encodeSharedDirectoryTruncateResponse(
+    res: SharedDirectoryTruncateResponse
+  ): Message {
+    return this.encodeGenericResponse(
+      MessageType.SHARED_DIRECTORY_TRUNCATE_RESPONSE,
+      res
+    );
+  }
+
+  private encodeGenericResponse(
+    type: MessageType,
+    res: {
+      completionId: number;
+      errCode: SharedDirectoryErrCode;
+    }
+  ): Message {
+    const bufLen = BYTE_LEN + 2 * UINT_32_LEN;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, type);
+    offset += BYTE_LEN;
+    view.setUint32(offset, res.completionId);
+    offset += UINT_32_LEN;
+    view.setUint32(offset, res.errCode);
+    offset += UINT_32_LEN;
+
+    return buffer;
+  }
+
   // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
   encodeFileSystemObject(fso: FileSystemObject): Message {
     const dataUtf8array = this.encoder.encode(fso.path);
 
     const bufLen =
-      byteLength + 2 * uint64Length + 2 * uint32Length + dataUtf8array.length;
+      BYTE_LEN + 2 * UINT_64_LEN + 2 * UINT_32_LEN + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
     view.setBigUint64(offset, fso.lastModified);
-    offset += uint64Length;
+    offset += UINT_64_LEN;
     view.setBigUint64(offset, fso.size);
-    offset += uint64Length;
+    offset += UINT_64_LEN;
     view.setUint32(offset, fso.fileType);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     view.setUint8(offset, fso.isEmpty ? 1 : 0);
-    offset += byteLength;
+    offset += BYTE_LEN;
     view.setUint32(offset, dataUtf8array.length);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
@@ -802,16 +716,16 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
-    const bufLen = byteLength + uint32Length + responseFrame.byteLength;
+  encodeRdpResponsePDU(responseFrame: ArrayBuffer): Message {
+    const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
     view.setUint8(offset, MessageType.RDP_RESPONSE_PDU);
-    offset += byteLength;
+    offset += BYTE_LEN;
     view.setUint32(offset, responseFrame.byteLength);
-    offset += uint32Length;
+    offset += UINT_32_LEN;
     new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
 
     return buffer;
@@ -852,10 +766,10 @@ export default class Codec {
     const dv = new DataView(buffer);
     let offset = 0;
 
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
 
     const messageLength = dv.getUint32(offset);
-    offset += uint32Length; // eat messageLength
+    offset += UINT_32_LEN; // eat messageLength
 
     const message = this.decodeStringMessage(buffer);
     offset += messageLength; // eat message
@@ -873,15 +787,16 @@ export default class Codec {
   decodeMfaJson(buffer: ArrayBuffer): MfaJson {
     const dv = new DataView(buffer);
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
     const mfaType = String.fromCharCode(dv.getUint8(offset));
-    offset += byteLength; // eat mfa_type
+    offset += BYTE_LEN; // eat mfa_type
     if (mfaType !== 'n' && mfaType !== 'u') {
       throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
     }
-    offset += uint32Length; // eat message_length
+    let messageLength = dv.getUint32(offset);
+    offset += UINT_32_LEN; // eat message_length
     const jsonString = this.decoder.decode(
-      new Uint8Array(buffer.slice(offset))
+      new Uint8Array(buffer, offset, messageLength)
     );
     return { mfaType, jsonString };
   }
@@ -890,13 +805,11 @@ export default class Codec {
   // | message type (N) | message_length uint32 | message []byte
   private decodeStringMessage(buffer: ArrayBuffer): string {
     const dv = new DataView(buffer);
-    let offset = byteLength; // eat message type
+    let offset = BYTE_LEN; // eat message type
     const msgLength = dv.getUint32(offset);
-    offset += uint32Length; // eat messageLength
+    offset += UINT_32_LEN; // eat messageLength
 
-    return this.decoder.decode(
-      new Uint8Array(buffer.slice(offset, offset + msgLength))
-    );
+    return this.decoder.decode(new Uint8Array(buffer, offset, msgLength));
   }
 
   // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame
@@ -909,15 +822,15 @@ export default class Codec {
     const dv = new DataView(buffer);
     const image = new Image();
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
     const left = dv.getUint32(offset);
-    offset += uint32Length; // eat left
+    offset += UINT_32_LEN; // eat left
     const top = dv.getUint32(offset);
-    offset += uint32Length; // eat top
+    offset += UINT_32_LEN; // eat top
     const right = dv.getUint32(offset);
-    offset += uint32Length; // eat right
+    offset += UINT_32_LEN; // eat right
     const bottom = dv.getUint32(offset);
-    offset += uint32Length; // eat bottom
+    offset += UINT_32_LEN; // eat bottom
     const pngFrame = { left, top, right, bottom, data: image };
     pngFrame.data.onload = onload(pngFrame);
     pngFrame.data.src = this.asBase64Url(buffer, offset);
@@ -934,16 +847,16 @@ export default class Codec {
     const dv = new DataView(buffer);
     const image = new Image();
     let offset = 0;
-    offset += byteLength; // eat message type
-    offset += uint32Length; // eat png_length
+    offset += BYTE_LEN; // eat message type
+    offset += UINT_32_LEN; // eat png_length
     const left = dv.getUint32(offset);
-    offset += uint32Length; // eat left
+    offset += UINT_32_LEN; // eat left
     const top = dv.getUint32(offset);
-    offset += uint32Length; // eat top
+    offset += UINT_32_LEN; // eat top
     const right = dv.getUint32(offset);
-    offset += uint32Length; // eat right
+    offset += UINT_32_LEN; // eat right
     const bottom = dv.getUint32(offset);
-    offset += uint32Length; // eat bottom
+    offset += UINT_32_LEN; // eat bottom
     const pngFrame = { left, top, right, bottom, data: image };
     pngFrame.data.onload = onload(pngFrame);
     pngFrame.data.src = this.asBase64Url(buffer, offset);
@@ -952,23 +865,31 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRDPFastPathPDU(buffer: ArrayBuffer): RDPFastPathPDU {
-    let offset = 0;
-    offset += byteLength; // eat message type
-    offset += uint32Length; // eat data_length
-    const data = buffer.slice(offset);
-    return new RDPFastPathPDU(new Uint8Array(data));
-  }
-
-  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-  decodeRDPChannelIDs(buffer: ArrayBuffer): RDPChannelIDs {
+  decodeRdpFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
     const dv = new DataView(buffer);
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
+    const dataLength = dv.getUint32(offset);
+    offset += UINT_32_LEN; // eat data_length
+    return new Uint8Array(buffer, offset, dataLength);
+  }
+
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+  decodeRdpConnectionActivated(buffer: ArrayBuffer): RdpConnectionActivated {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += BYTE_LEN; // eat message type
     const ioChannelId = dv.getUint16(offset);
-    offset += uint16Length; // eat io_channel_id
+    offset += UINT_16_LEN;
     const userChannelId = dv.getUint16(offset);
-    return { ioChannelId, userChannelId };
+    offset += UINT_16_LEN;
+
+    const screenWidth = dv.getUint16(offset);
+    offset += UINT_16_LEN;
+    const screenHeight = dv.getUint16(offset);
+    offset += UINT_16_LEN;
+
+    return { ioChannelId, userChannelId, screenWidth, screenHeight };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |
@@ -977,9 +898,9 @@ export default class Codec {
   ): SharedDirectoryAcknowledge {
     const dv = new DataView(buffer);
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
     const errCode = toSharedDirectoryErrCode(dv.getUint32(offset));
-    offset += uint32Length; // eat err_code
+    offset += UINT_32_LEN; // eat err_code
     const directoryId = dv.getUint32(5);
 
     return {
@@ -994,13 +915,16 @@ export default class Codec {
   ): SharedDirectoryInfoRequest {
     const dv = new DataView(buffer);
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
     const completionId = dv.getUint32(offset);
-    offset += uint32Length; // eat completion_id
+    offset += UINT_32_LEN; // eat completion_id
     const directoryId = dv.getUint32(offset);
-    offset += uint32Length; // eat directory_id
-    offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    offset += UINT_32_LEN; // eat directory_id
+    let pathLength = dv.getUint32(offset);
+    offset += UINT_32_LEN; // eat path_length
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1015,15 +939,18 @@ export default class Codec {
   ): SharedDirectoryCreateRequest {
     const dv = new DataView(buffer);
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
     const completionId = dv.getUint32(offset);
-    offset += uint32Length; // eat completion_id
+    offset += UINT_32_LEN; // eat completion_id
     const directoryId = dv.getUint32(offset);
-    offset += uint32Length; // eat directory_id
+    offset += UINT_32_LEN; // eat directory_id
     const fileType = dv.getUint32(offset);
-    offset += uint32Length; // eat directory_id
-    offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    offset += UINT_32_LEN; // eat directory_id
+    let pathLength = dv.getUint32(offset);
+    offset += UINT_32_LEN; // eat path_length
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1039,13 +966,16 @@ export default class Codec {
   ): SharedDirectoryDeleteRequest {
     const dv = new DataView(buffer);
     let offset = 0;
-    offset += byteLength; // eat message type
+    offset += BYTE_LEN; // eat message type
     const completionId = dv.getUint32(offset);
-    offset += uint32Length; // eat completion_id
+    offset += UINT_32_LEN; // eat completion_id
     const directoryId = dv.getUint32(offset);
-    offset += uint32Length; // eat directory_id
-    offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    offset += UINT_32_LEN; // eat directory_id
+    let pathLength = dv.getUint32(offset);
+    offset += UINT_32_LEN; // eat path_length
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1060,19 +990,19 @@ export default class Codec {
   ): SharedDirectoryReadRequest {
     const dv = new DataView(buffer);
     let bufOffset = 0;
-    bufOffset += byteLength; // eat message type
+    bufOffset += BYTE_LEN; // eat message type
     const completionId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat completion_id
+    bufOffset += UINT_32_LEN; // eat completion_id
     const directoryId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat directory_id
+    bufOffset += UINT_32_LEN; // eat directory_id
     const pathLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat path_length
+    bufOffset += UINT_32_LEN; // eat path_length
     const path = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+      new Uint8Array(buffer, bufOffset, pathLength)
     );
     bufOffset += pathLength; // eat path
     const offset = dv.getBigUint64(bufOffset);
-    bufOffset += uint64Length; // eat offset
+    bufOffset += UINT_64_LEN; // eat offset
     const length = dv.getUint32(bufOffset);
 
     return {
@@ -1090,24 +1020,22 @@ export default class Codec {
     buffer: ArrayBuffer
   ): SharedDirectoryWriteRequest {
     const dv = new DataView(buffer);
-    let bufOffset = byteLength; // eat message type
+    let bufOffset = BYTE_LEN; // eat message type
     const completionId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat completion_id
+    bufOffset += UINT_32_LEN; // eat completion_id
     const directoryId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat directory_id
+    bufOffset += UINT_32_LEN; // eat directory_id
     const offset = dv.getBigUint64(bufOffset);
-    bufOffset += uint64Length; // eat offset
+    bufOffset += UINT_64_LEN; // eat offset
     const pathLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat path_length
+    bufOffset += UINT_32_LEN; // eat path_length
     const path = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+      new Uint8Array(buffer, bufOffset, pathLength)
     );
     bufOffset += pathLength; // eat path
     const writeDataLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat write_data_length
-    const writeData = new Uint8Array(
-      buffer.slice(bufOffset, bufOffset + writeDataLength)
-    );
+    bufOffset += UINT_32_LEN; // eat write_data_length
+    const writeData = new Uint8Array(buffer, bufOffset, writeDataLength);
 
     return {
       completionId,
@@ -1124,21 +1052,21 @@ export default class Codec {
     buffer: ArrayBuffer
   ): SharedDirectoryMoveRequest {
     const dv = new DataView(buffer);
-    let bufOffset = byteLength; // eat message type
+    let bufOffset = BYTE_LEN; // eat message type
     const completionId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat completion_id
+    bufOffset += UINT_32_LEN; // eat completion_id
     const directoryId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat directory_id
+    bufOffset += UINT_32_LEN; // eat directory_id
     const originalPathLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat original_path_length
+    bufOffset += UINT_32_LEN; // eat original_path_length
     const originalPath = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + originalPathLength))
+      new Uint8Array(buffer, bufOffset, originalPathLength)
     );
     bufOffset += originalPathLength; // eat original_path
     const newPathLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length; // eat new_path_length
+    bufOffset += UINT_32_LEN; // eat new_path_length
     const newPath = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + newPathLength))
+      new Uint8Array(buffer, bufOffset, newPathLength)
     );
 
     return {
@@ -1158,13 +1086,201 @@ export default class Codec {
     return this.decodeSharedDirectoryInfoRequest(buffer);
   }
 
+  decodeSharedDirectoryTruncateRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryTruncateRequest {
+    const dv = new DataView(buffer);
+    let bufOffset = BYTE_LEN; // eat message type
+    const completionId = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN; // eat completion_id
+    const directoryId = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN; // eat directory_id
+    const pathLength = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN; // eat path_length
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, bufOffset, pathLength)
+    );
+    bufOffset += pathLength; // eat path
+    const endOfFile = dv.getUint32(bufOffset);
+
+    return {
+      completionId,
+      directoryId,
+      path,
+      endOfFile,
+    };
+  }
+
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
   private asBase64Url(buffer: ArrayBuffer, offset: number): string {
     return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(offset))}`;
   }
 }
 
-const byteLength = 1;
-const uint16Length = 2;
-const uint32Length = 4;
-const uint64Length = uint32Length * 2;
+const BYTE_LEN = 1;
+const UINT_16_LEN = 2;
+const UINT_32_LEN = 4;
+const UINT_64_LEN = 8;
+
+/**
+ *  Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
+ *
+ * The latest version of [scancode.h](https://github.com/FreeRDP/FreeRDP/blob/ba8cf8cf2158018fb7abbedb51ab245f369be813/include/freerdp/scancode.h)
+ * in FreeRDP should be considered the canonical source of truth for these values.
+ */
+const KEY_SCANCODES: { [key: string]: number[] } = {
+  Escape: [0x0001],
+  Digit1: [0x0002],
+  Digit2: [0x0003],
+  Digit3: [0x0004],
+  Digit4: [0x0005],
+  Digit5: [0x0006],
+  Digit6: [0x0007],
+  Digit7: [0x0008],
+  Digit8: [0x0009],
+  Digit9: [0x000a],
+  Digit0: [0x000b],
+  Minus: [0x000c],
+  Equal: [0x000d],
+  Backspace: [0x000e],
+  Tab: [0x000f],
+  KeyQ: [0x0010],
+  KeyW: [0x0011],
+  KeyE: [0x0012],
+  KeyR: [0x0013],
+  KeyT: [0x0014],
+  KeyY: [0x0015],
+  KeyU: [0x0016],
+  KeyI: [0x0017],
+  KeyO: [0x0018],
+  KeyP: [0x0019],
+  BracketLeft: [0x001a],
+  BracketRight: [0x001b],
+  Enter: [0x001c],
+  ControlLeft: [0x001d],
+  KeyA: [0x001e],
+  KeyS: [0x001f],
+  KeyD: [0x0020],
+  KeyF: [0x0021],
+  KeyG: [0x0022],
+  KeyH: [0x0023],
+  KeyJ: [0x0024],
+  KeyK: [0x0025],
+  KeyL: [0x0026],
+  Semicolon: [0x0027],
+  Quote: [0x0028],
+  Backquote: [0x0029],
+  ShiftLeft: [0x002a],
+  Backslash: [0x002b],
+  KeyZ: [0x002c],
+  KeyX: [0x002d],
+  KeyC: [0x002e],
+  KeyV: [0x002f],
+  KeyB: [0x0030],
+  KeyN: [0x0031],
+  KeyM: [0x0032],
+  Comma: [0x0033],
+  Period: [0x0034],
+  Slash: [0x0035],
+  ShiftRight: [0x0036],
+  NumpadMultiply: [0x0037],
+  AltLeft: [0x0038],
+  Space: [0x0039],
+  CapsLock: [0x003a],
+  F1: [0x003b],
+  F2: [0x003c],
+  F3: [0x003d],
+  F4: [0x003e],
+  F5: [0x003f],
+  F6: [0x0040],
+  F7: [0x0041],
+  F8: [0x0042],
+  F9: [0x0043],
+  F10: [0x0044],
+  // This must be sent as Ctrl + NumLock, see https://github.com/FreeRDP/FreeRDP/blob/ba8cf8cf2158018fb7abbedb51ab245f369be813/include/freerdp/scancode.h#L115-L116
+  Pause: [0x001d, 0x0045],
+  ScrollLock: [0x0046],
+  Numpad7: [0x0047],
+  Numpad8: [0x0048],
+  Numpad9: [0x0049],
+  NumpadSubtract: [0x004a],
+  Numpad4: [0x004b],
+  Numpad5: [0x004c],
+  Numpad6: [0x004d],
+  NumpadAdd: [0x004e],
+  Numpad1: [0x004f],
+  Numpad2: [0x0050],
+  Numpad3: [0x0051],
+  Numpad0: [0x0052],
+  NumpadDecimal: [0x0053],
+  IntlBackslash: [0x0056],
+  F11: [0x0057],
+  F12: [0x0058],
+  NumpadEqual: [0x0059],
+  F13: [0x0064],
+  F14: [0x0065],
+  F15: [0x0066],
+  F16: [0x0067],
+  F17: [0x0068],
+  F18: [0x0069],
+  F19: [0x006a],
+  F20: [0x006b],
+  F21: [0x006c],
+  F22: [0x006d],
+  F23: [0x006e],
+  KanaMode: [0x0070],
+  IntlRo: [0x0073],
+  F24: [0x0076],
+  Lang4: [0x0077],
+  Lang3: [0x0077],
+  Convert: [0x0079],
+  NonConvert: [0x007b],
+  IntlYen: [0x007d],
+  NumpadComma: [0x007e],
+  Undo: [0xe008],
+  Paste: [0xe00a],
+  MediaTrackPrevious: [0xe010],
+  Cut: [0xe017],
+  Copy: [0xe018],
+  MediaTrackNext: [0xe019],
+  NumpadEnter: [0xe01c],
+  ControlRight: [0xe01d],
+  AudioVolumeMute: [0xe020],
+  LaunchApp2: [0xe021],
+  MediaPlayPause: [0xe022],
+  MediaStop: [0xe024],
+  AudioVolumeDown: [0xe02e], // Chromium, Gecko
+  VolumeDown: [0xe02e], // Firefox
+  AudioVolumeUp: [0xe030], // Chromium, Gecko
+  VolumeUp: [0xe030], // Firefox
+  BrowserHome: [0xe032],
+  NumpadDivide: [0xe035],
+  PrintScreen: [0xe037],
+  AltRight: [0xe038],
+  NumLock: [0x0045],
+  Home: [0xe047],
+  ArrowUp: [0xe048],
+  PageUp: [0xe049],
+  ArrowLeft: [0xe04b],
+  ArrowRight: [0xe04d],
+  End: [0xe04f],
+  ArrowDown: [0xe050],
+  PageDown: [0xe051],
+  Insert: [0xe052],
+  Delete: [0xe053],
+  MetaLeft: [0xe05b], // Chromium
+  OSLeft: [0xe05b], // Firefox, Gecko
+  MetaRight: [0xe05c], // Chromium
+  OSRight: [0xe05c], // Firefox, Gecko
+  ContextMenu: [0xe05d],
+  Power: [0xe05e],
+  BrowserSearch: [0xe065],
+  BrowserFavorites: [0xe066],
+  BrowserRefresh: [0xe067],
+  BrowserStop: [0xe068],
+  BrowserForward: [0xe069],
+  BrowserBack: [0xe06a],
+  LaunchApp1: [0xe06b],
+  LaunchMail: [0xe06c],
+  MediaSelect: [0xe06d],
+};

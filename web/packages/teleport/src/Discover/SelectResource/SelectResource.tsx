@@ -24,6 +24,10 @@ import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
 import { getPlatform, Platform } from 'design/platform';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
@@ -34,17 +38,13 @@ import {
   ResourceKind,
 } from 'teleport/Discover/Shared';
 import {
+  BASE_RESOURCES,
   getResourcePretitle,
-  RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
 import { storageService } from 'teleport/services/storageService';
-
-import {
-  ClusterResource,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
+import cfg from 'teleport/config';
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
@@ -52,6 +52,7 @@ import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { DiscoverIcon } from './icons';
 
 import { PrioritizedResources, SearchResource } from './types';
+import { SAML_APPLICATIONS } from './resourcesE';
 
 import type { ResourceSpec } from './types';
 
@@ -74,6 +75,9 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const [resources, setResources] = useState<ResourceSpec[]>([]);
   const [defaultResources, setDefaultResources] = useState<ResourceSpec[]>([]);
   const [showApp, setShowApp] = useState(false);
+  const RESOURCES = !cfg.isEnterprise
+    ? BASE_RESOURCES
+    : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
@@ -152,7 +156,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         Search for what resource you want to add.
       </HeaderSubtitle>
       <Box height="90px" width="600px">
-        <InputWrapper mb={2}>
+        <InputWrapper>
           <StyledInput
             placeholder="Search for a resource"
             autoFocus
@@ -171,7 +175,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
               const pretitle = getResourcePretitle(r);
 
               let resourceCardProps;
-              if (r.kind === ResourceKind.Application) {
+              if (r.kind === ResourceKind.Application && r.isDialog) {
                 resourceCardProps = {
                   onClick: () => {
                     if (r.hasAccess) {
@@ -267,7 +271,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         font-size: 12px;
         opacity: 0.7;
 
-        :hover {
+        &:hover {
           cursor: pointer;
           opacity: 1;
         }
@@ -544,7 +548,7 @@ function getPrioritizedResources(
   const preferredResources = preferences.onboard.preferredResources || [];
 
   // hasPreferredResources will be false if all resources are selected
-  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
+  const maxResources = Object.keys(Resource).length / 2 - 1;
   const selectedAll = preferredResources.length === maxResources;
 
   return {
@@ -593,7 +597,7 @@ const Grid = styled.div`
   row-gap: 15px;
 `;
 
-const ResourceCard = styled.div`
+const ResourceCard = styled.div<{ hasAccess?: boolean }>`
   display: flex;
   position: relative;
   align-items: center;
@@ -608,7 +612,7 @@ const ResourceCard = styled.div`
 
   opacity: ${props => (props.hasAccess ? '1' : '0.45')};
 
-  :hover {
+  &:hover {
     background: ${props => props.theme.colors.spotBackground[1]};
   }
 `;

@@ -34,7 +34,10 @@ If there is a Teleport configuration file on the host where `tctl` is run,
 `tctl` attempts to authenticate to the Auth Service named in the configuration
 file using an identity stored in its local backend.
 
-`tctl` only authenticates using this method if an identity file is not provided.
+`tctl` authenticates using this method if a configuration file exists at
+`/etc/teleport.yaml` or `TELEPORT_CONFIG_FILE` points to a configuration file
+in another location. If the `auth_service` is disabled in the configuration
+file, then the configuration file is ignored.
 
 <Admonition type="note">
 
@@ -57,13 +60,6 @@ the cluster. The `tsh` profile is created when a user runs `tsh login`.
 `tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
 a Teleport configuration file is present. If you are using your `tsh` profile to
 authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
   </TabItem>
   <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
@@ -246,9 +242,19 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 | `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
 | `--labels` | none | Comma-separated strings | A list of labels to filter by |
 
+### Examples
+
+```code
+$ tctl alerts list
+ID                                   Severity Expires In Message
+------------------------------------ -------- ---------- ----------------------------------------------------------------
+da36b401-5688-426f-95b8-d0dd1ef27785 LOW      57m0s      "The system is under maintenance, functionality may be limited."
+```
+
 ## tctl auth export
 
-Export public cluster (CA) keys to stdout:
+Exports public cluster CA certificates. This is useful for configuring
+external systems to trust certificates issued by Teleport.
 
 ```code
 $ tctl auth export [<flags>]
@@ -281,7 +287,7 @@ $ tctl auth export
 # Filter by fingerprint
 $ tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
 # Export tls certs only
-$ tctl auth export --type tls
+$ tctl auth export --type=tls-host
 ```
 
 ## tctl auth rotate
@@ -321,7 +327,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-id/introduction.mdx) is a more secure alternative that
+[Machine ID](../../enroll-resources/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -384,6 +390,114 @@ $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
 ```
+
+## tctl bots add
+
+Create a new Machine ID Bot:
+
+```code
+$ tctl bots add <name> [<flags>]
+```
+
+### Arguments
+
+- `<name>` - name of Machine ID Bot to create.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | none | Comma-separated list of roles to assign to the Bot. | Required. Specifies the roles that the Bot should be able to impersonate and include in generated credentials. |
+| `--logins` | none | Comma-separated list of allowed SSH logins to set Bot's login trait to. | Optional. Specifies the values that should be configured as the Bot's logins trait for the purpose of role templating. |
+| `--token` | none | String name of an existing join token. | Optional. Specifies an existing join token to be used rather than creating one as part of the Bot creation. |
+| `--ttl` | 15m | Duration. | Optional. Overrides the TTL of the token that will be created if `--token` is not specified. |
+| `--format` | `text` | `text`, `json` | If set to `json`, return new bot information as a machine-readable JSON string. |
+
+### Examples
+
+Create a new bot named `example` that may assume the `access` role and log in as `root`:
+
+```code
+$ tctl bots add example --roles=access --logins=root
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots ls
+
+Lists all Machine ID Bots:
+
+```code
+$ tctl bots ls [<flags>]
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots rm
+
+Delete a Machine ID Bot:
+
+```code
+$ tctl bots rm <name> [<flags>]
+```
+
+### Arguments
+
+- `<name>` - name of Machine ID Bot to delete.
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots update
+
+Update a Machine ID bot:
+
+```code
+$ tctl bots update <bot> [<flags>]
+```
+
+### Arguments
+
+- `<name>` - The name of the bot to update
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--add-roles` | none | Comma-separated list of roles the bot may assume | Appends the given roles to the existing roles the bot may assume. |
+| `--set-roles` | none | Comma-separated list of roles the bot may assume | Replaces the bots's current roles with the list provided. |
+| `--add-logins` | none | Comma-separated list of allowed Unix logins | Appends the given logins to the bot's current allowed logins. |
+| `--set-logins` | none | Comma-separated list of allowed Unix logins | Replaces the bot's current allowed logins with the given list. |
+
+### Examples
+
+Replace the bot `example` roles and add a new allowed Unix login:
+
+```code
+$ tctl bots update example --add-logins=root --set-roles=access
+```
+
+Remove all implicitly allowed Unix logins from a bot named `example` by passing
+an empty list:
+
+```code
+$ tctl bots update example --set-logins=,
+```
+
+Note that the bot may still be granted additional logins via roles.
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
 
 ## tctl create
 
@@ -648,6 +762,140 @@ Shows help:
 ```code
 $ tctl help
 ```
+
+## tctl inventory list
+
+List Teleport instance inventory:
+
+```code
+$ tctl inventory list [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--older-than` | none | string | Filter for older teleport versions |
+| `--exact-version` | none | string | Filter output by teleport version |
+| `--services` | none | string | Filter output by service (node,kube,proxy,etc) |
+| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |   
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+List inventory
+
+```code
+$ tctl inventory ls 
+Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
+------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
+00c3a1f7-5f24-47f9-b866-14401fbb5685 teleport-proxy-77df88c69        Proxy                      (=teleport.version=)       none     none
+065ab336-1ac2-4314-8b16-32fc06a172a7 server1                         Node                       (=teleport.version=)       unit     (=teleport.version=)
+a24d4ad4-ead8-4b15-9ea6-357a5350369e teleport-auth-fb68b5df7         Auth,Discovery             (=teleport.version=)       none     none
+```
+
+List inventory for a specific service and version
+
+```code
+$ tctl inventory ls --services=node --exact-version=(=teleport.version=)
+Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
+------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
+065ab336-1ac2-4314-8b16-32fc06a172a7 server1                         Node                       (=teleport.version=)       unit     (=teleport.version=)
+a24d4ad4-ead8-4b15-9ea6-357a5350369e server2                         Node,App                   (=teleport.version=)       unit     (=teleport.version=)
+```
+
+ Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
+
+## tctl inventory status
+
+Show inventory status summary:
+
+```code
+$ tctl inventory status [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |  
+        
+### Global flags
+
+These are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+<Tabs>
+ <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+List inventory status
+
+```code
+$ tctl inventory status
+Versions:
+  v(=teleport.version=): 16
+Upgraders:
+  kube: 6
+  unit: 6
+  none: 4
+Services:
+  Discovery:      2
+  Auth:           2
+  Db:             2
+  Kube:           2
+  App:            2
+  Node:           2
+  Proxy:          2
+  WindowsDesktop: 2
+Total Instances: 16
+```
+
+List inventory status for locally connected instances summary. This
+allows seeing connected instances on a specific Auth service.
+
+```code
+$ tctl inventory status --connected
+Server ID                            Services               Version Upgrader 
+------------------------------------ ---------------------- ------- -------- 
+b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none     
+178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit     
+```
+
+ </TabItem>
+ <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+List inventory status
+
+```code
+$ tctl inventory status
+Versions:
+  v(=cloud.version=): 19
+Upgraders:
+  kube: 1
+  unit: 1
+  none: 16
+Services:
+  App:            1
+  Node:           1
+  Proxy:          12
+  Discovery:      2
+  Auth:           2
+  Kube:           1
+Total Instances: 19
+```
+ </TabItem>
+ </Tabs>
+
+ Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
 
 ## tctl login_rule test
 
@@ -1436,5 +1684,3 @@ Print the version of your `tctl` binary:
 ```code
 tctl version
 ```
-
-

@@ -158,7 +158,7 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Ser
 		_, err = cluster.GetClient()
 		assert.NoError(t, err, "cluster not yet available")
 	},
-		30*time.Second,
+		90*time.Second,
 		time.Second,
 		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
@@ -222,7 +222,7 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 	cmd := []string{"echo", "hello world"}
 
 	require.Eventually(t, func() bool {
-		return tc.SSH(ctx, cmd, false) == nil
+		return tc.SSH(ctx, cmd) == nil
 	}, 10*time.Second, 1*time.Second, "Two clusters cannot connect to each other")
 
 	require.Equal(t, "hello world\n", output.String())

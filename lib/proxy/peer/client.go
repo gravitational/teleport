@@ -40,10 +40,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// AccessPoint is the subset of the auth cache consumed by the [Client].
+type AccessPoint interface {
+	authclient.CAGetter
+	types.Events
+}
 
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
@@ -52,9 +58,9 @@ type ClientConfig struct {
 	// ID is the ID of this server proxy
 	ID string
 	// AuthClient is an auth client
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// AccessPoint is a caching auth client
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint AccessPoint
 	// TLSConfig is the proxy client TLS configuration.
 	TLSConfig *tls.Config
 	// Log is the proxy client logger.
@@ -103,7 +109,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	c.Log = c.Log.WithField(
-		trace.Component,
+		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxyPeer),
 	)
 
@@ -148,7 +154,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	if c.getConfigForServer == nil {
-		c.getConfigForServer = getConfigForServer(c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
+		c.getConfigForServer = getConfigForServer(c.Context, c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
 	}
 
 	return nil
@@ -157,12 +163,57 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 // clientConn hold info about a dialed grpc connection
 type clientConn struct {
 	*grpc.ClientConn
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     *sync.WaitGroup
 
 	id   string
 	addr string
+
+	// if closing is set, count is not allowed to increase from zero; upon
+	// reaching zero, cond should be broadcast
+	mu      sync.Mutex
+	cond    sync.Cond
+	closing bool
+	count   int
+}
+
+func (c *clientConn) maybeAcquire() (release func()) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closing && c.count < 1 {
+		return nil
+	}
+	c.count++
+
+	return sync.OnceFunc(func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.count--
+		if c.count == 0 {
+			c.cond.Broadcast()
+		}
+	})
+}
+
+// Shutdown closes the clientConn after all connections through it are closed,
+// or after the context is done.
+func (c *clientConn) Shutdown(ctx context.Context) {
+	defer c.Close()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closing = true
+	if c.count == 0 {
+		return
+	}
+
+	if c.cond.L == nil {
+		c.cond.L = &c.mu
+	}
+	defer context.AfterFunc(ctx, c.cond.Broadcast)()
+	for c.count > 0 && ctx.Err() == nil {
+		c.cond.Wait()
+	}
 }
 
 // Client is a peer proxy service client using grpc and tls.
@@ -335,7 +386,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 	for _, id := range toDelete {
 		if conn, ok := c.conns[id]; ok {
-			go c.shutdownConn(conn)
+			go conn.Shutdown(c.ctx)
 		}
 	}
 	c.conns = toKeep
@@ -367,8 +418,9 @@ func (c *Client) DialNode(
 		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
 
-	streamRW, err := streamutils.NewReadWriter(frameStream{stream: stream})
+	streamRW, err := streamutils.NewReadWriter(stream)
 	if err != nil {
+		_ = stream.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -385,6 +437,7 @@ type stream interface {
 // frameStream implements [streamutils.Source].
 type frameStream struct {
 	stream stream
+	cancel context.CancelFunc
 }
 
 func (s frameStream) Send(p []byte) error {
@@ -405,15 +458,14 @@ func (s frameStream) Recv() ([]byte, error) {
 }
 
 func (s frameStream) Close() error {
-	if cs, ok := s.stream.(grpc.ClientStream); ok {
-		return trace.Wrap(cs.CloseSend())
+	if s.cancel != nil {
+		s.cancel()
 	}
-
 	return nil
 }
 
 // Shutdown gracefully shuts down all existing client connections.
-func (c *Client) Shutdown() {
+func (c *Client) Shutdown(ctx context.Context) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -422,23 +474,7 @@ func (c *Client) Shutdown() {
 		wg.Add(1)
 		go func(conn *clientConn) {
 			defer wg.Done()
-
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), c.config.GracefulShutdownTimeout)
-			defer cancel()
-
-			go func() {
-				if err := c.shutdownConn(conn); err != nil {
-					c.config.Log.Infof("proxy peer connection %+v graceful shutdown error: %+v", conn.id, err)
-				}
-			}()
-
-			select {
-			case <-conn.ctx.Done():
-			case <-timeoutCtx.Done():
-				if err := c.stopConn(conn); err != nil {
-					c.config.Log.Infof("proxy peer connection %+v close error: %+v", conn.id, err)
-				}
-			}
+			conn.Shutdown(ctx)
 		}(conn)
 	}
 	wg.Wait()
@@ -452,7 +488,7 @@ func (c *Client) Stop() error {
 
 	var errs []error
 	for _, conn := range c.conns {
-		if err := c.stopConn(conn); err != nil {
+		if err := conn.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -466,67 +502,67 @@ func (c *Client) GetConnectionsCount() int {
 	return len(c.conns)
 }
 
-// shutdownConn gracefully shuts down a clientConn
-// by waiting for open streams to finish.
-func (c *Client) shutdownConn(conn *clientConn) error {
-	conn.wg.Wait() // wait for streams to gracefully end
-	conn.cancel()
-	return conn.Close()
-}
-
-// stopConn immediately closes a clientConn
-func (c *Client) stopConn(conn *clientConn) error {
-	conn.cancel()
-	return conn.Close()
-}
-
 // dial opens a new stream to one of the supplied proxy ids.
 // it tries to find an existing grpc.ClientConn or initializes a new rpc
 // to one of the proxies otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (clientapi.ProxyService_DialNodeClient, bool, error) {
+func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (frameStream, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
-		return nil, existing, trace.Wrap(err)
+		return frameStream{}, existing, trace.Wrap(err)
 	}
 
 	var errs []error
 	for _, conn := range conns {
-		stream, err := c.startStream(conn)
+		release := conn.maybeAcquire()
+		if release == nil {
+			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
+			errs = append(errs, trace.ConnectionProblem(nil, "error starting stream: connection is shutting down"))
+			continue
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		context.AfterFunc(ctx, release)
+
+		stream, err := clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 		if err != nil {
+			cancel()
 			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
 			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
 			errs = append(errs, trace.ConnectionProblem(err, "error starting stream: %v", err))
 			continue
 		}
+
 		err = stream.Send(&clientapi.Frame{
 			Message: &clientapi.Frame_DialRequest{
 				DialRequest: dialRequest,
 			},
 		})
 		if err != nil {
+			cancel()
 			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame: %v", err))
 			continue
 		}
 		msg, err := stream.Recv()
 		if err != nil {
+			cancel()
 			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response: %v", err))
 			continue
 		}
 		if msg.GetConnectionEstablished() == nil {
-			err := stream.CloseSend()
-			if err != nil {
-				c.config.Log.Debugf("error closing stream: %w", err)
-			}
+			cancel()
 			errs = append(errs, trace.ConnectionProblem(nil, "received malformed connection established frame"))
 			continue
 		}
 
-		return stream, existing, nil
+		return frameStream{
+			stream: stream,
+			cancel: cancel,
+		}, existing, nil
 	}
 
-	return nil, existing, trace.NewAggregate(errs...)
+	return frameStream{}, existing, trace.NewAggregate(errs...)
 }
 
 // getConnections returns connections to the supplied proxy ids.
@@ -611,17 +647,13 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		return nil, trace.Wrap(err, "Error updating client tls config")
 	}
 
-	connCtx, cancel := context.WithCancel(c.ctx)
-	wg := new(sync.WaitGroup)
+	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
 
-	expectedPeer := auth.HostFQDN(peerID, c.config.ClusterName)
-
-	conn, err := grpc.DialContext(
-		connCtx,
+	conn, err := grpc.Dial(
 		peerAddr,
 		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
 		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
-		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor, streamCounterInterceptor(wg)),
+		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                peerKeepAlive,
 			Timeout:             peerTimeout,
@@ -630,28 +662,13 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err, "Error dialing proxy %q", peerID)
 	}
 
 	return &clientConn{
 		ClientConn: conn,
-		ctx:        connCtx,
-		cancel:     cancel,
-		wg:         wg,
-		id:         peerID,
-		addr:       peerAddr,
+
+		id:   peerID,
+		addr: peerAddr,
 	}, nil
-}
-
-// startStream opens a new stream to the provided connection.
-func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeClient, error) {
-	client := clientapi.NewProxyServiceClient(conn.ClientConn)
-
-	stream, err := client.DialNode(conn.ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
-	}
-
-	return stream, nil
 }

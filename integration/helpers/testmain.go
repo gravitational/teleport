@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/common"
@@ -35,6 +36,7 @@ func TestMainImplementation(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
 	SetTestTimeouts(3 * time.Second)
+	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {

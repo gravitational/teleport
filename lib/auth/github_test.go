@@ -38,8 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -74,17 +75,16 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tt.b.Close())
+	})
 
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -184,10 +184,11 @@ func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
 }
 
 func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	tt := setupGithubContext(ctx, t)
 
-	auth := &GithubAuthResponse{
+	auth := &authclient.GithubAuthResponse{
 		Username: "test-name",
 	}
 
@@ -213,56 +214,66 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test success event, non-test-flow.
 	diagCtx := ssoDiagContextFixture(false /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginCode, tt.mockEmitter.LastEvent().GetCode())
-	require.Equal(t, []string{"login-rule"}, tt.mockEmitter.LastEvent().(*apievents.UserLogin).AppliedLoginRules)
+	loginEvt := tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, []string{"login-rule"}, loginEvt.AppliedLoginRules)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 	require.Equal(t, 0, ssoDiagInfoCalls)
 	tt.mockEmitter.Reset()
 
 	// Test failure event, non-test-flow.
 	diagCtx = ssoDiagContextFixture(false /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 	require.Equal(t, 0, ssoDiagInfoCalls)
 
 	// Test success event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 	require.Equal(t, 1, ssoDiagInfoCalls)
 	tt.mockEmitter.Reset()
 
 	// Test failure event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 	require.Equal(t, 2, ssoDiagInfoCalls)
 }
 
 type mockedGithubManager struct {
-	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
+	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
-func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	if m.mockValidateGithubAuthCallback != nil {
 		return m.mockValidateGithubAuthCallback(ctx, diagCtx, q)
 	}
@@ -373,7 +384,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 
 type mockRoleCache struct {
 	roles map[string]types.Role
-	Cache
+	authclient.Cache
 }
 
 func (m *mockRoleCache) GetRole(_ context.Context, name string) (types.Role, error) {
@@ -596,4 +607,122 @@ func TestBuildAPIEndpoint(t *testing.T) {
 			require.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestValidateClientRedirect(t *testing.T) {
+	t.Run("StandardLocalhost", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://127.0.0.1/callback",
+			"http://127.0.0.1:1234/callback",
+			"http://[::1]/callback",
+			"http://[::1]:1234/callback",
+			"http://localhost/callback",
+			"http://localhost:1234/callback",
+		} {
+			const ssoTestFlowFalse = false
+			var defaultSettings *types.SSOClientRedirectSettings
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, defaultSettings))
+		}
+	})
+
+	t.Run("InvalidLocalhostLike", func(t *testing.T) {
+		for _, badURL := range []string{
+			"http://127.0.0.1:12345/notcallback",
+			"http://127a0.0.1/callback",
+			"http://127a0.0.1:1234/callback",
+			"http://::1/callback",
+			"http://notlocalhost/callback",
+			"http://sub.localhost/callback",
+			"http://localhost.com/callback",
+			"http://127.0.0.1.example.com/callback",
+			"http://[::1].example.com/callback",
+			"http://username@127.0.0.1:12345/callback",
+			"http://@localhost:12345/callback",
+			"http://localhost@example.com/callback",
+			"http://127.0.0.1:12345@example.com/callback",
+			"https://127.0.0.1:12345/callback",
+			"https://localhost:12345/callback",
+			"https://localhost/callback",
+		} {
+			const ssoTestFlowFalse = false
+			var defaultSettings *types.SSOClientRedirectSettings
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, defaultSettings))
+		}
+	})
+
+	t.Run("BadQuery", func(t *testing.T) {
+		for _, badURL := range []string{
+			"http://127.0.0.1:12345/callback",
+			"http://127.0.0.1:12345/callback?secret=a",
+			"http://127.0.0.1:12345/callback?secret_key=a&foo=b",
+		} {
+			const ssoTestFlowFalse = false
+			var defaultSettings *types.SSOClientRedirectSettings
+			require.Error(t, ValidateClientRedirect(badURL, ssoTestFlowFalse, defaultSettings))
+		}
+	})
+
+	t.Run("AllowedHttpsHostnames", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"https://allowed.domain.invalid/callback",
+			"https://foo.allowed.with.subdomain.invalid/callback",
+			"https://but.no.subsubdomain.invalid/callback",
+		} {
+			const ssoTestFlowFalse = false
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+					"*.allowed.with.subdomain.invalid",
+					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid$",
+				},
+			}
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, settings))
+		}
+
+		for _, badURL := range []string{
+			"https://allowed.domain.invalid/notcallback",
+			"https://allowed.domain.invalid:12345/callback",
+			"http://allowed.domain.invalid/callback",
+			"https://not.allowed.domain.invalid/callback",
+			"https://allowed.with.subdomain.invalid/callback",
+			"https://i.said.no.subsubdomain.invalid/callback",
+		} {
+			const ssoTestFlowFalse = false
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+					"*.allowed.with.subdomain.invalid",
+					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid",
+				},
+			}
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, settings))
+		}
+	})
+
+	t.Run("SSOTestFlow", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://127.0.0.1:12345/callback",
+		} {
+			const ssoTestFlowTrue = true
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+				},
+			}
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowTrue, settings))
+		}
+
+		for _, badURL := range []string{
+			"https://allowed.domain.invalid/callback",
+			"http://allowed.domain.invalid/callback",
+		} {
+			const ssoTestFlowTrue = true
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+				},
+			}
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowTrue, settings))
+		}
+	})
 }

@@ -270,7 +270,10 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
 			var objects []runtime.Object
 			for _, s := range tt.services {
 				objects = append(objects, s)
@@ -295,7 +298,6 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			})
 			require.Empty(t, cmp.Diff(tt.expected.AsResources(), result))
 		})
-
 	}
 }
 

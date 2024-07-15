@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -50,7 +51,7 @@ const (
 	syncInterval = 30 * time.Second
 )
 
-var log = logrus.WithField(trace.Component, "ExternalAuditStorage")
+var log = logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage")
 
 // ClusterAlertService abstracts a service providing Upsert and Delete
 // operations for cluster alerts.

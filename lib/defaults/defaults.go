@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/square/go-jose.v2"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
@@ -98,9 +98,6 @@ const (
 
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
-
-	// By default all users use /bin/bash
-	DefaultShell = "/bin/bash"
 
 	// GRPCMaxConcurrentStreams is the max GRPC streams that can be active at a time.  Once the limit is reached new
 	// RPC calls will queue until capacity is available.
@@ -186,13 +183,28 @@ const (
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
+	// BearerTokenTTL specifies standard bearer token to exist before
+	// it has to be renewed by the client
+	BearerTokenTTL = 10 * time.Minute
+
+	// TokenLenBytes is len in bytes of the invite token
+	TokenLenBytes = 16
+
+	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
+	RecoveryTokenLenBytes = 32
+
+	// SessionTokenBytes is the number of bytes of a web or application session.
+	SessionTokenBytes = 32
+
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
 
-	// MinPasswordLength is minimum password length
-	MinPasswordLength = 6
+	// MinPasswordLength is minimum password length.
+	// PCI DSS v4.0 control 8.3.6 requires a minimum password length of 12 characters.
+	// NIST SP 800-63B section 5.1.1.1 requires a minimum password length of 8 characters.
+	MinPasswordLength = 12
 
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
@@ -231,13 +243,10 @@ const (
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
 
-	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
-	// before a user is locked from login and further recovery attempts for AccountLockInterval.
-	MaxAccountRecoveryAttempts = 3
-
 	// AccountLockInterval defines a time interval during which a user account
-	// is locked after MaxLoginAttempts
-	AccountLockInterval = 20 * time.Minute
+	// is locked after MaxLoginAttempts.
+	// PCI DSS v4.0 control 8.3.4 requires a minimum lockout duration of 30 minutes.
+	AccountLockInterval = 30 * time.Minute
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
@@ -301,10 +310,6 @@ const (
 
 	// LowResPollingPeriod is a default low resolution polling period
 	LowResPollingPeriod = 600 * time.Second
-
-	// HighResReportingPeriod is a high resolution polling reporting
-	// period used in services
-	HighResReportingPeriod = 10 * time.Second
 
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
@@ -469,6 +474,8 @@ const (
 	ProtocolClickHouse = "clickhouse"
 	// ProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
 	ProtocolClickHouseHTTP = "clickhouse-http"
+	// ProtocolSpanner is the GCP Spanner database protocol.
+	ProtocolSpanner = "spanner"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -487,6 +494,7 @@ var DatabaseProtocols = []string{
 	ProtocolDynamoDB,
 	ProtocolClickHouse,
 	ProtocolClickHouseHTTP,
+	ProtocolSpanner,
 }
 
 // ReadableDatabaseProtocol returns a more human-readable string of the
@@ -521,6 +529,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Clickhouse"
 	case ProtocolClickHouseHTTP:
 		return "Clickhouse (HTTP)"
+	case ProtocolSpanner:
+		return "GCloud Spanner"
 	default:
 		// Unknown protocol. Return original string.
 		return p
@@ -712,6 +722,9 @@ const (
 
 	// WebsocketLatency provides latency information for a session.
 	WebsocketLatency = "l"
+
+	// WebsocketKubeExec provides latency information for a session.
+	WebsocketKubeExec = "k"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -724,58 +737,75 @@ const (
 )
 
 const (
-	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
-	// See https://tools.ietf.org/html/rfc7518#section-6.1 for possible values.
-	ApplicationTokenKeyType = "RSA"
-	// ApplicationTokenAlgorithm is the default algorithm used to sign
-	// application access tokens.
-	ApplicationTokenAlgorithm = jose.RS256
-
 	// JWTUse is the default usage of the JWT.
 	// See https://www.rfc-editor.org/rfc/rfc7517#section-4.2 for more information.
 	JWTUse = "sig"
 )
 
 var (
-	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.
+	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites (for TLS 1.2 only).
+	// Order will dictate the selected cipher, as per RFC 5246 § 7.4.1.2.
+	// See https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.2 for more information.
+	// This aligns to `crypto/tls`'s `CipherSuites` `supportedOnlyTLS12` list, but
+	// just constrained to only FIPS-approved ciphers supported by `crypto/tls`
+	// and ordered based on `cipherSuitesPreferenceOrder`.
 	FIPSCipherSuites = []uint16{
-		//
-		// These two ciper suites:
-		//
-		// tls.TLS_RSA_WITH_AES_128_GCM_SHA256
-		// tls.TLS_RSA_WITH_AES_256_GCM_SHA384
-		//
-		// although supported by FIPS, are blacklisted in http2 spec:
-		//
-		// https://tools.ietf.org/html/rfc7540#appendix-A
-		//
-		// therefore we do not include them in this list.
-		//
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 	}
 
 	// FIPSCiphers is a list of supported FIPS compliant SSH ciphers.
+	// Order will dictate the selected cipher, as per RFC 4253 § 7.1.
+	// See `encryption_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
+	// This aligns to `x/crypto/ssh`'s `preferredCiphers`, but just constrained to
+	// only FIPS-approved ciphers.
+	// Can also be compared to OpenSSH's `KEX_SERVER_ENCRYPT` / `KEX_CLIENT_ENCRYPT`.
 	FIPSCiphers = []string{
+		"aes128-gcm@openssh.com",
+		"aes256-gcm@openssh.com",
 		"aes128-ctr",
 		"aes192-ctr",
 		"aes256-ctr",
-		"aes128-gcm@openssh.com",
 	}
 
 	// FIPSKEXAlgorithms is a list of supported FIPS compliant SSH kex algorithms.
+	// Order will dictate the selected algorithm, as per RFC 4253 § 7.1.
+	// See `kex_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
+	// This aligns to `x/crypto/ssh`'s `preferredKeyAlgos`, but just constrained to
+	// only FIPS-approved algorithms.
+	// Can also be compared to OpenSSH's `KEX_SERVER_KEX` / `KEX_CLIENT_KEX`.
 	FIPSKEXAlgorithms = []string{
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
-		"echd-sha2-nistp521",
 	}
 
 	// FIPSMACAlgorithms is a list of supported FIPS compliant SSH mac algorithms.
+	// Order will dictate the selected algorithm, as per RFC 4253 § 7.1.
+	// See `mac_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
+	// This aligns to `x/crypto/ssh`'s `preferredMACs`, but just constrained to
+	// only FIPS-approved algorithms.
+	// Can also be compared to OpenSSH's `KEX_SERVER_MAC` / `KEX_CLIENT_MAC`.
 	FIPSMACAlgorithms = []string{
 		"hmac-sha2-256-etm@openssh.com",
+		"hmac-sha2-512-etm@openssh.com",
 		"hmac-sha2-256",
+		"hmac-sha2-512",
+	}
+
+	// FIPSPubKeyAuthAlgorithms is a list of supported FIPS compliant SSH public
+	// key authentication algorithms.
+	// Order will dictate the selected algorithm, as per RFC 4253 § 7.1.
+	// See `server_host_key_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
+	// This aligns to `x/crypto/ssh`'s `preferredPubKeyAuthAlgos`, but just
+	// constrained to only FIPS-approved algorithms.
+	// Can also be compared to OpenSSH's `KEX_DEFAULT_PK_ALG`.
+	FIPSPubKeyAuthAlgorithms = []string{
+		ssh.KeyAlgoECDSA256,
+		ssh.KeyAlgoECDSA384,
+		ssh.KeyAlgoRSASHA256,
+		ssh.KeyAlgoRSASHA512,
 	}
 )
 

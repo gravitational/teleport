@@ -48,4 +48,18 @@ EXAMPLES:
 
   Check with your Teleport cluster administrator that your user's roles should have nodes available.
   `
+
+	dbListHelp = `
+Examples:
+  Search databases with keywords:
+  $ tsh db ls --search foo,bar
+
+  Filter databases with labels:
+  $ tsh db ls key1=value1,key2=value2
+
+  List databases from all clusters with extra fields:
+  $ tsh db ls --all -v
+
+  Get database names using "jq":
+  $ tsh db ls --format json  | jq -r '.[].metadata.name'`
 )

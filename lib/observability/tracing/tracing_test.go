@@ -127,16 +127,21 @@ func TestNewClient(t *testing.T) {
 	require.NoError(t, err, "NewClient failed even though it doesn't dial the Collector")
 	require.NotNil(t, clt)
 
-	// Starting the client should fail when the Collector is down
+	// Starting clients when the Collector is offline is allowed since no IO occurs
+	// until issuing an RPC.
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel2()
-	require.Error(t, clt.Start(ctx2), "Start was successful when the Collector is down")
+	require.NoError(t, clt.Start(context.Background()))
+	require.Error(t, clt.UploadTraces(ctx2, nil))
 
-	// NewStartedClient will dial the collector, if the Collector is offline
-	// then it should return an error
+	// NewStartedClient won't dial the collector, if the Collector is offline
+	// then it shouldn't be detected until an RPC is issued.
 	clt, err = NewStartedClient(context.Background(), cfg)
-	require.Error(t, err, "NewStartedClient was successful dialing an offline Collector")
-	require.Nil(t, clt)
+	require.NoError(t, err, "NewStartedClient was successful dialing an offline Collector")
+	require.NotNil(t, clt)
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel3()
+	require.Error(t, clt.UploadTraces(ctx3, nil))
 }
 
 func TestNewExporter(t *testing.T) {
@@ -176,19 +181,6 @@ func TestNewExporter(t *testing.T) {
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
-			},
-			exporterAssertion: require.Nil,
-		},
-		{
-			name: "connection timeout",
-			config: Config{
-				Service:     "test",
-				ExporterURL: "localhost:123",
-				DialTimeout: time.Millisecond,
-			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err, i...)
-				require.True(t, trace.IsConnectionProblem(err), i...)
 			},
 			exporterAssertion: require.Nil,
 		},

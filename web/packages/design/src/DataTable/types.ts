@@ -18,6 +18,8 @@
 
 import { MatchCallback } from 'design/utils/match';
 
+import { State } from './useTable';
+
 export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
@@ -32,7 +34,7 @@ export type TableProps<T> = {
    * error.
    */
   emptyHint?: string;
-  pagination?: PaginationConfig;
+  pagination?: PaginationConfig<T>;
   isSearchable?: boolean;
   searchableProps?: Extract<keyof T, string>[];
   // customSearchMatchers contains custom functions to run when search matching.
@@ -66,9 +68,20 @@ type TableColumnBase<T> = {
   isNonRender?: boolean;
 };
 
-export type PaginationConfig = {
+export type PagerPosition = 'top' | 'bottom' | 'both';
+
+export type PaginationConfig<T> = {
   pageSize?: number;
-  pagerPosition?: 'top' | 'bottom';
+  /**
+   * "undefined" will show both pagers if data on current page is some
+   * sufficient length.
+   *
+   * Otherwise, it will only show the top pager.
+   *
+   * "both" will show both regardless of data length.
+   */
+  pagerPosition?: PagerPosition;
+  CustomTable?: (p: PagedTableProps<T>) => JSX.Element;
 };
 
 /**
@@ -102,7 +115,7 @@ export type ServersideProps = {
 
 // Makes it so either key or altKey is required
 type TableColumnWithKey<T> = TableColumnBase<T> & {
-  key: Extract<keyof T, string>;
+  key: keyof T & string;
   // altSortKey is the alternative field to sort column by,
   // if provided. Otherwise it falls back to sorting by field
   // "key".
@@ -148,4 +161,32 @@ export type LabelDescription = {
 
 export type CustomSort = SortType & {
   onSort(s: SortType): void;
+};
+
+export type BasicTableProps<T> = {
+  data: T[];
+  renderHeaders: () => JSX.Element;
+  renderBody: (data: T[]) => JSX.Element;
+  className?: string;
+  style?: React.CSSProperties;
+};
+
+export type SearchableBasicTableProps<T> = BasicTableProps<T> & {
+  searchValue: string;
+  setSearchValue: (searchValue: string) => void;
+};
+
+export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
+  nextPage: () => void;
+  prevPage: () => void;
+  pagination: State<T>['state']['pagination'];
+  fetching?: State<T>['fetching'];
+};
+
+export type ServersideTableProps<T> = BasicTableProps<T> & {
+  nextPage: () => void;
+  prevPage: () => void;
+  pagination: State<T>['state']['pagination'];
+  serversideProps: State<T>['serversideProps'];
+  fetchStatus?: FetchStatus;
 };

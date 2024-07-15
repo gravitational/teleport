@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -33,7 +35,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
@@ -126,7 +127,8 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 		req.Header.Add(k, v)
 	}
 
-	log.Debugf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
+	logger := slog.With("method", req.Method, "host", req.URL.Host, "path", req.URL.Path)
+	logger.DebugContext(req.Context(), "Attempting request to Proxy web api")
 	span.AddEvent("sending https request")
 	resp, err := clt.Do(req)
 
@@ -145,7 +147,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
 	// clear-text HTTP to see if that works.
 	req.URL.Scheme = "http"
-	log.Warnf("Request for %s %s%s falling back to PLAIN HTTP", req.Method, req.URL.Host, req.URL.Path)
+	logger.WarnContext(req.Context(), "HTTPS request failed, falling back to HTTP")
 	span.AddEvent("falling back to http request")
 	resp, err = clt.Do(req)
 	if err != nil {
@@ -218,13 +220,24 @@ func Ping(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusBadRequest {
-		per := &PingErrorResponse{}
-		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
-			return nil, trace.Wrap(err)
+
+	if resp.StatusCode != http.StatusOK {
+		slog.DebugContext(req.Context(), "Received unsuccessful ping response", "code", resp.StatusCode)
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
 		}
-		return nil, errors.New(per.Error.Message)
+
+		errResp := &PingErrorResponse{}
+		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
+			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes))
+			return nil, trace.Wrap(err, "cannot parse ping response; is proxy reachable?")
+		}
+
+		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response; Teleport cluster auth may be misconfigured")
 	}
+
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
@@ -292,13 +305,12 @@ type PingResponse struct {
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
 }
 
-// PingErrorResponse contains the error message if the requested connector
-// does not match one that has been registered.
+// PingErrorResponse contains the error from /webapi/ping.
 type PingErrorResponse struct {
 	Error PingError `json:"error"`
 }
 
-// PingError contains the string message from the PingErrorResponse
+// PingError contains the string message from /webapi/ping.
 type PingError struct {
 	Message string `json:"message"`
 }
@@ -314,8 +326,6 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
-	// AssistEnabled is true when Teleport Assist is enabled.
-	AssistEnabled bool `json:"assist_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -399,11 +409,6 @@ type AuthenticationSettings struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot keys.PIVSlot `json:"piv_slot"`
-	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
-	// device authentication.
-	// Deprecated: Use DeviceTrust.Disabled instead.
-	// DELETE IN 16.0, replaced by the DeviceTrust field (codingllama).
-	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
 	// DeviceTrust holds cluster-wide device trust settings.
 	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD

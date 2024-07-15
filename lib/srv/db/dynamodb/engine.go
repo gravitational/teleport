@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -92,7 +93,7 @@ func (e *Engine) SendError(err error) {
 	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
 		return
 	}
-	e.Log.WithError(err).Error("DynamoDB connection error")
+	e.Log.ErrorContext(e.Context, "DynamoDB connection error", "error", err)
 
 	// try to convert to a trace err if we can.
 	code := trace.ErrorToCode(err)
@@ -101,7 +102,7 @@ func (e *Engine) SendError(err error) {
 		Message: err.Error(),
 	})
 	if err != nil {
-		e.Log.WithError(err).Error("failed to marshal error response")
+		e.Log.ErrorContext(e.Context, "failed to marshal error response", "error", err)
 		return
 	}
 	response := &http.Response{
@@ -120,7 +121,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.WithError(err).Error("failed to send error response to DynamoDB client")
+		e.Log.ErrorContext(e.Context, "failed to send error response to DynamoDB client", "error", err)
 		return
 	}
 }
@@ -146,7 +147,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
 		Clock:             e.Clock,
-		Session:           awsSession,
+		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
 		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
@@ -180,6 +181,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
 	}
 
 	re, err := e.resolveEndpoint(req)
@@ -265,7 +267,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32
 	// so it's ok if body is nil here.
 	body, err := libaws.UnmarshalRequestBody(req)
 	if err != nil {
-		e.Log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
+		e.Log.WarnContext(e.Context, "Failed to read request body as JSON, omitting the body from the audit event.", "error", err)
 	}
 	// get the API target from the request header, according to the API request format documentation:
 	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html#Programming.LowLevelAPI.RequestFormat
@@ -321,7 +323,7 @@ func (e *Engine) getRoundTripper(ctx context.Context, URL string) (http.RoundTri
 	if rt, ok := e.RoundTrippers[URL]; ok {
 		return rt, nil
 	}
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

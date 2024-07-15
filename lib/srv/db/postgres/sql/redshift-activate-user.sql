@@ -11,7 +11,9 @@ BEGIN
     -- it, otherwise provision a new one.
     IF EXISTS (SELECT user_id FROM svv_user_grants WHERE user_name = username AND admin_option = false AND role_name = 'teleport-auto-user') THEN
         -- If the user has active connections, make sure the provided roles
-        -- match what the user currently has.
+        -- match what the user currently has. Update to pg_stat_activity is
+        -- delayed for a few hundred ms. Use stv_sessions instead:
+        -- https://docs.aws.amazon.com/redshift/latest/dg/r_STV_SESSIONS.html
         IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
           SELECT INTO cur_roles_length COUNT(role_name) FROM svv_user_grants WHERE user_name = username AND admin_option=false AND role_name != 'teleport-auto-user';
           IF roles_length != cur_roles_length THEN

@@ -203,6 +203,9 @@ type WriteConfig struct {
 	Writer ConfigWriter
 	// Password is the password for the JKS keystore used by Cassandra format and Oracle wallet.
 	Password string
+	// AdditionalCACerts contains additional CA certs, used by Cockroach format
+	// to distinguish DB Server CA certs from DB Client CA certs.
+	AdditionalCACerts [][]byte
 }
 
 // Write writes user credentials to disk in a specified format.
@@ -293,17 +296,53 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			}
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch, FormatScylla:
+	case FormatCockroach:
+		// CockroachDB expects files to be named node.crt, node.key, ca.crt,
+		// ca-client.crt
+		certPath := filepath.Join(cfg.OutputPath, "node.crt")
+		keyPath := filepath.Join(cfg.OutputPath, "node.key")
+		casPath := filepath.Join(cfg.OutputPath, "ca.crt")
+		clientCAsPath := filepath.Join(cfg.OutputPath, "ca-client.crt")
+
+		filesWritten = append(filesWritten, certPath, keyPath, casPath, clientCAsPath)
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = writer.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var serverCACerts []byte
+		for _, cert := range cfg.AdditionalCACerts {
+			serverCACerts = append(serverCACerts, cert...)
+		}
+		err = writer.WriteFile(casPath, serverCACerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var clientCACerts []byte
+		for _, ca := range cfg.Key.TrustedCerts {
+			for _, cert := range ca.TLSCertificates {
+				clientCACerts = append(clientCACerts, cert...)
+			}
+		}
+		err = writer.WriteFile(clientCAsPath, clientCACerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case FormatTLS, FormatDatabase, FormatRedis, FormatElasticsearch, FormatScylla:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
-
-		// CockroachDB expects files to be named ca.crt, node.crt and node.key.
-		if cfg.Format == FormatCockroach {
-			keyPath = filepath.Join(cfg.OutputPath, "node.key")
-			certPath = filepath.Join(cfg.OutputPath, "node.crt")
-			casPath = filepath.Join(cfg.OutputPath, "ca.crt")
-		}
 
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
@@ -478,35 +517,43 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyK, err := utils.ParsePrivateKeyPEM(cfg.Key.PrivateKeyPEM())
+	keyK, err := keys.ParsePrivateKey(cfg.Key.PrivateKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var caCerts []*x509.Certificate
-	for _, ca := range cfg.Key.TrustedCerts {
-		for _, cert := range ca.TLSCertificates {
-			c, err := tlsca.ParseCertificatePEM(cert)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			caCerts = append(caCerts, c)
-		}
-	}
 
-	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK, certBlock, caCerts, cfg.Password)
+	// encode the private key and cert.
+	// orapki import_pkcs12 refuses to add trusted certs unless they are an
+	// issuer for an oracle wallet user_cert, and the server cert we create
+	// is not signed by the DB Client CA, so don't pass trusted certs
+	// (DB Client CA) here.
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK.Signer, certBlock, nil, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	p12Path := cfg.OutputPath + ".p12"
-	certPath := cfg.OutputPath + ".crt"
-
 	if err := writer.WriteFile(p12Path, pf, identityfile.FilePermissions); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = writer.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	clientCAs := cfg.Key.TLSCAs()
+	var caPaths []string
+	for i, caPEM := range clientCAs {
+		var caPath string
+		if len(clientCAs) > 1 {
+			// orapki wallet add can only add one trusted cert at a time, so we
+			// output up to two files - one for each CA key to trust during a
+			// rotation.
+			caPath = fmt.Sprintf("%s.ca-client-%d.crt", cfg.OutputPath, i)
+		} else {
+			caPath = cfg.OutputPath + ".ca-client.crt"
+		}
+		err = writer.WriteFile(caPath, caPEM, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caPaths = append(caPaths, caPath)
 	}
 
 	// Is ORAPKI binary is available is user env run command ang generate autologin Oracle wallet.
@@ -514,15 +561,17 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 		// Is Orapki is available in the user env create the Oracle wallet directly.
 		// otherwise Orapki tool needs to be executed on the server site to import keypair to
 		// Oracle wallet.
-		if err := createOracleWallet(cfg.OutputPath, p12Path, certPath, cfg.Password); err != nil {
+		if err := createOracleWallet(caPaths, cfg.OutputPath, p12Path, cfg.Password); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// If Oracle Wallet was created the raw p12 keypair and trusted cert are no longer needed.
 		if err := os.Remove(p12Path); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := os.Remove(certPath); err != nil {
-			return nil, trace.Wrap(err)
+		for _, caPath := range caPaths {
+			if err := os.Remove(caPath); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		// Return the path to the Oracle wallet.
 		return []string{cfg.OutputPath}, nil
@@ -530,7 +579,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 
 	// Otherwise return destinations to p12 keypair and trusted CA allowing a user to run the convert flow on the
 	// Oracle server instance in order to create Oracle wallet file.
-	return []string{p12Path, certPath}, nil
+	return append([]string{p12Path}, caPaths...), nil
 }
 
 const (
@@ -542,7 +591,7 @@ func isOrapkiAvailable() bool {
 	return err == nil
 }
 
-func createOracleWallet(walletPath, p12Path, certPath, password string) error {
+func createOracleWallet(caCertPaths []string, walletPath, p12Path, password string) error {
 	errDetailsFormat := "\n\nOrapki command:\n%s \n\nCompleted with following error: \n%s"
 	// Create Raw Oracle wallet with auto_login_only flag -  no password required.
 	args := []string{
@@ -566,16 +615,18 @@ func createOracleWallet(walletPath, p12Path, certPath, password string) error {
 		return trace.Wrap(err, fmt.Sprintf(errDetailsFormat, cmd.String(), output))
 	}
 
-	// Add import teleport CA to the oracle wallet.
-	args = []string{
-		"wallet", "add", "-wallet", walletPath,
-		"-trusted_cert",
-		"-auto_login_only",
-		"-cert", certPath,
-	}
-	cmd = exec.Command(orapkiBinary, args...)
-	if output, err := exec.Command(orapkiBinary, args...).CombinedOutput(); err != nil {
-		return trace.Wrap(err, fmt.Sprintf(errDetailsFormat, cmd.String(), output))
+	// Add import teleport CA(s) to the oracle wallet.
+	for _, certPath := range caCertPaths {
+		args = []string{
+			"wallet", "add", "-wallet", walletPath,
+			"-trusted_cert",
+			"-auto_login_only",
+			"-cert", certPath,
+		}
+		cmd = exec.Command(orapkiBinary, args...)
+		if output, err := exec.Command(orapkiBinary, args...).CombinedOutput(); err != nil {
+			return trace.Wrap(err, fmt.Sprintf(errDetailsFormat, cmd.String(), output))
+		}
 	}
 	return nil
 }
@@ -723,6 +774,12 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 		if parsedIdent.RouteToApp.Name != "" {
 			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
 		}
+
+		// If this identity file has any kubernetes certs, copy it into the
+		// KubeTLSCerts map.
+		if parsedIdent.KubernetesCluster != "" {
+			key.KubeTLSCerts[parsedIdent.KubernetesCluster] = ident.Certs.TLS
+		}
 	} else {
 		key.Username, err = key.CertUsername()
 		if err != nil {
@@ -754,35 +811,56 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 // Additionally, the [clusterName] argument can ve used to target a leaf cluster
 // rather than the default root cluster.
 func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*client.Store, error) {
-	if proxyAddr == "" {
-		return nil, trace.BadParameter("missing a Proxy address when loading an Identity File.")
-	}
-	proxyHost, err := utils.Host(proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Preload the client key from the agent.
 	clientStore := client.NewMemClientStore()
-	if err := clientStore.AddKey(key); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Save temporary profile into the key store.
-	profile := &profile.Profile{
-		WebProxyAddr:     proxyAddr,
-		SiteName:         key.ClusterName,
-		Username:         key.Username,
-		PrivateKeyPolicy: key.PrivateKey.GetPrivateKeyPolicy(),
-	}
-	if err := clientStore.SaveProfile(profile, true); err != nil {
+	if err := LoadIdentityFileIntoClientStore(clientStore, identityFile, proxyAddr, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return clientStore, nil
+}
+
+// LoadIdentityFileIntoClientStore loads the identityFile from the given path
+// into the given client store, assimilating it with other keys in the store.
+func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAddr, clusterName string) error {
+	if proxyAddr == "" {
+		return trace.BadParameter("missing a Proxy address when loading an Identity File.")
+	}
+	proxyHost, err := utils.Host(proxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// This key may already exist in a tsh profile, delete it before overwriting
+	// it with the identity key to avoid leaving app/db/kube certs from the old key.
+	if err := store.DeleteKey(key.KeyIndex); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := store.AddKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the client store is not initialized (this is the first key added),
+	// then the profile will be missing. Add a temporary profile with necessary
+	// information. This profile should be filled in with information from the
+	// proxy by the caller.
+	if _, err := store.GetProfile(proxyAddr); trace.IsNotFound(err) {
+		profile := &profile.Profile{
+			MissingClusterDetails: true,
+			WebProxyAddr:          proxyAddr,
+			SiteName:              key.ClusterName,
+			Username:              key.Username,
+			PrivateKeyPolicy:      key.PrivateKey.GetPrivateKeyPolicy(),
+		}
+		if err := store.SaveProfile(profile, true); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }

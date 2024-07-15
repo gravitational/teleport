@@ -59,13 +59,14 @@ const Bar = styled.span`
   border-bottom-left-radius: 20px;
   background-color: ${props => props.theme.colors.brand};
 
-  box-shadow: inset 0 2px 9px rgba(255, 255, 255, 0.3),
+  box-shadow:
+    inset 0 2px 9px rgba(255, 255, 255, 0.3),
     inset 0 -2px 6px rgba(0, 0, 0, 0.4);
   position: relative;
   overflow: hidden;
   width: 118px;
 
-  ::after {
+  &::after {
     content: '';
     position: absolute;
     top: 0;

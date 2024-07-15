@@ -23,15 +23,19 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"math"
+	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"regexp"
 	"slices"
+	"sync/atomic"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -42,9 +46,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -63,18 +68,27 @@ const (
 	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
+// AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
+// Useful for trust-related components that need to watch for changes.
+type AccessCacheWithEvents interface {
+	authclient.AccessCache
+	types.Events
+}
+
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
 	// Listener is a listener to bind to
 	Listener net.Listener
-	// TLS is a base TLS configuration
+	// TLS is the server TLS configuration.
 	TLS *tls.Config
+	// GetClientCertificate returns auth client credentials.
+	GetClientCertificate func() (*tls.Certificate, error)
 	// API is API server configuration
 	APIConfig
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.Config
 	// AccessPoint is a caching access point
-	AccessPoint AccessCache
+	AccessPoint AccessCacheWithEvents
 	// Component is used for debugging purposes
 	Component string
 	// AcceptedUsage restricts authentication
@@ -107,6 +121,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if len(c.TLS.Certificates) == 0 {
 		return trace.BadParameter("missing parameter TLS.Certificates")
 	}
+	if c.GetClientCertificate == nil {
+		return trace.BadParameter("missing parameter GetClientCertificate")
+	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
@@ -137,6 +154,9 @@ type TLSServer struct {
 	// mux is a listener that multiplexes HTTP/2 and HTTP/1.1
 	// on different listeners
 	mux *multiplexer.TLSListener
+	// clientTLSConfigGenerator pre-generates and caches specialized per-cluster
+	// client TLS configs.
+	clientTLSConfigGenerator *ClientTLSConfigGenerator
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -163,14 +183,23 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	oldestSupportedVersion := &teleport.MinClientSemVersion
+	if os.Getenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS") == "yes" {
+		oldestSupportedVersion = nil
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &Middleware{
-		ClusterName:   localClusterName.GetClusterName(),
-		AcceptedUsage: cfg.AcceptedUsage,
-		Limiter:       limiter,
-		GRPCMetrics:   grpcMetrics,
+		ClusterName:            localClusterName.GetClusterName(),
+		AcceptedUsage:          cfg.AcceptedUsage,
+		Limiter:                limiter,
+		GRPCMetrics:            grpcMetrics,
+		OldestSupportedVersion: oldestSupportedVersion,
+		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
+			return trace.Wrap(cfg.AuthServer.UpsertClusterAlert(ctx, a))
+		},
 	}
 
 	apiServer, err := NewAPIServer(&cfg.APIConfig)
@@ -201,10 +230,21 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			},
 		},
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 	}
-	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
+
+	server.clientTLSConfigGenerator, err = NewClientTLSConfigGenerator(ClientTLSConfigGeneratorConfig{
+		TLS:                  server.cfg.TLS.Clone(),
+		ClusterName:          localClusterName.GetClusterName(),
+		PermitRemoteClusters: true,
+		AccessPoint:          server.cfg.AccessPoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.cfg.TLS.GetConfigForClient = server.clientTLSConfigGenerator.GetConfigForClient
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
 		TLS:                server.cfg.TLS,
@@ -226,7 +266,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer, cfg.GetClientCertificate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -249,6 +289,7 @@ func (t *TLSServer) Close() error {
 		errors = append(errors, <-errC)
 	}
 	errors = append(errors, t.mux.Close())
+	errors = append(errors, t.clientTLSConfigGenerator.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -289,62 +330,6 @@ func (t *TLSServer) Serve() error {
 	return trace.NewAggregate(errors...)
 }
 
-// GetConfigForClient is getting called on every connection
-// and server's GetConfigForClient reloads the list of trusted
-// local and remote certificate authorities
-func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	var clusterName string
-	var err error
-	switch info.ServerName {
-	case "":
-		// Client does not use SNI, will validate against all known CAs.
-	default:
-		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				t.log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
-				return nil, trace.AccessDenied("access is denied")
-			}
-		}
-	}
-
-	// update client certificate pool based on currently trusted TLS
-	// certificate authorities.
-	// TODO(klizhentas) drop connections of the TLS cert authorities
-	// that are not trusted
-	pool, totalSubjectsLen, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
-	if err != nil {
-		var ourClusterName string
-		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
-			ourClusterName = clusterName.GetClusterName()
-		}
-		t.log.Errorf("Failed to retrieve client pool for client %v, client cluster %v, target cluster %v, error:  %v.",
-			info.Conn.RemoteAddr().String(), clusterName, ourClusterName, trace.DebugReport(err))
-		// this falls back to the default config
-		return nil, nil
-	}
-
-	// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
-	// the known CA subjects sent to the client can't exceed 2^16-1 (due to
-	// 2-byte length encoding). The crypto/tls stack will panic if this
-	// happens. To make the error less cryptic, catch this condition and return
-	// a better error.
-	//
-	// This may happen with a very large (>500) number of trusted clusters, if
-	// the client doesn't send the correct ServerName in its ClientHelloInfo
-	// (see the switch at the top of this func).
-	if totalSubjectsLen >= int64(math.MaxUint16) {
-		return nil, trace.BadParameter("number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters")
-	}
-
-	tlsCopy := t.cfg.TLS.Clone()
-	tlsCopy.ClientCAs = pool
-	for _, cert := range tlsCopy.Certificates {
-		t.log.Debugf("Server certificate %v.", TLSCertInfo(&cert))
-	}
-	return tlsCopy, nil
-}
-
 // Middleware is authentication middleware checking every request
 type Middleware struct {
 	ClusterName string
@@ -360,12 +345,23 @@ type Middleware struct {
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
 	// GRPCMetrics is the configured gRPC metrics for the interceptors
-	GRPCMetrics *om.ServerMetrics
+	GRPCMetrics *grpcprom.ServerMetrics
 	// EnableCredentialsForwarding allows the middleware to receive impersonation
 	// identity from the client if it presents a valid proxy certificate.
 	// This is used by the proxy to forward the identity of the user who
 	// connected to the proxy to the next hop.
 	EnableCredentialsForwarding bool
+	// OldestSupportedVersion optionally allows the middleware to reject any connections
+	// originated from a client that is using an unsupported version. If not set, then no
+	// rejection occurs.
+	OldestSupportedVersion *semver.Version
+	// AlertCreator if provided is used to generate a cluster alert when any
+	// unsupported connections are rejected.
+	AlertCreator func(ctx context.Context, a types.ClusterAlert) error
+
+	// lastRejectedAlertTime is the timestamp at which the last alert
+	// was created in response to rejecting unsupported clients.
+	lastRejectedAlertTime atomic.Int64
 }
 
 // Wrap sets next handler in chain
@@ -404,6 +400,93 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 	return nil
 }
 
+// ValidateClientVersion inspects the client version for the connection and terminates
+// the [IdentityInfo.Conn] if the client is unsupported. Requires the [Middleware.OldestSupportedVersion]
+// to be configured before any connection rejection occurs.
+func (a *Middleware) ValidateClientVersion(ctx context.Context, info IdentityInfo) error {
+	if a.OldestSupportedVersion == nil {
+		return nil
+	}
+
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+	if !versionExists {
+		return nil
+	}
+
+	ua := metadata.UserAgentFromContext(ctx)
+	logger := log.WithFields(logrus.Fields{"user_agent": ua, "identity": info.IdentityGetter.GetIdentity().Username, "version": clientVersionString})
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		logger.WithError(err).Warn("Failed to determine client version")
+		a.displayRejectedClientAlert(ctx, ua)
+		if err := info.Conn.Close(); err != nil {
+			logger.WithError(err).Warn("Failed to close client connection")
+		}
+
+		return trace.AccessDenied("client version is unsupported")
+	}
+
+	if clientVersion.LessThan(*a.OldestSupportedVersion) {
+		logger.Info("Terminating connection of client using unsupported version")
+		a.displayRejectedClientAlert(ctx, ua)
+
+		if err := info.Conn.Close(); err != nil {
+			logger.WithError(err).Warn("Failed to close client connection")
+		}
+
+		return trace.AccessDenied("client version is unsupported")
+	}
+
+	return nil
+}
+
+var clientUARegex = regexp.MustCompile(`(tsh|tbot|tctl)\/\d+`)
+
+// displayRejectedClientAlert creates an alert to notify admins that
+// unsupported Teleport versions exist in the cluster and are explicitly
+// being denied to prevent causing issues. Alerts are limited to being
+// created once per day to reduce backend writes if there are a large
+// number of unsupported clients constantly being rejected.
+func (a *Middleware) displayRejectedClientAlert(ctx context.Context, userAgent string) {
+	if a.AlertCreator == nil {
+		return
+	}
+
+	connectionType := "agents"
+	match := clientUARegex.FindStringSubmatch(userAgent)
+	if len(match) > 1 {
+		connectionType = match[1]
+	}
+
+	now := time.Now()
+	lastAlert := a.lastRejectedAlertTime.Load()
+	then := time.Unix(0, lastAlert)
+	if lastAlert != 0 && now.Before(then.Add(24*time.Hour)) {
+		return
+	}
+
+	if !a.lastRejectedAlertTime.CompareAndSwap(lastAlert, now.UnixNano()) {
+		return
+	}
+
+	alert, err := types.NewClusterAlert(
+		"rejected-unsupported-connection",
+		fmt.Sprintf("Connections were rejected from %s running unsupported Teleport versions(<%s), they will be inaccessible until upgraded.", connectionType, a.OldestSupportedVersion),
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+	)
+	if err != nil {
+		log.WithError(err).Warn("failed to create rejected-unsupported-connection alert")
+		return
+	}
+
+	if err := a.AlertCreator(ctx, alert); err != nil {
+		log.WithError(err).Warn("failed to persist rejected-unsupported-connection alert")
+		return
+	}
+}
+
 // withAuthenticatedUser returns a new context with the ContextUser field set to
 // the caller's user identity as authenticated by their client TLS certificate.
 func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context, error) {
@@ -423,6 +506,10 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	case IdentityInfo:
 		connState = &info.TLSInfo.State
 		identityGetter = info.IdentityGetter
+
+		if err := a.ValidateClientVersion(ctx, info); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	// credentials.TLSInfo is provided if the grpc server is configured with
 	// credentials.NewTLS.
 	case credentials.TLSInfo:
@@ -482,11 +569,12 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	}
 
 	if a.GRPCMetrics != nil {
-		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
+		is = append(is, a.GRPCMetrics.UnaryServerInterceptor())
 	}
 
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
+		metadata.UnaryServerInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -501,11 +589,12 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	}
 
 	if a.GRPCMetrics != nil {
-		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
+		is = append(is, a.GRPCMetrics.StreamServerInterceptor())
 	}
 
 	return append(is,
 		interceptors.GRPCServerStreamErrorInterceptor,
+		metadata.StreamServerInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)
@@ -698,7 +787,12 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = authz.ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}
 	ctx = authz.ContextWithUser(ctx, user)
-	a.Handler.ServeHTTP(w, r.WithContext(ctx))
+	r = r.WithContext(ctx)
+	// set remote address to the one that was passed in the header
+	// this is needed because impersonation reuses the same connection
+	// and the remote address is not updated from 0.0.0.0:0
+	r.RemoteAddr = remoteAddr
+	a.Handler.ServeHTTP(w, r)
 }
 
 // WrapContextWithUser enriches the provided context with the identity information
@@ -733,7 +827,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 // In addition, it returns the total length of all subjects added to the cert pool, allowing
 // the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
 // using it.
-func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
+func ClientCertPool(client authclient.AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
 	if len(caTypes) == 0 {
 		return nil, 0, trace.BadParameter("at least one CA type is required")
 	}
@@ -778,11 +872,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 		}
 	}
 	return pool, totalSubjectsLen, nil
-}
-
-// DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
-	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
 }
 
 // isProxyRole returns true if the certificate role is a proxy role.
@@ -867,6 +956,8 @@ func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper
 // RoundTrip implements http.RoundTripper interface to include the identity
 // in the request header.
 func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+
 	identity, err := authz.UserFromContext(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -876,7 +967,6 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		return nil, trace.Wrap(err)
 	}
 	req.Header.Set(TeleportImpersonateUserHeader, string(b))
-	defer req.Header.Del(TeleportImpersonateUserHeader)
 
 	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
 	if err != nil {
@@ -884,7 +974,6 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	}
 
 	req.Header.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
-	defer req.Header.Del(TeleportImpersonateIPHeader)
 
 	return r.RoundTripper.RoundTrip(req)
 }

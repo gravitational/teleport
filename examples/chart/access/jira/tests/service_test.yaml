@@ -1,0 +1,30 @@
+suite: Test service
+templates:
+  -  service.yaml
+tests:
+  - it: should be possible to add custom annotations
+    set:
+      serviceAnnotations:
+        my-custom-annotation: my-custom-value
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should set annotations for AWS compatibility when chartMode is set to aws
+    set:
+      chartMode: "aws"
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+            service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+            service.beta.kubernetes.io/aws-load-balancer-type: nlb
+
+  - it: should be possible to change service type
+    set:
+      serviceType: "ClusterIP"
+    asserts:
+      - equal:
+          path: spec.type
+          value:
+            ClusterIP

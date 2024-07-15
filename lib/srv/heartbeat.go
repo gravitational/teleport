@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -157,7 +157,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		cancel:          cancel,
 		HeartbeatConfig: cfg,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(cfg.Component, "beat"),
+			teleport.ComponentKey: teleport.Component(cfg.Component, "beat"),
 		}),
 		checkTicker: cfg.Clock.NewTicker(cfg.CheckPeriod),
 		announceC:   make(chan struct{}, 1),
@@ -180,7 +180,7 @@ type HeartbeatConfig struct {
 	// Component is a name of component used in logs
 	Component string
 	// Announcer is used to announce presence
-	Announcer auth.Announcer
+	Announcer authclient.Announcer
 	// GetServerInfo returns server information
 	GetServerInfo GetServerInfoFn
 	// ServerTTL is a server TTL used in announcements

@@ -23,6 +23,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
 const (
@@ -42,6 +43,19 @@ const (
 	// forwarding.
 	PortKubeSessionType = "k8s_port"
 )
+
+// prehogUserKindFromEventKind converts a Teleport UserKind to a prehog
+// UserKind.
+func prehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKind {
+	switch eventsKind {
+	case apievents.UserKind_USER_KIND_BOT:
+		return prehogv1a.UserKind_USER_KIND_BOT
+	case apievents.UserKind_USER_KIND_HUMAN:
+		return prehogv1a.UserKind_USER_KIND_HUMAN
+	default:
+		return prehogv1a.UserKind_USER_KIND_UNSPECIFIED
+	}
+}
 
 func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	switch e := event.(type) {
@@ -76,6 +90,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
@@ -85,6 +100,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -95,6 +111,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
 			},
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
@@ -104,6 +121,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
@@ -119,6 +137,10 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				WindowsDomain:     e.Domain,
 				AllowUserCreation: e.AllowUserCreation,
 			},
+
+			// Note: Unlikely for this to ever be a bot session, but included
+			// for completeness.
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -143,12 +165,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.KubeRequest:
 		return &KubeRequestEvent{
 			UserName: e.User,
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.SFTP:
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.BotJoin:
@@ -160,6 +184,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			BotName:       e.BotName,
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
+			UserName:      e.UserName,
 		}
 
 	case *apievents.DeviceEvent2:
@@ -211,6 +236,61 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			Days:      e.Days,
 			IsSuccess: e.Status.Success,
 		}
+	case *apievents.ValidateMFAAuthResponse:
+		var deviceID, deviceType string
+		if e.MFADevice != nil {
+			deviceID = e.MFADevice.DeviceID
+			deviceType = e.MFADevice.DeviceType
+		}
+		return &MFAAuthenticationEvent{
+			UserName:          e.User,
+			DeviceId:          deviceID,
+			DeviceType:        deviceType,
+			MfaChallengeScope: e.ChallengeScope,
+		}
+	case *apievents.OktaAccessListSync:
+		return &OktaAccessListSyncEvent{
+			NumAppFilters:        e.NumAppFilters,
+			NumGroupFilters:      e.NumGroupFilters,
+			NumApps:              e.NumApps,
+			NumGroups:            e.NumGroups,
+			NumRoles:             e.NumRoles,
+			NumAccessLists:       e.NumAccessLists,
+			NumAccessListMembers: e.NumAccessListMembers,
+		}
+	case *apievents.SPIFFESVIDIssued:
+		return &SPIFFESVIDIssuedEvent{
+			UserName:     e.User,
+			UserKind:     prehogUserKindFromEventKind(e.UserKind),
+			SpiffeId:     e.SPIFFEID,
+			IpSansCount:  int32(len(e.IPSANs)),
+			DnsSansCount: int32(len(e.DNSSANs)),
+			SvidType:     e.SVIDType,
+		}
+	case *apievents.DatabaseUserCreate:
+		return &DatabaseUserCreatedEvent{
+			Database: &prehogv1a.SessionStartDatabaseMetadata{
+				DbType:     e.DatabaseType,
+				DbProtocol: e.DatabaseProtocol,
+				DbOrigin:   e.DatabaseOrigin,
+			},
+			UserName: e.User,
+			NumRoles: int32(len(e.DatabaseRoles)),
+		}
+	case *apievents.DatabasePermissionUpdate:
+		out := &DatabaseUserPermissionsUpdateEvent{
+			Database: &prehogv1a.SessionStartDatabaseMetadata{
+				DbType:     e.DatabaseType,
+				DbProtocol: e.DatabaseProtocol,
+				DbOrigin:   e.DatabaseOrigin,
+			},
+			UserName:  e.User,
+			NumTables: e.AffectedObjectCounts[databaseobjectimportrule.ObjectKindTable],
+		}
+		for _, entry := range e.PermissionSummary {
+			out.NumTablesPermissions += entry.Counts[databaseobjectimportrule.ObjectKindTable]
+		}
+		return out
 	}
 
 	return nil

@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -56,9 +57,9 @@ const (
 	modifyPluginDataBackoffMax = time.Second
 	// webhookIssueAPIRetryInterval is the time the plugin will wait before grabbing,
 	// the jira issue again if the webhook payload and jira API disagree on the issue status.
-	webhookIssueAPIRetryInterval = time.Second
+	webhookIssueAPIRetryInterval = 5 * time.Second
 	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
-	webhookIssueAPIRetryTimeout = 5 * time.Second
+	webhookIssueAPIRetryTimeout = time.Minute
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)
@@ -235,7 +236,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 

@@ -20,6 +20,7 @@ package forward
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -47,8 +48,8 @@ type remoteSubsystem struct {
 func parseRemoteSubsystem(ctx context.Context, subsytemName string, serverContext *srv.ServerContext) *remoteSubsystem {
 	return &remoteSubsystem{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRemoteSubsystem,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentKey: teleport.ComponentRemoteSubsystem,
+			teleport.ComponentFields: map[string]string{
 				"name": subsytemName,
 			},
 		}),
@@ -116,7 +117,7 @@ func (r *remoteSubsystem) Wait() error {
 	for i := 0; i < 3; i++ {
 		select {
 		case err := <-r.errorCh:
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				r.log.Warnf("Connection problem: %v %T", trace.DebugReport(err), err)
 				lastErr = err
 			}
