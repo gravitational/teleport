@@ -54,6 +54,8 @@ type KubernetesAttestation struct {
 //
 // This implementation leverages /proc/<pid>/mountinfo
 //
+// Requires `hostPID: true` so we can see the /proc of other pods.
+//
 // We can then query the kubelet api to find the pod that this corresponds to.
 func AttestKubernetes(pid int) (*KubernetesAttestation, error) {
 	podID, _, err := getContainerAndPodID(pid)
@@ -66,6 +68,8 @@ func AttestKubernetes(pid int) (*KubernetesAttestation, error) {
 	return nil, trace.NotImplemented("method not implemented")
 }
 
+// getContainerAndPodID retrieves the container ID and pod ID for the provided
+// PID.
 func getContainerAndPodID(pid int) (podID string, containerID string, err error) {
 	info, err := mount.ParseMountInfo(
 		path.Join("/proc", strconv.Itoa(pid), "mountinfo"),
@@ -114,6 +118,8 @@ var (
 	podIDRegex = regexp.MustCompile(`pod(?P<podID>[[:xdigit:]]{8}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{12})`)
 )
 
+// mountpointSourceToContainerAndPodID takes the source of the cgroup mountpoint
+// and extracts the container ID and pod ID from it.
 // TODO: This is a super naive implementation that may only work in my
 // cluster. This needs revisiting before merging.
 func mountpointSourceToContainerAndPodID(source string) (podID string, containerID string, err error) {
@@ -158,6 +164,7 @@ func mountpointSourceToContainerAndPodID(source string) (podID string, container
 	return podID, containerID, nil
 }
 
+// getPodForID retrieves the pod information for the provided pod ID.
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/server/server.go#L371
 func getPodForID(podID string) {
 
