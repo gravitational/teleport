@@ -35,21 +35,15 @@ type Config struct {
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	if c.SocketPath == "" {
+	switch {
+	case c.SocketPath == "":
 		return trace.BadParameter("missing socket path")
-	}
-
-	if c.IPv6Prefix == "" {
+	case c.IPv6Prefix == "":
 		return trace.BadParameter("missing IPv6 prefix")
-	}
-
-	if c.DNSAddr == "" {
+	case c.DNSAddr == "":
 		return trace.BadParameter("missing DNS address")
-	}
-
-	if c.HomePath == "" {
+	case c.HomePath == "":
 		return trace.BadParameter("missing home path")
 	}
-
 	return nil
 }
