@@ -1166,7 +1166,6 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		l.totalSize += len(data)
 		out = append(out, e)
 		l.left--
-
 		if l.left == 0 {
 			hf := false
 			if hasLeftFun != nil {
@@ -1239,6 +1238,11 @@ dateLoop:
 			}
 			values = append(values, result...)
 			if limitReached {
+				// If we achieved the limit, we need to check if we have more events to fetch from the current date
+				// or if we need to move the cursor to the next date.
+				if hasLeft() && len(l.checkpoint.Iterator) == 0 {
+					l.checkpoint.Date = l.dates[i+1]
+				}
 				return values, nil
 			}
 			if len(l.checkpoint.Iterator) == 0 {
