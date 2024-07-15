@@ -1,5 +1,51 @@
 # Changelog
 
+## 16.1.0 (07/15/24)
+
+### New logo
+
+We're excited to announce an update to the Teleport logo. This refresh aligns
+with our evolving brand and will be reflected across the product, our marketing
+site (goteleport.com), branded content, swag, and more.
+
+The new logo will appear in the web UI starting with this release and on the
+marketing website starting from July 17th, 2024.
+
+### Database Access session replay
+
+Database Access users will be able to watch PostgreSQL query replays in the web
+UI or with tsh.
+
+### Other improvements and fixes
+
+* Fixed "staircase" text output for non-interactive Kube exec sessions in Web UI. [#44249](https://github.com/gravitational/teleport/pull/44249)
+* Fixed a leak in the admin process spawned by starting VNet through `tsh vnet` or Teleport Connect. [#44225](https://github.com/gravitational/teleport/pull/44225)
+* Fixed a `kube-agent-updater` bug affecting resolutions of private images. [#44191](https://github.com/gravitational/teleport/pull/44191)
+* The `show_resources` option is no longer required for statically configured proxy ui settings. [#44181](https://github.com/gravitational/teleport/pull/44181)
+* The `teleport-cluster` chart can now use existing ingresses instead of creating its own. [#44146](https://github.com/gravitational/teleport/pull/44146)
+* Ensure that `tsh login` outputs accurate status information for the new session. [#44143](https://github.com/gravitational/teleport/pull/44143)
+* Fixes "device trust mode _x_ requires Teleport Enterprise" errors on `tctl`. [#44133](https://github.com/gravitational/teleport/pull/44133)
+* Added the `tbot install systemd` command for installing tbot as a service on Linux systems. [#44083](https://github.com/gravitational/teleport/pull/44083)
+* Added ability to list access list members in json format in `tctl`. [#44071](https://github.com/gravitational/teleport/pull/44071)
+* Update grpc to `v1.64.1` (patches `GO-2024-2978`). [#44067](https://github.com/gravitational/teleport/pull/44067)
+* Batch access review reminders into 1 message and provide link out to the web UI. [#44034](https://github.com/gravitational/teleport/pull/44034)
+* Fixed denying access despite access being configured for Notification Routing Rules in the web UI. [#44029](https://github.com/gravitational/teleport/pull/44029)
+* Honor proxy templates in tsh ssh. [#44026](https://github.com/gravitational/teleport/pull/44026)
+* Fixed eBPF error occurring during startup on Linux RHEL 9. [#44023](https://github.com/gravitational/teleport/pull/44023)
+* Fixed Redshift auto-user deactivation/deletion failure that occurs when a user is created or deleted and another user is deactivated concurrently. [#43968](https://github.com/gravitational/teleport/pull/43968)
+* Lower latency of detecting Kubernetes cluster becoming online. [#43967](https://github.com/gravitational/teleport/pull/43967)
+* Teleport AMIs now optionally source environment variables from `/etc/default/teleport` as regular Teleport package installations do. [#43962](https://github.com/gravitational/teleport/pull/43962)
+* Make `tbot` compilable on Windows. [#43959](https://github.com/gravitational/teleport/pull/43959)
+* Add a new event to the database session recording with query/command result information. [#43955](https://github.com/gravitational/teleport/pull/43955)
+* Enabled setting event types to forward, skip events, skip session types in event-handler helm chart. [#43938](https://github.com/gravitational/teleport/pull/43938)
+* `extraLabels` configured in `teleport-kube-agent` chart values are now correctly propagated to post-delete hooks. A new `extraLabels.job` object has been added for labels which should only apply to the post-delete job. [#43932](https://github.com/gravitational/teleport/pull/43932)
+* Add support for Teams to Opsgenie plugin alert creation. [#43916](https://github.com/gravitational/teleport/pull/43916)
+* Machine ID outputs now execute individually and concurrently, meaning that one failing output does not disrupt other outputs, and that performance when generating a large number of outputs is improved. [#43876](https://github.com/gravitational/teleport/pull/43876)
+* SAML IdP service provider resource can now be updated from the Web UI. [#4651](https://github.com/gravitational/teleport.e/pull/4651)
+* Fixed empty condition from unquoted string with YAML editor for Notification Routing Rules in the Web UI. [#4636](https://github.com/gravitational/teleport.e/pull/4636)
+* Teleport Enterprise now supports the `TELEPORT_REPORTING_HTTP(S)_PROXY` environment variable to specify the URL of the HTTP(S) proxy used for connections to our usage reporting ingest service. [#4568](https://github.com/gravitational/teleport.e/pull/4568)
+* Fixed inaccurately notifying user that access list reviews are due in the web UI. [#4521](https://github.com/gravitational/teleport.e/pull/4521)
+
 ## 16.0.4 (07/03/24)
 
 * Omit control plane services from the inventory list output for Cloud-Hosted instances. [#43779](https://github.com/gravitational/teleport/pull/43779)
