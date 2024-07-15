@@ -88,6 +88,8 @@ type SPIFFEWorkloadAPIService struct {
 
 	trustDomain string
 
+	attestor *workloadattest.Attestor
+
 	// trustBundle is protected by trustBundleMu. Use setTrustBundle and
 	// getTrustBundle to access it.
 	trustBundle   []byte
@@ -170,6 +172,8 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 	s.trustDomain = authPing.ClusterName
+
+	s.attestor = workloadattest.NewAttestor(s.log, workloadattest.Config{})
 
 	return nil
 }
@@ -424,7 +428,7 @@ func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	udsCreds *uds.Creds,
+	att workloadattest.Attestation,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -447,7 +451,7 @@ func filterSVIDRequests(
 				ctx,
 				"Evaluating rule against workload attestation",
 			)
-			if rule.Unix.UID != nil && (udsCreds == nil || *rule.Unix.UID != udsCreds.UID) {
+			if rule.Unix.UID != nil && (!att.Unix.Attested || *rule.Unix.UID != att.Unix.UID) {
 				log.DebugContext(
 					ctx,
 					"Rule did not match workload attestation",
@@ -455,7 +459,7 @@ func filterSVIDRequests(
 				)
 				continue
 			}
-			if rule.Unix.PID != nil && (udsCreds == nil || *rule.Unix.PID != udsCreds.PID) {
+			if rule.Unix.PID != nil && (!att.Unix.Attested || *rule.Unix.PID != att.Unix.PID) {
 				log.DebugContext(
 					ctx,
 					"Rule did not match workload attestation",
@@ -463,7 +467,7 @@ func filterSVIDRequests(
 				)
 				continue
 			}
-			if rule.Unix.GID != nil && (udsCreds == nil || *rule.Unix.GID != udsCreds.GID) {
+			if rule.Unix.GID != nil && (!att.Unix.Attested || *rule.Unix.GID != att.Unix.GID) {
 				log.DebugContext(
 					ctx,
 					"Rule did not match workload attestation",
@@ -490,19 +494,22 @@ func filterSVIDRequests(
 	return filtered
 }
 
-type authenticatedWorkload struct {
-	Unix       *uds.Creds
-	Kubernetes *workloadattest.KubernetesAttestation
-}
+func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
+	var att workloadattest.Attestation
 
-func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, *uds.Creds, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, nil, trace.BadParameter("peer not found in context")
+		return nil, att, trace.BadParameter("peer not found in context")
 	}
 	log := s.log
 	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+
 	if ok && authInfo.Creds != nil {
+		var err error
+		att, err = s.attestor.Attest(ctx, authInfo.Creds.PID)
+		if err != nil {
+			return nil, att, trace.Wrap(err, "performing workload attestation")
+		}
 		log = log.With(
 			slog.Group("workload",
 				slog.Group("unix",
@@ -521,9 +528,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slo
 		)
 	}
 
-	// TODO: if kube enabled??
-
-	return log, authInfo.Creds, nil
+	return log, att, nil
 }
 
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.

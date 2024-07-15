@@ -19,12 +19,14 @@
 package workloadattest
 
 import (
+	"context"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/mount"
 )
 
@@ -41,11 +43,19 @@ type KubernetesAttestation struct {
 	// Container is the individual container that the PID resolved to within
 	// the pod.
 	Container string
-	// Pod is the name of the pod.
-	Pod string
+	// PodName is the name of the pod.
+	PodName string
+	// PodUID is the UID of the pod.
+	PodUID string
+	// Labels is a map of labels on the pod.
+	Labels map[string]string
 }
 
-// AttestKubernetes resolves the Kubernetes pod information from the
+type KubernetesAttestor struct {
+	// TODO: Configurable bits...
+}
+
+// Attest resolves the Kubernetes pod information from the
 // PID of the workload.
 //
 // From what I can tell, there's two common ways of doing this:
@@ -57,20 +67,50 @@ type KubernetesAttestation struct {
 // Requires `hostPID: true` so we can see the /proc of other pods.
 //
 // We can then query the kubelet api to find the pod that this corresponds to.
-func AttestKubernetes(pid int) (*KubernetesAttestation, error) {
-	podID, _, err := getContainerAndPodID(pid)
+func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAttestation, error) {
+	podID, containerID, err := a.getContainerAndPodID(pid)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return KubernetesAttestation{}, trace.Wrap(err, "determining pod and container ID")
 	}
 
-	getPodForID(podID)
-	// Kubernetes functionality currently not implemented in Teleport Workload Identity.
-	return nil, trace.NotImplemented("method not implemented")
+	pod, err := a.getPodForID(ctx, podID)
+	if err != nil {
+		return KubernetesAttestation{}, trace.Wrap(err, "finding pod by ID")
+	}
+
+	var container *v1.ContainerStatus
+	for _, c := range pod.Status.ContainerStatuses {
+		if c.ContainerID == containerID {
+			container = &c
+			break
+		}
+	}
+	if container == nil {
+		for _, c := range pod.Status.InitContainerStatuses {
+			if c.ContainerID == containerID {
+				container = &c
+				break
+			}
+		}
+	}
+	if container == nil {
+		return KubernetesAttestation{}, trace.BadParameter("container %q not found in pod %q", containerID, pod.Name)
+	}
+
+	return KubernetesAttestation{
+		Attested:       true,
+		Namespace:      pod.Namespace,
+		ServiceAccount: pod.Spec.ServiceAccountName,
+		Container:      container.Name,
+		PodName:        pod.Name,
+		PodUID:         string(pod.UID),
+		Labels:         pod.Labels,
+	}, nil
 }
 
 // getContainerAndPodID retrieves the container ID and pod ID for the provided
 // PID.
-func getContainerAndPodID(pid int) (podID string, containerID string, err error) {
+func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, containerID string, err error) {
 	info, err := mount.ParseMountInfo(
 		path.Join("/proc", strconv.Itoa(pid), "mountinfo"),
 	)
@@ -166,6 +206,6 @@ func mountpointSourceToContainerAndPodID(source string) (podID string, container
 
 // getPodForID retrieves the pod information for the provided pod ID.
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/server/server.go#L371
-func getPodForID(podID string) {
-
+func (a *KubernetesAttestor) getPodForID(ctx context.Context, podID string) (*v1.Pod, error) {
+	return nil, trace.NotImplemented("method not implemented")
 }
