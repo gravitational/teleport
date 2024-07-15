@@ -1,4 +1,4 @@
 pre-commit:
   commands:
     secret-scan:
-      run: gitleaks protect --verbose --redact --staged
+      run: make check-gitleaks
