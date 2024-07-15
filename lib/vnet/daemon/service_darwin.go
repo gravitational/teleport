@@ -21,6 +21,7 @@ package daemon
 
 // #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
 // #cgo LDFLAGS: -framework Foundation
+// #include <stdlib.h>
 // #include "service_darwin.h"
 import "C"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Start starts an XPC listener and waits for it to receive a message with VNet config.
+// Once the message is received, it executes [workFn] with that config.
 func Start(ctx context.Context, workFn func(context.Context, Config) error) error {
 	bundlePath, err := bundlePath()
 	if err != nil {
