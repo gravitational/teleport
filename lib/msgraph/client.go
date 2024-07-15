@@ -91,7 +91,7 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-type client struct {
+type Client struct {
 	httpClient    *http.Client
 	tokenProvider AzureTokenProvider
 	clock         clockwork.Clock
@@ -101,7 +101,7 @@ type client struct {
 }
 
 // NewClient returns a new client for the given config.
-func NewClient(cfg Config) (Client, error) {
+func NewClient(cfg Config) (*Client, error) {
 	cfg.SetDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +110,7 @@ func NewClient(cfg Config) (Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &client{
+	return &Client{
 		httpClient:    cfg.HTTPClient,
 		tokenProvider: cfg.TokenProvider,
 		clock:         cfg.Clock,
@@ -122,7 +122,7 @@ func NewClient(cfg Config) (Client, error) {
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -205,7 +205,7 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 	return nil, trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path)
 }
 
-func (c *client) endpointURI(segments ...string) *url.URL {
+func (c *Client) endpointURI(segments ...string) *url.URL {
 	uri := c.baseURL
 	uri = uri.JoinPath(segments...)
 	return uri
@@ -214,7 +214,7 @@ func (c *client) endpointURI(segments ...string) *url.URL {
 // roundtrip makes a request to the API,
 // serializing `in` as a JSON body, and deserializing the response as the given type `T`.
 // It is used for GET and POST requests, where a response body is expected.
-func roundtrip[T any](ctx context.Context, c *client, method string, uri string, in any) (T, error) {
+func roundtrip[T any](ctx context.Context, c *Client, method string, uri string, in any) (T, error) {
 	var zero T
 	var body []byte
 	var err error
@@ -239,7 +239,7 @@ func roundtrip[T any](ctx context.Context, c *client, method string, uri string,
 
 // patch makes a PATCH request to the API, serializing `in` as a JSON body.
 // It expects a 204 No Content response.
-func (c *client) patch(ctx context.Context, uri string, in any) error {
+func (c *Client) patch(ctx context.Context, uri string, in any) error {
 	body, err := json.Marshal(in)
 	if err != nil {
 		return trace.Wrap(err)
@@ -255,7 +255,9 @@ func (c *client) patch(ctx context.Context, uri string, in any) error {
 	return nil
 }
 
-func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
+// CreateFederatedIdentityCredential creates a new FederatedCredential.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-post-federatedidentitycredentials].
+func (c *Client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
 	uri := c.endpointURI("applications", appObjectID, "federatedIdentityCredentials")
 	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri.String(), cred)
 	if err != nil {
@@ -264,7 +266,9 @@ func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjec
 	return out, nil
 }
 
-func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
+// CreateServicePrincipalTokenSigningCertificate generates a new token signing certificate for the given service principal.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-addtokensigningcertificate].
+func (c *Client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "addTokenSigningCertificate")
 	in := map[string]string{"displayName": displayName}
 	out, err := roundtrip[*SelfSignedCertificate](ctx, c, http.MethodPost, uri.String(), in)
@@ -274,7 +278,10 @@ func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Conte
 	return out, nil
 }
 
-func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
+// GetServicePrincipalByAppId returns the service principal associated with the given application.
+// Note that appID here is the app the application "client ID" ([Application.AppID]), not "object ID" ([Application.ID]).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
+func (c *Client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals(appId='%s')", appID))
 	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
@@ -283,7 +290,9 @@ func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (
 	return out, nil
 }
 
-func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error) {
+// GetServicePrincipalsByDisplayName returns the service principals that have the given display name.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
+func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error) {
 	filter := fmt.Sprintf("displayName eq '%s'", displayName)
 	uri := c.endpointURI("servicePrincipals")
 	uri.RawQuery = url.Values{
@@ -296,7 +305,9 @@ func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 	return out.Value, nil
 }
 
-func (c *client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *AppRoleAssignment) (*AppRoleAssignment, error) {
+// GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignedto]
+func (c *Client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *AppRoleAssignment) (*AppRoleAssignment, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "appRoleAssignedTo")
 	out, err := roundtrip[*AppRoleAssignment](ctx, c, http.MethodPost, uri.String(), assignment)
 	if err != nil {
@@ -305,7 +316,10 @@ func (c *client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string
 	return out, nil
 }
 
-func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error) {
+// InstantiateApplicationTemplate instantiates an application from the Entra application Gallery,
+// creating a pair of [Application] and [ServicePrincipal].
+// Ref: [https://learn.microsoft.com/en-us/graph/api/applicationtemplate-instantiate].
+func (c *Client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error) {
 	uri := c.endpointURI("applicationTemplates", appTemplateID, "instantiate")
 	in := map[string]string{
 		"displayName": displayName,
@@ -317,12 +331,17 @@ func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplate
 	return out, nil
 }
 
-func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
+// UpdateApplication issues a partial update for an [Application].
+// Note that appID here is the app the application  "object ID" ([Application.ID]), not "client ID" ([Application.AppID]).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-update].
+func (c *Client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
 	uri := c.endpointURI("applications", appObjectID)
 	return trace.Wrap(c.patch(ctx, uri.String(), app))
 }
 
-func (c *client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
+// UpdateServicePrincipal issues a partial update for a [ServicePrincipal].
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-update].
+func (c *Client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
 	uri := c.endpointURI("servicePrincipals", spID)
 	return trace.Wrap(c.patch(ctx, uri.String(), sp))
 }

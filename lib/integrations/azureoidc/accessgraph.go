@@ -72,7 +72,7 @@ func getSingleSignOn(ctx context.Context, token string, servicePrincipalID strin
 
 // getFederatedSSOV2Compressed retrieves the FederatedSsoV2 payload for the given AppId
 // and returns it as gzipped bytes.
-func getFederatedSSOV2Compressed(ctx context.Context, graphClient msgraph.Client, appID string, token string) ([]byte, error) {
+func getFederatedSSOV2Compressed(ctx context.Context, graphClient *msgraph.Client, appID string, token string) ([]byte, error) {
 	sp, err := graphClient.GetServicePrincipalByAppId(ctx, appID)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not retrieve service principal")

@@ -25,7 +25,7 @@ import (
 )
 
 // setupSSO sets up SAML based SSO to Teleport for the given application (service principal).
-func setupSSO(ctx context.Context, graphClient msgraph.Client, appObjectID string, spID string, acsURL string) error {
+func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID string, spID string, acsURL string) error {
 	spPatch := &msgraph.ServicePrincipal{}
 	// Set service principal to prefer SAML sign on
 	preferredSingleSignOnMode := "saml"

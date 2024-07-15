@@ -178,7 +178,7 @@ func TestIterateUsers_Empty(t *testing.T) {
 
 	uri, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	client := &client{
+	client := &Client{
 		httpClient:    &http.Client{},
 		tokenProvider: &fakeTokenProvider{},
 		retryConfig:   retryConfig,
@@ -205,7 +205,7 @@ func TestIterateUsers(t *testing.T) {
 
 	uri, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	client := &client{
+	client := &Client{
 		httpClient:    &http.Client{},
 		tokenProvider: &fakeTokenProvider{},
 		retryConfig:   retryConfig,
@@ -300,7 +300,7 @@ func TestRetry(t *testing.T) {
 
 		uri, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := &client{
+		client := &Client{
 			httpClient:    &http.Client{},
 			tokenProvider: &fakeTokenProvider{},
 			clock:         clock,
@@ -351,7 +351,7 @@ func TestRetry(t *testing.T) {
 
 		uri, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := &client{
+		client := &Client{
 			httpClient:    &http.Client{},
 			tokenProvider: &fakeTokenProvider{},
 			clock:         clock,
@@ -401,7 +401,7 @@ func TestRetry(t *testing.T) {
 
 		uri, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := &client{
+		client := &Client{
 			httpClient:    &http.Client{},
 			tokenProvider: &fakeTokenProvider{},
 			clock:         clock,
