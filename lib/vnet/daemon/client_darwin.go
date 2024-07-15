@@ -221,6 +221,11 @@ func bundlePath() (string, error) {
 }
 
 func startByCalling(ctx context.Context, bundlePath string, config Config) error {
+	// Before sending the config to another process, check that it's indeed valid.
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating VNet config before sending it to daemon")
+	}
+
 	// C.StartVnet might hang if the daemon cannot be successfully spawned.
 	const daemonStartTimeout = 20 * time.Second
 	ctx, cancel := context.WithTimeoutCause(ctx, daemonStartTimeout,

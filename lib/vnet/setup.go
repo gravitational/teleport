@@ -82,9 +82,6 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 			DNSAddr:    dnsIPv6.String(),
 			HomePath:   config.HomePath,
 		}
-		if err := daemonConfig.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
 		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
 	})
 
@@ -215,6 +212,10 @@ func (pm *ProcessManager) Close() {
 // up to date. It will stay running until the socket at config.socketPath is deleted or until encountering an
 // unrecoverable error.
 func AdminSetup(ctx context.Context, config daemon.Config) error {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
