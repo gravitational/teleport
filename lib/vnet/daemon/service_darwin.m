@@ -24,7 +24,6 @@
 #import <Foundation/Foundation.h>
 #include <dispatch/dispatch.h>
 
-#include <assert.h>
 #include <string.h>
 
 @interface VNEDaemonService () <NSXPCListenerDelegate, VNEDaemonProtocol>
@@ -57,8 +56,6 @@
 }
 
 - (void)start {
-  assert(_started == NO);
-
   // Begin listening for incoming XPC connections.
   [_listener resume];
 
@@ -66,8 +63,6 @@
 }
 
 - (void)stop {
-  assert(_started == YES);
-
   // Stop listening for incoming XPC connections.
   [_listener suspend];
 
@@ -76,7 +71,6 @@
 }
 
 - (void)waitForVnetConfig {
-  assert(_started == YES);
   dispatch_semaphore_wait(_gotVnetConfigSema, DISPATCH_TIME_FOREVER);
 }
 
@@ -97,9 +91,6 @@
 
 - (BOOL)listener:(NSXPCListener *)listener
     shouldAcceptNewConnection:(NSXPCConnection *)newConnection {
-  assert(listener == _listener);
-  assert(newConnection != nil);
-
   // Configure the incoming connection.
   newConnection.exportedInterface =
       [NSXPCInterface interfaceWithProtocol:@protocol(VNEDaemonProtocol)];
@@ -133,6 +124,10 @@ void WaitForVnetConfig(VnetConfigResult *outResult) {
   if (!daemonService) {
     outResult->error_description = strdup("daemon was not initialized yet");
     return;
+  }
+
+  if (![daemonService started]) {
+    outResult->error_description = strdup("daemon was not started yet");
   }
 
   [daemonService waitForVnetConfig];
