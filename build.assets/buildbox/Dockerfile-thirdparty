@@ -76,7 +76,7 @@ WORKDIR /home/buildbox
 
 COPY cronsstoolng-configs cronsstoolng-configs
 COPY pkgconfig pkgconfig
-COPY bbcommon.mk crosstoolng.mk .
+COPY buildbox-common.mk crosstoolng.mk .
 
 # Build and install ct-ng
 ARG BUILDARCH

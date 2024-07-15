@@ -12,7 +12,7 @@ ARCH_aarch64 = arm64
 ARCH = $(or $(ARCH_$(UNAME_M)),$(UNAME_M))
 
 mk_dir := $(dir $(lastword $(MAKEFILE_LIST)))
-include $(mk_dir)/bbcommon.mk
+include $(mk_dir)/buildbox-common.mk
 
 # -----------------------------------------------------------------------------
 # crosstool-ng

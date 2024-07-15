@@ -10,7 +10,7 @@
 # compilers themselves.
 
 mk_dir := $(dir $(lastword $(MAKEFILE_LIST)))
-include $(mk_dir)/bbcommon.mk
+include $(mk_dir)/buildbox-common.mk
 
 # Environment setup for building with crosstoolng toolchain and third party libraries.
 

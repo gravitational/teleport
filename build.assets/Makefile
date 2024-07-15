@@ -455,9 +455,7 @@ config/buildbox-ng:
 	@: $(or $(wildcard buildbox/ct-ng-configs/$(CROSSTOOLNG_ARCH).defconfig),\
 		$(error No config for arch $(CROSSTOOLNG_ARCH)))
 	docker run -it --rm \
-		--hostname $(HOSTNAME) \
 		--volume $(shell pwd)/..:/home/teleport \
-		--volume /tmp:/tmp \
 		--workdir /home/teleport \
 		buildbox-thirdparty-crosstoolng \
 		make -C build.assets/buildbox -f crosstoolng.mk crosstoolng-menuconfig \
@@ -471,9 +469,7 @@ config/buildbox-ng:
 .PHONY: enter/buildbox-ng
 enter/buildbox-ng:
 	docker run -it --rm \
-		--hostname $(HOSTNAME) \
 		--volume $(shell pwd)/..:/home/teleport \
-		--volume /tmp:/tmp \
 		--workdir /home/teleport \
 		--user $(shell id -u):$(shell id -g) \
 		$(BUILDBOX_NG)
@@ -484,9 +480,7 @@ enter/buildbox-ng:
 .PHONY: enter-root/buildbox-ng
 enter-root/buildbox-ng:
 	docker run -it --rm \
-		--hostname $(HOSTNAME) \
 		--volume $(shell pwd)/..:/home/teleport \
-		--volume /tmp:/tmp \
 		--workdir /home/teleport \
 		--user 0:0 \
 		$(BUILDBOX_NG)
