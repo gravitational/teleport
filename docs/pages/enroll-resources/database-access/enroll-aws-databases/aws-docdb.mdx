@@ -11,10 +11,10 @@ description: How to access Amazon DocumentDB with Teleport database access
 
 <Tabs>
 <TabItem label="Self-Hosted">
-![Teleport Architecture DocumentDB Access Self-Hosted](../../../img/database-access/guides/docdb_selfhosted.svg)
+![Teleport Architecture DocumentDB Access Self-Hosted](../../../../img/database-access/guides/docdb_selfhosted.svg)
 </TabItem>
 <TabItem label="Cloud-Hosted">
-![Teleport Architecture DocumentDB Cloud](../../../img/database-access/guides/docdb_cloud.svg)
+![Teleport Architecture DocumentDB Cloud](../../../../img/database-access/guides/docdb_cloud.svg)
 </TabItem>
 
 </Tabs>
@@ -112,12 +112,12 @@ page](https://console.aws.amazon.com/iamv2/home#/roles) of the AWS Console,
 then press "Create Role". Under **Trusted entity type** select "AWS service".
 Under **Use case** select "EC2" or the intended use case, then click **Next**.
 
-![Create Role Step 1](../../../img/database-access/guides/dynamodb-create-ec2-role.png)
+![Create Role Step 1](../../../../img/database-access/guides/dynamodb-create-ec2-role.png)
 
 On the "Add Permissions" page, find and select the
 `TeleportDatabaseAccessDocumentDB` policy that is created in the previous step.
 
-![Create Role Step 2](../../../img/database-access/guides/docdb-create-role-select-policy.png)
+![Create Role Step 2](../../../../img/database-access/guides/docdb-create-role-select-policy.png)
 
 Click "Next" and give the role a name. In this guide,  we will use the example
 name `TeleportDatabaseService` for this role. Once you have chosen a name,
@@ -142,7 +142,7 @@ Navigate back to the Roles page on the AWS Web Console and create a new role.
 Select the "AWS account" option, which creates a default trust policy to allow
 other entities in this account to assume this role:
 
-![Create Role Step 1](../../../img/database-access/guides/dynamodb-create-role-1.png)
+![Create Role Step 1](../../../../img/database-access/guides/dynamodb-create-role-1.png)
 
 Skip the "Add Permissions" page by clicking "Next", and give the role a name.
 In this guide, we will use the example "teleport-docdb-user" for this role.
@@ -150,7 +150,7 @@ In this guide, we will use the example "teleport-docdb-user" for this role.
 Now click **Add new tag** at Step 3, use `TeleportDatabaseService` for the key
 and `Allowed` for the value. Then click **Create Role** to complete the process.
 
-![Create Role Step 3](../../../img/database-access/guides/aws-create-role-add-tags.png)
+![Create Role Step 3](../../../../img/database-access/guides/aws-create-role-add-tags.png)
 
 ### Create a DocumentDB user
 
