@@ -1213,6 +1213,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		switch cfg.Proxy.UI.ShowResources {
 		case constants.ShowResourcesaccessibleOnly,
 			constants.ShowResourcesRequestable:
+		case "":
+			{
+				cfg.Proxy.UI.ShowResources = constants.ShowResourcesRequestable
+			}
 		default:
 			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
 		}
