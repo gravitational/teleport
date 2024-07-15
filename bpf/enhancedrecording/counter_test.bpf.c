@@ -10,7 +10,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 BPF_COUNTER(test_counter);
 
 SEC("tp/syscalls/sys_close")
-int tracepoint__syscalls__sys_enter_close(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_close(struct syscall_trace_enter *tp)
 {
     int fd = (int)tp->args[0];
 
@@ -23,7 +23,7 @@ int tracepoint__syscalls__sys_enter_close(struct trace_event_raw_sys_enter *tp)
 }
 
 SEC("tp/syscalls/sys_exit_close")
-int tracepoint__syscalls__sys_exit_close(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_close(struct syscall_trace_exit *tp)
 {
 	return 0;
 }

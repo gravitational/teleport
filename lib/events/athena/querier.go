@@ -308,7 +308,7 @@ func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSess
 	defer span.End()
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
 	// for sessionID != "". This kind of call is done on RBAC to check if user can access that session.
-	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
