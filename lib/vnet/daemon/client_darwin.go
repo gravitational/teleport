@@ -229,7 +229,7 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	// C.StartVnet might hang if the daemon cannot be successfully spawned.
 	const daemonStartTimeout = 20 * time.Second
 	ctx, cancel := context.WithTimeoutCause(ctx, daemonStartTimeout,
-		fmt.Errorf("could not connect to the VNet daemon within the timeout"))
+		errors.New("could not connect to the VNet daemon within the timeout"))
 	defer cancel()
 
 	defer C.InvalidateDaemonClient()
