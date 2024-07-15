@@ -33,6 +33,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -271,102 +272,111 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 		authServer.UpsertPassword(user, []byte(pass)),
 		"UpsertPassword failed")
 
-	const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 	const remoteIP = "40.89.244.232"
 	const remoteAddr = remoteIP + ":4242"
 
-	makeTokenSuccess := func(t *testing.T) CreateDeviceWebTokenFunc {
-		return func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-			if !assert.NotNil(t, dwt, "dwt parameter is nil") {
-				return nil, errors.New("dtw parameter is nil")
-			}
-			assert.NotEmpty(t, dwt.WebSessionId, "dwt.WebSessionId is empty")
-			assert.Equal(t, userAgent, dwt.BrowserUserAgent, "dwt.BrowserUserAgent mismatch")
-			assert.Equal(t, remoteIP, dwt.BrowserIp, "dwt.BrowserIp mismatch")
-			assert.Equal(t, user, dwt.User, "dwt.User mismatch")
-
-			return &devicepb.DeviceWebToken{
-				Id:    "this is an opaque ID",
-				Token: "this is an opaque token",
-			}, nil
+	makeTokenSuccess := func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+		switch {
+		case dwt == nil:
+			return nil, errors.New("dtw parameter is nil")
+		case dwt.WebSessionId == "":
+			return nil, errors.New("dwt.WebSessionId is empty")
+		case dwt.BrowserUserAgent == "":
+			return nil, errors.New("dwt.BrowserUserAgent is empty")
+		case dwt.BrowserIp != remoteIP:
+			return nil, errors.New("dwt.BrowserUserAgent is empty")
+		case dwt.User != user:
+			return nil, errors.New("dwt.User mismatch")
 		}
+
+		return &devicepb.DeviceWebToken{
+			Id:    "this is an opaque ID",
+			Token: "this is an opaque token",
+		}, nil
 	}
 
-	makeTokenError := func(t *testing.T) CreateDeviceWebTokenFunc {
-		return func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-			return nil, errors.New("something bad happened")
-		}
+	makeTokenError := func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+		return nil, errors.New("something bad happened")
 	}
+
+	// Use the BrowserUserAgent as a request key of sorts and save the
+	// WebSessionID corresponding to each user agent.
+	// This lets us use a single CreateDeviceWebTokenFunc and run all subtests in
+	// parallel.
+	// Only possible because the BrowserUserAgent is not interpreted by the fakes
+	// used here.
+	var uaToSessionID sync.Map // map[string]string
+	authServer.SetCreateDeviceWebTokenFunc(func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+		if dwt == nil {
+			return nil, errors.New("dwt required")
+		}
+		uaToSessionID.Store(dwt.BrowserUserAgent, dwt.GetWebSessionId())
+
+		if strings.HasPrefix(dwt.BrowserUserAgent, "fail") {
+			return makeTokenError(ctx, dwt)
+		}
+
+		return makeTokenSuccess(ctx, dwt)
+	})
 
 	ctx := context.Background()
-	validReq := &authclient.AuthenticateUserRequest{
-		Username: user,
-		Pass: &authclient.PassCreds{
-			Password: []byte(pass),
-		},
-		ClientMetadata: &authclient.ForwardedClientMetadata{
-			UserAgent:  userAgent,
-			RemoteAddr: remoteAddr,
-		},
+	makeReq := func(ua string) *authclient.AuthenticateUserRequest {
+		return &authclient.AuthenticateUserRequest{
+			Username: user,
+			Pass: &authclient.PassCreds{
+				Password: []byte(pass),
+			},
+			ClientMetadata: &authclient.ForwardedClientMetadata{
+				UserAgent:  ua,
+				RemoteAddr: remoteAddr,
+			},
+		}
 	}
 
 	tests := []struct {
-		name          string
-		makeTokenFunc func(t *testing.T) CreateDeviceWebTokenFunc
-		req           *authclient.AuthenticateUserRequest
-		wantErr       string
-		wantToken     bool
+		name      string
+		req       *authclient.AuthenticateUserRequest
+		wantToken bool
 	}{
 		{
-			name:          "success",
-			makeTokenFunc: makeTokenSuccess,
-			req:           validReq,
-			wantToken:     true,
+			name:      "success",
+			req:       makeReq("success1"),
+			wantToken: true,
 		},
 		{
-			name:          "CreateDeviceWebToken fails",
-			makeTokenFunc: makeTokenError,
-			req:           validReq,
+			name: "CreateDeviceWebToken fails",
+			req:  makeReq("fail1"), // "fail" UA causes token creation to fail.
 		},
 		{
-			name:          "empty ClientMetadata.UserAgent",
-			makeTokenFunc: makeTokenSuccess,
+			name: "empty ClientMetadata.UserAgent skips token creation",
+			req:  makeReq(""),
+		},
+		{
+			name: "nil ClientMetadata skips token creation",
 			req: func() *authclient.AuthenticateUserRequest {
-				req := *validReq
-				req.ClientMetadata = &authclient.ForwardedClientMetadata{
-					RemoteAddr: remoteAddr, // AuthenticateWebUser fails if RemoteAddr is missing.
-				}
-				return &req
-			}(),
-		},
-		{
-			name:          "nil ClientMetadata",
-			makeTokenFunc: makeTokenSuccess,
-			req: func() *authclient.AuthenticateUserRequest {
-				req := *validReq
+				req := makeReq("")
 				req.ClientMetadata = nil
-				return &req
+				return req
 			}(),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var gotSessionID string // captured session ID from DeviceWebToken
-			tokenFn := test.makeTokenFunc(t)
-			captureSessionFn := func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-				gotSessionID = dwt.GetWebSessionId()
-				return tokenFn(ctx, dwt)
-			}
+			t.Parallel()
 
-			// Set a fake SetCreateDeviceWebTokenFunc.
-			// This is set during server creation for Enterprise servers.
-			authServer.SetCreateDeviceWebTokenFunc(captureSessionFn)
-
-			webSession, err := authServer.AuthenticateWebUser(ctx, *test.req)
+			req := test.req
+			webSession, err := authServer.AuthenticateWebUser(ctx, *req)
 			// AuthenticateWebUser is never expected to fail in this test.
 			// Either a DeviceWebToken exists in the response, or it doesn't, but the
 			// method itself always works.
 			require.NoError(t, err, "AuthenticateWebUser failed unexpectedly")
+
+			// Device requirement not calculated for OSS.
+			assert.Equal(t,
+				types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED,
+				webSession.GetTrustedDeviceRequirement(),
+				"WebSession.TrustedDeviceRequirement mismatch",
+			)
 
 			// Verify the token itself.
 			deviceToken := webSession.GetDeviceWebToken()
@@ -379,14 +389,13 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 			assert.NotEmpty(t, deviceToken.Token, "DeviceWebToken.Token is empty")
 
 			// Verify the WebSessionId sent to CreateDeviceWebTokenFunc.
+			var gotSessionID string
+			if val, ok := uaToSessionID.Load(req.ClientMetadata.UserAgent); ok {
+				gotSessionID = val.(string)
+			} else {
+				t.Fatal("WebSessionID not captured by test")
+			}
 			assert.Equal(t, webSession.GetName(), gotSessionID, "Captured DeviceWebToken.WebSessionId mismatch")
-
-			// Device requirement not calculated for OSS.
-			assert.Equal(t,
-				types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED,
-				webSession.GetTrustedDeviceRequirement(),
-				"WebSession.TrustedDeviceRequirement mismatch",
-			)
 		})
 	}
 }
