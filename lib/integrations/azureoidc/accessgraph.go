@@ -105,16 +105,6 @@ func CreateTAGCacheFile(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Get information about enterprise apps
-	var apps []*msgraph.Application
-	err = graphClient.IterateApplications(ctx, func(app *msgraph.Application) bool {
-		apps = append(apps, app)
-		return true
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Authorize to the private API
 	tenantID, err := getTenantID()
 	if err != nil {
@@ -126,24 +116,29 @@ func CreateTAGCacheFile(ctx context.Context) error {
 	}
 
 	cache := &TAGInfoCache{}
-
-	for _, app := range apps {
+	err = graphClient.IterateApplications(ctx, func(app *msgraph.Application) bool {
 		appID := app.AppID
 		if appID == nil {
 			slog.WarnContext(ctx, "app ID is nil", "app", app)
-			continue
+			return true
 		}
+
 		federatedSSOV2Compressed, err := getFederatedSSOV2Compressed(ctx, graphClient, *appID, token)
 		if errors.Is(err, errNonSSOApp) {
 			slog.DebugContext(ctx, "sso not set up for app, will skip it", "app_id", *appID)
-			continue
+			return true
 		} else if err != nil {
 			slog.WarnContext(ctx, "failed to retrieve SSO info", "app_id", *appID, "error", err)
 		}
+
 		cache.AppSsoSettingsCache = append(cache.AppSsoSettingsCache, &types.PluginEntraIDAppSSOSettings{
 			AppId:          *appID,
 			FederatedSsoV2: federatedSSOV2Compressed,
 		})
+		return true
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	payload, err := json.Marshal(cache)
