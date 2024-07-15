@@ -88,4 +88,10 @@ func ClearCookie(w http.ResponseWriter) {
 const (
 	// CookieName is the name of the session cookie.
 	CookieName = "__Host-session"
+
+	// SecureSessionRegistrationHeader is the name of the HTTP header
+	// used to initiate a secure (device-bound) session cookie.
+	//
+	// See https://github.com/WICG/dbsc
+	SecureSessionRegistrationHeader = "Sec-Session-Registration"
 )
