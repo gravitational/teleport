@@ -238,9 +238,9 @@ func AdminSetup(ctx context.Context, config daemon.Config) error {
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
-	// If the socket is deleted, indicating that the parent process exited, cancel the context and then wait
-	// for the osConfig loop to exit and send an err on errCh.
-	ticker := time.NewTicker(time.Second)
+	// If the socket is deleted, indicating that the unprivileged process exited, cancel the context
+	// and then wait for the osConfig loop to exit and send an err on errCh.
+	ticker := time.NewTicker(daemon.CheckUnprivilegedProcessInterval)
 	defer ticker.Stop()
 	for {
 		select {
