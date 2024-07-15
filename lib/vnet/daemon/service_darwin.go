@@ -97,7 +97,7 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 			DNSAddr:    C.GoString(result.dns_addr),
 			HomePath:   C.GoString(result.home_path),
 		}
-		errC <- trace.Wrap(config.CheckAndSetDefaults())
+		errC <- nil
 	}()
 
 	select {

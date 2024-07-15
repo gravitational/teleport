@@ -102,9 +102,6 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		DNSAddr:    c.dnsAddr,
 		HomePath:   homePath,
 	}
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
 }
