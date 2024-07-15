@@ -33,7 +33,7 @@ import (
 )
 
 // createGraphClient creates a new graph client from ambient credentials (Azure CLI credentials cache).
-func createGraphClient() (msgraph.Client, error) {
+func createGraphClient() (*msgraph.Client, error) {
 	credential, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)

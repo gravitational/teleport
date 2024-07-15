@@ -137,7 +137,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 }
 
 // createFederatedAuthCredential creates a new federated (OIDC) auth credential for the given Entra application.
-func createFederatedAuthCredential(ctx context.Context, graphClient msgraph.Client, appObjectID string, proxyPublicAddr string) error {
+func createFederatedAuthCredential(ctx context.Context, graphClient *msgraph.Client, appObjectID string, proxyPublicAddr string) error {
 	credential := &msgraph.FederatedIdentityCredential{}
 	name := "teleport-oidc"
 	audiences := []string{azureDefaultJWTAudience}
@@ -156,7 +156,7 @@ func createFederatedAuthCredential(ctx context.Context, graphClient msgraph.Clie
 }
 
 // getMSGraphResourceID gets the resource ID for the Microsoft Graph app in the Entra directory.
-func getMSGraphResourceID(ctx context.Context, graphClient msgraph.Client) (string, error) {
+func getMSGraphResourceID(ctx context.Context, graphClient *msgraph.Client) (string, error) {
 	const displayName = "Microsoft Graph"
 
 	spList, err := graphClient.GetServicePrincipalsByDisplayName(ctx, displayName)
