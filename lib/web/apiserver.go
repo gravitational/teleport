@@ -802,6 +802,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sessions/web", h.WithLimiter(h.createWebSession))
 	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))
 	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
+
+	// Secure (device-bound) sessions
+	h.POST("/webapi/securesession/startsession", h.startSecureSession)
+
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
@@ -2494,7 +2498,34 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	res, err := newSessionResponse(ctx)
-	return res, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res.SessionExpires = webSession.GetExpiryTime()
+
+	// request that the browser starts a new device-bound session
+	// TODO(zmb3): support both RS256 and ES256
+	// TODO(zmb3): determine whether we should pass the authorization attribute
+	h.logger.InfoContext(r.Context(), "requesting dbsc flow")
+	w.Header().Add(websession.SecureSessionRegistrationHeader,
+		fmt.Sprintf(`(RS256);challenge="nonce";path="/webapi/securesession/startsession";authorization=%v`, res.Token))
+	//	(ES256 RS256); path="StartSession"; challenge="DBSC-challenge5"; authorization="auth-code-123"
+
+	return res, nil
+}
+
+// startSecureSession is the endpoint that browsers use to initiate the secure (device bound)
+// session flow.
+func (h *Handler) startSecureSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	h.logger.InfoContext(r.Context(), "starting DBSC flow")
+	registrationJWT := r.Header.Get("Sec-Session-Response")
+	if registrationJWT == "" {
+		http.Error(w, "missing registration JWT", http.StatusBadRequest)
+		return
+	}
+
+	h.logger.InfoContext(r.Context(), "got registration JWT", "jwt", registrationJWT)
+	w.WriteHeader(http.StatusOK)
 }
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
@@ -2898,7 +2929,20 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	res, err := newSessionResponse(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// request that the browser starts a new device-bound session
+	// TODO(zmb3): support both RS256 and ES256
+	// TODO(zmb3): determine whether we should pas the authorization attribute
+	h.logger.InfoContext(r.Context(), "requesting dbsc flow")
+	w.Header().Add(websession.SecureSessionRegistrationHeader,
+		`(RS256 ES256);challenge="kbvy6czlka";path="StartSession"`)
+	//fmt.Sprintf(`(ES256);challenge="nonce";path="/webapi/securesession/startsession";authorization=%v`, res.Token))
+
+	return res, nil
 }
 
 // getClusters returns a list of cluster and its data.
