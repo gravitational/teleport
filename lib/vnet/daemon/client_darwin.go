@@ -79,8 +79,27 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		}
 	}
 
-	if err := startByCalling(ctx, bundlePath, config); err != nil {
-		return trace.Wrap(err)
+	if err = startByCalling(ctx, bundlePath, config); err != nil {
+		if !errors.Is(err, ErrAlreadyRunning) {
+			return trace.Wrap(err)
+		}
+
+		// If the daemon was already running, it might mean two things:
+		//
+		// 1. The user attempted to start a second instance of VNet.
+		// 2. The user has stopped the previous instance of VNet and immediately started a new one,
+		// before the daemon had a chance to notice that the previous instance was stopped and exit too.
+		//
+		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
+		// just about to quit.
+		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
+		if err := sleep(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := startByCalling(ctx, bundlePath, config); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// TODO(ravicious): Implement monitoring the state of the daemon.
@@ -276,7 +295,15 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		C.StartVnet(&req, &res)
 
 		if !res.ok {
-			errC <- trace.Errorf("could not start VNet daemon: %v (%v)", C.GoString(res.error_description), C.GoString(res.error_domain))
+			errorDomain := C.GoString(res.error_domain)
+			errorCode := int(res.error_code)
+
+			if errorDomain == vnetErrorDomain && errorCode == int(errorCodeAlreadyRunning) {
+				errC <- trace.Wrap(ErrAlreadyRunning)
+				return
+			}
+
+			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
 			return
 		}
 
@@ -288,5 +315,30 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		return trace.Wrap(context.Cause(ctx))
 	case err := <-errC:
 		return trace.Wrap(err, "connecting to the VNet daemon")
+	}
+}
+
+// vnetErrorDomain maps to VNEErrorDomain from Objective-C.
+const vnetErrorDomain = "com.Gravitational.Vnet.ErrorDomain"
+
+// errorCode maps to VNEErrorCode from Objective-C.
+type errorCode int
+
+const (
+	errorCodeAlreadyRunning errorCode = 0
+)
+
+var ErrAlreadyRunning = errors.New("VNet is already running")
+
+func sleep(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return trace.Wrap(ctx.Err())
+	case <-timer.C:
+		return nil
 	}
 }
