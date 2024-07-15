@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const sockSuffix = ".sock"
@@ -59,11 +61,11 @@ func (r *SSHServerWrapper) attemptHandover(conn *multiplexer.Conn, token resumpt
 	handoverConn, err := r.dialHandover(token)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			r.log.Debug("Resumable connection not found or already deleted.")
+			slog.DebugContext(context.TODO(), "resumable connection not found or already deleted")
 			_, _ = conn.Write([]byte{notFoundServerExchangeTag})
 			return
 		}
-		r.log.WithError(err).Error("Error while connecting to handover socket.")
+		slog.ErrorContext(context.TODO(), "error while connecting to handover socket", "error", err)
 		return
 	}
 	defer handoverConn.Close()
@@ -76,14 +78,14 @@ func (r *SSHServerWrapper) attemptHandover(conn *multiplexer.Conn, token resumpt
 
 	if _, err := handoverConn.Write(remoteIP16[:]); err != nil {
 		if !utils.IsOKNetworkError(err) {
-			r.log.WithError(err).Error("Error while forwarding remote address to handover socket.")
+			slog.ErrorContext(context.TODO(), "error while forwarding remote address to handover socket", "error", err)
 		}
 		return
 	}
 
-	r.log.Debug("Forwarding resuming connection to handover socket.")
+	slog.DebugContext(context.TODO(), "forwarding resumable connection to handover socket")
 	if err := utils.ProxyConn(context.Background(), conn, handoverConn); err != nil && !utils.IsOKNetworkError(err) {
-		r.log.WithError(err).Debug("Finished forwarding resuming connection to handover socket.")
+		slog.DebugContext(context.TODO(), "finished forwarding resumable connection to handover socket", "error", err)
 	}
 }
 
@@ -139,13 +141,13 @@ func (r *SSHServerWrapper) runHandoverListener(l net.Listener, entry *connEntry)
 
 		if tempErr, ok := err.(interface{ Temporary() bool }); !ok || !tempErr.Temporary() {
 			if !utils.IsOKNetworkError(err) {
-				r.log.WithError(err).Warn("Accept error in handover listener.")
+				slog.WarnContext(context.TODO(), "accept error in handover listener", "error", err)
 			}
 			return
 		}
 
 		tempDelay = max(5*time.Millisecond, min(2*tempDelay, time.Second))
-		r.log.WithError(err).WithField("delay", tempDelay).Warn("Temporary accept error in handover listener, continuing after delay.")
+		slog.WarnContext(context.TODO(), "temporary accept error in handover listener, continuing after delay", "delay", logutils.StringerAttr(tempDelay))
 		time.Sleep(tempDelay)
 	}
 }
@@ -156,7 +158,7 @@ func (r *SSHServerWrapper) handleHandoverConnection(conn net.Conn, entry *connEn
 	var remoteIP16 [16]byte
 	if _, err := io.ReadFull(conn, remoteIP16[:]); err != nil {
 		if !utils.IsOKNetworkError(err) {
-			r.log.WithError(err).Error("Error while reading remote address from handover socket.")
+			slog.ErrorContext(context.TODO(), "error while reading remote address from handover socket", "error", err)
 		}
 		return
 	}
@@ -206,7 +208,7 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 	// little bit before testing them again; the first check lets us be done
 	// with the check immediately in the happy case where there's no
 	// unconnectable sockets
-	r.log.WithField("sockets", len(paths)).Debug("Found some unconnectable handover sockets, waiting before checking them again.")
+	slog.DebugContext(ctx, "found some unconnectable handover sockets, waiting before checking them again", "sockets", len(paths))
 
 	select {
 	case <-ctx.Done():
@@ -217,11 +219,11 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 	paths, secondErr := retainNonConnectableSockets(ctx, paths)
 
 	if len(paths) < 1 {
-		r.log.Debug("Found no unconnectable handover sockets after waiting.")
+		slog.DebugContext(ctx, "found no unconnectable handover sockets after waiting")
 		return trace.NewAggregate(firstErr, secondErr)
 	}
 
-	r.log.WithField("sockets", len(paths)).Info("Cleaning up some non-connectable handover sockets from old Teleport instances.")
+	slog.InfoContext(ctx, "cleaning up some non-connectable handover sockets from old Teleport instances", "sockets", len(paths))
 
 	errs := []error{firstErr, secondErr}
 	for _, path := range paths {
