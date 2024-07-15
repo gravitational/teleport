@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -1547,6 +1548,8 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 	return extendedContext, nil
 }
 
+var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
+
 // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
 // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
@@ -1555,11 +1558,19 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
-	if cfg, err := a.authServer.GetClusterNetworkingConfig(ctx); err == nil {
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher := apiutils.NewSSHRouteMatcher(req.Host, req.Port, caseInsensitiveRouting)
+	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+		Host:                      req.Host,
+		Port:                      req.Port,
+		CaseInsensitive:           caseInsensitiveRouting,
+		DisableUnqualifiedLookups: disableUnqualifiedLookups,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	lreq := proto.ListResourcesRequest{
 		ResourceType:     types.KindNode,
@@ -2940,11 +2951,11 @@ func getBotName(user types.User) string {
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
-	authPref, err := a.authServer.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3042,7 +3053,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
+			sessionTTL := roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration())
 			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
@@ -4471,8 +4482,11 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GetAuthPreference(ctx)
+	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
@@ -4571,6 +4585,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := newAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4583,6 +4601,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4608,12 +4627,17 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = a.authServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	defaultAuthPref := types.DefaultAuthPreference()
+	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
 
 	var msg string
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := defaultAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4626,6 +4650,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4650,7 +4675,11 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx)
+	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -6571,6 +6600,11 @@ func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *p
 	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
 }
 
+func (a *ServerWithRoles) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopBootstrapScriptResponse, error) {
+	// No sensitive information is returned in the bootstrap script.
+	return a.authServer.GetDesktopBootstrapScript(ctx)
+}
+
 // GetConnectionDiagnostic returns the connection diagnostic with the matching name
 func (a *ServerWithRoles) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
 	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbRead); err != nil {
@@ -6744,12 +6778,12 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 // enforceGlobalModeTrustedDevice is used to enforce global device trust requirements
 // for key endpoints.
 func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) error {
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 

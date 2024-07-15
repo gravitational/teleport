@@ -35,21 +35,31 @@ interface ComponentProps {
   disabled?: boolean;
 }
 
-export interface Props extends HookProps, ComponentProps {}
+export interface Props extends HookProps, ComponentProps {
+  bigInputSize?: boolean;
+}
 
 export default function Container(props: Props) {
-  const { pageIndicators, disabled, ...hookProps } = props;
+  const {
+    pageIndicators,
+    disabled,
+    bigInputSize = false,
+    ...hookProps
+  } = props;
   const state = useServersideSearchPanel(hookProps);
   return (
     <ServersideSearchPanel
       {...state}
       pageIndicators={pageIndicators}
       disabled={disabled}
+      bigInputSize={bigInputSize}
     />
   );
 }
 
-interface State extends SearchPanelState, ComponentProps {}
+interface State extends SearchPanelState, ComponentProps {
+  bigInputSize?: boolean;
+}
 
 export function ServersideSearchPanel({
   searchString,
@@ -59,6 +69,7 @@ export function ServersideSearchPanel({
   onSubmitSearch,
   pageIndicators,
   disabled = false,
+  bigInputSize = false,
 }: State) {
   function onToggle() {
     setIsAdvancedSearch(!isAdvancedSearch);
@@ -68,17 +79,23 @@ export function ServersideSearchPanel({
     <Flex
       as="form"
       onSubmit={onSubmitSearch}
+      alignItems="center"
+      justifyContent="space-between"
+      width="100%"
       style={disabled ? { pointerEvents: 'none', opacity: '0.5' } : {}}
-      flexDirection="column"
     >
-      <InputSearch searchValue={searchString} setSearchValue={setSearchString}>
+      <InputSearch
+        searchValue={searchString}
+        setSearchValue={setSearchString}
+        bigInputSize={bigInputSize}
+      >
         <AdvancedSearchToggle
           isToggled={isAdvancedSearch}
           onToggle={onToggle}
           px={4}
         />
       </InputSearch>
-      <Flex justifyContent="flex-end" mr={2} mb={1}>
+      <Flex justifyContent="flex-end" mr={2} mb={1} mt={2}>
         <PageIndicatorText
           from={pageIndicators.from}
           to={pageIndicators.to}

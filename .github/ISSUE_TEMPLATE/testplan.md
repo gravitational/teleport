@@ -1554,15 +1554,15 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify that owners can only add/remove members and not change other properties.
 
 - [ ] Verify Okta Sync Service
-  - [ ] Verify OKTA Plugin configuration.
-    - [ ] Verify that the OKTA Plugin can be configured.
-    - [ ] Verify the Single Sign-On (SSO) connector created by the OKTA Plugin.
-  - [ ] Verify OKTA users/apps/groups sync.
-    - [ ] Verify that users/apps/groups are synced from OKTA to Teleport.
+  - [ ] Verify Okta Plugin configuration.
+    - [ ] Verify that the Okta Plugin can be configured.
+    - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
+  - [ ] Verify Okta users/apps/groups sync.
+    - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
-  - [ ] Verify access to OKTA apps granted by access_list/access_request.
+  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
+  - [ ] Verify access to Okta apps granted by access_list/access_request.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.

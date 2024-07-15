@@ -3,9 +3,9 @@ title: FedRAMP Compliance for Infrastructure Access
 description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
 ---
 
-Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. 
+Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure.
 This includes support for the Federal Information Processing Standard [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2).
-This standard is the US government approved standard for cryptographic modules. This document explains how  
+This standard is the US government approved standard for cryptographic modules. This document explains how
 Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
 
 ## Obtain FedRAMP authorization with Teleport
@@ -14,7 +14,7 @@ Teleport includes FedRAMP and FIPS 140-2 features to support companies that sell
 government agencies.
 
 ### Access controls
-											
+
 |  Control | Teleport Features |
 | - | - |
 | [AC-02 Account Management]((=fedramp.control_url=)AC-02) | Audit events are emitted in the Auth Service when a user is created, updated, deleted, locked, or unlocked. |
@@ -62,7 +62,7 @@ government agencies.
 
 Teleport implements mTLS for all communications between user clients and Teleport servers with several exceptions listed below.
 
-Following successful authentication to SSO Identity Provider, Teleport issues the authenticated user x.509 client certificates signed by its own internal x.509 CA. Target Teleport services and clients require valid x.509 certificates and mTLS for all target SSH, K8s, database, and web application connections. 
+Following successful authentication to SSO Identity Provider, Teleport issues the authenticated user x.509 client certificates signed by its own internal x.509 CA. Target Teleport services and clients require valid x.509 certificates and mTLS for all target SSH, K8s, database, and web application connections.
 
 Inside the ATO boundary, mTLS is used for communication between the Teleport proxy and internal hosts running all protocols.
 
@@ -79,8 +79,8 @@ In FIPS builds, Teleport uses Go’s BoringCrypto-based networking stack for all
 
 For a detailed list of cryptographic algorithms used in FIPS mode please consult [Teleport FIPS documentation](#default-cryptographic-algorithms).
 
-You also can follow the [Installation instructions](../../installation.mdx#linux) for 
-Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for 
+You also can follow the [Installation instructions](../../installation.mdx#linux) for
+Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for
 your operating environment and package manager or from compressed archive (tarball).
 
 For example, you can download and install from the compressed archive by running the following commands:
@@ -102,9 +102,9 @@ $ cd teleport-ent
 $ sudo ./install
 ```
 
-After you download and install, all of the Teleport Enterprise binaries are 
+After you download and install, all of the Teleport Enterprise binaries are
 installed in the `/usr/local/bin` directory. You can verify you have FIPS-compliant
-binaries installed by running the `teleport version` command and verifying that 
+binaries installed by running the `teleport version` command and verifying that
 the `X:boringcrypto` library is listed. For example:
 
 ```code
@@ -113,7 +113,7 @@ Teleport Enterprise (= teleport.version =) (= teleport.git =) (= teleport.golang
 ```
 
 If your Teleport cluster runs on AWS, the cluster can run in US-East or US-West regions for services
-with low or moderate impact levels. For services with a high impact level, the cluster must run 
+with low or moderate impact levels. For services with a high impact level, the cluster must run
 in a GovCloud region to support FIPS.
 
 ## Configure the Teleport Auth Service
@@ -282,3 +282,11 @@ is emitted to the Audit Log.
 - All uses of non-compliant algorithms such as NaCl are removed and replaced with compliant algorithms such as AES-GCM.
 - Teleport is compiled with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407).
 - User, host, and CA certificates (and host keys for recording proxy mode) only use 2048-bit RSA private keys.
+
+## Remote desktop access
+
+Teleport uses Rust for RDP connections, and thus uses a fork of Cloudflare's [`boring`](https://github.com/gravitational/boring)
+library under the hood for FIPS-compliant TLS cryptography. The primary notable difference to the specifications listed above is that
+TLS is restricted to TLS 1.2 only (1.3 is not supported).
+
+Note that `arm64` FIPS builds do not support access to Windows desktops.

@@ -114,29 +114,25 @@ they search for a Teleport resource:
 - `allow.request.search_as_roles`
 - `deny.request.search_as_roles`
 
-For example, the following role enables a user to search for resources by
-assuming all roles *except* for the `k8s-viewer` role:
+For example, the following role enables a user to search for resources that the
+`k8s-viewer` role allows access to.
 
 ```yaml
 # requester.yaml
 kind: role
 version: v6
 metadata:
-  name: k8s-denier
+  name: k8s-requester
 spec:
   allow:
     request:
       search_as_roles:
-        - '*'
- deny:
-   request:
-      search_as_roles:
         - k8s-viewer
 ```
 
-As with [configuring role requests](#restrict-role-requests), the
-`request.search_as_roles` field is a list of role matchers that can include
-literal role names, wildcards, and regular expressions.
+In contrast to [configuring role requests](#restrict-role-requests), the
+`request.search_as_roles` field is a list of literal role names only, and does
+not support wildcards or regular expressions.
 
 The Teleport Auth Service combines the values of these fields for all of a
 user's Teleport roles in order to validate the user's Access Requests.
@@ -154,9 +150,9 @@ following:
    these to exclude roles specified in `deny.request.search_as_roles` or
    `deny.request.roles`.
 1. Determines which of the remaining roles can access the requested resource.
-   For a Resource Access Request to be valid, one of the role matchers listed in
-   a user's `search_as_roles` configuration must match a role that permits
-   access to the requested resources.
+   For a Resource Access Request to be valid, one of the roles listed in
+   a user's `search_as_roles` configuration must permit access to the requested
+   resources.
 
 ## How long access lasts
 

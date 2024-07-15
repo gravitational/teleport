@@ -171,7 +171,7 @@ Note that this decreases security:
  - Your connection to the database will be unencrypted until it reaches the
    `tbot` proxy running on `localhost`.
 
-Refer to the [database guide](../../machine-id/access-guides/databases.mdx) for more information on
+Refer to the [database guide](../../enroll-resources/machine-id/access-guides/databases.mdx) for more information on
 using database proxies.
 
 ### Flags
@@ -201,6 +201,7 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 |----------------------|------------------------------------------------------------------------------------------------|
 | `-d/--debug`         | Enable verbose logging to stderr.                                                              |
 | `-c/--config`        | Path to a Machine ID configuration file.                                                       |
+| `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
 | `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
 | `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |

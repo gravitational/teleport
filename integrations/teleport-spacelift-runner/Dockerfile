@@ -30,11 +30,8 @@ RUN make build/tbot
 FROM $BASE_IMAGE
 # https://github.com/spacelift-io/runner-terraform/blob/main/Dockerfile
 
-# Switch to root so we can invoke gcompat
+# Switch to root so we can invoke chmod
 USER root
-
-# Install gcompat to allow glibc compiled tbot to run on Spacelift.
-RUN apk add --no-cache gcompat=1.1.0-r1
 
 # Copy in `tbot`
 COPY --from=builder /workspace/build/tbot /usr/local/bin

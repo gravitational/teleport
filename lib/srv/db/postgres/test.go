@@ -385,6 +385,9 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 	if selectBenchmarkRe.MatchString(query) {
 		return trace.Wrap(s.handleBenchmarkQuery(query, client))
 	}
+	if query == TestErrorQuery {
+		return trace.Wrap(s.handleQueryWithError(client))
+	}
 
 	messages := []pgproto3.BackendMessage{
 		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
@@ -399,6 +402,21 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 			return trace.Wrap(err)
 		}
 	}
+	return nil
+}
+
+func (s *TestServer) handleQueryWithError(client *pgproto3.Backend) error {
+	for _, message := range []pgproto3.BackendMessage{
+		&pgproto3.ErrorResponse{Severity: "ERROR", Code: "42703", Message: "error"},
+		&pgproto3.ReadyForQuery{},
+	} {
+		s.log.Debugf("Sending %#v.", message)
+		err := client.Send(message)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -1021,7 +1039,8 @@ func (s *TestServer) registerCancel(pid uint32, cancel context.CancelFunc) error
 	return nil
 }
 
-// TestQueryResponse is the response test Postgres server sends to every query.
+// TestQueryResponse is the response test Postgres server sends to every success
+// query.
 var TestQueryResponse = &pgconn.Result{
 	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("test-field")}},
 	Rows:              [][][]byte{{[]byte("test-value")}},
@@ -1038,6 +1057,10 @@ var TestDeleteUserResponse = &pgconn.Result{
 // TestLongRunningQuery is a stub SQL query clients can use to simulate a long
 // running query that can be only be stopped by a cancel request.
 const TestLongRunningQuery = "pg_sleep(forever)"
+
+// TestErrorQuery is a stub SQL query clients can use to simulate a query that
+// returns error.
+const TestErrorQuery = "select err"
 
 // testSecretKey is the secret key stub for all connections, used for cancel requests.
 const testSecretKey = 1234

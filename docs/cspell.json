@@ -396,6 +396,7 @@
     "cryptoprocessor",
     "customizability",
     "daemonset",
+    "dalek",
     "databaseresources",
     "datacenter",
     "datadoghq",
@@ -427,6 +428,7 @@
     "domainwidedelegation",
     "downscaling",
     "dsacls",
+    "dscacheutil",
     "dspublish",
     "dtypes",
     "dualstack",
@@ -701,6 +703,7 @@
     "operatorenabled",
     "opsexample",
     "organisation",
+    "osconfig",
     "oustanding",
     "oxrq",
     "otelhttp",
@@ -773,10 +776,12 @@
     "replicationgroup",
     "requestable",
     "requirepass",
+    "retryablehttp",
     "reversetunnel",
     "reviewee",
     "rffx",
     "roadmap",
+    "rolesanywhere",
     "rolearn",
     "rolebinding",
     "rolebindings",
@@ -879,6 +884,7 @@
     "tenantname",
     "testuser",
     "tfvars",
+    "tfplugindocs",
     "thisisunsafe",
     "thred",
     "timechart",
@@ -972,5 +978,6 @@
   ],
   "flagWords": [
     "hte"
-  ]
+  ],
+  "ignorePaths": ["**/reference/terraform-provider/**"]
 }

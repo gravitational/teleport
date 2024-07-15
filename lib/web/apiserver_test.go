@@ -2824,15 +2824,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"    # shellcheck disable=SC2050\n"+
-				"    if [ \"true\" = \"true\" ]; then\n"+
-				"      # automatic upgrades\n",
-			)
-			require.Contains(t, responseString, ""+
-				"  TELEPORT_PACKAGE=\"teleport-ent\"\n"+
-				"  TELEPORT_UPDATER_PACKAGE=\"teleport-ent-updater\"\n",
-			)
+			require.Contains(t, responseString, "--auto-upgrade=true")
+			require.Contains(t, responseString, "--teleport-package=teleport-ent")
 		})
 
 		t.Run("default-agentless-installer", func(t *testing.T) {
@@ -2961,15 +2954,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.NotContains(t, responseString, "stable/cloud")
 			require.Contains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"    # shellcheck disable=SC2050\n"+
-				"    if [ \"false\" = \"true\" ]; then\n"+
-				"      # automatic upgrades\n",
-			)
-			require.Contains(t, responseString, ""+
-				"  TELEPORT_PACKAGE=\"teleport\"\n"+
-				"  TELEPORT_UPDATER_PACKAGE=\"teleport-updater\"\n",
-			)
+			require.Contains(t, responseString, "--auto-upgrade=false")
+			require.Contains(t, responseString, "--teleport-package=teleport ")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -10375,4 +10361,18 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	out, err := io.ReadAll(stream)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func TestUnstartedServerShutdown(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	srv, err := NewServer(ServerConfig{
+		Server:  &http.Server{},
+		Handler: s.webHandler,
+	})
+
+	require.NoError(t, err)
+
+	// Shutdown the server before starting it shouldn't panic.
+	require.NoError(t, srv.Shutdown(context.Background()))
 }

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -53,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -160,7 +160,7 @@ func (f *fakeGCPKMSServer) GetPublicKey(ctx context.Context, req *kmspb.GetPubli
 		return nil, trace.BadParameter("cannot fetch public key, state has value %s", keyState.cryptoKeyVersion.State)
 	}
 
-	signer, err := utils.ParsePrivateKeyPEM([]byte(keyState.pem))
+	signer, err := keys.ParsePrivateKey([]byte(keyState.pem))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,7 +192,7 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 		return nil, trace.BadParameter("cannot fetch key, state has value %s", keyState.cryptoKeyVersion.State)
 	}
 
-	signer, err := utils.ParsePrivateKeyPEM([]byte(keyState.pem))
+	signer, err := keys.ParsePrivateKey([]byte(keyState.pem))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

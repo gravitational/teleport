@@ -109,7 +109,7 @@ kubeClusterName: ""
 ################################################################
 
 # apps(list) -- is a static list of applications that should be proxied by
-# the agent. See [the Teleport Application access documentation](../../../application-access/introduction.mdx)
+# the agent. See [the Teleport Application access documentation](../../../enroll-resources/application-access/introduction.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through this value) or dynamically
@@ -134,13 +134,13 @@ kubeClusterName: ""
 # <Admonition type="tip" title="Supported values">
 #   You can see a list of all the supported values that can be used in a Teleport
 #   Application Service configuration in the [Application Service Configuration
-#   Reference](../../../application-access/reference.mdx#configuration).
+#   Reference](../../../enroll-resources/application-access/reference.mdx#configuration).
 # </Admonition>
 apps: []
 
 # appResources(list) -- is a set of labels the agent will monitor. Any application
 # matching those labels will be proxied by the agent. See [the Teleport
-# Application access documentation](../../../application-access/introduction.mdx)
+# Application access documentation](../../../enroll-resources/application-access/introduction.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through [`apps`](#apps)) or
@@ -159,9 +159,15 @@ apps: []
 #
 # <Admonition type="tip" title="Example">
 # Once `appResources` is set, you can dynamically register application with
-# `tsh` by following [the Dynamic App Registration guide](../../../application-access/guides/dynamic-registration.mdx).
+# `tsh` by following [the Dynamic App Registration guide](../../../enroll-resources/application-access/guides/dynamic-registration.mdx).
 # </Admonition>
 appResources: []
+
+# clusterDomain(string) -- sets the domain name used by the Kubernetes cluster. This value is used to build the
+# FQDN application URIs. For example, if the cluster domain is `anything.local`, the agent will proxy the application
+# `myapp` running in the `default` namespace at `http://myapp.default.svc.anything.local`. You must manually set this value
+# to match your cluster domain if it is different from the default value `cluster.local`.
+clusterDomain: "cluster.local"
 
 ################################################################
 # Values that must be provided if Database access is enabled.
@@ -173,7 +179,7 @@ appResources: []
 # awsDatabases(list) -- configures AWS database auto-discovery.
 #
 # <Admonition type="note" title="IAM roles">
-#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
+#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../enroll-resources/database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
 #   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 #
 #   ```yaml
@@ -213,7 +219,7 @@ awsDatabases: []
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
-#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
 #
 #   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
 #   The easiest way is to use an Azure client secret.
@@ -285,7 +291,7 @@ awsDatabases: []
 azureDatabases: []
 
 # databases(list) -- is a static list of databases that should be proxied by
-# the agent. See [the Teleport Database access documentation](../../../database-access/introduction.mdx)
+# the agent. See [the Teleport Database access documentation](../../../enroll-resources/database-access/database-access.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through this value) or dynamically
@@ -314,7 +320,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../../database-access/reference/configuration.mdx).
+#   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../../enroll-resources/database-access/reference/configuration.mdx).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
@@ -348,7 +354,8 @@ databases: []
 
 # databaseResources(list) -- is a set of labels the agent will monitor.
 # Any database matching those labels will be proxied by the agent. See [the Teleport
-# Database access documentation](../../../database-access/introduction.mdx)
+# Database access
+# documentation](../../../enroll-resources/database-access/database-access.mdx)
 # for more details.
 #
 # Proxied databases can be defined statically (through [`databases`](#databases)) or
@@ -368,7 +375,7 @@ databases: []
 #
 # <Admonition type="tip" title="Example">
 # Once `databaseResources` is set, you can dynamically register database with
-# `tsh` by following [this guide](../../../database-access/guides/dynamic-registration.mdx).
+# `tsh` by following [this guide](../../../enroll-resources/database-access/guides/dynamic-registration.mdx).
 # </Admonition>
 databaseResources: []
 
@@ -382,7 +389,7 @@ databaseResources: []
 # The Discovery Service is enabled when the agent `roles` contains "discovery".
 # The Discovery service automatically detects Kubernetes Services and configures
 # the agent to provide access to them. See [the Kubernetes App Discovery
-# documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
+# documentation](../../../enroll-resources/auto-discovery/kubernetes-applications/architecture.mdx)
 # for more details.
 #
 # <Admonition type="note">
@@ -1110,6 +1117,8 @@ extraLabels:
   config: {}
   # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
   deployment: {}
+  # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
+  job: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment or StatefulSet.
   pod: {}

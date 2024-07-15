@@ -47,6 +47,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -745,7 +746,9 @@ func TestMux(t *testing.T) {
 			DNSNames:  []string{"127.0.0.1"},
 		})
 		require.NoError(t, err)
-		serverCert, err := tls.X509KeyPair(serverPEM, tlsca.MarshalPrivateKeyPEM(serverRSAKey))
+		serverKeyPEM, err := keys.MarshalPrivateKey(serverRSAKey)
+		require.NoError(t, err)
+		serverCert, err := tls.X509KeyPair(serverPEM, serverKeyPEM)
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
@@ -765,7 +768,9 @@ func TestMux(t *testing.T) {
 			NotAfter:  time.Now().Add(time.Hour),
 		})
 		require.NoError(t, err)
-		clientCert, err := tls.X509KeyPair(clientPEM, tlsca.MarshalPrivateKeyPEM(clientRSAKey))
+		clientKeyPEM, err := keys.MarshalPrivateKey(clientRSAKey)
+		require.NoError(t, err)
+		clientCert, err := tls.X509KeyPair(clientPEM, clientKeyPEM)
 		require.NoError(t, err)
 
 		webLis, err := NewWebListener(WebListenerConfig{

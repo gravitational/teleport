@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type softwareKeyStore struct {
@@ -81,7 +81,7 @@ func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicK
 }
 
 func (s *softwareKeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
-	signer, err := utils.ParsePrivateKeyPEM(rawKey)
+	signer, err := keys.ParsePrivateKey(rawKey)
 	return signer, trace.Wrap(err)
 }
 

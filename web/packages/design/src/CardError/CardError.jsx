@@ -111,6 +111,20 @@ LoginFailed.propTypes = {
   loginUrl: PropTypes.string.isRequired,
 };
 
+export const LogoutFailed = ({ message, loginUrl }) => (
+  <CardError>
+    <Header>Logout Unsuccessful</Header>
+    <Content
+      message={message}
+      desc={
+        <Text typography="paragraph" textAlign="center">
+          <HyperLink href={loginUrl}>Return to login.</HyperLink>
+        </Text>
+      }
+    />
+  </CardError>
+);
+
 const HyperLink = styled.a`
   color: ${({ theme }) => theme.colors.buttons.link.default};
 `;

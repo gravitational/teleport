@@ -8,7 +8,7 @@ assign Teleport users to less privileged roles by default and allow them to
 temporarily escalate their privileges. Reviewers can grant or deny Access
 Requests within your organization's existing communication workflows (e.g.,
 Slack, email, and PagerDuty) using [Access Request
-plugins](../access-controls/access-request-plugins/index.mdx).
+plugins](../access-controls/access-request-plugins.mdx).
 
 You can use Teleport's API client library to build an Access Request plugin that
 integrates with your organization's unique workflows. 
@@ -467,6 +467,6 @@ management.
 In this example, we used the `tctl auth sign` command to fetch credentials for
 the plugin. For production usage, we recommend provisioning short-lived
 credentials via Machine ID, which reduces the risk of these credentials becoming
-stolen. View our [Machine ID documentation](../machine-id/introduction.mdx) to
+stolen. View our [Machine ID documentation](../enroll-resources/machine-id/introduction.mdx) to
 learn more.
 

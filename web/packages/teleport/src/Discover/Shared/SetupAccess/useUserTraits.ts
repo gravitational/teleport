@@ -24,6 +24,11 @@ import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import {
+  ExcludeUserField,
+  type User,
+  type UserTraits,
+} from 'teleport/services/user';
 
 import { ResourceKind } from '../ResourceKind';
 
@@ -33,7 +38,6 @@ import type {
   KubeMeta,
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
-import type { User, UserTraits } from 'teleport/services/user';
 
 // useUserTraits handles:
 //  - retrieving the latest user (for the dynamic traits) from the backend
@@ -328,13 +332,16 @@ export function useUserTraits() {
     setAttempt({ status: 'processing' });
     try {
       await ctx.userService
-        .updateUser({
-          ...user,
-          traits: {
-            ...user.traits,
-            ...newDynamicTraits,
+        .updateUser(
+          {
+            ...user,
+            traits: {
+              ...user.traits,
+              ...newDynamicTraits,
+            },
           },
-        })
+          ExcludeUserField.AllTraits
+        )
         .catch((error: Error) => {
           emitErrorEvent(`error updating user traits: ${error.message}`);
           throw error;

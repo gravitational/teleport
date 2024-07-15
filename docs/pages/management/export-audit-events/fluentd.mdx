@@ -61,9 +61,16 @@ key from the same certificate authority for the Teleport Event Handler to use.
 
 ## Step 4/6. Create teleport-event-handler credentials
 
-### Enable impersonation of the Fluentd plugin user
+### Enable issuing of credentials for the event handler role
 
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export an identity file for the Fluentd plugin user
 
@@ -183,7 +190,7 @@ here.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-id/getting-started.mdx)
+more reliable renewals. Read [our guide](../../enroll-resources/machine-id/getting-started.mdx)
 to getting started with Machine ID.
 
 To see all of the options you can set in the values file for the

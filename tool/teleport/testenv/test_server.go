@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -653,7 +654,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
 	require.NoError(t, err)
 
-	identity, err := state.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
 		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)

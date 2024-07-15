@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -188,7 +189,7 @@ func TestBackends(t *testing.T) {
 				var err error
 				rawPrivateKeys[i], signer, err = backend.generateRSA(ctx)
 				require.NoError(t, err)
-				rawPublicKeys[i], err = utils.MarshalPublicKey(signer)
+				rawPublicKeys[i], err = keys.MarshalPublicKey(signer.Public())
 				require.NoError(t, err)
 			}
 
@@ -307,7 +308,7 @@ func TestManager(t *testing.T) {
 
 			jwtSigner, err := manager.GetJWTSigner(ctx, ca)
 			require.NoError(t, err, trace.DebugReport(err))
-			pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
+			pubkeyPem, err := keys.MarshalPublicKey(jwtSigner.Public())
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
 

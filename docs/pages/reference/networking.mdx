@@ -69,7 +69,7 @@ environment variables when running Teleport. You can also optionally set the
 specified hosts/netmasks/ports.
 
 By default, Teleport installations based on package managers (such as `apt` and
-`yum`) configure The `teleport` systemd unit to read environment variables from
+`yum`) configure the `teleport` systemd unit to read environment variables from
 the file `/etc/default/teleport` by using the `EnvironmentFile` field:
 
 ```ini
@@ -113,7 +113,7 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
   type="warning"
   title="Note"
 >
-  The proxy service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
+  The Proxy Service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local Kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
 </Admonition>
 
 ## Ports
@@ -164,8 +164,8 @@ In those cases, they can set up separate listeners in the config file.
 | Port | Downstream Service | Description |
 | - | - | - |
 | 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
-| 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service. |
-| 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. |
+| 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service or use a reverse tunnel connection. |
+| 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. All Teleport services (e.g., the SSH Service and Database Service) connecting through the Proxy Service will use this port to form their reverse tunnel connections.|
 | 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 | 3036 | Database Service | Traffic to MySQL databases.|
 | 5432 | Database Service | Traffic to Postgres databases.|
@@ -242,21 +242,16 @@ Service, Kubernetes Service, and other services that protect resources in your
 infrastructure, there is no need to open ports on the machines running the
 agents to the public internet. 
 
-Some Teleport services listen for traffic to one of their proxied resources,
-meaning that you can expose ports on that service's host directly to clients.
-This is useful when you need to connect to resources directly if the Proxy
-Service becomes unavailable. 
+<Details title="Direct connections to agents">
 
-<Admonition
-  type="tip"
-  title="Note"
->
-  In Teleport Cloud, the Auth and Proxy Services run in Teleport-owned infrastructure.
-For this reason, Teleport Cloud customers must connect their resources via reverse tunnels.
-Exposing ports for direct dial is only supported in self-hosted deployments.
-</Admonition>
+If you run a self-hosted Teleport cluster, you can join an agent [directly to
+the Teleport Auth
+Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+In this setup, certain Teleport services open their own listeners rather than
+accepting connections via reverse tunnel. The Proxy Service connects to these
+agent services by dialing them directly.
 
-The table below describes the ports that each Teleport Service opens for proxied
+The table below describes the ports that each Teleport service opens for proxied
 traffic:
 
 | Port | Service | Traffic Type |
@@ -265,6 +260,9 @@ traffic:
 | 3026 | Kubernetes Service | HTTPS traffic to a Kubernetes API server.| 
 | 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
 
-You can only access enrolled applications and databases through the Teleport Proxy Service.
-The Teleport Application Service and Teleport Database Service use reverse tunnel
-connections through the Teleport Proxy Service and cannot expose ports directly.
+You can only access enrolled applications and desktops through the Teleport
+Proxy Service. The Teleport Application Service and Teleport Database Service
+use reverse tunnel connections through the Teleport Proxy Service and cannot
+expose ports directly.
+
+</Details>

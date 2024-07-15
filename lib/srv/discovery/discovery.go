@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -327,6 +327,8 @@ type Server struct {
 
 	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
 
+	awsSyncStatus awsSyncStatus
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -358,6 +360,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
+		awsSyncStatus:              awsSyncStatus{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -788,8 +791,8 @@ func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	})
 }
 
-func genGCPInstancesLogStr(instances []*gcp.Instance) string {
-	return genInstancesLogStr(instances, func(i *gcp.Instance) string {
+func genGCPInstancesLogStr(instances []*gcpimds.Instance) string {
+	return genInstancesLogStr(instances, func(i *gcpimds.Instance) string {
 		return i.Name
 	})
 }
@@ -1137,7 +1140,7 @@ func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 		_, nameOK := labels[types.NameLabel]
 		return projectIDOK && zoneOK && nameOK
 	})
-	var filtered []*gcp.Instance
+	var filtered []*gcpimds.Instance
 outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {

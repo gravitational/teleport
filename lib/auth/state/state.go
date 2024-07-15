@@ -19,52 +19,11 @@
 package state
 
 import (
-	"context"
-	"encoding/json"
-	"strings"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 )
-
-// backend implements abstraction over local or remote storage backend methods
-// required for Identity/State storage.
-// As in backend.Backend, Item keys are assumed to be valid UTF8, which may be enforced by the
-// various Backend implementations.
-type stateBackend interface {
-	// Create creates item if it does not exist
-	Create(ctx context.Context, i backend.Item) (*backend.Lease, error)
-	// Put puts value into backend (creates if it does not
-	// exists, updates it otherwise)
-	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
-	// Get returns a single item or not found error
-	Get(ctx context.Context, key []byte) (*backend.Item, error)
-}
-
-// ProcessStorage is a backend for local process state,
-// it helps to manage rotation for certificate authorities
-// and keeps local process credentials - x509 and SSH certs and keys.
-type ProcessStorage struct {
-	// BackendStorage is the SQLite backend used for operations unrelated to storing/reading identities and states.
-	BackendStorage backend.Backend
-
-	// stateStorage is the backend to store agents' identities and states.
-	// it is not required to close stateBackend storage because it's either the same as BackendStorage or it is Kubernetes
-	// which does not require any close method
-	stateStorage stateBackend
-}
-
-// Close closes all resources used by process storage backend.
-func (p *ProcessStorage) Close() error {
-	// we do not need to close stateBackend storage because it's either the same as backend or it's kubernetes
-	// which does not require any close method
-	return p.BackendStorage.Close()
-}
 
 const (
 	// IdentityCurrent is a name for the identity credentials that are
@@ -75,133 +34,7 @@ const (
 	IdentityReplacement = "replacement"
 	// stateName is an internal resource object name
 	stateName = "state"
-	// statesPrefix is a key prefix for object states
-	statesPrefix = "states"
-	// idsPrefix is a key prefix for identities
-	idsPrefix = "ids"
 )
-
-// GetState reads rotation state from disk.
-func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*StateV2, error) {
-	item, err := p.stateStorage.Get(ctx, backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var res StateV2
-	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	// an empty InitialLocalVersion is treated as an error by CheckAndSetDefaults, but if the field
-	// is missing in the underlying storage, that indicates the state was written by an older version of
-	// teleport that didn't record InitialLocalVersion. In that case, we set a sentinel value to indicate
-	// that the version is unknown rather than being erroneously omitted.
-	if res.Spec.InitialLocalVersion == "" {
-		res.Spec.InitialLocalVersion = unknownLocalVersion
-	}
-
-	if err := res.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &res, nil
-}
-
-// CreateState creates process state if it does not exist yet.
-func (p *ProcessStorage) CreateState(role types.SystemRole, state StateV2) error {
-	if err := state.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := json.Marshal(state)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
-		Value: value,
-	}
-	_, err = p.stateStorage.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// WriteState writes local cluster state to the backend.
-func (p *ProcessStorage) WriteState(role types.SystemRole, state StateV2) error {
-	if err := state.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := json.Marshal(state)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
-		Value: value,
-	}
-	_, err = p.stateStorage.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// ReadIdentity reads identity using identity name and role.
-func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*Identity, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing parameter name")
-	}
-	item, err := p.stateStorage.Get(context.TODO(), backend.Key(idsPrefix, strings.ToLower(role.String()), name))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var res IdentityV2
-	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	if err := res.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
-		SSH:        res.Spec.SSHCert,
-		TLS:        res.Spec.TLSCert,
-		TLSCACerts: res.Spec.TLSCACerts,
-		SSHCACerts: res.Spec.SSHCACerts,
-	})
-}
-
-// WriteIdentity writes identity to the backend.
-func (p *ProcessStorage) WriteIdentity(name string, id Identity) error {
-	res := IdentityV2{
-		ResourceHeader: types.ResourceHeader{
-			Kind:    types.KindIdentity,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name: name,
-			},
-		},
-		Spec: IdentitySpecV2{
-			Key:        id.KeyBytes,
-			SSHCert:    id.CertBytes,
-			TLSCert:    id.TLSCertBytes,
-			TLSCACerts: id.TLSCACertsBytes,
-			SSHCACerts: id.SSHCACertBytes,
-		},
-	}
-	if err := res.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := json.Marshal(res)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:   backend.Key(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
-		Value: value,
-	}
-	_, err = p.stateStorage.Put(context.TODO(), item)
-	return trace.Wrap(err)
-}
 
 // StateV2 is a local process state.
 type StateV2 struct {
@@ -214,7 +47,7 @@ type StateV2 struct {
 // GetInitialLocalVersion gets the initial local version string. If ok is false it indicates that
 // this state value was written by a teleport agent that was too old to record the initial local version.
 func (s *StateV2) GetInitialLocalVersion() (v string, ok bool) {
-	return s.Spec.InitialLocalVersion, s.Spec.InitialLocalVersion != unknownLocalVersion
+	return s.Spec.InitialLocalVersion, s.Spec.InitialLocalVersion != UnknownLocalVersion
 }
 
 // CheckAndSetDefaults checks and sets defaults values.
@@ -242,10 +75,10 @@ func (s *StateV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// unknownVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
+// UnknownVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
 // state due to malformed input and InitialLocalVersion being missing due to the state having been created before
 // teleport started recording InitialLocalVersion.
-const unknownLocalVersion = "unknown"
+const UnknownLocalVersion = "unknown"
 
 // StateSpecV2 is a state spec.
 type StateSpecV2 struct {

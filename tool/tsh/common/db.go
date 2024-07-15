@@ -628,7 +628,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		return nil, trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -706,7 +706,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		// proxy starts instead.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCert(cert))
+			cc.SetCert(cert)
 		}
 		return opts, nil
 	}
@@ -1020,7 +1020,7 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.database != nil {
-		return d.database, nil
+		return d.database.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
 	database, err := getDatabase(ctx, tc, d.ServiceName)
@@ -1028,7 +1028,7 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 		return nil, trace.Wrap(err)
 	}
 	d.database = database
-	return d.database, nil
+	return d.database.Copy(), nil
 }
 
 // chooseOneDatabase is a helper func that returns either the only database in a

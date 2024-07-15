@@ -80,6 +80,45 @@ running, there's no DNS server to answer those calls.
 To clean up those files, simply start VNet again. Alternatively, you can remove the leftover files
 manually.
 
+### Verifying that VNet receives DNS queries
+
+Start VNet with `tsh vnet -d`. Look at `/var/log/vnet.log` and note the IPv6 and IPv4 CIDR range used by VNet.
+
+```code
+From tsh vnet -d:
+INFO [VNET]      Running Teleport VNet. ipv6_prefix:fd60:67ec:4325:: vnet/vnet.go:317
+
+From /var/log/vnet.log:
+INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
+```
+
+Send a query for a TCP app available in your cluster:
+
+```code
+$ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />
+name: tcp-app.teleport.example.com
+ipv6_address: fd60:67ec:4325::647a:547d
+
+name: tcp-app.teleport.example.com
+ip_address: 100.68.51.151
+```
+
+The addresses reported by `dscacheutil` should belong to ranges reported by VNet above.
+
+Querying for anything other than an address of a TCP app should return the address belonging to the
+Proxy Service.
+
+```code
+$ dscacheutil -q host -a name dashboard.teleport.example.com
+name: dashboard.teleport.example.com
+ipv6_address: 2606:2800:21f:cb07:6820:80da:af6b:8b2c
+
+name: dashboard.teleport.example.com
+ip_address: 93.184.215.14
+```
+
+Querying for both addresses should result in some output being emitted by `tsh vnet -d`.
+
 ### Submitting an issue
 
 When [submitting an

@@ -103,6 +103,13 @@ db_service:
       server_name: db.example.com
       # Optional path to the CA used to validate the database certificate.
       ca_cert_file: /path/to/pem
+      # Optional configuration that allows Teleport to trust certificate
+      # authorities available on the host system. If not set (by default),
+      # Teleport only trusts self-signed databases with TLS certificates signed
+      # by Teleport's Database Server CA or the ca_cert_file specified in this
+      # TLS setting. For cloud-hosted databases, Teleport downloads the
+      # corresponding required CAs for validation.
+      trust_system_cert_pool: false
 
     # MySQL only options.
     mysql:

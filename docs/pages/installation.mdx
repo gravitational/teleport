@@ -68,7 +68,7 @@ agents by:
   you can select a resource to enroll in your Teleport cluster and retrieve an
   installation script to run on Linux hosts.
 - Using the example Terraform module for deploying agents in [Deploy Agents with
-  Terraform](agents/deploy-agents-terraform.mdx).
+  Terraform](enroll-resources/agents/deploy-agents-terraform.mdx).
 - Running the [one-line installation script](#one-line-installation-script) on
   each Linux server where you want to install a Teleport agent.
 
@@ -91,15 +91,7 @@ and install Teleport.
 First, assign environment variables based on your edition:
 
 <Tabs>
-<TabItem label="Teleport Community Edition">
-
-```code
-$ TELEPORT_EDITION="oss"
-$ TELEPORT_VERSION="(=teleport.version=)"
-```
-
-</TabItem>
-<TabItem label="Teleport Cloud">
+<TabItem label="Teleport Enterprise (Managed)">
 
 The following commands show you how to determine the Teleport version to install
 by querying your Teleport Cloud account. This way, the Teleport installation has
@@ -112,10 +104,18 @@ $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/
 ```
 
 </TabItem>
-<TabItem label="Teleport Enterprise">
+<TabItem label="Teleport Enterprise (Self-Hosted)">
 
 ```code
 $ TELEPORT_EDITION="enterprise"
+$ TELEPORT_VERSION="(=teleport.version=)"
+```
+
+</TabItem>
+<TabItem label="Teleport Community Edition">
+
+```code
+$ TELEPORT_EDITION="oss"
 $ TELEPORT_VERSION="(=teleport.version=)"
 ```
 
@@ -144,16 +144,7 @@ repositories.
    install:
 
    <Tabs>
-   <TabItem label="Teleport Community Edition">
-
-   ```code
-   $ export TELEPORT_PKG=teleport
-   $ export TELEPORT_VERSION=v(=teleport.major_version=)
-   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
-   ```
-
-   </TabItem>
-   <TabItem label="Teleport Cloud">
+   <TabItem label="Teleport Enterprise (Managed)">
 
    Teleport Cloud installations must include the automatic agent updater. The
    following commands show you how to determine the Teleport version to install
@@ -190,6 +181,15 @@ repositories.
    ```
 
    </TabItem>
+   <TabItem label="Teleport Community Edition">
+
+   ```code
+   $ export TELEPORT_PKG=teleport
+   $ export TELEPORT_VERSION=v(=teleport.major_version=)
+   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
+   ```
+
+   </TabItem>
    </Tabs>
 
 1. Teleport maintains DEB and RPM package repositories for different Linux
@@ -219,7 +219,7 @@ repositories.
    | Ubuntu       | >= 16.04             | `ubuntu`                        |
 
    Note that [Enhanced Session
-   Recording](./server-access/guides/bpf-session-recording.mdx) requires Linux
+   Recording](./enroll-resources/server-access/guides/bpf-session-recording.mdx) requires Linux
    kernel version 5.8+. This means that it requires more recent OS versions than
    other Teleport features:
 
@@ -392,11 +392,6 @@ For Teleport Community Edition, check the
 [Downloads](https://goteleport.com/download/) page for the most up-to-date
 information.
 
-For Teleport Enterprise Cloud, check the [Cloud
-Downloads](./choose-an-edition/teleport-cloud/downloads.mdx) page for the most
-up-to-date information on obtaining Teleport binaries compatible with Teleport
-Cloud.
-
 ## Docker
 
 ### Images
@@ -439,18 +434,18 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Teleport Community Edition" scope={["oss"]}>
+<TabItem label="Teleport Enterprise (Managed)" scope={["team", "cloud"]}>
 
-|Image name|Troubleshooting Tools?|Image base|
-|-|-|-|
-|`(=teleport.latest_oss_docker_image=)`|No|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
-|`(=teleport.latest_oss_debug_docker_image=)`|Yes|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=cloud.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
 
-For testing, we always recommend that you use the latest release version of
-Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
+For testing, we always recommend that you use the latest Cloud release version of
+Teleport Enterprise, which is currently `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)`.
 
 </TabItem>
-<TabItem label="Teleport Enterprise" scope={["enterprise"]}>
+<TabItem label="Teleport Enterprise (Self-Hosted)" scope={["enterprise"]}>
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
@@ -468,15 +463,15 @@ For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 
 </TabItem>
-<TabItem label="Teleport Enterprise Cloud" scope={["team", "cloud"]}>
+<TabItem label="Teleport Community Edition" scope={["oss"]}>
 
-| Image name | Includes troubleshooting tools | Image base |
-| - | - | - |
-| `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
-| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=cloud.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+|Image name|Troubleshooting Tools?|Image base|
+|-|-|-|
+|`(=teleport.latest_oss_docker_image=)`|No|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
+|`(=teleport.latest_oss_debug_docker_image=)`|Yes|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 
-For testing, we always recommend that you use the latest Cloud release version of
-Teleport Enterprise, which is currently `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)`.
+For testing, we always recommend that you use the latest release version of
+Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
 </TabItem>
 </Tabs>
@@ -536,7 +531,7 @@ the image is customized in order to improve the experience of running `tbot` in 
 container environment.
 
 To learn more, read the
-[Deploying Machine ID on Kubernetes](./machine-id/deployment/kubernetes.mdx)
+[Deploying Machine ID on Kubernetes](./enroll-resources/machine-id/deployment/kubernetes.mdx)
 guide.
 
 ### Running Teleport on Docker
@@ -626,7 +621,7 @@ Service on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./agents/join-services-to-your-cluster/join-token.mdx).
+method](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -754,7 +749,7 @@ Teleport AMIs are automatically published to all [non-opt-in AWS regions](https:
 
 ## Helm
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 There are two charts available to install. Please see our guide for using each
 chart.
@@ -767,7 +762,17 @@ chart.
 ## macOS
 
 <Tabs>
-<TabItem label="Community Edition">
+<TabItem label="Teleport Enterprise (Managed)">
+
+(!docs/pages/includes/cloud/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Teleport Enterprise (Self-Hosted)">
+
+(!docs/pages/includes/enterprise/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Teleport Community Edition">
 
 You can download one of the following .pkg installers for macOS:
 
@@ -797,16 +802,6 @@ Homebrew is not maintained by Teleport and we can't guarantee its reliability or
 security.
 
 </Notice>
-
-</TabItem>
-<TabItem label="Self-Hosted Enterprise">
-
-(!docs/pages/includes/enterprise/install-macos.mdx!)
-
-</TabItem>
-<TabItem label="Cloud-Hosted Enterprise">
-
-(!docs/pages/includes/cloud/install-macos.mdx!)
 
 </TabItem>
 </Tabs>
@@ -852,10 +847,10 @@ If you wish to uninstall Teleport at any time, see our documentation on [Uninsta
 Now that you know how to install Teleport, you can enable access to all of your
 infrastructure. Get started with:
 
-- [Server Access](server-access/introduction.mdx)
-- [Kubernetes Access](kubernetes-access/introduction.mdx)
-- [Database Access](database-access/introduction.mdx)
-- [Application Access](application-access/introduction.mdx)
-- [Desktop Access](desktop-access/introduction.mdx)
-- [Machine ID](machine-id/introduction.mdx)
+- [Server Access](enroll-resources/server-access/introduction.mdx)
+- [Kubernetes Access](enroll-resources/kubernetes-access/introduction.mdx)
+- [Database Access](enroll-resources/database-access/database-access.mdx)
+- [Application Access](enroll-resources/application-access/introduction.mdx)
+- [Desktop Access](enroll-resources/desktop-access/introduction.mdx)
+- [Machine ID](enroll-resources/machine-id/introduction.mdx)
 

@@ -28,8 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // JWK is a JSON Web Key, described in detail in RFC 7517.
@@ -61,7 +61,7 @@ func KeyID(pub *rsa.PublicKey) string {
 // MarshalJWK will marshal a supported public key into JWK format.
 func MarshalJWK(bytes []byte) (JWK, error) {
 	// Parse the public key and validate type.
-	p, err := utils.ParsePublicKey(bytes)
+	p, err := keys.ParsePublicKey(bytes)
 	if err != nil {
 		return JWK{}, trace.Wrap(err)
 	}

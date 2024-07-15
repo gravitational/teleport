@@ -28,6 +28,7 @@
   "private": true,
   "resolutions": {
     "esbuild": "^0.20.2",
+    "node-gyp": "^10.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "**/d3-color": "^3.1.0",
@@ -39,8 +40,9 @@
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
-    "prettier": "^3.2.5",
-    "typescript": "^5.4.2"
+    "@emotion/core": "^10.0.9",
+    "prettier": "^3.3.2",
+    "typescript": "^5.5.2"
   },
   "workspaces": {
     "packages": [

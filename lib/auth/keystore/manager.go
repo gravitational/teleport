@@ -35,11 +35,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Manager provides an interface to interact with teleport CA private keys,
@@ -309,7 +309,7 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 			if !canSign {
 				continue
 			}
-			pub, err := utils.ParsePublicKey(keyPair.PublicKey)
+			pub, err := keys.ParsePublicKey(keyPair.PublicKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -368,7 +368,7 @@ func (m *Manager) NewJWTKeyPair(ctx context.Context) (*types.JWTKeyPair, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey, err := utils.MarshalPublicKey(signer)
+	publicKey, err := keys.MarshalPublicKey(signer.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

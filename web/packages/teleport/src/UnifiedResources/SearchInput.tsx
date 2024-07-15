@@ -84,7 +84,7 @@ const WrapperBackground = styled.div`
   background: ${props => props.theme.colors.levels.sunken};
   border-radius: 200px;
   width: 100%;
-  height: ${props => props.theme.space[8]}px;
+  height: ${props => props.theme.space[7]}px;
 `;
 
 const StyledInput = styled.input`
