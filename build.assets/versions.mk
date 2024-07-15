@@ -10,7 +10,7 @@ NODE_VERSION ?= 20.14.0
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.77.0
-WASM_PACK_VERSION ?= 0.12.1
+WASM_PACK_VERSION ?= 0.13.0
 LIBBPF_VERSION ?= 1.2.2
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
