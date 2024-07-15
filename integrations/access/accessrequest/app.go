@@ -45,8 +45,6 @@ const (
 	handlerTimeout = time.Second * 5
 	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request.
 	defaultAccessMonitoringRulePageSize = 10
-	// watchInitTimeout is the timeout for retrieving the watch kinds after watcher init.
-	watchInitTimeout = time.Second * 5
 )
 
 // App is the access request application for plugins. This will notify when access requests

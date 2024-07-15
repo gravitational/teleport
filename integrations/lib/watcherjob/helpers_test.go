@@ -133,6 +133,12 @@ func NewMockEventsProcess(ctx context.Context, t *testing.T, config Config, fn E
 	return &process
 }
 
+// WaitReady waits for the job to be ready.
+func (process *MockEventsProcess) WaitReady(ctx context.Context) (bool, error) {
+	return process.eventsJob.WaitReady(ctx)
+}
+
+
 // Shutdown sends a termination signal and waits for process completion.
 func (process *MockEventsProcess) Shutdown(ctx context.Context) error {
 	process.Terminate()
