@@ -12,24 +12,24 @@
 mk_dir := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(mk_dir)/bbcommon.mk
 
-# Environment setup for building with ctng toolchain and third party libraries.
+# Environment setup for building with crosstoolng toolchain and third party libraries.
 
 # Define the crosstool-NG target triple
-CTNG_TARGET = $(CTNG_TARGET_$(ARCH))
-CTNG_TARGET_amd64 = x86_64-unknown-linux-gnu
-CTNG_TARGET_arm64 = aarch64-unknown-linux-gnu
-CTNG_TARGET_386 = i686-unknown-linux-gnu
-CTNG_TARGET_arm = armv7-unknown-linux-gnueabi
+CROSSTOOLNG_TARGET = $(CROSSTOOLNG_TARGET_$(ARCH))
+CROSSTOOLNG_TARGET_amd64 = x86_64-unknown-linux-gnu
+CROSSTOOLNG_TARGET_arm64 = aarch64-unknown-linux-gnu
+CROSSTOOLNG_TARGET_386 = i686-unknown-linux-gnu
+CROSSTOOLNG_TARGET_arm = armv7-unknown-linux-gnueabi
 
 # Define environment variables used by gcc, clang and make to find the
 # appropriate compiler and third party libraries.
 export C_INCLUDE_PATH = $(THIRDPARTY_PREFIX)/include
 export LIBRARY_PATH = $(THIRDPARTY_PREFIX)/lib
 export PKG_CONFIG_PATH = $(THIRDPARTY_PREFIX)/lib/pkgconfig
-export CC = $(CTNG_TARGET)-gcc
-export CXX = $(CTNG_TARGET)-g++
-export LD = $(CTNG_TARGET)-ld
-export PATH := $(THIRDPARTY_HOST_PREFIX)/$(CTNG_TARGET)/bin:$(PATH)
+export CC = $(CROSSTOOLNG_TARGET)-gcc
+export CXX = $(CROSSTOOLNG_TARGET)-g++
+export LD = $(CROSSTOOLNG_TARGET)-ld
+export PATH := $(THIRDPARTY_HOST_PREFIX)/$(CROSSTOOLNG_TARGET)/bin:$(PATH)
 
 CROSS_VARS = C_INCLUDE_PATH LIBRARY_PATH PKG_CONFIG_PATH CC CXX LD PATH
 

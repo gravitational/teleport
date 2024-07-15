@@ -93,7 +93,7 @@ tp-build-libtirpc: fetch-https-libtirpc
 		--prefix=$(THIRDPARTY_PREFIX) \
 		--enable-shared=no \
 		--disable-gssapi \
-		$(if $(CTNG_TARGET),--host=$(CTNG_TARGET))
+		$(if $(CROSSTOOLNG_TARGET),--host=$(CROSSTOOLNG_TARGET))
 	$(MAKE) -C $(libtirpc_SRCDIR) -j$(NPROC)
 	$(MAKE) -C $(libtirpc_SRCDIR) install
 
@@ -217,7 +217,7 @@ tp-build-libfido2: fetch-git-libfido2
 # -----------------------------------------------------------------------------
 # libpcsclite
 #
-# Needed fir PIV support in teleport and tsh
+# Needed for PIV support in teleport and tsh
 
 libpcsclite_VERSION = 1.9.9-teleport
 libpcsclite_GIT_REF = $(libpcsclite_VERSION)
@@ -229,8 +229,8 @@ libpcsclite_SRCDIR = $(call tp-src-dir,libpcsclite)
 tp-build-libpcsclite: fetch-git-libpcsclite
 	cd $(libpcsclite_SRCDIR) && ./bootstrap
 	cd $(libpcsclite_SRCDIR) && ./configure \
-		$(if $(CTNG_TARGET),--target=$(CTNG_TARGET)) \
-		$(if $(CTNG_TARGET),--host=$(CTNG_TARGET)) \
+		$(if $(CROSSTOOLNG_TARGET),--target=$(CROSSTOOLNG_TARGET)) \
+		$(if $(CROSSTOOLNG_TARGET),--host=$(CROSSTOOLNG_TARGET)) \
 		--prefix="$(THIRDPARTY_PREFIX)" \
 		--enable-static --with-pic \
 		--disable-libsystemd --with-systemdsystemunitdir=no

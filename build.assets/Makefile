@@ -136,9 +136,9 @@ buildbox-thirdparty-stage:
 		--target $(STAGE) \
 		buildbox
 
-.PHONY: buildbox-thirdparty-ctng
-buildbox-thirdparty-ctng: STAGE=ctng
-buildbox-thirdparty-ctng: buildbox-thirdparty-stage
+.PHONY: buildbox-thirdparty-crosstoolng
+buildbox-thirdparty-crosstoolng: STAGE=crosstoolng
+buildbox-thirdparty-crosstoolng: buildbox-thirdparty-stage
 
 .PHONY: buildbox-thirdparty-compilers
 buildbox-thirdparty-compilers: STAGE=compilers
@@ -441,27 +441,27 @@ enter-root: buildbox
 #
 # Reconfigure crosstool-NG for the given ARCH via its menuconfig system.
 # e.g.
-# $ make config/buildbox-ng CTNG_ARCH=arm64
+# $ make config/buildbox-ng CROSSTOOLNG_ARCH=arm64
 #
 # After saving and exiting in the menuconfig, you should have an updated
 # defconfig file in build.assets/buildbox/ct-ng-configs
 #
 # You need to have a local copy of the configuration container image
-# created with: make buildbox-thirdparty-ctng
+# created with: make buildbox-thirdparty-crosstoolng
 #
 .PHONY: config/buildbox-ng
 config/buildbox-ng:
-	@: $(or $(CTNG_ARCH),$(error CTNG_ARCH variable must be set))
-	@: $(or $(wildcard buildbox/ct-ng-configs/$(CTNG_ARCH).defconfig),\
-		$(error No config for arch $(CTNG_ARCH)))
+	@: $(or $(CROSSTOOLNG_ARCH),$(error CROSSTOOLNG_ARCH variable must be set))
+	@: $(or $(wildcard buildbox/ct-ng-configs/$(CROSSTOOLNG_ARCH).defconfig),\
+		$(error No config for arch $(CROSSTOOLNG_ARCH)))
 	docker run -it --rm \
 		--hostname $(HOSTNAME) \
 		--volume $(shell pwd)/..:/home/teleport \
 		--volume /tmp:/tmp \
 		--workdir /home/teleport \
-		$(BUILDBOX_CTNG_CONFIG) \
-		make -C build.assets/buildbox -f ctng.mk ctng-menuconfig \
-		ARCH=$(CTNG_ARCH)
+		buildbox-thirdparty-crosstoolng \
+		make -C build.assets/buildbox -f crosstoolng.mk crosstoolng-menuconfig \
+		ARCH=$(CROSSTOOLNG_ARCH)
 
 
 #

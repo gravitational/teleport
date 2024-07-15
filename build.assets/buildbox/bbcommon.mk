@@ -33,7 +33,7 @@ THIRDPARTY_HOST_SRCDIR = $(THIRDPARTY_HOST_PREFIX)/src
 # tp-src-dir and tp-src-host-dir expand to the source directory for a third-
 # party source directory which has the version of the source appended. It
 # is used with `$(call ...)`, like `$(call tp-src-dir,zlib)` or
-# `$(call tp-src-host-dir,ctng)`.
+# `$(call tp-src-host-dir,crosstoolng)`.
 tp-src-dir = $(THIRDPARTY_SRCDIR)/$1-$($1_VERSION)
 tp-src-host-dir = $(THIRDPARTY_HOST_SRCDIR)/$1-$($1_VERSION)
 

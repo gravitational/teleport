@@ -16,8 +16,8 @@ ARG THIRDPARTY_DIR=/opt/thirdparty
 # A multi-stage build is used to make it easier to do development of this
 # Dockerfile. It can be useful to build up to a particular stage so you
 # can then test run commands at that stage of the buildbox. e.g.
-#   docker build -f Dockerfile-base --target ctng .
-FROM ${BASE_IMAGE} AS ctng
+#   docker build -f Dockerfile-base --target crosstoolng .
+FROM ${BASE_IMAGE} AS crosstoolng
 
 # Bash used for some brace expansions in clean-up
 SHELL ["/bin/bash", "-c"]
@@ -74,50 +74,50 @@ RUN apt-get install -y \
 USER buildbox
 WORKDIR /home/buildbox
 
-COPY ct-ng-configs ct-ng-configs
+COPY cronsstoolng-configs cronsstoolng-configs
 COPY pkgconfig pkgconfig
-COPY bbcommon.mk ctng.mk .
+COPY bbcommon.mk crosstoolng.mk .
 
 # Build and install ct-ng
 ARG BUILDARCH
 ARG THIRDPARTY_DIR
 ENV THIRDPARTY_DIR=$THIRDPARTY_DIR
 
-RUN make -f ctng.mk install-ctng && \
+RUN make -f crosstoolng.mk install-crosstoolng && \
 	rm -rf ${THIRDPARTY_DIR}/host/src
 
-FROM ctng AS compilers
+FROM crosstoolng AS compilers
 
 # Build cross-compiling toolchains with ct-ng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f ctng.mk ctng-build ARCH=amd64 && \
-	rm -rf ${THIRDPARTY_DIR}/amd64/ctng
+	make -f crosstoolng.mk crosstoolng ARCH=amd64 && \
+	rm -rf ${THIRDPARTY_DIR}/amd64/crosstoolng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f ctng.mk ctng-build ARCH=arm64 && \
-	rm -rf ${THIRDPARTY_DIR}/arm64/ctng
+	make -f crosstoolng.mk crosstoolng ARCH=arm64 && \
+	rm -rf ${THIRDPARTY_DIR}/arm64/crosstoolng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f ctng.mk ctng-build ARCH=386 && \
-	rm -rf ${THIRDPARTY_DIR}/386/ctng
+	make -f crosstoolng.mk crosstoolng ARCH=386 && \
+	rm -rf ${THIRDPARTY_DIR}/386/crosstoolng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f ctng.mk ctng-build ARCH=arm && \
-	rm -rf ${THIRDPARTY_DIR}/arm/ctng
+	make -f crosstoolng.mk crosstoolng ARCH=arm && \
+	rm -rf ${THIRDPARTY_DIR}/arm/crosstoolng
 
 FROM compilers AS tplibs
 
-COPY cross-compile.mk tplibs.mk .
+COPY cross-compile.mk thirdparty-libs.mk .
 
 # Build and install third party C libraries for all architectures
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f tplibs.mk thirdparty-build-libs ARCH=amd64 && \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=amd64 && \
 	rm -rf ${THIRDPARTY_DIR}/amd64/{bin,sbin,src}
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f tplibs.mk thirdparty-build-libs ARCH=arm64 && \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=arm64 && \
 	rm -rf ${THIRDPARTY_DIR}/arm64/{bin,sbin,src}
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f tplibs.mk thirdparty-build-libs ARCH=386 && \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=386 && \
 	rm -rf ${THIRDPARTY_DIR}/386/{bin,sbin,src}
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f tplibs.mk thirdparty-build-libs ARCH=arm && \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=arm && \
 	rm -rf ${THIRDPARTY_DIR}/arm/{bin,sbin,src}
 
 # Start buildbox-thirdparty from a fresh ${BASE_IMAGE} and copy in

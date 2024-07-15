@@ -20,18 +20,18 @@ include $(mk_dir)/bbcommon.mk
 # crosstool-ng is a host tool - it runs on the build host. It is installed in
 # $(THIRDPARTY_HOST_PREFIX).
 
-ctng_VERSION = 1.26.0
-ctng_GIT_REF = crosstool-ng-$(ctng_VERSION)
-ctng_GIT_REF_HASH = 334f6d6479096b20e80fd39e35f404319bc251b5
-ctng_GIT_REPO = https://github.com/crosstool-ng/crosstool-ng
-ctng_SRCDIR = $(call tp-src-host-dir,ctng)
+crosstoolng_VERSION = 1.26.0
+crosstoolng_GIT_REF = crosstool-ng-$(crosstoolng_VERSION)
+crosstoolng_GIT_REF_HASH = 334f6d6479096b20e80fd39e35f404319bc251b5
+crosstoolng_GIT_REPO = https://github.com/crosstool-ng/crosstool-ng
+crosstoolng_SRCDIR = $(call tp-src-host-dir,crosstoolng)
 
-.PHONY: install-ctng
-install-ctng: fetch-git-ctng
-	cd $(ctng_SRCDIR) && ./bootstrap
-	cd $(ctng_SRCDIR) && ./configure --prefix=$(THIRDPARTY_HOST_PREFIX)
-	$(MAKE) -C $(ctng_SRCDIR) -j$(NPROC)
-	$(MAKE) -C $(ctng_SRCDIR) install
+.PHONY: install-crosstoolng
+install-crosstoolng: fetch-git-crosstoolng
+	cd $(crosstoolng_SRCDIR) && ./bootstrap
+	cd $(crosstoolng_SRCDIR) && ./configure --prefix=$(THIRDPARTY_HOST_PREFIX)
+	$(MAKE) -C $(crosstoolng_SRCDIR) -j$(NPROC)
+	$(MAKE) -C $(crosstoolng_SRCDIR) install
 
 # -----------------------------------------------------------------------------
 # Configure and build crosstool-ng compilers
@@ -41,41 +41,41 @@ install-ctng: fetch-git-ctng
 # These architecture names are as Go names them. The architecture of the
 # toolchain to build is specified by the $(ARCH) variable.
 
-CTNG_BUILDDIR = $(THIRDPARTY_PREFIX)/ctng
-$(CTNG_BUILDDIR):
+CROSSTOOLNG_BUILDDIR = $(THIRDPARTY_PREFIX)/crosstoolng
+$(CROSSTOOLNG_BUILDDIR):
 	mkdir -p $@
 
-CTNG_DEFCONFIG = $(CTNG_BUILDDIR)/defconfig
-CTNG_CONFIG = $(CTNG_BUILDDIR)/.config
+CROSSTOOLNG_DEFCONFIG = $(CROSSTOOLNG_BUILDDIR)/defconfig
+CROSSTOOLNG_CONFIG = $(CROSSTOOLNG_BUILDDIR)/.config
 
 # Create a defconfig if it does not exist
-ct-ng-configs/$(ARCH).defconfig:
+crosstoolng-configs/$(ARCH).defconfig:
 	touch $@
 
 # Copy the defconfig into the build dir
-$(CTNG_DEFCONFIG): ct-ng-configs/$(ARCH).defconfig | $(CTNG_BUILDDIR)
+$(CROSSTOOLNG_DEFCONFIG): crosstoolng-configs/$(ARCH).defconfig | $(CROSSTOOLNG_BUILDDIR)
 	cp $^ $@
 
 # Create an expanded config from the defconfig
-$(CTNG_CONFIG): $(CTNG_DEFCONFIG)
-	cd $(CTNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng defconfig
+$(CROSSTOOLNG_CONFIG): $(CROSSTOOLNG_DEFCONFIG)
+	cd $(CROSSTOOLNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng defconfig
 
 # Run `ct-ng menuconfig` on the arch-specific config from the defconfig in build.assets
 # and copy it back when finished with menuconfig
-.PHONY: ctng-menuconfig
-ctng-menuconfig: $(CTNG_CONFIG) | $(CTNG_BUILDDIR)
-	cd $(CTNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng menuconfig
-	cd $(CTNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng savedefconfig
-	cp $(CTNG_BUILDDIR)/defconfig ct-ng-configs/$(ARCH).defconfig
+.PHONY: crosstoolng-menuconfig
+crosstoolng-menuconfig: $(CROSSTOOLNG_CONFIG) | $(CROSSTOOLNG_BUILDDIR)
+	cd $(CROSSTOOLNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng menuconfig
+	cd $(CROSSTOOLNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng savedefconfig
+	cp $(CROSSTOOLNG_BUILDDIR)/defconfig crosstoolng-configs/$(ARCH).defconfig
 
 # Build the toolchain with the config in the defconfig for the architecture. We need to
 # clear out some env vars because ct-ng does not want them set. We export a couple of
 # vars because we reference them in the config.
 # The config specifies where the toolchain is installed ($(THIRDPARTY_HOST_PREFIX)/TARGET).
-.PHONY: ctng-build
-ctng-build: $(CTNG_CONFIG) | $(CTNG_BUILDDIR)
+.PHONY: crosstoolng-build
+crosstoolng-build: $(CROSSTOOLNG_CONFIG) | $(CROSSTOOLNG_BUILDDIR)
 	@mkdir -p $(THIRDPARTY_DLDIR)
-	cd $(CTNG_BUILDDIR) && \
+	cd $(CROSSTOOLNG_BUILDDIR) && \
 		THIRDPARTY_HOST_PREFIX=$(THIRDPARTY_HOST_PREFIX) \
 		THIRDPARTY_DLDIR=$(THIRDPARTY_DLDIR) \
 		$(THIRDPARTY_HOST_PREFIX)/bin/ct-ng build
