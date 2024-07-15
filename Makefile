@@ -1684,10 +1684,6 @@ changelog:
 	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
 
 .PHONE: check-gitleaks
+check-gitleaks: GITLEAKS_VERSION ?= v8.18.4
 check-gitleaks:
-	@if ! gitleaks >/dev/null 2>&1; then \
-		echo 'gitleaks is missing, to install see https://github.com/gitleaks/gitleaks?tab=readme-ov-file#installing'; \
-		echo 'Or alternatively download the compiled binary from https://github.com/gitleaks/gitleaks/releases'; \
-		exit 1; \
-	fi
-	gitleaks protect --verbose --redact --staged
+	@docker run -v $(PWD):/path ghcr.io/gitleaks/gitleaks:$(GITLEAKS_VERSION) protect --verbose --redact --staged --source="/path"
