@@ -18,8 +18,9 @@
 
 import styled from 'styled-components';
 
-import { Flex } from 'design';
 import { flex, space } from 'styled-system';
+
+import { Flex } from 'design';
 
 const DialogContent = styled(Flex)`
   margin-bottom: ${props => props.theme.space[5]}px;
