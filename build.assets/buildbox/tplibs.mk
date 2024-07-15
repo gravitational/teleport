@@ -58,6 +58,9 @@ libelf_SRCDIR = $(call tp-src-dir,libelf)
 tp-build-libelf: fetch-git-libelf
 	$(MAKE) -C $(libelf_SRCDIR) CFLAGS+=-fPIE -j$(NPROC) libelf.a
 	$(MAKE) -C $(libelf_SRCDIR) install-headers install-static PREFIX=$(THIRDPARTY_PREFIX)
+	sed "s|@@PREFIX@@|${THIRDPARTY_PREFIX}|" \
+		< pkgconfig/libelf.pc \
+		> $(PKG_CONFIG_PATH)/libelf.pc
 
 # -----------------------------------------------------------------------------
 # libbpf
