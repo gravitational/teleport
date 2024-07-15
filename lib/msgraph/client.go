@@ -156,7 +156,11 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
 		if i != 0 {
-			c.clock.Sleep(retryAfter)
+			select {
+			case <-c.clock.After(retryAfter):
+			case <-ctx.Done():
+				return nil, trace.NewAggregate(ctx.Err(), trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path))
+			}
 		}
 
 		resp, err := c.httpClient.Do(req)
