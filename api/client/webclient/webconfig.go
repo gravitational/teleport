@@ -69,6 +69,9 @@ type WebConfig struct {
 	// Eg, v13.4.3
 	// Only present when AutomaticUpgrades are enabled.
 	AutomaticUpgradesTargetVersion string `json:"automaticUpgradesTargetVersion,omitempty"`
+	// PlayableDatabaseProtocols is a list of database protocols which session
+	// recordings can be played.
+	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
 	// HideInaccessibleFeatures is true when features should be undiscoverable to users without the necessary permissions.
 	// Usually, in order to encourage discoverability of features, we show UI elements even if the user doesn't have permission to access them,
 	// this flag disables that behavior.
