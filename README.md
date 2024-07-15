@@ -292,15 +292,15 @@ For instructions about how to update the Web UI, read [the `web` README](web#rea
 
 ### Pre-Commit Hooks
 
-This project supports pre-commit hooks. For download instructions and  more documentation visit the [pre-commit website](https://pre-commit.com/).
+This project supports git pre-commit hooks. To manage these hooks we use `lefthook`. For download instructions and other documentation view the [lefthook README](https://github.com/evilmartians/lefthook)
 
 Once downloaded and setup you can run the following command to setup your git hooks.
 ```console
-pre-commit install
+lefthook install
 ```
 
-The pre-commit hooks supported right now are:
-* git-leaks: Prevent accidental credential leaks
+The pre-commit hooks used in this project are:
+* [git-leaks](https://github.com/gitleaks/gitleaks): Prevent accidental credential leaks
 
 
 ### Managing dependencies
