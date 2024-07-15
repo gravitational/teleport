@@ -305,6 +305,9 @@ export const eventCodes = {
   DISCOVERY_CONFIG_UPDATE: 'DC002I',
   DISCOVERY_CONFIG_DELETE: 'DC003I',
   DISCOVERY_CONFIG_DELETE_ALL: 'DC004I',
+  INTEGRATION_CREATE: 'IG001I',
+  INTEGRATION_UPDATE: 'IG002I',
+  INTEGRATION_DELETE: 'IG003I',
 } as const;
 
 /**
@@ -1683,6 +1686,18 @@ export type RawEvents = {
   >;
   [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: RawEvent<
     typeof eventCodes.DISCOVERY_CONFIG_DELETE_ALL
+  >;
+  [eventCodes.INTEGRATION_CREATE]: RawEvent<
+    typeof eventCodes.INTEGRATION_CREATE,
+    HasName
+  >;
+  [eventCodes.INTEGRATION_UPDATE]: RawEvent<
+    typeof eventCodes.INTEGRATION_UPDATE,
+    HasName
+  >;
+  [eventCodes.INTEGRATION_DELETE]: RawEvent<
+    typeof eventCodes.INTEGRATION_DELETE,
+    HasName
   >;
 };
 
