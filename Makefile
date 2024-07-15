@@ -1685,5 +1685,9 @@ changelog:
 
 .PHONE: check-gitleaks
 check-gitleaks:
-	@which gitleaks >/dev/null 2>&1 || { echo 'gitleaks is missing, to install see https://github.com/gitleaks/gitleaks?tab=readme-ov-file#installing'; exit 1; }
+	@if ! gitleaks >/dev/null 2>&1; then \
+		echo 'gitleaks is missing, to install see https://github.com/gitleaks/gitleaks?tab=readme-ov-file#installing'; \
+		echo 'Or alternatively download the compiled binary from https://github.com/gitleaks/gitleaks/releases'; \
+		exit 1; \
+	fi
 	gitleaks protect --verbose --redact --staged
