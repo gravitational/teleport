@@ -20,7 +20,6 @@ package watcherjob
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -31,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // TestSequential checks that events with the different resource names are being processed in parallel.
@@ -145,17 +143,8 @@ func TestNewJobWithConfirmedWatchKinds(t *testing.T) {
 			return trace.Wrap(ctx.Err())
 		}, onWatchInit)
 
-	r, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: time.Second,
-		Max:  3 * time.Second,
-	})
+	_, err := process.WaitReady(ctx)
 	require.NoError(t, err)
-	r.For(ctx, func() error {
-		if len(acceptedWatchKinds) == 0 {
-			return errors.New("no acceptedWatchKinds returned yet")
-		}
-		return nil
-	})
 
 	if !slices.ContainsFunc(acceptedWatchKinds, func(kind string) bool {
 		return kind == types.KindAccessRequest
