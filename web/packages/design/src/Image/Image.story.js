@@ -20,7 +20,7 @@ import React from 'react';
 
 import Image from '../Image';
 
-import teleportSvg from './../assets/images/teleport-medallion.svg';
+import teleportSvg from './../assets/images/enterprise-dark.svg';
 
 export default {
   title: 'Design/Image',

@@ -3481,6 +3481,20 @@ message DatabaseSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // StartTime is the timestamp at which the session began.
+  google.protobuf.Timestamp StartTime = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_start,omitempty"
+  ];
+
+  // EndTime is the timestamp at which the session ended.
+  google.protobuf.Timestamp EndTime = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_stop,omitempty"
+  ];
 }
 
 // MFADeviceMetadata is a common MFA device metadata.

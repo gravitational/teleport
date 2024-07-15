@@ -15,14 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Box, Flex, Input, Text } from 'design';
+import { Box, Flex, Input, Text, Mark } from 'design';
 import styled from 'styled-components';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import React from 'react';
 
-import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
 

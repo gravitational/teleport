@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -81,7 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/player"
+	libplayer "github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -2146,7 +2147,7 @@ const (
 	keyDown  = 66
 )
 
-func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
+func playSession(ctx context.Context, sessionID string, speed float64, streamer libplayer.Streamer) error {
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2169,7 +2170,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 	term.Clear() // clear screen between runs:
 	term.SetCursorPos(1, 1)
 
-	player, err := player.New(&player.Config{
+	player, err := libplayer.New(&libplayer.Config{
 		SessionID: *sid,
 		Streamer:  streamer,
 	})
@@ -2224,9 +2225,9 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
 			return trace.BadParameter(message)
-		case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
-			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
-				" To play app or database sessions, specify --format=json or --format=yaml.")
+		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
+			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
+				" To play app sessions, specify --format=json or --format=yaml.")
 		case *apievents.Resize:
 			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
 				continue
@@ -2241,6 +2242,12 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				term.SetWindowTitle(evt.Time.Format(time.Stamp))
 			}
 			lastTime = evt.Time
+		case *apievents.DatabaseSessionStart:
+			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
+				return trace.NotImplemented("Interactive database session replay is only supported for " +
+					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
+					" To play other database sessions, specify --format=json or --format=yaml.")
+			}
 		default:
 			continue
 		}
