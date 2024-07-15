@@ -316,11 +316,13 @@ func TestRetry(t *testing.T) {
 		}()
 
 		// Fail for the first time
-		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 1 }, time.Second, time.Second/100)
+		clock.BlockUntil(1)
+		require.EqualValues(t, 1, handler.timesCalled.Load())
 
 		// Fail for the second time
 		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
-		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 2 }, time.Second, time.Second/100)
+		clock.BlockUntil(1)
+		require.EqualValues(t, 2, handler.timesCalled.Load())
 
 		// Succeed
 		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
@@ -365,11 +367,13 @@ func TestRetry(t *testing.T) {
 		}()
 
 		// Fail for the first time
-		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 1 }, time.Second, time.Second/100)
+		clock.BlockUntil(1)
+		require.EqualValues(t, 1, handler.timesCalled.Load())
 
 		// Fail for the second time
 		clock.Advance(time.Second)
-		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 2 }, time.Second, time.Second/100)
+		clock.BlockUntil(1)
+		require.EqualValues(t, 2, handler.timesCalled.Load())
 
 		// Succeed
 		clock.Advance(time.Second)
