@@ -23,6 +23,7 @@
 
 #import <Foundation/Foundation.h>
 #import <ServiceManagement/ServiceManagement.h>
+#include <dispatch/dispatch.h>
 
 #include <string.h>
 

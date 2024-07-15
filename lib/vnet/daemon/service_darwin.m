@@ -22,7 +22,9 @@
 #include "service_darwin.h"
 
 #import <Foundation/Foundation.h>
+#include <dispatch/dispatch.h>
 
+#include <assert.h>
 #include <string.h>
 
 @interface VNEDaemonService () <NSXPCListenerDelegate, VNEDaemonProtocol>
