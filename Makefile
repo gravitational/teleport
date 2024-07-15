@@ -1683,7 +1683,9 @@ rustup-install-target-toolchain: rustup-set-version
 changelog:
 	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
 
+# check-gitleaks will run a gitleaks container to detect any secrets staged for commit
+# to prevent accidental leaks.
 .PHONE: check-gitleaks
-check-gitleaks: GITLEAKS_VERSION ?= v8.18.4
+check-gitleaks: GITLEAKS_VERSION = v8.18.4
 check-gitleaks:
 	@docker run -v $(PWD):/path ghcr.io/gitleaks/gitleaks:$(GITLEAKS_VERSION) protect --verbose --redact --staged --source="/path"
