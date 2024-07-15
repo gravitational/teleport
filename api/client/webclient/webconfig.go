@@ -79,6 +79,9 @@ type WebConfig struct {
 	PremiumSupport bool `json:"premiumSupport"`
 	// Edition is the edition of Teleport
 	Edition string `json:"edition"`
+	// PlayableDatabaseProtocols is a list of database protocols which session
+	// recordings can be played.
+	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
 	// entitlements define a customer’s access to a specific features
 	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
 

@@ -52,7 +52,6 @@
     "@types/react-highlight": "^0.12.8",
     "@types/react-router-dom": "^5.1.1",
     "@types/react-transition-group": "^4.4.10",
-    "@types/styled-components": "^5.1.34",
     "@types/wicg-file-system-access": "^2023.10.5",
     "jest": "^29.7.0",
     "jsdom-testing-mocks": "^1.13.0",
@@ -89,7 +88,7 @@
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
     "react-transition-group": "^4.4.5",
-    "styled-components": "6.1.11",
+    "styled-components": "^6.1.11",
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },

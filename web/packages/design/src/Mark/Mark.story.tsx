@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,28 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type RecordingsQuery = {
-  from: Date;
-  to: Date;
-  limit?: number;
-  startKey?: string;
+import React from 'react';
+
+import Box from 'design/Box';
+
+import { Mark as M } from './Mark';
+
+export default {
+  title: 'Design/Mark',
 };
 
-export type RecordingsResponse = {
-  recordings: Recording[];
-  startKey: string;
-};
-
-export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database';
-
-export type Recording = {
-  duration: number;
-  durationText: string;
-  sid: string;
-  createdDate: Date;
-  users: string;
-  hostname: string;
-  description: string;
-  recordingType: RecordingType;
-  playable: boolean;
+export const SampleText = () => {
+  return (
+    <Box width="500px">
+      Some texts to demonstrate word <M>markings</M>. Lorem ipsum dolor sit amet{' '}
+      <M>consectetur</M> adipisicing <M>elit</M>. Quidem <M>corrupti</M>,{' '}
+      reprehenderit{' '}
+      <M>
+        <i>maxime</i>
+      </M>{' '}
+      rerum quam{' '}
+      <M>
+        <b>necessitatibus</b>
+      </M>{' '}
+      obcaecati asperiores neque.
+    </Box>
+  );
 };

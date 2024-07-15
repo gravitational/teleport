@@ -824,7 +824,7 @@ func getSubPageCheckpoint(e *event) (string, error) {
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
 		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
 		expr, err := fromWhereExpr(req.Cond, &params)

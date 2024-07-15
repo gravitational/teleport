@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,12 +18,11 @@
 
 import styled from 'styled-components';
 
-export const Mark = styled.mark<{ light?: boolean }>`
+export const Mark = styled.mark`
   padding: 2px 5px;
   border-radius: 6px;
-  font-family: ${props => props.theme.fonts.mono};
-  font-size: 12px;
-  background-color: ${props =>
-    props.light ? '#d3d3d3' : props.theme.colors.spotBackground[2]};
+  font-family: ${p => p.theme.fonts.mono};
+  font-size: ${p => p.theme.fontSizes[1]}px;
+  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
   color: inherit;
 `;

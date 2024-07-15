@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -1660,6 +1661,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
 		Entitlements:                   GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 
 		// Set legacy fields
 		// TODO(mcbattirola): remove isTeam when it is no longer used

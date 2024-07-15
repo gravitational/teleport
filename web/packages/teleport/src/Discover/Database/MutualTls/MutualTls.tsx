@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, Flex, Link } from 'design';
+import { Text, Box, Flex, Link, Mark } from 'design';
 import { Danger } from 'design/Alert';
 import { Info } from 'design/Icon';
 import TextEditor from 'shared/components/TextEditor';
@@ -28,13 +28,7 @@ import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
 
-import {
-  HeaderSubtitle,
-  ActionButtons,
-  Mark,
-  Header,
-  StyledBox,
-} from '../../Shared';
+import { HeaderSubtitle, ActionButtons, Header, StyledBox } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
 import { DatabaseEngine } from '../../SelectResource';
 
