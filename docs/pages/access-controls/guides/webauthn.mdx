@@ -16,9 +16,9 @@ these alone may not be sufficient to protect against sophisticated attacks targe
 Attackers are constantly evolving their techniques, and traditional security measures may have limitations 
 or vulnerabilities that can be exploited.
 
-### Prerequisites
+## Prerequisites
 
-- A running Teleport cluster version 16.0.0-dev or above. If you want to get started with Teleport, 
+- A running Teleport cluster version 16 or above. If you want to get started with Teleport, 
 [sign up](https://goteleport.com/signup) for a free trial.
 
 - The `tctl` admin tool and `tsh` client tool.
@@ -46,7 +46,7 @@ WebAuthn is disabled by default. To enable WebAuthn support, update your
 Teleport configuration as below:
 
 <Tabs>
-  <TabItem label="Dynamic resources" scope={["team", "cloud"]}>
+  <TabItem label="Dynamic resources">
 
   Edit the `cluster_auth_preference` resource:
 
@@ -100,7 +100,7 @@ Teleport configuration as below:
 
   </TabItem>
   <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Server's `teleport.yaml` file and restart all Auth Service instances:
+  Edit the Auth Service's `teleport.yaml` file and restart all Auth Service instances:
 
   ```yaml
   # snippet from /etc/teleport.yaml:
@@ -181,7 +181,7 @@ $ tsh mfa add
 Once a WebAuthn device is registered, the user will be prompted for it on login:
 
 <Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
+<TabItem label="Teleport Community Edition">
 
 ```code
 $ tsh login --proxy=example.com
@@ -217,7 +217,7 @@ $ tsh login --proxy=example.com
 
 </TabItem>
 
-<TabItem scope={["cloud"]} label="Teleport Enterprise">
+<TabItem label="Teleport Enterprise">
 
 ```code
 $ tsh login --proxy=example.teleport.sh
@@ -242,7 +242,7 @@ $ tsh login --proxy=example.teleport.sh
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
-## Configure per-session MFA
+### Configure per-session MFA
 
 Ensure that multi-factor authentication is required for each session, not just at initial login, 
 to maintain continuous security. Teleport's per-session MFA enhances security by protecting 
@@ -266,26 +266,8 @@ when starting new:
 
 ## Step 1/1. Enforce MFA checks
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
-
-<Tabs>
-<TabItem label="Static configuration">
-
-Update `teleport.yaml` on the Auth Server to include the following content:
-
-```yaml
-auth_service:
-  authentication:
-    # require per-session MFA cluster-wide
-    require_session_mfa: yes
-```
-
-</TabItem>
-<TabItem label="Dynamic resources">
 
 Obtain your existing `cluster_auth_preference` resource:
 
@@ -308,11 +290,7 @@ version: v2
 $ tctl create -f cap.yaml
 ```
 
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise">
+<TabItem label="Teleport Enterprise">
 
 Obtain your existing `cluster_auth_preference` resource:
 
@@ -360,14 +338,14 @@ spec:
     ...
 ```
 
-## Implement cluster-wide Device Trust
+### Implement cluster-wide Device Trust
 Develop a system to verify and manage trusted devices across your organization, reducing the risk 
 of unauthorized access from unknown or compromised devices. Device Trust adds an extra layer of security by requiring the use of trusted devices 
 for accessing protected resources, complementing user identity and role enforcement. This can be 
 configured cluster-wide or via RBAC. Supported resources include apps (role-based only), SSH nodes, 
 databases, Kubernetes clusters, and first MFA device enrollment. The latter helps prevent auto-provisioning of new users through compromised IdPs.
 
-### Prerequisites
+## Prerequisites
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
@@ -490,10 +468,8 @@ integration, like the [Jamf Pro integration](../device-trust/jamf-integration.md
 - Auto-enrollment must be enabled in the cluster setting.
 - User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
 
-Enable auto-enrollment in your cluster settings:
+## Step 1/2. Enable auto-enrollment in your cluster settings
 
-<Tabs dropDownCaption="Teleport Deployment">
-<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise" >
 Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
 
 ```diff
@@ -508,22 +484,7 @@ spec:
 +   auto_enroll: true
 ```
 
-</TabItem>
-<TabItem label="Static Config" options="Self-Hosted">
-Edit the Auth Server's `teleport.yaml` file:
-
-```diff
-auth_service:
-  authentication:
-    # ...
-    device_trust:
-+     auto_enroll: true
-```
-
-After saving the changes, restart the Teleport service.
-
-</TabItem>
-</Tabs>
+## Step 2/2. Log out and back in
 
 Once enabled, user's with their device registered in Teleport and with the required permission
 (preset `editor` or `device-enroll` role) will have their device enrolled to Teleport in
@@ -571,11 +532,11 @@ In the following sections, we'll dive deeper into each of these recommendations,
   role are not subject to MFA checks to support legacy self-hosted setups.
 </Notice>
 
-### Prerequisites
+## Prerequisites
 
 - (!docs/pages/includes/tctl.mdx!)
 - [WebAuthn configured](#set-up-cluster-wide-WebAuthn) on this cluster
-- Second factor hardware device, such as YubiKey or SoloKey
+- Multi-factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
 
@@ -592,7 +553,7 @@ Examples of administrative actions include, but are not limited to:
 - Inviting new users
 - Updating cluster configuration resources
 - Modifying access management resources
-- Approving access requests
+- Approving Access Requests
 - Generating new join tokens
 - Impersonation
 - Creating new bots for Machine ID
@@ -601,9 +562,6 @@ This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
 ## Enable MFA for admin actions
-
-<Tabs>
-  <TabItem label="Dynamic Resources" scope={["team", "cloud"]}>
 
   Edit the `cluster_auth_preference` resource:
 
@@ -632,21 +590,10 @@ Update the `cluster_auth_preference` definition to include the following content
   cluster auth preference has been updated
   ```
 
-  </TabItem>
-  <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Service instance's `teleport.yaml` file and restart the instances:
+For more information about cluster hardening, see:
 
-  ```yaml
-  # snippet from /etc/teleport.yaml:
-  auth_service:
-    authentication:
-      type: local
-      # To make webauthn the only form of multi-factor allowed, set this field to 'webauthn'.
-      second_factor: "webauthn"
-      webauthn:
-        rp_id: example.com
-  ```
-
-  </TabItem>
-</Tabs>
-
+- [Per-Session MFA](../access-controls/guides/per-session-mfa.mdx): Per-session multi-factor authentication.
+- [MFA for Administrative Actions](../access-controls/guides/mfa-for-admin-actions.mdx): Multi-factor authentication for admin actions.
+- [Locking](../access-controls/guides/locking.mdx): Lock access to active user sessions or hosts.
+- [Moderated Sessions](../access-controls/guides/moderated-sessions.mdx): Require session auditors and allow fine-grained live session access.
+- [Hardware Key Support](../access-controls/guides/hardware-key-support.mdx): Enforce the use of hardware-based private keys.
