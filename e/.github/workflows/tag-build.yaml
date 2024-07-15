@@ -85,6 +85,27 @@ jobs:
         run: |
           # Do nothing
 
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        if: inputs.teleport-version == ''
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: "oss"
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+  
+      - name: Reject Tag/Version Mismatch
+        env:
+          TAG: ${{ inputs.oss-teleport-ref }}
+        if: inputs.teleport-version == ''
+        run: |
+          MAKE_VERSION=$(make print-version)
+          if [[ "$TAG" != "v$MAKE_VERSION" ]]; then
+            echo "::error title=Version Mismatch::Tag '$TAG' does not match version in Makefile '$MAKE_VERSION'" >&2
+            exit 1
+          fi
+
   build-linux:
     needs: setup
     strategy:
