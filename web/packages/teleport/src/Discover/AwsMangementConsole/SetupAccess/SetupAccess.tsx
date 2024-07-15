@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { LabelInput, Text, Link } from 'design';
+import { LabelInput, Text, Link, Mark } from 'design';
 import { useTheme } from 'styled-components';
 import { Cross } from 'design/Icon';
 
@@ -31,7 +31,6 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark } from 'teleport/Discover/Shared';
 import { styles } from 'teleport/Discover/Shared/SelectCreatable/SelectCreatable';
 import { AWS_TAG_INFO_LINK } from 'teleport/Discover/Shared/const';
 

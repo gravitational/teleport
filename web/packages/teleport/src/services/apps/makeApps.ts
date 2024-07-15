@@ -36,6 +36,7 @@ export default function makeApp(json: any): App {
     friendlyName = '',
     requiresRequest,
     integration = '',
+    samlAppPreset,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -84,6 +85,7 @@ export default function makeApp(json: any): App {
     friendlyName,
     userGroups,
     samlApp,
+    samlAppPreset,
     samlAppSsoUrl,
     requiresRequest,
     integration,
