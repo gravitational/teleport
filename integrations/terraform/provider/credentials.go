@@ -120,7 +120,7 @@ You might need to refresh them. The provider will not attempt to use those crede
 		return clt, diags
 	}
 	// No client was built
-	diags.AddError("Impossible to build client", s.failedToBuildClientErrorSummary(clientCfg.Addrs[0]))
+	diags.AddError("Impossible to build Teleport client", s.failedToBuildClientErrorSummary(clientCfg.Addrs[0]))
 	return nil, diags
 }
 
