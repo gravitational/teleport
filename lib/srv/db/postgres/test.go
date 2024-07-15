@@ -83,7 +83,7 @@ type TestServer struct {
 	// parametersCh receives startup message connection parameters.
 	parametersCh chan map[string]string
 	// storedProcedures are the stored procedures created on the server.
-	storedProcedures map[string]string
+	storedProcedures map[string]*storedProcedure
 	// userEventsCh receives user activate/deactivate events.
 	userEventsCh chan UserEvent
 	// userPermissionEventsCh receives user permission change events.
@@ -133,6 +133,12 @@ type UserPermissionEvent struct {
 	Permissions Permissions
 }
 
+// storedProcedure represents a stored procedure.
+type storedProcedure struct {
+	query     string
+	argsCount int
+}
+
 // NewTestServer returns a new instance of a test Postgres server.
 func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) {
 	err = config.CheckAndSetDefaults()
@@ -166,7 +172,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		}),
 		parametersCh:           make(chan map[string]string, 100),
 		pids:                   make(map[uint32]*pidHandle),
-		storedProcedures:       make(map[string]string),
+		storedProcedures:       make(map[string]*storedProcedure),
 		userEventsCh:           make(chan UserEvent, 100),
 		userPermissionEventsCh: make(chan UserPermissionEvent, 100),
 		allowedUsers:           &allowedUsers,
@@ -298,23 +304,35 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 		// Following messages are for handling Postgres extended query
 		// protocol flow used by prepared statements.
 		case *pgproto3.Parse:
+			schema, procName, argsCount, ok := processProcedureCall(msg.Query)
+			if ok {
+				if !s.hasProcedure(pid, schema, procName, argsCount) {
+					return trace.BadParameter("procedure %q on schema %q wasn't created before the call for PID %d", procName, schema, pid)
+				}
+
+				switch procName {
+				case activateProcName:
+					if err := s.handleActivateUser(client); err != nil {
+						s.log.WithError(err).Error("Failed to handle user activation.")
+					}
+				case deleteProcName:
+					if err := s.handleDeactivateUser(client, true); err != nil {
+						s.log.WithError(err).Error("Failed to handle user deletion.")
+					}
+				case deactivateProcName:
+					if err := s.handleDeactivateUser(client, false); err != nil {
+						s.log.WithError(err).Error("Failed to handle user deactivation.")
+					}
+				case updatePermissionsProcName:
+					if err := s.handleUpdatePermissions(client); err != nil {
+						s.log.WithError(err).Error("Failed to handle user permissions update.")
+					}
+				}
+
+				continue
+			}
+
 			switch msg.Query {
-			case activateQuery:
-				if err := s.handleActivateUser(client); err != nil {
-					s.log.WithError(err).Error("Failed to handle user activation.")
-				}
-			case deleteQuery:
-				if err := s.handleDeactivateUser(client, true); err != nil {
-					s.log.WithError(err).Error("Failed to handle user deletion.")
-				}
-			case deactivateQuery:
-				if err := s.handleDeactivateUser(client, false); err != nil {
-					s.log.WithError(err).Error("Failed to handle user deactivation.")
-				}
-			case updatePermissionsQuery:
-				if err := s.handleUpdatePermissions(client); err != nil {
-					s.log.WithError(err).Error("Failed to handle user permissions update.")
-				}
 			case schemaInfoQuery:
 				if err := s.handleSchemaInfo(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle schema info query.")
@@ -378,7 +396,7 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 		return trace.Wrap(s.fakeLongRunningQuery(client, pid))
 	}
 	if strings.Contains(strings.ToUpper(query), "CREATE OR REPLACE PROCEDURE") {
-		if err := s.handleCreateStoredProcedure(query); err != nil {
+		if err := s.handleCreateStoredProcedure(query, pid); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -420,23 +438,63 @@ func (s *TestServer) handleQueryWithError(client *pgproto3.Backend) error {
 	return nil
 }
 
-func (s *TestServer) handleCreateStoredProcedure(query string) error {
+func (s *TestServer) handleCreateStoredProcedure(query string, pid uint32) error {
 	match := storedProcedureRe.FindStringSubmatch(query)
-	if len(match) != 2 {
+	if match == nil {
 		return trace.BadParameter("failed to extract stored procedure name from query")
 	}
 
-	if _, ok := ephemeralProcs[match[1]]; !ok {
-		if _, ok := procs[match[1]]; !ok {
-			return trace.BadParameter("test server doesn't support stored procedure %q", match[1])
+	if _, ok := procs[match[storedProcedureRe.SubexpIndex("ProcName")]]; !ok {
+		return trace.BadParameter("test server doesn't support stored procedure %q", match[1])
+	}
+
+	procName := storedProcedureName(pid, match[storedProcedureRe.SubexpIndex("Schema")], match[storedProcedureRe.SubexpIndex("ProcName")])
+	var argsCount int
+	args := strings.Split(match[storedProcedureRe.SubexpIndex("Args")], ",")
+	for _, arg := range args {
+		// Skip arguments that have a default value.
+		if !strings.Contains(strings.ToLower(arg), "default") {
+			argsCount++
 		}
 	}
 
-	s.log.Debugf("Created stored procedure %q.", match[1])
+	s.log.Debugf("Created stored procedure %q.", procName)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.storedProcedures[match[1]] = query
+	s.storedProcedures[procName] = &storedProcedure{query: query, argsCount: argsCount}
 	return nil
+}
+
+func (s *TestServer) hasProcedure(pid uint32, schema, procName string, argsCount int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storedProcedure, ok := s.storedProcedures[storedProcedureName(pid, schema, procName)]
+	if !ok {
+		s.log.Errorf("Procedure %q not found on schema %q", procName, schema)
+		return false
+	}
+
+	if argsCount != storedProcedure.argsCount {
+		s.log.Errorf("Wrong number of arguments for procedure %q call. Expected %d but got %d", procName, storedProcedure.argsCount, argsCount)
+		return false
+	}
+
+	return true
+}
+
+func storedProcedureName(pid uint32, schema, procName string) string {
+	var name string
+	switch strings.ToLower(schema) {
+	case "pg_temp":
+		name = fmt.Sprintf("%d.%s", pid, procName)
+	case "":
+		name = procName
+	default:
+		name = fmt.Sprintf("%s.%s", schema, procName)
+	}
+
+	return strings.ToLower(name)
 }
 
 // multiMessage wraps *pgproto3.DataRow and implements pgproto3.BackendMessage by writing multiple copies of this message in Encode.
@@ -1071,7 +1129,31 @@ const userParameterName = "user"
 
 // storedProcedureRe is the regex for capturing stored procedure name from its
 // creation query.
-var storedProcedureRe = regexp.MustCompile(`(?i)create or replace procedure (.+)\(`)
+var storedProcedureRe = regexp.MustCompile(`(?i)create or replace procedure (?:(?P<Schema>\w+)\.)?(?P<ProcName>.+)\((?P<Args>.+)?\)`)
 
 // selectBenchmarkRe is the regex for capturing the parameters from the select query used for read benchmark.
 var selectBenchmarkRe = regexp.MustCompile(`SELECT \* FROM bench\_(\d+) LIMIT (\d+)`)
+
+// callProcedureRe is the regex for caputuring the schema name, and procedure
+// name from the procedure call query.
+// Examples:
+// - call pg_temp.hello($1)
+// - call pg_temp.hello1()
+// - call pg_temp.hello2($1, $2, $3)
+// - call hello3($1::jsonb)
+var callProcedureRe = regexp.MustCompile(`(?i)^call (?:(?P<Schema>\w+)\.)?(?P<ProcName>\w+)\((?P<Args>.+)?\)`)
+
+// processProcedureCall parses a query and returns the information about the
+// the procedure call.
+func processProcedureCall(query string) (schema string, procName string, argsCount int, ok bool) {
+	procMatches := callProcedureRe.FindStringSubmatch(query)
+	if procMatches == nil {
+		return
+	}
+
+	ok = true
+	schema = procMatches[callProcedureRe.SubexpIndex("Schema")]
+	procName = procMatches[callProcedureRe.SubexpIndex("ProcName")]
+	argsCount = len(strings.Split(procMatches[callProcedureRe.SubexpIndex("Args")], ","))
+	return
+}
