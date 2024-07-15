@@ -58,7 +58,7 @@ You will need Go >= (=teleport.golang=) installed.
 Run the following commands on your Universal Forwarder host:
 
 ```code
-$ git clone https://github.com/gravitational/teleport.git --depth 1
+$ git clone https://github.com/gravitational/teleport.git --depth 1 -b branch/v(=teleport.major_version=)
 $ cd teleport/integrations/event-handler
 $ git checkout (=teleport.plugin.version=)
 $ make build

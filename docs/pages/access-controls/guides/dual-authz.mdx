@@ -88,7 +88,7 @@ We'll reference the exported file(s) later when configuring the plugin.
 
   ```code
   # Checkout the Teleport repo and go in the mattermost access plugin directory
-  $ git clone https://github.com/gravitational/teleport.git
+  $ git clone https://github.com/gravitational/teleport.git -b branch/v(=teleport.major_version=)
   $ cd teleport/integrations/access/mattermost
   $ git checkout (=teleport.plugin.version=)
   $ make
