@@ -1611,8 +1611,8 @@ exports[`render Roles 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .c13:disabled {
@@ -1647,7 +1647,7 @@ exports[`render Roles 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
+  margin-left: 0;
 }
 
 .c16:disabled {
@@ -1673,10 +1673,10 @@ exports[`render Roles 1`] = `
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
   font-weight: 500;
 }

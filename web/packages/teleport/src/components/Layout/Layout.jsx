@@ -18,6 +18,7 @@
 
 import styled from 'styled-components';
 import { Flex, Text } from 'design';
+import { alignItems, space } from 'design/system';
 
 /**
  * Header
@@ -28,14 +29,14 @@ const FeatureHeader = styled(Flex)`
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: ${props => props.theme.space[4]}px;
   padding-left: 40px;
   padding-right: 40px;
-`;
+  align-items: center;
 
-FeatureHeader.defaultProps = {
-  alignItems: 'center',
-  mb: 4,
-};
+  ${space}
+  ${alignItems}
+`;
 
 /**
  * Header Title
@@ -56,6 +57,8 @@ const FeatureBox = styled(Flex)`
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: ${props => props.theme.space[6]}px;
+  padding-right: ${props => props.theme.space[6]}px;
   /*
     This hack adds space to the bottom.
     Directly assigning padding-bottom does not work as flex container ignores this child padding.
@@ -66,11 +69,10 @@ const FeatureBox = styled(Flex)`
     content: ' ';
     padding-bottom: 24px;
   }
-`;
 
-FeatureBox.defaultProps = {
-  px: 6,
-};
+  /* Allow overriding padding settings. */
+  ${space}
+`;
 
 /**
  * Layout

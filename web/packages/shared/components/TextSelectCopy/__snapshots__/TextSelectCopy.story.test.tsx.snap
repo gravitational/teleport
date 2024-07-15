@@ -4,8 +4,8 @@ exports[`bash set to false does not render $ sign 1`] = `
 .c0 {
   box-sizing: border-box;
   padding: 8px;
-  color: #FFFFFF;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
@@ -114,8 +114,8 @@ exports[`default, renders $ sign 1`] = `
 .c0 {
   box-sizing: border-box;
   padding: 8px;
-  color: #FFFFFF;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 

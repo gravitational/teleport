@@ -19,7 +19,7 @@ exports[`wrapper 1`] = `
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c12 {

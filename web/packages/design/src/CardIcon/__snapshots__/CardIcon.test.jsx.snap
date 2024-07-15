@@ -3,11 +3,11 @@
 exports[`rendering of CardIcon components 1`] = `
 .c0 {
   box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
+  padding: 48px;
   margin-top: 24px;
   margin-bottom: 24px;
-  padding: 48px;
+  margin-left: auto;
+  margin-right: auto;
   width: 540px;
   text-align: center;
 }
