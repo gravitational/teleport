@@ -1682,3 +1682,8 @@ rustup-install-target-toolchain: rustup-set-version
 .PHONY: changelog
 changelog:
 	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
+
+.PHONE: check-gitleaks
+check-gitleaks:
+	@which gitleaks >/dev/null 2>&1 || { echo 'gitleaks is missing, to install see https://github.com/gitleaks/gitleaks?tab=readme-ov-file#installing'; exit 1; }
+	gitleaks protect --verbose --redact --staged
