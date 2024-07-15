@@ -42,7 +42,7 @@ zstd_SRCDIR = $(call tp-src-dir,zstd)
 
 .PHONY: tp-build-zstd
 tp-build-zstd: fetch-git-zstd
-	$(MAKE) -C $(zstd_SRCDIR) CPPFLAGS_STATICLIB+=-fPIE -j$(NPROC)
+	$(MAKE) -C $(zstd_SRCDIR) PREFIX=$(THIRDPARTY_PREFIX) CPPFLAGS_STATICLIB+=-fPIE -j$(NPROC)
 	$(MAKE) -C $(zstd_SRCDIR) install PREFIX=$(THIRDPARTY_PREFIX)
 
 # -----------------------------------------------------------------------------

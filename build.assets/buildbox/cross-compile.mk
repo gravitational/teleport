@@ -31,6 +31,8 @@ export CXX = $(CTNG_TARGET)-g++
 export LD = $(CTNG_TARGET)-ld
 export PATH := $(THIRDPARTY_HOST_PREFIX)/$(CTNG_TARGET)/bin:$(PATH)
 
+CROSS_VARS = C_INCLUDE_PATH LIBRARY_PATH PKG_CONFIG_PATH CC CXX LD PATH
+
 .PHONY: diag-cross-vars
 diag-cross-vars:
 	@echo C_INCLUDE_PATH - $${C_INCLUDE_PATH}
@@ -40,3 +42,11 @@ diag-cross-vars:
 	@echo CXX - $${CXX}
 	@echo LD - $${LD}
 	@echo PATH - $${PATH}
+
+# sh-cross-vars prints the cross-compiling variables in a form that can be
+# sourced by the shell, allowing you to set them in an outer shell for
+# development purposes:
+# eval $(make -s -f cross-compile.sh ARCH=arm64 sh-cross-vars)
+.PHONY:sh-cross-vars
+sh-cross-vars:
+	@/usr/bin/env bash -c 'for v in $(CROSS_VARS); do echo "export $$v=$${!v@Q}"; done'
