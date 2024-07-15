@@ -1,8 +1,6 @@
 #ifndef TELEPORT_LIB_VNET_DAEMON_PROTOCOL_DARWIN_H_
 #define TELEPORT_LIB_VNET_DAEMON_PROTOCOL_DARWIN_H_
 
-#import <Foundation/Foundation.h>
-
 typedef struct VnetConfig {
   const char *socket_path;
   const char *ipv6_prefix;
