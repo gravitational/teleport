@@ -205,7 +205,7 @@ func (pm *ProcessManager) Close() {
 	pm.cancel()
 }
 
-// AdminSetup is supposed to be ran as root. It creates and setups a TUN device and passses the file
+// AdminSetup must run as root. It creates and setups a TUN device and passes the file
 // descriptor for that device over the unix socket found at config.socketPath.
 //
 // It also handles host OS configuration that must run as root, and stays alive to keep the host configuration
