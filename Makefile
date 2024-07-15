@@ -140,6 +140,8 @@ endif
 endif
 
 endif
+endif
+endif
 
 # Set C_ARCH for building libfido2 and dependencies. ARCH is the Go
 # architecture which uses different names for architectures than C
