@@ -71,7 +71,9 @@ type Config struct {
 
 // SetDefaults sets the default values for optional fields.
 func (cfg *Config) SetDefaults() {
-	cfg.HTTPClient = cmp.Or(cfg.HTTPClient, http.DefaultClient)
+	defaultHTTPClient, _ := defaults.HTTPClient()
+
+	cfg.HTTPClient = cmp.Or(cfg.HTTPClient, defaultHTTPClient, http.DefaultClient)
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 	cfg.RetryConfig = cmp.Or(cfg.RetryConfig, &retryutils.RetryV2Config{
 		First:  1 * time.Second,
