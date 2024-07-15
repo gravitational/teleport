@@ -129,6 +129,14 @@ f9Oeos0UUothgiDktdQHxdNEwLjQf7lJJBzV+5OtwswCWA==
 
 func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "PRIVATE KEY") }
 
+var LocalhostTLSCertificate = func() tls.Certificate {
+	c, err := tls.X509KeyPair(LocalhostCert, LocalhostKey)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}()
+
 // TLSConfig is TLS configuration for running local TLS tests
 type TLSConfig struct {
 	// CertPool is a trusted certificate authority pool

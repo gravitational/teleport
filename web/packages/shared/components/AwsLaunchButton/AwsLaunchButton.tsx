@@ -26,7 +26,7 @@ import { ChevronDown } from 'design/Icon';
 import { AwsRole } from 'shared/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
-  anchorEl = React.createRef();
+  anchorEl: React.MutableRefObject<HTMLButtonElement> = React.createRef();
 
   state = {
     open: false,
@@ -55,7 +55,7 @@ export class AwsLaunchButton extends React.Component<Props> {
           textTransform="none"
           width={this.props.width || '90px'}
           size="small"
-          setRef={e => (this.anchorEl = e)}
+          setRef={e => (this.anchorEl.current = e)}
           onClick={this.onOpen}
         >
           Launch
@@ -76,7 +76,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             horizontal: 'right',
           }}
           getContentAnchorEl={null}
-          anchorEl={this.anchorEl}
+          anchorEl={this.anchorEl.current}
           open={open}
           onClose={this.onClose}
         >
@@ -193,7 +193,7 @@ const StyledMenuItem = styled(MenuItem)(
     color: ${theme.colors.text.main};
   }
 
-  :last-child {
+  &:last-child {
     border-bottom: none;
     margin-bottom: 8px;
   }
@@ -215,7 +215,7 @@ const StyledInput = styled.input<SpaceProps>(
     outline: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

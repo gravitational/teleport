@@ -121,7 +121,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
             onClick={e => handleOnSubmit(e, validator)}
             disabled={submitAttempt.status === 'processing'}
           >
-            {credential ? 'Submit' : 'Create a passkey'}
+            {credential ? 'Submit' : 'Create a Passkey'}
           </ButtonPrimary>
           {primaryAuthType !== 'passwordless' && isPasswordlessEnabled && (
             <Box mt={3} textAlign="center">
@@ -139,7 +139,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
                 onClick={e => switchToLocalFlow(e)}
                 disabled={submitAttempt.status === 'processing'}
               >
-                Use password
+                Use Password
               </ButtonText>
             </Box>
           )}

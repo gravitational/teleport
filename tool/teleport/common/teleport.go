@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -89,6 +90,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
+		installAutoDiscoverNodeFlags     installAutoDiscoverNodeFlags
 		waitFlags                        waitFlags
 		rawVersion                       bool
 	)
@@ -368,6 +370,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
 
+	// This command is hidden because it is only meant to be used by the AutoDiscover script.
+	installAutoDiscoverNode := installCmd.Command("autodiscover-node", "Installs, configures and starts teleport as a Node (used in Server Auto Discovery).").Hidden()
+	installAutoDiscoverNode.Flag("public-proxy-addr", "Teleport public proxy address. Eg https://example.teleport.sh").StringVar(&installAutoDiscoverNodeFlags.ProxyPublicAddr)
+	installAutoDiscoverNode.Flag("teleport-package", "Package name to install. Allowed: teleport or teleport-ent").StringVar(&installAutoDiscoverNodeFlags.TeleportPackage)
+	installAutoDiscoverNode.Flag("repo-channel", "Repository channel to use (eg stable/cloud, stable/rolling or stable/vX).").StringVar(&installAutoDiscoverNodeFlags.RepositoryChannel)
+	installAutoDiscoverNode.Flag("auto-upgrade", "Enables auto-upgrades. Allowed: true or false").StringVar(&installAutoDiscoverNodeFlags.AutoUpgradesString)
+	installAutoDiscoverNode.Flag("azure-client-id", "Azure Client ID when installing in an Azure VM with multiple assigned identities.").StringVar(&installAutoDiscoverNodeFlags.AzureClientID)
+	installAutoDiscoverNode.Arg("token", "Token to use to register with the cluster.").Required().StringVar(&installAutoDiscoverNodeFlags.TokenName)
+
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
 	scpc.Flag("t", "sink mode (data consumer)").Short('t').Default("false").BoolVar(&scpFlags.Sink)
@@ -560,7 +571,7 @@ Examples:
   data from sqlite to dynamodb:
 
   # src is the configuration for the backend where data is cloned from.
-  src: 
+  src:
     type: sqlite
     path: /var/lib/teleport_data
   # dst is the configuration for the backend where data is cloned to.
@@ -609,6 +620,15 @@ Examples:
 		if err = config.Configure(&ccf, conf, command != appStartCmd.FullCommand()); err != nil {
 			utils.FatalError(err)
 		}
+
+		// Validate binary modules against the device trust configuration.
+		// Catches errors in file-based configs.
+		if conf.Auth.Enabled {
+			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+				utils.FatalError(err)
+			}
+		}
+
 		if !options.InitOnly {
 			err = OnStart(ccf, conf)
 		}
@@ -658,6 +678,8 @@ Examples:
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
+	case installAutoDiscoverNode.FullCommand():
+		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)

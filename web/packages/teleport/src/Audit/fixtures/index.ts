@@ -3585,6 +3585,34 @@ export const events = [
     // user is missing for passwordless challenges.
     user_kind: 1,
   },
+  {
+    code: 'DC001I',
+    event: 'discovery_config.create',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'DC002I',
+    event: 'discovery_config.update',
+    time: '2023-05-08T19:21:37.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'DC003I',
+    event: 'discovery_config.delete',
+    time: '2023-05-08T19:21:38.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'DC004I',
+    event: 'discovery_config.delete_all',
+    time: '2023-05-08T19:21:39.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

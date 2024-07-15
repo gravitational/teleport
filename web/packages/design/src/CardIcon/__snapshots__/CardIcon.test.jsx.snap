@@ -3,17 +3,17 @@
 exports[`rendering of CardIcon components 1`] = `
 .c0 {
   box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
+  padding: 48px;
   margin-top: 24px;
   margin-bottom: 24px;
-  padding: 48px;
+  margin-left: auto;
+  margin-right: auto;
   width: 540px;
   text-align: center;
 }
 
 .c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }

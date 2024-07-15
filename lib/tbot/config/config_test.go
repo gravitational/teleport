@@ -65,10 +65,12 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, defaultStoragePath, storageImpl.Path)
 
 	// A single default Destination should exist
-	require.Len(t, cfg.Outputs, 1)
-	output := cfg.Outputs[0]
+	require.Len(t, cfg.Services, 1)
+	output := cfg.Services[0]
+	identOutput, ok := output.(*IdentityOutput)
+	require.True(t, ok)
 
-	destImpl := output.GetDestination()
+	destImpl := identOutput.GetDestination()
 	require.NoError(t, err)
 	destImplReal, ok := destImpl.(*DestinationDirectory)
 	require.True(t, ok)
@@ -82,6 +84,7 @@ func TestConfigFile(t *testing.T) {
 	configData := fmt.Sprintf(exampleConfigFile, "foo")
 	cfg, err := ReadConfig(strings.NewReader(configData), false)
 	require.NoError(t, err)
+	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
 	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
@@ -96,12 +99,12 @@ func TestConfigFile(t *testing.T) {
 	_, ok := cfg.Storage.Destination.(*DestinationMemory)
 	require.True(t, ok)
 
-	require.Len(t, cfg.Outputs, 1)
-	output := cfg.Outputs[0]
-	_, ok = output.(*IdentityOutput)
+	require.Len(t, cfg.Services, 1)
+	output := cfg.Services[0]
+	identOutput, ok := output.(*IdentityOutput)
 	require.True(t, ok)
 
-	destImpl := output.GetDestination()
+	destImpl := identOutput.GetDestination()
 	destImplReal, ok := destImpl.(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
@@ -233,7 +236,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				DiagAddr:        "127.0.0.1:1337",
 				CertificateTTL:  time.Minute,
 				RenewalInterval: time.Second * 30,
-				Outputs: Outputs{
+				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path: "/bot/output",
@@ -298,7 +301,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				AuthServer:      "example.teleport.sh:443",
 				CertificateTTL:  time.Minute,
 				RenewalInterval: time.Second * 30,
-				Outputs: Outputs{
+				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
 					},
@@ -312,7 +315,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				ProxyServer:     "example.teleport.sh:443",
 				CertificateTTL:  time.Minute,
 				RenewalInterval: time.Second * 30,
-				Outputs: Outputs{
+				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
 					},

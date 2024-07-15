@@ -3074,6 +3074,45 @@ message DatabaseSessionQuery {
   ];
 }
 
+// DatabaseSessionCommandResult represents the result of a user command. It is
+// expected that for each user command/query there will be a corresponding
+// result.
+message DatabaseSessionCommandResult {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates if the command was successful or not.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // AfftectedRecords represents the number of records that were affected by the
+  // command.
+  uint64 AffectedRecords = 6 [(gogoproto.jsontag) = "affected_records,omitempty"];
+}
+
 // DatabasePermissionUpdate is emitted when a user database permissions are updated.
 message DatabasePermissionUpdate {
   // Metadata is a common event metadata.
@@ -3441,6 +3480,20 @@ message DatabaseSessionEnd {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // StartTime is the timestamp at which the session began.
+  google.protobuf.Timestamp StartTime = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_start,omitempty"
+  ];
+
+  // EndTime is the timestamp at which the session ended.
+  google.protobuf.Timestamp EndTime = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_stop,omitempty"
   ];
 }
 
@@ -3964,6 +4017,123 @@ message DeviceEvent2 {
   ];
 }
 
+// DiscoveryConfigCreate is emitted when a discovery config is created.
+message DiscoveryConfigCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// DiscoveryConfigUpdate is emitted when a discovery config is updated.
+message DiscoveryConfigUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// DiscoveryConfigDelete is emitted when a discovery config is deleted.
+message DiscoveryConfigDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// DiscoveryConfigDeleteAll is emitted when all discovery configs are deleted.
+message DiscoveryConfigDeleteAll {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
@@ -4125,6 +4295,12 @@ message OneOf {
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
     events.AccessPathChanged AccessPathChanged = 157;
     events.SpannerRPC SpannerRPC = 158;
+    events.DatabaseSessionCommandResult DatabaseSessionCommandResult = 159;
+    events.DiscoveryConfigCreate DiscoveryConfigCreate = 160;
+    events.DiscoveryConfigUpdate DiscoveryConfigUpdate = 161;
+    events.DiscoveryConfigDelete DiscoveryConfigDelete = 162;
+    events.DiscoveryConfigDeleteAll DiscoveryConfigDeleteAll = 163;
+    events.AccessGraphSettingsUpdate AccessGraphSettingsUpdate = 164;
   }
 }
 
@@ -6297,5 +6473,36 @@ message SpannerRPC {
   google.protobuf.Struct Args = 7 [
     (gogoproto.jsontag) = "args,omitempty",
     (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// AccessGraphSettingsUpdate is emitted when the Access Graph Settings config is updated.
+message AccessGraphSettingsUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
