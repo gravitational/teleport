@@ -20,6 +20,7 @@
 @end
 
 // DaemonStart initializes the XPC service and starts listening for new connections.
+// It's expected to be called only once, noop if the daemon was already started.
 void DaemonStart(const char *bundle_path);
 // DaemonStop stops the XPC service. Noop if DaemonStart wasn't called.
 void DaemonStop(void);
