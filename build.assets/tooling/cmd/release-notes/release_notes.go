@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -22,7 +21,6 @@ type tmplInfo struct {
 }
 
 var (
-	doubleHeaderMatcher  = regexp.MustCompile(`^##\s+`)
 	releaseNotesTemplate = template.Must(template.New("release notes").Parse(tmpl))
 )
 
@@ -58,8 +56,8 @@ func (r *releaseNotesGenerator) parseMD(md io.Reader) (string, error) {
 	// Extract the first second-level heading
 	var heading string
 	for sc.Scan() {
-		if doubleHeaderMatcher.MatchString(sc.Text()) {
-			heading = doubleHeaderMatcher.Split(sc.Text(), 2)[1]
+		if strings.HasPrefix(sc.Text(), "## ") {
+			heading = strings.TrimSpace(strings.TrimPrefix(sc.Text(), "## "))
 			break
 		}
 	}
@@ -78,7 +76,7 @@ func (r *releaseNotesGenerator) parseMD(md io.Reader) (string, error) {
 
 	// Write everything until next header to buffer
 	var buff bytes.Buffer
-	for sc.Scan() && !doubleHeaderMatcher.MatchString(sc.Text()) {
+	for sc.Scan() && !strings.HasPrefix(sc.Text(), "## ") {
 		if _, err := fmt.Fprintln(&buff, sc.Text()); err != nil {
 			return "", trace.Wrap(err)
 		}
