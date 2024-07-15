@@ -140,7 +140,7 @@ export function FilterPanel({
           kindsFromParams={kinds || []}
         />
         {ClusterDropdown}
-        {availabilityFilter && availabilityFilter.canRequestAll && (
+        {availabilityFilter && (
           <IncludedResourcesSelector
             availabilityFilter={availabilityFilter}
             onChange={changeAvailableResourceMode}
@@ -528,7 +528,7 @@ const IncludedResourcesSelector = ({
       onChange('accessible');
       return;
     }
-    onChange('all');
+    onChange(availabilityFilter.canRequestAll ? 'all' : 'requestable');
   }
 
   return (
