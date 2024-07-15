@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -50,6 +51,21 @@ var scopes = []string{"https://graph.microsoft.com/.default"}
 // Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
 type AzureTokenProvider interface {
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
+}
+
+func defaultHTTPClient() (*http.Client, error) {
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	transport.ExpectContinueTimeout = apidefaults.DefaultIOTimeout
+	transport.ResponseHeaderTimeout = apidefaults.DefaultIOTimeout
+	transport.IdleConnTimeout = apidefaults.DefaultIdleTimeout
+
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // Config defines configuration options for [client].
@@ -71,9 +87,9 @@ type Config struct {
 
 // SetDefaults sets the default values for optional fields.
 func (cfg *Config) SetDefaults() {
-	defaultHTTPClient, _ := defaults.HTTPClient()
+	defaultHTTPClient, _ := defaultHTTPClient()
 
-	cfg.HTTPClient = cmp.Or(cfg.HTTPClient, defaultHTTPClient, http.DefaultClient)
+	cfg.HTTPClient = cmp.Or(cfg.HTTPClient, defaultHTTPClient)
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 	cfg.RetryConfig = cmp.Or(cfg.RetryConfig, &retryutils.RetryV2Config{
 		First:  1 * time.Second,
@@ -89,6 +105,9 @@ func (cfg *Config) SetDefaults() {
 func (cfg *Config) Validate() error {
 	if cfg.TokenProvider == nil {
 		return trace.BadParameter("TokenProvider must be set")
+	}
+	if cfg.HTTPClient == nil {
+		return trace.BadParameter("HTTPClient must be set")
 	}
 	return nil
 }
