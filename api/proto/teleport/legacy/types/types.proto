@@ -3905,6 +3905,28 @@ message WebSessionSpecV2 {
   // HasDeviceExtensions is true if the session's TLS and SSH certificates are
   // augmented with device extensions.
   bool HasDeviceExtensions = 13 [(gogoproto.jsontag) = "has_device_extensions,omitempty"];
+  // TrustedDeviceRequirement indicates whether access may be hindered by the
+  // lack of a trusted device.
+  //
+  // If during login a device is required and DeviceWebToken is nil, then it's
+  // likely the user needs to enroll their device to avoid impacting access.
+  //
+  // Transient, only set in certain situations (such as the initial session
+  // returned during login).
+  TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
+}
+
+// TrustedDeviceRequirement indicates whether access may be hindered by the lack
+// of a trusted device.
+enum TrustedDeviceRequirement {
+  // Device requirement not determined.
+  // Does not mean that a device is not required, only that the necessary data
+  // was not considered.
+  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
+  // Trusted device not required.
+  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
+  // Trusted device required by either cluster mode or user roles.
+  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
