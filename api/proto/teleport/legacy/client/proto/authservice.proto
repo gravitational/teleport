@@ -2245,6 +2245,8 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryPong Pong = 3;
     // UpstreamInventoryAgentMetadata advertises instance metadata.
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
+    // UpstreamInventoryGoodbye advertises that the instance is terminating.
+    UpstreamInventoryGoodbye Goodbye = 5;
   }
 }
 
@@ -2325,6 +2327,51 @@ message DownstreamInventoryHello {
   string Version = 1;
   // ServerID advertises the server ID of the auth server.
   string ServerID = 2;
+
+  // SupportedCapabilities indicate which features of the ICS that
+  // the connect auth server supports. This allows agents to determine
+  // how they should interact with the auth server to maintain compatibility.
+  message SupportedCapabilities {
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool ProxyHeartbeats = 1;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool ProxyCleanup = 2;
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool AuthHeartbeats = 3;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AuthCleanup = 4;
+    // NodeHeartbeats indicates the ICS supports heartbeating ssh servers.
+    bool NodeHeartbeats = 5;
+    // NodeCleanup indicates the ICS supports deleting nodes when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool NodeCleanup = 6;
+    // AppHeartbeats indicates the ICS supports heartbeating app servers.
+    bool AppHeartbeats = 7;
+    // AppCleanup indicates the ICS supports deleting apps when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AppCleanup = 8;
+    // DatabaseHeartbeats indicates the ICS supports heartbeating databases.
+    bool DatabaseHeartbeats = 9;
+    // DatabaseCleanup indicates the ICS supports deleting databases when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseCleanup = 10;
+    // DatabaseServiceHeartbeats indicates the ICS supports heartbeating databse services.
+    bool DatabaseServiceHeartbeats = 11;
+    // DatabaseServiceCleanup indicates the ICS supports deleting database services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseServiceCleanup = 12;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop servers.
+    bool WindowsDesktopHeartbeats = 13;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopCleanup = 14;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+    bool WindowsDesktopServiceHeartbeats = 15;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopServiceCleanup = 16;
+    // KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
+    bool KubernetesHeartbeats = 17;
+    // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool KubernetesCleanup = 18;
+  }
+
+  // SupportedCapabilities advertises the supported features of the auth server.
+  SupportedCapabilities Capabilities = 3;
 }
 
 // LabelUpdateKind is the type of service to update labels for.
@@ -2365,6 +2412,14 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
+}
+
+// UpstreamInventoryGoodbye informs the upstream service that instance
+// is terminating
+message UpstreamInventoryGoodbye {
+  // DeleteResources indicates that any heartbeats received from
+  // the instance should be terminated when the stream is closed.
+  bool DeleteResources = 1;
 }
 
 // InventoryStatusRequest requests inventory status info.
