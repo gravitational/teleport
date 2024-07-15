@@ -295,7 +295,7 @@ For instructions about how to update the Web UI, read [the `web` README](web#rea
 This project supports git pre-commit hooks. To manage these hooks we use `lefthook`. For download instructions and other documentation view the [lefthook README](https://github.com/evilmartians/lefthook)
 
 Once downloaded and setup you can run the following command to setup your git hooks.
-```console
+```shell
 lefthook install
 ```
 
