@@ -78,6 +78,37 @@ spec:
     node_labels_expression: # ...
 ```
 
+```proto
+message StaticHostUser {
+    string kind = 1;
+    string sub_kind = 2;
+    string version = 3;
+    teleport.header.v1.Metadata metadata = 4;
+
+    StaticHostUserSpec spec = 5;
+}
+
+message StaticHostUserSpec {
+    string login = 1;
+    repeated string groups = 2;
+    repeated string sudoers = 3;
+    string uid = 4;
+    string gid = 5;
+
+    wrappers.LabelValues node_labels = 6;
+    string node_labels_expression = 7;
+}
+
+service UsersService {
+  rpc GetStaticHostUser(GetStaticHostUserRequest) returns (GetStaticHostUserResponse);
+  rpc ListStaticHostUsers(ListStaticHostUsersRequest) returns (ListStaticHostUsersResponse);
+  rpc CreateStaticHostUser(CreateStaticHostUserRequest) returns (CreateStaticHostUserResponse);
+  rpc UpdateStaticHostUser(UpdateStaticHostUserRequest) returns (UpdateStaticHostUserResponse);
+  rpc UpsertStaticHostUser(UpsertStaticHostUserRequest) returns (UpsertStaticHostUserResponse);
+  rpc DeleteStaticHostUser(DeleteStaticHostUserRequest) returns (google.protobuf.Empty);
+}
+```
+
 ### Propagation
 
 On startup, nodes will apply all available `static_host_user`s in the cache,
@@ -91,13 +122,21 @@ user creation).
 Nodes that disable host user creation (by setting `ssh_service.disable_create_host_user`
 to true in their config) will ignore `static_host_user`s entirely.
 
-### Product usage
+### Audit events
 
-The session start PostHog event can be extended to include a flag
+The `session.start` audit event will be extened to include a flag
 indicating whether or not the host user for an SSH session was
 created by Teleport (for both static and non-static host users).
 
+### Product usage
+
+The session start PostHog event will be extended to include the
+same flag described in [Audit events](#audit-events).
+
 ### Security
+
+CRUD operations on `static_host_user`s can be restricted with verbs
+in allow/deny rules like any other resource.
 
 We want to minimize the ability of Teleport users to mess with existing host users
 via `static_host_user`s. To that end, all host users created from `static_host_user`s
@@ -112,6 +151,14 @@ Consider nodes that do not support static host users but are connected to an
 auth server that does. These nodes will silently ignore static
 host users. When these nodes are upgraded to a supporting
 version, they will create static host users as normal.
+
+### Test plan
+
+Integration test for:
+- nodes create/update nodes in response to `static_host_user` updates from the cache
+
+Manual test for:
+- create static host user with `tctl` and verify it's applied to nodes
 
 ### Future work
 
