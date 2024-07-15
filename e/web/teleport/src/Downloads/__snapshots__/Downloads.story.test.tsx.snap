@@ -3,62 +3,51 @@
 exports[`renders loaded linux 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c15 {
   box-sizing: border-box;
-}
-
-.c17 {
-  box-sizing: border-box;
   margin-top: 8px;
 }
 
-.c18 {
+.c16 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c20 {
+.c18 {
   box-sizing: border-box;
   margin-left: 16px;
   width: 210px;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   margin-left: auto;
 }
 
-.c22 {
+.c20 {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
 }
 
-.c28 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
 }
 
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -90,8 +79,8 @@ exports[`renders loaded linux 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -99,22 +88,22 @@ exports[`renders loaded linux 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -122,53 +111,53 @@ exports[`renders loaded linux 1`] = `
   cursor: auto;
 }
 
-.c26 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -177,7 +166,7 @@ exports[`renders loaded linux 1`] = `
   color: #FFFFFF;
 }
 
-.c31 {
+.c29 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -189,22 +178,24 @@ exports[`renders loaded linux 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -212,6 +203,8 @@ exports[`renders loaded linux 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -219,7 +212,7 @@ exports[`renders loaded linux 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 .react-select-container {
+.c17 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -231,7 +224,7 @@ exports[`renders loaded linux 1`] = `
   border-radius: 4px;
 }
 
-.c19 .react-select__control {
+.c17 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -241,145 +234,145 @@ exports[`renders loaded linux 1`] = `
   box-shadow: none;
 }
 
-.c19 .react-select__control .react-select__dropdown-indicator {
+.c17 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__control:hover,
-.c19 .react-select__control:focus,
-.c19 .react-select__control:active {
+.c17 .react-select__control:hover,
+.c17 .react-select__control:focus,
+.c17 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control:hover .react-select__dropdown-indicator,
-.c19 .react-select__control:focus .react-select__dropdown-indicator,
-.c19 .react-select__control:active .react-select__dropdown-indicator {
+.c17 .react-select__control:hover .react-select__dropdown-indicator,
+.c17 .react-select__control:focus .react-select__dropdown-indicator,
+.c17 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control .react-select__indicator:hover,
-.c19 .react-select__control .react-select__dropdown-indicator:hover,
-.c19 .react-select__control .react-select__indicator:focus,
-.c19 .react-select__control .react-select__dropdown-indicator:focus,
-.c19 .react-select__control .react-select__indicator:active,
-.c19 .react-select__control .react-select__dropdown-indicator:active {
+.c17 .react-select__control .react-select__indicator:hover,
+.c17 .react-select__control .react-select__dropdown-indicator:hover,
+.c17 .react-select__control .react-select__indicator:focus,
+.c17 .react-select__control .react-select__dropdown-indicator:focus,
+.c17 .react-select__control .react-select__indicator:active,
+.c17 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control--is-focused {
+.c17 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__single-value {
+.c17 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c19 .react-select__placeholder {
+.c17 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__multi-value {
+.c17 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__label {
+.c17 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove {
+.c17 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c19 .react-select__option:hover {
+.c17 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused {
+.c17 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused:hover {
+.c17 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-selected {
+.c17 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c19 .react-select__option--is-selected:hover {
+.c17 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__clear-indicator {
+.c17 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c19 .react-select__clear-indicator:hover,
-.c19 .react-select__clear-indicator:focus {
+.c17 .react-select__clear-indicator:hover,
+.c17 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__clear-indicator:hover svg,
-.c19 .react-select__clear-indicator:focus svg {
+.c17 .react-select__clear-indicator:hover svg,
+.c17 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c19 .react-select__menu {
+.c17 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c19 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c19 .react-select__indicator-separator {
+.c17 .react-select__indicator-separator {
   display: none;
 }
 
-.c19 .react-select__loading-indicator {
+.c17 .react-select__loading-indicator {
   display: none;
 }
 
-.c19 .react-select__control--is-disabled {
+.c17 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select__control--is-disabled .react-select__placeholder {
+.c17 .react-select__control--is-disabled .react-select__single-value,
+.c17 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__indicator {
+.c17 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__input {
+.c17 .react-select__input {
   color: #FFFFFF;
 }
 
-.c29 {
+.c27 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -387,39 +380,39 @@ exports[`renders loaded linux 1`] = `
   width: 100%;
 }
 
-.c29>thead>tr>th,
-.c29>tbody>tr>th,
-.c29>tfoot>tr>th,
-.c29>thead>tr>td,
-.c29>tbody>tr>td,
-.c29>tfoot>tr>td {
+.c27>thead>tr>th,
+.c27>tbody>tr>th,
+.c27>tfoot>tr>th,
+.c27>thead>tr>td,
+.c27>tbody>tr>td,
+.c27>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c29>thead>tr>th:first-child,
-.c29>tbody>tr>th:first-child,
-.c29>tfoot>tr>th:first-child,
-.c29>thead>tr>td:first-child,
-.c29>tbody>tr>td:first-child,
-.c29>tfoot>tr>td:first-child {
+.c27>thead>tr>th:first-child,
+.c27>tbody>tr>th:first-child,
+.c27>tfoot>tr>th:first-child,
+.c27>thead>tr>td:first-child,
+.c27>tbody>tr>td:first-child,
+.c27>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c29>thead>tr>th:last-child,
-.c29>tbody>tr>th:last-child,
-.c29>tfoot>tr>th:last-child,
-.c29>thead>tr>td:last-child,
-.c29>tbody>tr>td:last-child,
-.c29>tfoot>tr>td:last-child {
+.c27>thead>tr>th:last-child,
+.c27>tbody>tr>th:last-child,
+.c27>tfoot>tr>th:last-child,
+.c27>thead>tr>td:last-child,
+.c27>tbody>tr>td:last-child,
+.c27>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c29>thead>tr>th {
+.c27>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -431,11 +424,11 @@ exports[`renders loaded linux 1`] = `
   white-space: nowrap;
 }
 
-.c29>thead>tr>th svg {
+.c27>thead>tr>th svg {
   height: 12px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -443,18 +436,18 @@ exports[`renders loaded linux 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c29 tbody tr {
+.c27 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c29 tbody tr:hover {
+.c27 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c29 tbody tr:hover:after {
+.c27 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -465,21 +458,21 @@ exports[`renders loaded linux 1`] = `
   height: 100%;
 }
 
-.c29 tbody tr:hover +tr {
+.c27 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c30 {
+.c28 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c30>thead>tr>th {
+.c28>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
-.c23 {
+.c21 {
   align-items: center;
   justify-content: center;
   background-color: transparent;
@@ -492,22 +485,22 @@ exports[`renders loaded linux 1`] = `
   width: 90px;
 }
 
-.c23:hover {
+.c21:hover {
   background: rgba(255,255,255,0.07);
 }
 
-.c24 {
+.c22 {
   height: 12px;
   margin-right: 8px;
   width: 12px;
   pointer-events: none;
 }
 
-.c25 .icon {
+.c23 .icon {
   color: #000000;
 }
 
-.c27 .icon {
+.c25 .icon {
   color: #FFFFFF;
 }
 
@@ -515,29 +508,29 @@ exports[`renders loaded linux 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -549,7 +542,7 @@ exports[`renders loaded linux 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -561,10 +554,10 @@ exports[`renders loaded linux 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -572,7 +565,7 @@ exports[`renders loaded linux 1`] = `
         Generate License Key
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -581,21 +574,21 @@ exports[`renders loaded linux 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -605,14 +598,14 @@ exports[`renders loaded linux 1`] = `
       :
     </div>
     <div
-      class="c17 c4"
+      class="c15 c11"
     >
       <div
-        class="c18"
+        class="c16"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -666,11 +659,11 @@ exports[`renders loaded linux 1`] = `
         </div>
       </div>
       <div
-        class="c20"
+        class="c18"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -724,25 +717,25 @@ exports[`renders loaded linux 1`] = `
         </div>
       </div>
       <div
-        class="c21 c1"
+        class="c19 c1"
       >
         <div
           aria-label="Choose operating system"
-          class="c22 c1"
+          class="c20 c1"
           role="group"
           style="background-color: rgb(34, 44, 89);"
         >
           <button
             aria-pressed="true"
-            class="c23"
+            class="c21"
             style="background-color: rgb(159, 133, 255); color: rgb(0, 0, 0);"
             value="Linux"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-linux"
+                class="c24 icon icon-linux"
               >
                 <svg
                   fill="currentColor"
@@ -762,15 +755,15 @@ exports[`renders loaded linux 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="macOS"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-apple"
+                class="c24 icon icon-apple"
               >
                 <svg
                   fill="currentColor"
@@ -793,15 +786,15 @@ exports[`renders loaded linux 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="Windows"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-windows"
+                class="c24 icon icon-windows"
               >
                 <svg
                   fill="currentColor"
@@ -838,10 +831,10 @@ exports[`renders loaded linux 1`] = `
       </div>
     </div>
     <div
-      class="c28"
+      class="c26"
     >
       <table
-        class="c29 c30"
+        class="c27 c28"
         style="border-radius: 8px;"
       >
         <thead>
@@ -852,7 +845,7 @@ exports[`renders loaded linux 1`] = `
               >
                 Name
                 <span
-                  class="c26 icon icon-chevronup"
+                  class="c24 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -876,7 +869,7 @@ exports[`renders loaded linux 1`] = `
               >
                 Size
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -901,7 +894,7 @@ exports[`renders loaded linux 1`] = `
               >
                 DownloadLink
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -936,7 +929,7 @@ exports[`renders loaded linux 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
                 rel="noreferrer"
               >
@@ -957,7 +950,7 @@ exports[`renders loaded linux 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
                 rel="noreferrer"
               >
@@ -978,7 +971,7 @@ exports[`renders loaded linux 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
                 rel="noreferrer"
               >
@@ -999,7 +992,7 @@ exports[`renders loaded linux 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
                 rel="noreferrer"
               >
@@ -1020,7 +1013,7 @@ exports[`renders loaded linux 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -1041,7 +1034,7 @@ exports[`renders loaded linux 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -1059,62 +1052,51 @@ exports[`renders loaded linux 1`] = `
 exports[`renders loaded macOS 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c15 {
   box-sizing: border-box;
-}
-
-.c17 {
-  box-sizing: border-box;
   margin-top: 8px;
 }
 
-.c18 {
+.c16 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c20 {
+.c18 {
   box-sizing: border-box;
   margin-left: 16px;
   width: 210px;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   margin-left: auto;
 }
 
-.c22 {
+.c20 {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
 }
 
-.c28 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
 }
 
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1146,8 +1128,8 @@ exports[`renders loaded macOS 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -1155,22 +1137,22 @@ exports[`renders loaded macOS 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1178,53 +1160,53 @@ exports[`renders loaded macOS 1`] = `
   cursor: auto;
 }
 
-.c26 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1233,7 +1215,7 @@ exports[`renders loaded macOS 1`] = `
   color: #FFFFFF;
 }
 
-.c31 {
+.c29 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1245,22 +1227,24 @@ exports[`renders loaded macOS 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -1268,6 +1252,8 @@ exports[`renders loaded macOS 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -1275,7 +1261,7 @@ exports[`renders loaded macOS 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 .react-select-container {
+.c17 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1287,7 +1273,7 @@ exports[`renders loaded macOS 1`] = `
   border-radius: 4px;
 }
 
-.c19 .react-select__control {
+.c17 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -1297,145 +1283,145 @@ exports[`renders loaded macOS 1`] = `
   box-shadow: none;
 }
 
-.c19 .react-select__control .react-select__dropdown-indicator {
+.c17 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__control:hover,
-.c19 .react-select__control:focus,
-.c19 .react-select__control:active {
+.c17 .react-select__control:hover,
+.c17 .react-select__control:focus,
+.c17 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control:hover .react-select__dropdown-indicator,
-.c19 .react-select__control:focus .react-select__dropdown-indicator,
-.c19 .react-select__control:active .react-select__dropdown-indicator {
+.c17 .react-select__control:hover .react-select__dropdown-indicator,
+.c17 .react-select__control:focus .react-select__dropdown-indicator,
+.c17 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control .react-select__indicator:hover,
-.c19 .react-select__control .react-select__dropdown-indicator:hover,
-.c19 .react-select__control .react-select__indicator:focus,
-.c19 .react-select__control .react-select__dropdown-indicator:focus,
-.c19 .react-select__control .react-select__indicator:active,
-.c19 .react-select__control .react-select__dropdown-indicator:active {
+.c17 .react-select__control .react-select__indicator:hover,
+.c17 .react-select__control .react-select__dropdown-indicator:hover,
+.c17 .react-select__control .react-select__indicator:focus,
+.c17 .react-select__control .react-select__dropdown-indicator:focus,
+.c17 .react-select__control .react-select__indicator:active,
+.c17 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control--is-focused {
+.c17 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__single-value {
+.c17 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c19 .react-select__placeholder {
+.c17 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__multi-value {
+.c17 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__label {
+.c17 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove {
+.c17 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c19 .react-select__option:hover {
+.c17 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused {
+.c17 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused:hover {
+.c17 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-selected {
+.c17 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c19 .react-select__option--is-selected:hover {
+.c17 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__clear-indicator {
+.c17 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c19 .react-select__clear-indicator:hover,
-.c19 .react-select__clear-indicator:focus {
+.c17 .react-select__clear-indicator:hover,
+.c17 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__clear-indicator:hover svg,
-.c19 .react-select__clear-indicator:focus svg {
+.c17 .react-select__clear-indicator:hover svg,
+.c17 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c19 .react-select__menu {
+.c17 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c19 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c19 .react-select__indicator-separator {
+.c17 .react-select__indicator-separator {
   display: none;
 }
 
-.c19 .react-select__loading-indicator {
+.c17 .react-select__loading-indicator {
   display: none;
 }
 
-.c19 .react-select__control--is-disabled {
+.c17 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select__control--is-disabled .react-select__placeholder {
+.c17 .react-select__control--is-disabled .react-select__single-value,
+.c17 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__indicator {
+.c17 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__input {
+.c17 .react-select__input {
   color: #FFFFFF;
 }
 
-.c29 {
+.c27 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -1443,39 +1429,39 @@ exports[`renders loaded macOS 1`] = `
   width: 100%;
 }
 
-.c29>thead>tr>th,
-.c29>tbody>tr>th,
-.c29>tfoot>tr>th,
-.c29>thead>tr>td,
-.c29>tbody>tr>td,
-.c29>tfoot>tr>td {
+.c27>thead>tr>th,
+.c27>tbody>tr>th,
+.c27>tfoot>tr>th,
+.c27>thead>tr>td,
+.c27>tbody>tr>td,
+.c27>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c29>thead>tr>th:first-child,
-.c29>tbody>tr>th:first-child,
-.c29>tfoot>tr>th:first-child,
-.c29>thead>tr>td:first-child,
-.c29>tbody>tr>td:first-child,
-.c29>tfoot>tr>td:first-child {
+.c27>thead>tr>th:first-child,
+.c27>tbody>tr>th:first-child,
+.c27>tfoot>tr>th:first-child,
+.c27>thead>tr>td:first-child,
+.c27>tbody>tr>td:first-child,
+.c27>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c29>thead>tr>th:last-child,
-.c29>tbody>tr>th:last-child,
-.c29>tfoot>tr>th:last-child,
-.c29>thead>tr>td:last-child,
-.c29>tbody>tr>td:last-child,
-.c29>tfoot>tr>td:last-child {
+.c27>thead>tr>th:last-child,
+.c27>tbody>tr>th:last-child,
+.c27>tfoot>tr>th:last-child,
+.c27>thead>tr>td:last-child,
+.c27>tbody>tr>td:last-child,
+.c27>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c29>thead>tr>th {
+.c27>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1487,11 +1473,11 @@ exports[`renders loaded macOS 1`] = `
   white-space: nowrap;
 }
 
-.c29>thead>tr>th svg {
+.c27>thead>tr>th svg {
   height: 12px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1499,18 +1485,18 @@ exports[`renders loaded macOS 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c29 tbody tr {
+.c27 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c29 tbody tr:hover {
+.c27 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c29 tbody tr:hover:after {
+.c27 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -1521,21 +1507,21 @@ exports[`renders loaded macOS 1`] = `
   height: 100%;
 }
 
-.c29 tbody tr:hover +tr {
+.c27 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c30 {
+.c28 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c30>thead>tr>th {
+.c28>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
-.c23 {
+.c21 {
   align-items: center;
   justify-content: center;
   background-color: transparent;
@@ -1548,22 +1534,22 @@ exports[`renders loaded macOS 1`] = `
   width: 90px;
 }
 
-.c23:hover {
+.c21:hover {
   background: rgba(255,255,255,0.07);
 }
 
-.c24 {
+.c22 {
   height: 12px;
   margin-right: 8px;
   width: 12px;
   pointer-events: none;
 }
 
-.c25 .icon {
+.c23 .icon {
   color: #FFFFFF;
 }
 
-.c27 .icon {
+.c25 .icon {
   color: #000000;
 }
 
@@ -1571,29 +1557,29 @@ exports[`renders loaded macOS 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -1605,7 +1591,7 @@ exports[`renders loaded macOS 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -1617,10 +1603,10 @@ exports[`renders loaded macOS 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -1628,7 +1614,7 @@ exports[`renders loaded macOS 1`] = `
         Generate License Key
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -1637,21 +1623,21 @@ exports[`renders loaded macOS 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -1661,14 +1647,14 @@ exports[`renders loaded macOS 1`] = `
       :
     </div>
     <div
-      class="c17 c4"
+      class="c15 c11"
     >
       <div
-        class="c18"
+        class="c16"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -1722,11 +1708,11 @@ exports[`renders loaded macOS 1`] = `
         </div>
       </div>
       <div
-        class="c20"
+        class="c18"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -1780,25 +1766,25 @@ exports[`renders loaded macOS 1`] = `
         </div>
       </div>
       <div
-        class="c21 c1"
+        class="c19 c1"
       >
         <div
           aria-label="Choose operating system"
-          class="c22 c1"
+          class="c20 c1"
           role="group"
           style="background-color: rgb(34, 44, 89);"
         >
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="Linux"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-linux"
+                class="c24 icon icon-linux"
               >
                 <svg
                   fill="currentColor"
@@ -1818,15 +1804,15 @@ exports[`renders loaded macOS 1`] = `
           </button>
           <button
             aria-pressed="true"
-            class="c23"
+            class="c21"
             style="background-color: rgb(159, 133, 255); color: rgb(0, 0, 0);"
             value="macOS"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-apple"
+                class="c24 icon icon-apple"
               >
                 <svg
                   fill="currentColor"
@@ -1849,15 +1835,15 @@ exports[`renders loaded macOS 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="Windows"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-windows"
+                class="c24 icon icon-windows"
               >
                 <svg
                   fill="currentColor"
@@ -1894,10 +1880,10 @@ exports[`renders loaded macOS 1`] = `
       </div>
     </div>
     <div
-      class="c28"
+      class="c26"
     >
       <table
-        class="c29 c30"
+        class="c27 c28"
         style="border-radius: 8px;"
       >
         <thead>
@@ -1908,7 +1894,7 @@ exports[`renders loaded macOS 1`] = `
               >
                 Name
                 <span
-                  class="c26 icon icon-chevronup"
+                  class="c24 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -1932,7 +1918,7 @@ exports[`renders loaded macOS 1`] = `
               >
                 Size
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -1957,7 +1943,7 @@ exports[`renders loaded macOS 1`] = `
               >
                 DownloadLink
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -1992,7 +1978,7 @@ exports[`renders loaded macOS 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-darwin-amd64-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -2010,67 +1996,56 @@ exports[`renders loaded macOS 1`] = `
 exports[`renders loaded windows 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c15 {
   box-sizing: border-box;
-}
-
-.c17 {
-  box-sizing: border-box;
   margin-top: 8px;
 }
 
-.c18 {
+.c16 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c20 {
+.c18 {
   box-sizing: border-box;
   margin-left: 16px;
   width: 210px;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   margin-left: auto;
 }
 
-.c22 {
+.c20 {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
 }
 
-.c28 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
 }
 
-.c31 {
+.c29 {
   box-sizing: border-box;
   margin: 24px;
 }
 
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2102,8 +2077,8 @@ exports[`renders loaded windows 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -2111,22 +2086,22 @@ exports[`renders loaded windows 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -2134,62 +2109,63 @@ exports[`renders loaded windows 1`] = `
   cursor: auto;
 }
 
-.c26 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c34 {
+.c32 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c36 {
+.c34 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 16px;
   line-height: 32px;
@@ -2198,7 +2174,7 @@ exports[`renders loaded windows 1`] = `
   text-align: center;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2211,12 +2187,12 @@ exports[`renders loaded windows 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c32 {
+.c30 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2224,7 +2200,7 @@ exports[`renders loaded windows 1`] = `
   gap: 8px;
 }
 
-.c33 {
+.c31 {
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -2232,17 +2208,19 @@ exports[`renders loaded windows 1`] = `
   gap: 8px;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -2250,6 +2228,8 @@ exports[`renders loaded windows 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -2257,7 +2237,7 @@ exports[`renders loaded windows 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 .react-select-container {
+.c17 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -2269,7 +2249,7 @@ exports[`renders loaded windows 1`] = `
   border-radius: 4px;
 }
 
-.c19 .react-select__control {
+.c17 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -2279,145 +2259,145 @@ exports[`renders loaded windows 1`] = `
   box-shadow: none;
 }
 
-.c19 .react-select__control .react-select__dropdown-indicator {
+.c17 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__control:hover,
-.c19 .react-select__control:focus,
-.c19 .react-select__control:active {
+.c17 .react-select__control:hover,
+.c17 .react-select__control:focus,
+.c17 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control:hover .react-select__dropdown-indicator,
-.c19 .react-select__control:focus .react-select__dropdown-indicator,
-.c19 .react-select__control:active .react-select__dropdown-indicator {
+.c17 .react-select__control:hover .react-select__dropdown-indicator,
+.c17 .react-select__control:focus .react-select__dropdown-indicator,
+.c17 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control .react-select__indicator:hover,
-.c19 .react-select__control .react-select__dropdown-indicator:hover,
-.c19 .react-select__control .react-select__indicator:focus,
-.c19 .react-select__control .react-select__dropdown-indicator:focus,
-.c19 .react-select__control .react-select__indicator:active,
-.c19 .react-select__control .react-select__dropdown-indicator:active {
+.c17 .react-select__control .react-select__indicator:hover,
+.c17 .react-select__control .react-select__dropdown-indicator:hover,
+.c17 .react-select__control .react-select__indicator:focus,
+.c17 .react-select__control .react-select__dropdown-indicator:focus,
+.c17 .react-select__control .react-select__indicator:active,
+.c17 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control--is-focused {
+.c17 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__single-value {
+.c17 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c19 .react-select__placeholder {
+.c17 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__multi-value {
+.c17 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__label {
+.c17 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove {
+.c17 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c19 .react-select__option:hover {
+.c17 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused {
+.c17 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused:hover {
+.c17 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-selected {
+.c17 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c19 .react-select__option--is-selected:hover {
+.c17 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__clear-indicator {
+.c17 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c19 .react-select__clear-indicator:hover,
-.c19 .react-select__clear-indicator:focus {
+.c17 .react-select__clear-indicator:hover,
+.c17 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__clear-indicator:hover svg,
-.c19 .react-select__clear-indicator:focus svg {
+.c17 .react-select__clear-indicator:hover svg,
+.c17 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c19 .react-select__menu {
+.c17 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c19 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c19 .react-select__indicator-separator {
+.c17 .react-select__indicator-separator {
   display: none;
 }
 
-.c19 .react-select__loading-indicator {
+.c17 .react-select__loading-indicator {
   display: none;
 }
 
-.c19 .react-select__control--is-disabled {
+.c17 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select__control--is-disabled .react-select__placeholder {
+.c17 .react-select__control--is-disabled .react-select__single-value,
+.c17 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__indicator {
+.c17 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__input {
+.c17 .react-select__input {
   color: #FFFFFF;
 }
 
-.c29 {
+.c27 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -2425,39 +2405,39 @@ exports[`renders loaded windows 1`] = `
   width: 100%;
 }
 
-.c29>thead>tr>th,
-.c29>tbody>tr>th,
-.c29>tfoot>tr>th,
-.c29>thead>tr>td,
-.c29>tbody>tr>td,
-.c29>tfoot>tr>td {
+.c27>thead>tr>th,
+.c27>tbody>tr>th,
+.c27>tfoot>tr>th,
+.c27>thead>tr>td,
+.c27>tbody>tr>td,
+.c27>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c29>thead>tr>th:first-child,
-.c29>tbody>tr>th:first-child,
-.c29>tfoot>tr>th:first-child,
-.c29>thead>tr>td:first-child,
-.c29>tbody>tr>td:first-child,
-.c29>tfoot>tr>td:first-child {
+.c27>thead>tr>th:first-child,
+.c27>tbody>tr>th:first-child,
+.c27>tfoot>tr>th:first-child,
+.c27>thead>tr>td:first-child,
+.c27>tbody>tr>td:first-child,
+.c27>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c29>thead>tr>th:last-child,
-.c29>tbody>tr>th:last-child,
-.c29>tfoot>tr>th:last-child,
-.c29>thead>tr>td:last-child,
-.c29>tbody>tr>td:last-child,
-.c29>tfoot>tr>td:last-child {
+.c27>thead>tr>th:last-child,
+.c27>tbody>tr>th:last-child,
+.c27>tfoot>tr>th:last-child,
+.c27>thead>tr>td:last-child,
+.c27>tbody>tr>td:last-child,
+.c27>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c29>thead>tr>th {
+.c27>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -2469,11 +2449,11 @@ exports[`renders loaded windows 1`] = `
   white-space: nowrap;
 }
 
-.c29>thead>tr>th svg {
+.c27>thead>tr>th svg {
   height: 12px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2481,18 +2461,18 @@ exports[`renders loaded windows 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c29 tbody tr {
+.c27 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c29 tbody tr:hover {
+.c27 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c29 tbody tr:hover:after {
+.c27 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -2503,26 +2483,26 @@ exports[`renders loaded windows 1`] = `
   height: 100%;
 }
 
-.c29 tbody tr:hover +tr {
+.c27 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c35 {
+.c33 {
   line-height: 32px;
   height: 32px;
 }
 
-.c30 {
+.c28 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c30>thead>tr>th {
+.c28>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
-.c23 {
+.c21 {
   align-items: center;
   justify-content: center;
   background-color: transparent;
@@ -2535,22 +2515,22 @@ exports[`renders loaded windows 1`] = `
   width: 90px;
 }
 
-.c23:hover {
+.c21:hover {
   background: rgba(255,255,255,0.07);
 }
 
-.c24 {
+.c22 {
   height: 12px;
   margin-right: 8px;
   width: 12px;
   pointer-events: none;
 }
 
-.c25 .icon {
+.c23 .icon {
   color: #FFFFFF;
 }
 
-.c27 .icon {
+.c25 .icon {
   color: #000000;
 }
 
@@ -2558,29 +2538,29 @@ exports[`renders loaded windows 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -2592,7 +2572,7 @@ exports[`renders loaded windows 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -2604,10 +2584,10 @@ exports[`renders loaded windows 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -2615,7 +2595,7 @@ exports[`renders loaded windows 1`] = `
         Generate License Key
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -2624,21 +2604,21 @@ exports[`renders loaded windows 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -2648,14 +2628,14 @@ exports[`renders loaded windows 1`] = `
       :
     </div>
     <div
-      class="c17 c4"
+      class="c15 c11"
     >
       <div
-        class="c18"
+        class="c16"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -2709,11 +2689,11 @@ exports[`renders loaded windows 1`] = `
         </div>
       </div>
       <div
-        class="c20"
+        class="c18"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -2767,25 +2747,25 @@ exports[`renders loaded windows 1`] = `
         </div>
       </div>
       <div
-        class="c21 c1"
+        class="c19 c1"
       >
         <div
           aria-label="Choose operating system"
-          class="c22 c1"
+          class="c20 c1"
           role="group"
           style="background-color: rgb(34, 44, 89);"
         >
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="Linux"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-linux"
+                class="c24 icon icon-linux"
               >
                 <svg
                   fill="currentColor"
@@ -2805,15 +2785,15 @@ exports[`renders loaded windows 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="macOS"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-apple"
+                class="c24 icon icon-apple"
               >
                 <svg
                   fill="currentColor"
@@ -2836,15 +2816,15 @@ exports[`renders loaded windows 1`] = `
           </button>
           <button
             aria-pressed="true"
-            class="c23"
+            class="c21"
             style="background-color: rgb(159, 133, 255); color: rgb(0, 0, 0);"
             value="Windows"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-windows"
+                class="c24 icon icon-windows"
               >
                 <svg
                   fill="currentColor"
@@ -2881,10 +2861,10 @@ exports[`renders loaded windows 1`] = `
       </div>
     </div>
     <div
-      class="c28"
+      class="c26"
     >
       <table
-        class="c29 c30"
+        class="c27 c28"
         style="border-radius: 8px;"
       >
         <thead>
@@ -2895,7 +2875,7 @@ exports[`renders loaded windows 1`] = `
               >
                 Name
                 <span
-                  class="c26 icon icon-chevronup"
+                  class="c24 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -2919,7 +2899,7 @@ exports[`renders loaded windows 1`] = `
               >
                 Size
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -2944,7 +2924,7 @@ exports[`renders loaded windows 1`] = `
               >
                 DownloadLink
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -2971,13 +2951,13 @@ exports[`renders loaded windows 1`] = `
               colspan="3"
             >
               <div
-                class="c31 c32"
+                class="c29 c30"
               >
                 <div
-                  class="c15 c33"
+                  class="c0 c31"
                 >
                   <span
-                    class="c34 c35"
+                    class="c32 c33"
                     color="text.main"
                   >
                     <svg
@@ -2994,7 +2974,7 @@ exports[`renders loaded windows 1`] = `
                     </svg>
                   </span>
                   <div
-                    class="c36"
+                    class="c34"
                     color="text.main"
                   >
                     No Downloads Found
@@ -3013,62 +2993,51 @@ exports[`renders loaded windows 1`] = `
 exports[`renders when generating license 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c15 {
   box-sizing: border-box;
-}
-
-.c17 {
-  box-sizing: border-box;
   margin-top: 8px;
 }
 
-.c18 {
+.c16 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c20 {
+.c18 {
   box-sizing: border-box;
   margin-left: 16px;
   width: 210px;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   margin-left: auto;
 }
 
-.c22 {
+.c20 {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
 }
 
-.c28 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
 }
 
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3100,8 +3069,8 @@ exports[`renders when generating license 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -3109,22 +3078,22 @@ exports[`renders when generating license 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -3132,53 +3101,53 @@ exports[`renders when generating license 1`] = `
   cursor: auto;
 }
 
-.c26 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -3187,7 +3156,7 @@ exports[`renders when generating license 1`] = `
   color: #FFFFFF;
 }
 
-.c31 {
+.c29 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -3199,22 +3168,24 @@ exports[`renders when generating license 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -3222,6 +3193,8 @@ exports[`renders when generating license 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -3229,7 +3202,7 @@ exports[`renders when generating license 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 .react-select-container {
+.c17 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -3241,7 +3214,7 @@ exports[`renders when generating license 1`] = `
   border-radius: 4px;
 }
 
-.c19 .react-select__control {
+.c17 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -3251,145 +3224,145 @@ exports[`renders when generating license 1`] = `
   box-shadow: none;
 }
 
-.c19 .react-select__control .react-select__dropdown-indicator {
+.c17 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__control:hover,
-.c19 .react-select__control:focus,
-.c19 .react-select__control:active {
+.c17 .react-select__control:hover,
+.c17 .react-select__control:focus,
+.c17 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control:hover .react-select__dropdown-indicator,
-.c19 .react-select__control:focus .react-select__dropdown-indicator,
-.c19 .react-select__control:active .react-select__dropdown-indicator {
+.c17 .react-select__control:hover .react-select__dropdown-indicator,
+.c17 .react-select__control:focus .react-select__dropdown-indicator,
+.c17 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control .react-select__indicator:hover,
-.c19 .react-select__control .react-select__dropdown-indicator:hover,
-.c19 .react-select__control .react-select__indicator:focus,
-.c19 .react-select__control .react-select__dropdown-indicator:focus,
-.c19 .react-select__control .react-select__indicator:active,
-.c19 .react-select__control .react-select__dropdown-indicator:active {
+.c17 .react-select__control .react-select__indicator:hover,
+.c17 .react-select__control .react-select__dropdown-indicator:hover,
+.c17 .react-select__control .react-select__indicator:focus,
+.c17 .react-select__control .react-select__dropdown-indicator:focus,
+.c17 .react-select__control .react-select__indicator:active,
+.c17 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control--is-focused {
+.c17 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__single-value {
+.c17 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c19 .react-select__placeholder {
+.c17 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__multi-value {
+.c17 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__label {
+.c17 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove {
+.c17 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c19 .react-select__option:hover {
+.c17 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused {
+.c17 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused:hover {
+.c17 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-selected {
+.c17 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c19 .react-select__option--is-selected:hover {
+.c17 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__clear-indicator {
+.c17 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c19 .react-select__clear-indicator:hover,
-.c19 .react-select__clear-indicator:focus {
+.c17 .react-select__clear-indicator:hover,
+.c17 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__clear-indicator:hover svg,
-.c19 .react-select__clear-indicator:focus svg {
+.c17 .react-select__clear-indicator:hover svg,
+.c17 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c19 .react-select__menu {
+.c17 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c19 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c19 .react-select__indicator-separator {
+.c17 .react-select__indicator-separator {
   display: none;
 }
 
-.c19 .react-select__loading-indicator {
+.c17 .react-select__loading-indicator {
   display: none;
 }
 
-.c19 .react-select__control--is-disabled {
+.c17 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select__control--is-disabled .react-select__placeholder {
+.c17 .react-select__control--is-disabled .react-select__single-value,
+.c17 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__indicator {
+.c17 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__input {
+.c17 .react-select__input {
   color: #FFFFFF;
 }
 
-.c29 {
+.c27 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -3397,39 +3370,39 @@ exports[`renders when generating license 1`] = `
   width: 100%;
 }
 
-.c29>thead>tr>th,
-.c29>tbody>tr>th,
-.c29>tfoot>tr>th,
-.c29>thead>tr>td,
-.c29>tbody>tr>td,
-.c29>tfoot>tr>td {
+.c27>thead>tr>th,
+.c27>tbody>tr>th,
+.c27>tfoot>tr>th,
+.c27>thead>tr>td,
+.c27>tbody>tr>td,
+.c27>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c29>thead>tr>th:first-child,
-.c29>tbody>tr>th:first-child,
-.c29>tfoot>tr>th:first-child,
-.c29>thead>tr>td:first-child,
-.c29>tbody>tr>td:first-child,
-.c29>tfoot>tr>td:first-child {
+.c27>thead>tr>th:first-child,
+.c27>tbody>tr>th:first-child,
+.c27>tfoot>tr>th:first-child,
+.c27>thead>tr>td:first-child,
+.c27>tbody>tr>td:first-child,
+.c27>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c29>thead>tr>th:last-child,
-.c29>tbody>tr>th:last-child,
-.c29>tfoot>tr>th:last-child,
-.c29>thead>tr>td:last-child,
-.c29>tbody>tr>td:last-child,
-.c29>tfoot>tr>td:last-child {
+.c27>thead>tr>th:last-child,
+.c27>tbody>tr>th:last-child,
+.c27>tfoot>tr>th:last-child,
+.c27>thead>tr>td:last-child,
+.c27>tbody>tr>td:last-child,
+.c27>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c29>thead>tr>th {
+.c27>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -3441,11 +3414,11 @@ exports[`renders when generating license 1`] = `
   white-space: nowrap;
 }
 
-.c29>thead>tr>th svg {
+.c27>thead>tr>th svg {
   height: 12px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -3453,18 +3426,18 @@ exports[`renders when generating license 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c29 tbody tr {
+.c27 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c29 tbody tr:hover {
+.c27 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c29 tbody tr:hover:after {
+.c27 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -3475,21 +3448,21 @@ exports[`renders when generating license 1`] = `
   height: 100%;
 }
 
-.c29 tbody tr:hover +tr {
+.c27 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c30 {
+.c28 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c30>thead>tr>th {
+.c28>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
-.c23 {
+.c21 {
   align-items: center;
   justify-content: center;
   background-color: transparent;
@@ -3502,22 +3475,22 @@ exports[`renders when generating license 1`] = `
   width: 90px;
 }
 
-.c23:hover {
+.c21:hover {
   background: rgba(255,255,255,0.07);
 }
 
-.c24 {
+.c22 {
   height: 12px;
   margin-right: 8px;
   width: 12px;
   pointer-events: none;
 }
 
-.c25 .icon {
+.c23 .icon {
   color: #000000;
 }
 
-.c27 .icon {
+.c25 .icon {
   color: #FFFFFF;
 }
 
@@ -3525,29 +3498,29 @@ exports[`renders when generating license 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -3559,7 +3532,7 @@ exports[`renders when generating license 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -3571,10 +3544,10 @@ exports[`renders when generating license 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         disabled=""
         fill="filled"
         title="Generate license"
@@ -3583,7 +3556,7 @@ exports[`renders when generating license 1`] = `
         Generating...
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -3592,21 +3565,21 @@ exports[`renders when generating license 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -3616,14 +3589,14 @@ exports[`renders when generating license 1`] = `
       :
     </div>
     <div
-      class="c17 c4"
+      class="c15 c11"
     >
       <div
-        class="c18"
+        class="c16"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -3677,11 +3650,11 @@ exports[`renders when generating license 1`] = `
         </div>
       </div>
       <div
-        class="c20"
+        class="c18"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -3735,25 +3708,25 @@ exports[`renders when generating license 1`] = `
         </div>
       </div>
       <div
-        class="c21 c1"
+        class="c19 c1"
       >
         <div
           aria-label="Choose operating system"
-          class="c22 c1"
+          class="c20 c1"
           role="group"
           style="background-color: rgb(34, 44, 89);"
         >
           <button
             aria-pressed="true"
-            class="c23"
+            class="c21"
             style="background-color: rgb(159, 133, 255); color: rgb(0, 0, 0);"
             value="Linux"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-linux"
+                class="c24 icon icon-linux"
               >
                 <svg
                   fill="currentColor"
@@ -3773,15 +3746,15 @@ exports[`renders when generating license 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="macOS"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-apple"
+                class="c24 icon icon-apple"
               >
                 <svg
                   fill="currentColor"
@@ -3804,15 +3777,15 @@ exports[`renders when generating license 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="Windows"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-windows"
+                class="c24 icon icon-windows"
               >
                 <svg
                   fill="currentColor"
@@ -3849,10 +3822,10 @@ exports[`renders when generating license 1`] = `
       </div>
     </div>
     <div
-      class="c28"
+      class="c26"
     >
       <table
-        class="c29 c30"
+        class="c27 c28"
         style="border-radius: 8px;"
       >
         <thead>
@@ -3863,7 +3836,7 @@ exports[`renders when generating license 1`] = `
               >
                 Name
                 <span
-                  class="c26 icon icon-chevronup"
+                  class="c24 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -3887,7 +3860,7 @@ exports[`renders when generating license 1`] = `
               >
                 Size
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -3912,7 +3885,7 @@ exports[`renders when generating license 1`] = `
               >
                 DownloadLink
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -3947,7 +3920,7 @@ exports[`renders when generating license 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
                 rel="noreferrer"
               >
@@ -3968,7 +3941,7 @@ exports[`renders when generating license 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
                 rel="noreferrer"
               >
@@ -3989,7 +3962,7 @@ exports[`renders when generating license 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
                 rel="noreferrer"
               >
@@ -4010,7 +3983,7 @@ exports[`renders when generating license 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
                 rel="noreferrer"
               >
@@ -4031,7 +4004,7 @@ exports[`renders when generating license 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -4052,7 +4025,7 @@ exports[`renders when generating license 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -4068,7 +4041,7 @@ exports[`renders when generating license 1`] = `
 `;
 
 exports[`renders when license failed 1`] = `
-.c10 {
+.c8 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4086,68 +4059,57 @@ exports[`renders when license failed 1`] = `
   color: #000000;
 }
 
-.c10 a {
+.c8 a {
   color: #FFFFFF;
 }
 
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c13 {
+.c11 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c16 {
   box-sizing: border-box;
-}
-
-.c18 {
-  box-sizing: border-box;
   margin-top: 8px;
 }
 
-.c19 {
+.c17 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   margin-left: 16px;
   width: 210px;
 }
 
-.c22 {
+.c20 {
   box-sizing: border-box;
   margin-left: auto;
 }
 
-.c23 {
+.c21 {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
 }
 
-.c29 {
+.c27 {
   box-sizing: border-box;
   margin-top: 16px;
 }
 
-.c14 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -4179,8 +4141,8 @@ exports[`renders when license failed 1`] = `
   width: 240px;
 }
 
-.c14:focus-visible,
-.teleport-button__force-focus-visible .c14 {
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -4188,22 +4150,22 @@ exports[`renders when license failed 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c14:hover,
-.teleport-button__force-hover .c14 {
+.c13:hover,
+.teleport-button__force-hover .c13 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c14:active,
-.teleport-button__force-active .c14 {
+.c13:active,
+.teleport-button__force-active .c13 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c14:disabled {
+.c13:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -4211,53 +4173,53 @@ exports[`renders when license failed 1`] = `
   cursor: auto;
 }
 
-.c27 {
+.c25 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
+  margin: 0;
+  margin-top: 16px;
 }
 
-.c11 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c17 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c12 {
+.c10 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -4266,7 +4228,7 @@ exports[`renders when license failed 1`] = `
   color: #FFFFFF;
 }
 
-.c32 {
+.c30 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -4278,22 +4240,24 @@ exports[`renders when license failed 1`] = `
   display: flex;
 }
 
-.c4 {
+.c12 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -4301,6 +4265,8 @@ exports[`renders when license failed 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -4308,7 +4274,7 @@ exports[`renders when license failed 1`] = `
   padding-bottom: 24px;
 }
 
-.c20 .react-select-container {
+.c18 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -4320,7 +4286,7 @@ exports[`renders when license failed 1`] = `
   border-radius: 4px;
 }
 
-.c20 .react-select__control {
+.c18 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -4330,145 +4296,145 @@ exports[`renders when license failed 1`] = `
   box-shadow: none;
 }
 
-.c20 .react-select__control .react-select__dropdown-indicator {
+.c18 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c20 .react-select__control:hover,
-.c20 .react-select__control:focus,
-.c20 .react-select__control:active {
+.c18 .react-select__control:hover,
+.c18 .react-select__control:focus,
+.c18 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c20 .react-select__control:hover .react-select__dropdown-indicator,
-.c20 .react-select__control:focus .react-select__dropdown-indicator,
-.c20 .react-select__control:active .react-select__dropdown-indicator {
+.c18 .react-select__control:hover .react-select__dropdown-indicator,
+.c18 .react-select__control:focus .react-select__dropdown-indicator,
+.c18 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c20 .react-select__control .react-select__indicator:hover,
-.c20 .react-select__control .react-select__dropdown-indicator:hover,
-.c20 .react-select__control .react-select__indicator:focus,
-.c20 .react-select__control .react-select__dropdown-indicator:focus,
-.c20 .react-select__control .react-select__indicator:active,
-.c20 .react-select__control .react-select__dropdown-indicator:active {
+.c18 .react-select__control .react-select__indicator:hover,
+.c18 .react-select__control .react-select__dropdown-indicator:hover,
+.c18 .react-select__control .react-select__indicator:focus,
+.c18 .react-select__control .react-select__dropdown-indicator:focus,
+.c18 .react-select__control .react-select__indicator:active,
+.c18 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c20 .react-select__control--is-focused {
+.c18 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c20 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c18 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c20 .react-select__single-value {
+.c18 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c20 .react-select__placeholder {
+.c18 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c20 .react-select__multi-value {
+.c18 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c20 .react-select__multi-value .react-select__multi-value__label {
+.c18 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c20 .react-select__multi-value .react-select__multi-value__remove {
+.c18 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c20 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c18 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c20 .react-select__option:hover {
+.c18 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c20 .react-select__option--is-focused {
+.c18 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c20 .react-select__option--is-focused:hover {
+.c18 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c20 .react-select__option--is-selected {
+.c18 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c20 .react-select__option--is-selected:hover {
+.c18 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c20 .react-select__clear-indicator {
+.c18 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c20 .react-select__clear-indicator:hover,
-.c20 .react-select__clear-indicator:focus {
+.c18 .react-select__clear-indicator:hover,
+.c18 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c20 .react-select__clear-indicator:hover svg,
-.c20 .react-select__clear-indicator:focus svg {
+.c18 .react-select__clear-indicator:hover svg,
+.c18 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c20 .react-select__menu {
+.c18 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c20 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c18 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c20 .react-select__indicator-separator {
+.c18 .react-select__indicator-separator {
   display: none;
 }
 
-.c20 .react-select__loading-indicator {
+.c18 .react-select__loading-indicator {
   display: none;
 }
 
-.c20 .react-select__control--is-disabled {
+.c18 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c20 .react-select__control--is-disabled .react-select__single-value,
-.c20 .react-select__control--is-disabled .react-select__placeholder {
+.c18 .react-select__control--is-disabled .react-select__single-value,
+.c18 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c20 .react-select__control--is-disabled .react-select__indicator {
+.c18 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c20 .react-select__input {
+.c18 .react-select__input {
   color: #FFFFFF;
 }
 
-.c30 {
+.c28 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -4476,39 +4442,39 @@ exports[`renders when license failed 1`] = `
   width: 100%;
 }
 
-.c30>thead>tr>th,
-.c30>tbody>tr>th,
-.c30>tfoot>tr>th,
-.c30>thead>tr>td,
-.c30>tbody>tr>td,
-.c30>tfoot>tr>td {
+.c28>thead>tr>th,
+.c28>tbody>tr>th,
+.c28>tfoot>tr>th,
+.c28>thead>tr>td,
+.c28>tbody>tr>td,
+.c28>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c30>thead>tr>th:first-child,
-.c30>tbody>tr>th:first-child,
-.c30>tfoot>tr>th:first-child,
-.c30>thead>tr>td:first-child,
-.c30>tbody>tr>td:first-child,
-.c30>tfoot>tr>td:first-child {
+.c28>thead>tr>th:first-child,
+.c28>tbody>tr>th:first-child,
+.c28>tfoot>tr>th:first-child,
+.c28>thead>tr>td:first-child,
+.c28>tbody>tr>td:first-child,
+.c28>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c30>thead>tr>th:last-child,
-.c30>tbody>tr>th:last-child,
-.c30>tfoot>tr>th:last-child,
-.c30>thead>tr>td:last-child,
-.c30>tbody>tr>td:last-child,
-.c30>tfoot>tr>td:last-child {
+.c28>thead>tr>th:last-child,
+.c28>tbody>tr>th:last-child,
+.c28>tfoot>tr>th:last-child,
+.c28>thead>tr>td:last-child,
+.c28>tbody>tr>td:last-child,
+.c28>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c30>tbody>tr>td {
+.c28>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c30>thead>tr>th {
+.c28>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -4520,11 +4486,11 @@ exports[`renders when license failed 1`] = `
   white-space: nowrap;
 }
 
-.c30>thead>tr>th svg {
+.c28>thead>tr>th svg {
   height: 12px;
 }
 
-.c30>tbody>tr>td {
+.c28>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -4532,18 +4498,18 @@ exports[`renders when license failed 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c30 tbody tr {
+.c28 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c30 tbody tr:hover {
+.c28 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c30 tbody tr:hover:after {
+.c28 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -4554,21 +4520,21 @@ exports[`renders when license failed 1`] = `
   height: 100%;
 }
 
-.c30 tbody tr:hover +tr {
+.c28 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c31 {
+.c29 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c31>thead>tr>th {
+.c29>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
-.c24 {
+.c22 {
   align-items: center;
   justify-content: center;
   background-color: transparent;
@@ -4581,22 +4547,22 @@ exports[`renders when license failed 1`] = `
   width: 90px;
 }
 
-.c24:hover {
+.c22:hover {
   background: rgba(255,255,255,0.07);
 }
 
-.c25 {
+.c23 {
   height: 12px;
   margin-right: 8px;
   width: 12px;
   pointer-events: none;
 }
 
-.c26 .icon {
+.c24 .icon {
   color: #000000;
 }
 
-.c28 .icon {
+.c26 .icon {
   color: #FFFFFF;
 }
 
@@ -4604,35 +4570,35 @@ exports[`renders when license failed 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
       kind="danger"
     >
       failed loading license
     </div>
     <div
-      class="c11"
+      class="c9"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c12"
+        class="c10"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -4644,7 +4610,7 @@ exports[`renders when license failed 1`] = `
       and our
        
       <a
-        class="c12"
+        class="c10"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -4656,10 +4622,10 @@ exports[`renders when license failed 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c13 c4"
+      class="c11 c12"
     >
       <button
-        class="c14"
+        class="c13"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -4667,7 +4633,7 @@ exports[`renders when license failed 1`] = `
         Generate License Key
       </button>
       <div
-        class="c15"
+        class="c14"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -4676,21 +4642,21 @@ exports[`renders when license failed 1`] = `
     </div>
   </div>
   <div
-    class="c16"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c17"
+      class="c15"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c12"
+        class="c10"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -4700,14 +4666,14 @@ exports[`renders when license failed 1`] = `
       :
     </div>
     <div
-      class="c18 c4"
+      class="c16 c12"
     >
       <div
-        class="c19"
+        class="c17"
         width="210px"
       >
         <div
-          class="c20"
+          class="c18"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -4761,11 +4727,11 @@ exports[`renders when license failed 1`] = `
         </div>
       </div>
       <div
-        class="c21"
+        class="c19"
         width="210px"
       >
         <div
-          class="c20"
+          class="c18"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -4819,25 +4785,25 @@ exports[`renders when license failed 1`] = `
         </div>
       </div>
       <div
-        class="c22 c1"
+        class="c20 c1"
       >
         <div
           aria-label="Choose operating system"
-          class="c23 c1"
+          class="c21 c1"
           role="group"
           style="background-color: rgb(34, 44, 89);"
         >
           <button
             aria-pressed="true"
-            class="c24"
+            class="c22"
             style="background-color: rgb(159, 133, 255); color: rgb(0, 0, 0);"
             value="Linux"
           >
             <div
-              class="c16 c25 c26"
+              class="c0 c23 c24"
             >
               <span
-                class="c27 icon icon-linux"
+                class="c25 icon icon-linux"
               >
                 <svg
                   fill="currentColor"
@@ -4857,15 +4823,15 @@ exports[`renders when license failed 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c24"
+            class="c22"
             style="color: rgb(255, 255, 255);"
             value="macOS"
           >
             <div
-              class="c16 c25 c28"
+              class="c0 c23 c26"
             >
               <span
-                class="c27 icon icon-apple"
+                class="c25 icon icon-apple"
               >
                 <svg
                   fill="currentColor"
@@ -4888,15 +4854,15 @@ exports[`renders when license failed 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c24"
+            class="c22"
             style="color: rgb(255, 255, 255);"
             value="Windows"
           >
             <div
-              class="c16 c25 c28"
+              class="c0 c23 c26"
             >
               <span
-                class="c27 icon icon-windows"
+                class="c25 icon icon-windows"
               >
                 <svg
                   fill="currentColor"
@@ -4933,10 +4899,10 @@ exports[`renders when license failed 1`] = `
       </div>
     </div>
     <div
-      class="c29"
+      class="c27"
     >
       <table
-        class="c30 c31"
+        class="c28 c29"
         style="border-radius: 8px;"
       >
         <thead>
@@ -4947,7 +4913,7 @@ exports[`renders when license failed 1`] = `
               >
                 Name
                 <span
-                  class="c27 icon icon-chevronup"
+                  class="c25 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -4971,7 +4937,7 @@ exports[`renders when license failed 1`] = `
               >
                 Size
                 <span
-                  class="c27 icon icon-chevronsvertical"
+                  class="c25 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -4996,7 +4962,7 @@ exports[`renders when license failed 1`] = `
               >
                 DownloadLink
                 <span
-                  class="c27 icon icon-chevronsvertical"
+                  class="c25 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -5031,7 +4997,7 @@ exports[`renders when license failed 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c32"
+                class="c30"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
                 rel="noreferrer"
               >
@@ -5052,7 +5018,7 @@ exports[`renders when license failed 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c32"
+                class="c30"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
                 rel="noreferrer"
               >
@@ -5073,7 +5039,7 @@ exports[`renders when license failed 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c32"
+                class="c30"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
                 rel="noreferrer"
               >
@@ -5094,7 +5060,7 @@ exports[`renders when license failed 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c32"
+                class="c30"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
                 rel="noreferrer"
               >
@@ -5115,7 +5081,7 @@ exports[`renders when license failed 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c32"
+                class="c30"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -5136,7 +5102,7 @@ exports[`renders when license failed 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c32"
+                class="c30"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -5154,62 +5120,51 @@ exports[`renders when license failed 1`] = `
 exports[`renders when license generated 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c15 {
   box-sizing: border-box;
-}
-
-.c17 {
-  box-sizing: border-box;
   margin-top: 8px;
 }
 
-.c18 {
+.c16 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c20 {
+.c18 {
   box-sizing: border-box;
   margin-left: 16px;
   width: 210px;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   margin-left: auto;
 }
 
-.c22 {
+.c20 {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
 }
 
-.c28 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
 }
 
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -5241,8 +5196,8 @@ exports[`renders when license generated 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -5250,22 +5205,22 @@ exports[`renders when license generated 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -5273,53 +5228,53 @@ exports[`renders when license generated 1`] = `
   cursor: auto;
 }
 
-.c26 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -5328,7 +5283,7 @@ exports[`renders when license generated 1`] = `
   color: #FFFFFF;
 }
 
-.c31 {
+.c29 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -5340,22 +5295,24 @@ exports[`renders when license generated 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -5363,6 +5320,8 @@ exports[`renders when license generated 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -5370,7 +5329,7 @@ exports[`renders when license generated 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 .react-select-container {
+.c17 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -5382,7 +5341,7 @@ exports[`renders when license generated 1`] = `
   border-radius: 4px;
 }
 
-.c19 .react-select__control {
+.c17 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -5392,145 +5351,145 @@ exports[`renders when license generated 1`] = `
   box-shadow: none;
 }
 
-.c19 .react-select__control .react-select__dropdown-indicator {
+.c17 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__control:hover,
-.c19 .react-select__control:focus,
-.c19 .react-select__control:active {
+.c17 .react-select__control:hover,
+.c17 .react-select__control:focus,
+.c17 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control:hover .react-select__dropdown-indicator,
-.c19 .react-select__control:focus .react-select__dropdown-indicator,
-.c19 .react-select__control:active .react-select__dropdown-indicator {
+.c17 .react-select__control:hover .react-select__dropdown-indicator,
+.c17 .react-select__control:focus .react-select__dropdown-indicator,
+.c17 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control .react-select__indicator:hover,
-.c19 .react-select__control .react-select__dropdown-indicator:hover,
-.c19 .react-select__control .react-select__indicator:focus,
-.c19 .react-select__control .react-select__dropdown-indicator:focus,
-.c19 .react-select__control .react-select__indicator:active,
-.c19 .react-select__control .react-select__dropdown-indicator:active {
+.c17 .react-select__control .react-select__indicator:hover,
+.c17 .react-select__control .react-select__dropdown-indicator:hover,
+.c17 .react-select__control .react-select__indicator:focus,
+.c17 .react-select__control .react-select__dropdown-indicator:focus,
+.c17 .react-select__control .react-select__indicator:active,
+.c17 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c19 .react-select__control--is-focused {
+.c17 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c19 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c19 .react-select__single-value {
+.c17 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c19 .react-select__placeholder {
+.c17 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c19 .react-select__multi-value {
+.c17 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__label {
+.c17 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove {
+.c17 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c19 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c19 .react-select__option:hover {
+.c17 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused {
+.c17 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-focused:hover {
+.c17 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__option--is-selected {
+.c17 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c19 .react-select__option--is-selected:hover {
+.c17 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c19 .react-select__clear-indicator {
+.c17 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c19 .react-select__clear-indicator:hover,
-.c19 .react-select__clear-indicator:focus {
+.c17 .react-select__clear-indicator:hover,
+.c17 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c19 .react-select__clear-indicator:hover svg,
-.c19 .react-select__clear-indicator:focus svg {
+.c17 .react-select__clear-indicator:hover svg,
+.c17 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c19 .react-select__menu {
+.c17 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c19 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c19 .react-select__indicator-separator {
+.c17 .react-select__indicator-separator {
   display: none;
 }
 
-.c19 .react-select__loading-indicator {
+.c17 .react-select__loading-indicator {
   display: none;
 }
 
-.c19 .react-select__control--is-disabled {
+.c17 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select__control--is-disabled .react-select__placeholder {
+.c17 .react-select__control--is-disabled .react-select__single-value,
+.c17 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__control--is-disabled .react-select__indicator {
+.c17 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c19 .react-select__input {
+.c17 .react-select__input {
   color: #FFFFFF;
 }
 
-.c29 {
+.c27 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -5538,39 +5497,39 @@ exports[`renders when license generated 1`] = `
   width: 100%;
 }
 
-.c29>thead>tr>th,
-.c29>tbody>tr>th,
-.c29>tfoot>tr>th,
-.c29>thead>tr>td,
-.c29>tbody>tr>td,
-.c29>tfoot>tr>td {
+.c27>thead>tr>th,
+.c27>tbody>tr>th,
+.c27>tfoot>tr>th,
+.c27>thead>tr>td,
+.c27>tbody>tr>td,
+.c27>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c29>thead>tr>th:first-child,
-.c29>tbody>tr>th:first-child,
-.c29>tfoot>tr>th:first-child,
-.c29>thead>tr>td:first-child,
-.c29>tbody>tr>td:first-child,
-.c29>tfoot>tr>td:first-child {
+.c27>thead>tr>th:first-child,
+.c27>tbody>tr>th:first-child,
+.c27>tfoot>tr>th:first-child,
+.c27>thead>tr>td:first-child,
+.c27>tbody>tr>td:first-child,
+.c27>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c29>thead>tr>th:last-child,
-.c29>tbody>tr>th:last-child,
-.c29>tfoot>tr>th:last-child,
-.c29>thead>tr>td:last-child,
-.c29>tbody>tr>td:last-child,
-.c29>tfoot>tr>td:last-child {
+.c27>thead>tr>th:last-child,
+.c27>tbody>tr>th:last-child,
+.c27>tfoot>tr>th:last-child,
+.c27>thead>tr>td:last-child,
+.c27>tbody>tr>td:last-child,
+.c27>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c29>thead>tr>th {
+.c27>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -5582,11 +5541,11 @@ exports[`renders when license generated 1`] = `
   white-space: nowrap;
 }
 
-.c29>thead>tr>th svg {
+.c27>thead>tr>th svg {
   height: 12px;
 }
 
-.c29>tbody>tr>td {
+.c27>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -5594,18 +5553,18 @@ exports[`renders when license generated 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c29 tbody tr {
+.c27 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c29 tbody tr:hover {
+.c27 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c29 tbody tr:hover:after {
+.c27 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -5616,21 +5575,21 @@ exports[`renders when license generated 1`] = `
   height: 100%;
 }
 
-.c29 tbody tr:hover +tr {
+.c27 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c30 {
+.c28 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c30>thead>tr>th {
+.c28>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
-.c23 {
+.c21 {
   align-items: center;
   justify-content: center;
   background-color: transparent;
@@ -5643,22 +5602,22 @@ exports[`renders when license generated 1`] = `
   width: 90px;
 }
 
-.c23:hover {
+.c21:hover {
   background: rgba(255,255,255,0.07);
 }
 
-.c24 {
+.c22 {
   height: 12px;
   margin-right: 8px;
   width: 12px;
   pointer-events: none;
 }
 
-.c25 .icon {
+.c23 .icon {
   color: #000000;
 }
 
-.c27 .icon {
+.c25 .icon {
   color: #FFFFFF;
 }
 
@@ -5666,29 +5625,29 @@ exports[`renders when license generated 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -5700,7 +5659,7 @@ exports[`renders when license generated 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -5712,10 +5671,10 @@ exports[`renders when license generated 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -5723,7 +5682,7 @@ exports[`renders when license generated 1`] = `
         Generate License Key
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -5732,21 +5691,21 @@ exports[`renders when license generated 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -5756,14 +5715,14 @@ exports[`renders when license generated 1`] = `
       :
     </div>
     <div
-      class="c17 c4"
+      class="c15 c11"
     >
       <div
-        class="c18"
+        class="c16"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -5817,11 +5776,11 @@ exports[`renders when license generated 1`] = `
         </div>
       </div>
       <div
-        class="c20"
+        class="c18"
         width="210px"
       >
         <div
-          class="c19"
+          class="c17"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -5875,25 +5834,25 @@ exports[`renders when license generated 1`] = `
         </div>
       </div>
       <div
-        class="c21 c1"
+        class="c19 c1"
       >
         <div
           aria-label="Choose operating system"
-          class="c22 c1"
+          class="c20 c1"
           role="group"
           style="background-color: rgb(34, 44, 89);"
         >
           <button
             aria-pressed="true"
-            class="c23"
+            class="c21"
             style="background-color: rgb(159, 133, 255); color: rgb(0, 0, 0);"
             value="Linux"
           >
             <div
-              class="c15 c24 c25"
+              class="c0 c22 c23"
             >
               <span
-                class="c26 icon icon-linux"
+                class="c24 icon icon-linux"
               >
                 <svg
                   fill="currentColor"
@@ -5913,15 +5872,15 @@ exports[`renders when license generated 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="macOS"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-apple"
+                class="c24 icon icon-apple"
               >
                 <svg
                   fill="currentColor"
@@ -5944,15 +5903,15 @@ exports[`renders when license generated 1`] = `
           </button>
           <button
             aria-pressed="false"
-            class="c23"
+            class="c21"
             style="color: rgb(255, 255, 255);"
             value="Windows"
           >
             <div
-              class="c15 c24 c27"
+              class="c0 c22 c25"
             >
               <span
-                class="c26 icon icon-windows"
+                class="c24 icon icon-windows"
               >
                 <svg
                   fill="currentColor"
@@ -5989,10 +5948,10 @@ exports[`renders when license generated 1`] = `
       </div>
     </div>
     <div
-      class="c28"
+      class="c26"
     >
       <table
-        class="c29 c30"
+        class="c27 c28"
         style="border-radius: 8px;"
       >
         <thead>
@@ -6003,7 +5962,7 @@ exports[`renders when license generated 1`] = `
               >
                 Name
                 <span
-                  class="c26 icon icon-chevronup"
+                  class="c24 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -6027,7 +5986,7 @@ exports[`renders when license generated 1`] = `
               >
                 Size
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -6052,7 +6011,7 @@ exports[`renders when license generated 1`] = `
               >
                 DownloadLink
                 <span
-                  class="c26 icon icon-chevronsvertical"
+                  class="c24 icon icon-chevronsvertical"
                   title="sort items"
                 >
                   <svg
@@ -6087,7 +6046,7 @@ exports[`renders when license generated 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
                 rel="noreferrer"
               >
@@ -6108,7 +6067,7 @@ exports[`renders when license generated 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
                 rel="noreferrer"
               >
@@ -6129,7 +6088,7 @@ exports[`renders when license generated 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
                 rel="noreferrer"
               >
@@ -6150,7 +6109,7 @@ exports[`renders when license generated 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
                 rel="noreferrer"
               >
@@ -6171,7 +6130,7 @@ exports[`renders when license generated 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -6192,7 +6151,7 @@ exports[`renders when license generated 1`] = `
               style="font-size: 14px;"
             >
               <a
-                class="c31"
+                class="c29"
                 href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
                 rel="noreferrer"
               >
@@ -6210,36 +6169,25 @@ exports[`renders when license generated 1`] = `
 exports[`renders when releases are loading 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
 .c15 {
   box-sizing: border-box;
-}
-
-.c17 {
-  box-sizing: border-box;
   margin: 72px;
   text-align: center;
 }
 
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -6271,8 +6219,8 @@ exports[`renders when releases are loading 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -6280,22 +6228,22 @@ exports[`renders when releases are loading 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -6303,47 +6251,47 @@ exports[`renders when releases are loading 1`] = `
   cursor: auto;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -6356,22 +6304,24 @@ exports[`renders when releases are loading 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -6379,6 +6329,8 @@ exports[`renders when releases are loading 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -6390,29 +6342,29 @@ exports[`renders when releases are loading 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -6424,7 +6376,7 @@ exports[`renders when releases are loading 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -6436,10 +6388,10 @@ exports[`renders when releases are loading 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -6447,7 +6399,7 @@ exports[`renders when releases are loading 1`] = `
         Generate License Key
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -6456,21 +6408,21 @@ exports[`renders when releases are loading 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -6480,14 +6432,14 @@ exports[`renders when releases are loading 1`] = `
       :
     </div>
     <div
-      class="c17"
+      class="c15"
     />
   </div>
 </div>
 `;
 
 exports[`renders when releases failed 1`] = `
-.c17 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6504,36 +6456,25 @@ exports[`renders when releases failed 1`] = `
   color: #000000;
 }
 
-.c17 a {
+.c15 a {
   color: #FFFFFF;
 }
 
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c10 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
-.c15 {
-  box-sizing: border-box;
-}
-
-.c13 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -6565,8 +6506,8 @@ exports[`renders when releases failed 1`] = `
   width: 240px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -6574,22 +6515,22 @@ exports[`renders when releases failed 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c13:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -6597,47 +6538,47 @@ exports[`renders when releases failed 1`] = `
   cursor: auto;
 }
 
-.c6 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c9 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 16px;
   line-height: 24px;
-  margin: 0px;
 }
 
-.c10 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 16px;
   margin-bottom: 16px;
 }
 
-.c11 {
+.c9 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -6650,22 +6591,24 @@ exports[`renders when releases failed 1`] = `
   display: flex;
 }
 
-.c4 {
+.c11 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c3 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
 }
 
-.c7 {
+.c5 {
   white-space: nowrap;
 }
 
@@ -6673,6 +6616,8 @@ exports[`renders when releases failed 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -6684,29 +6629,29 @@ exports[`renders when releases failed 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c1 c3"
   >
     <div
-      class="c6 c7"
+      class="c4 c5"
     >
       Downloads
     </div>
   </div>
   <div
-    class="c8"
+    class="c6"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Generate Your License Key
     </div>
     <div
-      class="c10"
+      class="c8"
     >
       You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -6718,7 +6663,7 @@ exports[`renders when releases failed 1`] = `
       and our
        
       <a
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
         rel="noreferrer"
@@ -6730,10 +6675,10 @@ exports[`renders when releases failed 1`] = `
       for more details on how this file is used.
     </div>
     <div
-      class="c12 c4"
+      class="c10 c11"
     >
       <button
-        class="c13"
+        class="c12"
         fill="filled"
         title="Generate license"
         width="240px"
@@ -6741,7 +6686,7 @@ exports[`renders when releases failed 1`] = `
         Generate License Key
       </button>
       <div
-        class="c14"
+        class="c13"
         color="text.slightlyMuted"
       >
         Valid until 
@@ -6750,21 +6695,21 @@ exports[`renders when releases failed 1`] = `
     </div>
   </div>
   <div
-    class="c15"
+    class="c0"
   >
     <div
-      class="c9"
+      class="c7"
     >
       Download Teleport
     </div>
     <div
-      class="c16"
+      class="c14"
     >
       You will also need the binaries below for
        
       <a
         about="_blank"
-        class="c11"
+        class="c9"
         color="text.main"
         href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
         rel="noreferrer"
@@ -6774,7 +6719,7 @@ exports[`renders when releases failed 1`] = `
       :
     </div>
     <div
-      class="c17"
+      class="c15"
       kind="danger"
     >
       failed loading releases

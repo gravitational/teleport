@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`failed 1`] = `
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,7 +18,7 @@ exports[`failed 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
@@ -30,19 +30,13 @@ exports[`failed 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c12 {
-  box-sizing: border-box;
-  padding: 8px;
-  height: 100px;
-  border-radius: 4px;
 }
 
 .c13 {
   box-sizing: border-box;
+  padding: 8px;
+  height: 100px;
+  border-radius: 4px;
 }
 
 .c14 {
@@ -173,26 +167,27 @@ exports[`failed 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
-.c10 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 24px;
 }
 
-.c11 {
+.c12 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
+  margin-bottom: 4px;
   margin-bottom: 4px;
 }
 
@@ -203,7 +198,6 @@ exports[`failed 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -255,6 +249,12 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -282,26 +282,26 @@ exports[`failed 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="danger"
         >
           some error message
         </div>
         <div
-          class="c10"
+          class="c11"
         >
           To access your Teleport account, please send an authorization request using the form below.
         </div>
         <label
-          class="c11"
+          class="c12"
         >
           Authorization Request Message
         </label>
         <textarea
-          class="c12"
+          class="c13"
           height="100px"
           placeholder="Describe your request..."
           style="outline: none;"
@@ -310,7 +310,7 @@ exports[`failed 1`] = `
         </textarea>
       </div>
       <div
-        class="c13"
+        class="c7"
       >
         <button
           class="c14"
@@ -339,19 +339,13 @@ exports[`loaded with custom prompt 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c11 {
-  box-sizing: border-box;
-  padding: 8px;
-  height: 100px;
-  border-radius: 4px;
 }
 
 .c12 {
   box-sizing: border-box;
+  padding: 8px;
+  height: 100px;
+  border-radius: 4px;
 }
 
 .c13 {
@@ -482,26 +476,27 @@ exports[`loaded with custom prompt 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
-.c9 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c11 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
+  margin-bottom: 4px;
   margin-bottom: 4px;
 }
 
@@ -512,7 +507,6 @@ exports[`loaded with custom prompt 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -564,6 +558,12 @@ exports[`loaded with custom prompt 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -591,20 +591,20 @@ exports[`loaded with custom prompt 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           Some custom prompt set by administrator
         </div>
         <label
-          class="c10"
+          class="c11"
         >
           Authorization Request Message
         </label>
         <textarea
-          class="c11"
+          class="c12"
           height="100px"
           placeholder="Describe your request..."
           style="outline: none;"
@@ -613,7 +613,7 @@ exports[`loaded with custom prompt 1`] = `
         </textarea>
       </div>
       <div
-        class="c12"
+        class="c7"
       >
         <button
           class="c13"
@@ -642,19 +642,13 @@ exports[`loaded without custom prompt 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c11 {
-  box-sizing: border-box;
-  padding: 8px;
-  height: 100px;
-  border-radius: 4px;
 }
 
 .c12 {
   box-sizing: border-box;
+  padding: 8px;
+  height: 100px;
+  border-radius: 4px;
 }
 
 .c13 {
@@ -785,26 +779,27 @@ exports[`loaded without custom prompt 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
-.c9 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c11 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
+  margin-bottom: 4px;
   margin-bottom: 4px;
 }
 
@@ -815,7 +810,6 @@ exports[`loaded without custom prompt 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -867,6 +861,12 @@ exports[`loaded without custom prompt 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -894,20 +894,20 @@ exports[`loaded without custom prompt 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           To access your Teleport account, please send an authorization request using the form below.
         </div>
         <label
-          class="c10"
+          class="c11"
         >
           Authorization Request Message
         </label>
         <textarea
-          class="c11"
+          class="c12"
           height="100px"
           placeholder="Describe your request..."
           style="outline: none;"
@@ -916,7 +916,7 @@ exports[`loaded without custom prompt 1`] = `
         </textarea>
       </div>
       <div
-        class="c12"
+        class="c7"
       >
         <button
           class="c13"

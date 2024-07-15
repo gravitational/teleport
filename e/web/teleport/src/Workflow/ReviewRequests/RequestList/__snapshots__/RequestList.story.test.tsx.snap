@@ -248,23 +248,23 @@ exports[`loaded state 1`] = `
   align-items: center;
   justify-content: center;
   color: #00BFA6;
-  margin-left: -3px;
   margin-right: 4px;
+  margin-left: -3px;
 }
 
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c19 {
@@ -296,11 +296,10 @@ exports[`loaded state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   margin-right: 8px;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c23 {
@@ -316,11 +315,10 @@ exports[`loaded state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   margin-right: 8px;
-  padding: 0px;
+  padding: 0;
   background: #FF6257;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c24 {
@@ -336,11 +334,10 @@ exports[`loaded state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   margin-right: 8px;
-  padding: 0px;
+  padding: 0;
   background: #00BFA6;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c1 {
@@ -738,7 +735,6 @@ exports[`loaded state 1`] = `
           >
             <span
               class="c17"
-              font-size="0"
               kind="warning"
               style="min-height: 10px;"
               width="10px"
@@ -865,7 +861,6 @@ exports[`loaded state 1`] = `
           >
             <span
               class="c17"
-              font-size="0"
               kind="warning"
               style="min-height: 10px;"
               width="10px"
@@ -938,7 +933,6 @@ exports[`loaded state 1`] = `
           >
             <span
               class="c23"
-              font-size="0"
               kind="danger"
               style="min-height: 10px;"
               width="10px"
@@ -1016,7 +1010,6 @@ exports[`loaded state 1`] = `
           >
             <span
               class="c24"
-              font-size="0"
               kind="success"
               style="min-height: 10px;"
               width="10px"
@@ -1108,7 +1101,6 @@ exports[`loaded state 1`] = `
           >
             <span
               class="c24"
-              font-size="0"
               kind="success"
               style="min-height: 10px;"
               width="10px"
@@ -1459,7 +1451,6 @@ exports[`loaded state 1`] = `
           >
             <span
               class="c24"
-              font-size="0"
               kind="success"
               style="min-height: 10px;"
               width="10px"

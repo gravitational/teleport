@@ -128,26 +128,26 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -197,7 +197,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c13 {
@@ -628,26 +629,26 @@ exports[`render failed state form for authenticating with password 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -697,7 +698,8 @@ exports[`render failed state form for authenticating with password 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 <form
@@ -918,26 +920,26 @@ exports[`render failed state form for authenticating with totp 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -987,7 +989,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c13 {
@@ -1444,26 +1447,26 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -1513,7 +1516,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c13 {
@@ -1927,26 +1931,26 @@ exports[`render form for authenticating with multi option 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -1996,7 +2000,8 @@ exports[`render form for authenticating with multi option 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c12 {
@@ -2395,26 +2400,26 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -2464,7 +2469,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 <form
@@ -2653,26 +2659,26 @@ exports[`render form for authenticating with totp 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -2722,7 +2728,8 @@ exports[`render form for authenticating with totp 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c12 {
@@ -3147,26 +3154,26 @@ exports[`render form for authenticating with webauthn 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -3216,7 +3223,8 @@ exports[`render form for authenticating with webauthn 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c12 {

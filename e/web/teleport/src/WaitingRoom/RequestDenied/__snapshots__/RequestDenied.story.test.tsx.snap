@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded with denied reason 1`] = `
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,7 +18,7 @@ exports[`loaded with denied reason 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
@@ -29,12 +29,6 @@ exports[`loaded with denied reason 1`] = `
 }
 
 .c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c11 {
   box-sizing: border-box;
 }
 
@@ -103,18 +97,18 @@ exports[`loaded with denied reason 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
-.c10 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
 }
 
@@ -125,7 +119,6 @@ exports[`loaded with denied reason 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -177,6 +170,12 @@ exports[`loaded with denied reason 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -204,22 +203,22 @@ exports[`loaded with denied reason 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="danger"
         >
           some reason for denying request
         </div>
         <div
-          class="c10"
+          class="c11"
         >
           Your request has been denied. Please contact your administrator for more information.
         </div>
       </div>
       <div
-        class="c11"
+        class="c7"
       >
         <button
           class="c12"
@@ -241,12 +240,6 @@ exports[`loaded without denied reason 1`] = `
 }
 
 .c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c10 {
   box-sizing: border-box;
 }
 
@@ -315,18 +308,18 @@ exports[`loaded without denied reason 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
-.c9 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
 }
 
@@ -337,7 +330,6 @@ exports[`loaded without denied reason 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -389,6 +381,12 @@ exports[`loaded without denied reason 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -416,16 +414,16 @@ exports[`loaded without denied reason 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           Your request has been denied. Please contact your administrator for more information.
         </div>
       </div>
       <div
-        class="c10"
+        class="c7"
       >
         <button
           class="c11"

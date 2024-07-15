@@ -19,7 +19,7 @@ interface Props {
   [x: string]: any;
 }
 
-const Icon = styled(Image)`
+const Icon = styled(Image)<{ size: number }>`
   display: inline-block;
   height: 100%;
   ${({ size }) =>

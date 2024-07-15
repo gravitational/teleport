@@ -91,10 +91,10 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
   padding-top: 24px;
   color: #FFFFFF;
   text-align: center;
@@ -103,7 +103,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -153,7 +153,8 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 <form
@@ -312,10 +313,10 @@ exports[`render correct form for clicking forgot password 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
   padding-top: 24px;
   color: #FFFFFF;
   text-align: center;
@@ -324,7 +325,7 @@ exports[`render correct form for clicking forgot password 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -374,7 +375,8 @@ exports[`render correct form for clicking forgot password 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 <form

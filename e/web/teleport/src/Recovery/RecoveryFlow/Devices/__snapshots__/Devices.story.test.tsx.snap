@@ -158,29 +158,29 @@ exports[`render device list 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
@@ -189,7 +189,7 @@ exports[`render device list 1`] = `
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c7 {
@@ -544,16 +544,14 @@ exports[`render device list 1`] = `
 exports[`render device removal dialog 1`] = `
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 32px;
   width: 400px;
-  flex: 1;
-}
-
-.c9 {
-  box-sizing: border-box;
 }
 
 .c10 {
+  box-sizing: border-box;
+}
+
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -584,8 +582,8 @@ exports[`render device removal dialog 1`] = `
   margin-right: 16px;
 }
 
-.c10:focus-visible,
-.teleport-button__force-focus-visible .c10 {
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
   background-color: #FF6257;
   color: #000000;
   border-color: #000000;
@@ -593,22 +591,22 @@ exports[`render device removal dialog 1`] = `
   outline: 2px solid #FF6257;
 }
 
-.c10:hover,
-.teleport-button__force-hover .c10 {
+.c11:hover,
+.teleport-button__force-hover .c11 {
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c10:active,
-.teleport-button__force-active .c10 {
+.c11:active,
+.teleport-button__force-active .c11 {
   background-color: #FFA19A;
   border-color: transparent;
   color: #000000;
 }
 
-.c10:disabled {
+.c11:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -616,7 +614,7 @@ exports[`render device removal dialog 1`] = `
   cursor: auto;
 }
 
-.c11 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -646,8 +644,8 @@ exports[`render device removal dialog 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -655,22 +653,22 @@ exports[`render device removal dialog 1`] = `
   outline: none;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c11:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -678,37 +676,36 @@ exports[`render device removal dialog 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
-  line-height: 32px;
-  margin: 0px;
-  margin-bottom: 8px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
-  font-size: 16px;
+  font-size: 28px;
   line-height: 32px;
-  margin: 0px;
-  margin-bottom: 40px;
+  margin-bottom: 8px;
 }
 
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin-bottom: 40px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c5 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -758,6 +755,12 @@ exports[`render device removal dialog 1`] = `
   max-height: calc(100% - 96px);
 }
 
+.c6 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -775,21 +778,21 @@ exports[`render device removal dialog 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4 c5"
+        class="c4 c5 c6"
         width="400px"
       >
         <div
-          class="c6"
+          class="c7"
         >
           Remove Device
         </div>
         <div
-          class="c7"
+          class="c8"
         >
           Are you sure you want to remove device
            
           <span
-            class="c8"
+            class="c9"
             color="text.main"
           >
             yubikey
@@ -799,16 +802,16 @@ exports[`render device removal dialog 1`] = `
         </div>
       </div>
       <div
-        class="c9"
+        class="c10"
       >
         <button
-          class="c10"
+          class="c11"
           fill="filled"
         >
           Remove
         </button>
         <button
-          class="c11"
+          class="c12"
           fill="filled"
         >
           Cancel
@@ -833,7 +836,7 @@ exports[`render failed state for device list 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  margin: 0px;
+  margin: 0;
   background: rgba(255, 98, 87, 0.1);
   border: 2px solid #FF6257;
   border-radius: 8px;
@@ -934,29 +937,29 @@ exports[`render failed state for device list 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;

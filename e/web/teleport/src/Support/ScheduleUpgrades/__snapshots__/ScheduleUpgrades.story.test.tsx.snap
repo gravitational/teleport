@@ -1,6 +1,542 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render failed 1`] = `
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+  margin-right: 16px;
+}
+
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
+}
+
+.c14:hover,
+.teleport-button__force-hover .c14 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c14:active,
+.teleport-button__force-active .c14 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c14:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c15:hover,
+.teleport-button__force-hover .c15 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c15:active,
+.teleport-button__force-active .c15 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c15:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #222C59;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  max-width: 600px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  color: #FFFFFF;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  min-width: 500px;
+  flex: 0 0 auto;
+}
+
+.c13 {
+  box-sizing: border-box;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
+  display: flex;
+}
+
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #FF6257;
+  color: #000000;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
+.c10 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+.c12 .react-select-container {
+  box-sizing: border-box;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: #FFFFFF;
+  background-color: transparent;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c12 .react-select__control {
+  outline: none;
+  min-height: 40px;
+  height: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  border-radius: 4px;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.c12 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.c12 .react-select__control:hover,
+.c12 .react-select__control:focus,
+.c12 .react-select__control:active {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c12 .react-select__control:hover .react-select__dropdown-indicator,
+.c12 .react-select__control:focus .react-select__dropdown-indicator,
+.c12 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control .react-select__indicator:hover,
+.c12 .react-select__control .react-select__dropdown-indicator:hover,
+.c12 .react-select__control .react-select__indicator:focus,
+.c12 .react-select__control .react-select__dropdown-indicator:focus,
+.c12 .react-select__control .react-select__indicator:active,
+.c12 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control--is-focused {
+  border-color: rgba(255, 255, 255, 0.72);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__placeholder {
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.c12 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
+}
+
+.c12 .react-select__option:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-focused {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-selected {
+  background-color: rgba(255,255,255,0.13);
+  color: inherit;
+  font-weight: 500;
+}
+
+.c12 .react-select__option--is-selected:hover {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__clear-indicator {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c12 .react-select__clear-indicator:hover,
+.c12 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__clear-indicator:hover svg,
+.c12 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
+}
+
+.c12 .react-select__menu {
+  margin-top: 0px;
+  background-color: #344179;
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
+}
+
+.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
+}
+
+.c12 .react-select__indicator-separator {
+  display: none;
+}
+
+.c12 .react-select__loading-indicator {
+  display: none;
+}
+
+.c12 .react-select__control--is-disabled {
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+}
+
+.c12 .react-select__control--is-disabled .react-select__single-value,
+.c12 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255, 255, 255, 0.36);
+}
+
+.c12 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255, 255, 255, 0.36);
+}
+
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4 c5"
+      >
+        <div
+          class="c6"
+          color="text.main"
+        >
+          Select a maintenance start window
+        </div>
+      </div>
+      <div
+        class="c7"
+        kind="danger"
+      >
+        there was an error processing the request
+      </div>
+      <div
+        class="c8 c9 c10"
+      >
+        <div
+          class="c11"
+        >
+          Teleport provides different cluster maintenance windows to minimize downtime during upgrades, patches, etc.
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  08:00 (UTC)
+                </div>
+                <div
+                  class="css-b8ldur-Input"
+                >
+                  <div
+                    class="react-select__input"
+                    style="display: inline-block;"
+                  >
+                    <input
+                      aria-autocomplete="list"
+                      autocapitalize="none"
+                      autocomplete="off"
+                      autocorrect="off"
+                      id="react-select-4-input"
+                      spellcheck="false"
+                      style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                      tabindex="0"
+                      type="text"
+                      value=""
+                    />
+                    <div
+                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c13"
+      >
+        <button
+          class="c14"
+          fill="filled"
+        >
+          Save
+        </button>
+        <button
+          class="c15"
+          fill="filled"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render loaded 1`] = `
 .c13 {
   line-height: 1.5;
   margin: 0;
@@ -177,18 +713,18 @@ exports[`render failed 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 8px;
 }
 
@@ -198,10 +734,9 @@ exports[`render failed 1`] = `
   min-height: 32px;
 }
 
-.c8 {
+.c7 {
   box-sizing: border-box;
   min-width: 500px;
-  margin-bottom: 32px;
   flex: 0 0 auto;
 }
 
@@ -214,30 +749,15 @@ exports[`render failed 1`] = `
   align-items: center;
 }
 
+.c8 {
+  display: flex;
+}
+
 .c9 {
-  display: flex;
+  margin-bottom: 32px;
+  flex: 1;
   flex-direction: column;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
-}
-
-.c7 a {
-  color: #FFFFFF;
+  flex: 0 0 auto;
 }
 
 .c11 .react-select-container {
@@ -427,13 +947,7 @@ exports[`render failed 1`] = `
         </div>
       </div>
       <div
-        class="c7"
-        kind="danger"
-      >
-        there was an error processing the request
-      </div>
-      <div
-        class="c8 c9"
+        class="c7 c8 c9"
       >
         <div
           class="c10"
@@ -442,510 +956,6 @@ exports[`render failed 1`] = `
         </div>
         <div
           class="c11"
-        >
-          <div
-            class="react-select-container css-2b097c-container"
-          >
-            <div
-              class="react-select__control css-yk16xz-control"
-            >
-              <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-              >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  08:00 (UTC)
-                </div>
-                <div
-                  class="css-b8ldur-Input"
-                >
-                  <div
-                    class="react-select__input"
-                    style="display: inline-block;"
-                  >
-                    <input
-                      aria-autocomplete="list"
-                      autocapitalize="none"
-                      autocomplete="off"
-                      autocorrect="off"
-                      id="react-select-4-input"
-                      spellcheck="false"
-                      style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
-                      tabindex="0"
-                      type="text"
-                      value=""
-                    />
-                    <div
-                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div
-        class="c12"
-      >
-        <button
-          class="c13"
-          fill="filled"
-        >
-          Save
-        </button>
-        <button
-          class="c14"
-          fill="filled"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-`;
-
-exports[`render loaded 1`] = `
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
-  -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
-  border-width: 1.5px;
-  padding: 0 30.5px;
-  min-height: 32px;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.15px;
-  margin-right: 16px;
-}
-
-.c12:focus-visible,
-.teleport-button__force-focus-visible .c12 {
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: #000000;
-  border-radius: 2px;
-  outline: 2px solid #9F85FF;
-}
-
-.c12:hover,
-.teleport-button__force-hover .c12 {
-  background-color: #B29DFF;
-  border-color: transparent;
-  color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
-}
-
-.c12:active,
-.teleport-button__force-active .c12 {
-  background-color: #C5B6FF;
-  border-color: transparent;
-  color: #000000;
-}
-
-.c12:disabled {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.3);
-  border-color: transparent;
-  box-shadow: none;
-  cursor: auto;
-}
-
-.c13 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
-  -webkit-font-smoothing: antialiased;
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.72);
-  border-color: transparent;
-  border-width: 1.5px;
-  padding: 0 30.5px;
-  min-height: 32px;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.15px;
-}
-
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255, 255, 255, 0.72);
-  border-radius: 4px;
-  outline: none;
-}
-
-.c13:hover,
-.teleport-button__force-hover .c13 {
-  background-color: rgba(255,255,255,0.13);
-  border-color: transparent;
-  color: #FFFFFF;
-  box-shadow: none;
-}
-
-.c13:active,
-.teleport-button__force-active .c13 {
-  background-color: rgba(255,255,255,0.18);
-  border-color: transparent;
-  color: #FFFFFF;
-}
-
-.c13:disabled {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.3);
-  border-color: transparent;
-  box-shadow: none;
-  cursor: auto;
-}
-
-.c1 {
-  z-index: -1;
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  opacity: 1;
-  touch-action: none;
-}
-
-.c0 {
-  position: fixed;
-  z-index: 1200;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  max-width: 600px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 8px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-}
-
-.c7 {
-  box-sizing: border-box;
-  min-width: 500px;
-  margin-bottom: 32px;
-  flex: 0 0 auto;
-}
-
-.c11 {
-  box-sizing: border-box;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c10 .react-select-container {
-  box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
-}
-
-.c10 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255, 255, 255, 0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-.c10 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255, 255, 255, 0.54);
-}
-
-.c10 .react-select__control:hover,
-.c10 .react-select__control:focus,
-.c10 .react-select__control:active {
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c10 .react-select__control:hover .react-select__dropdown-indicator,
-.c10 .react-select__control:focus .react-select__dropdown-indicator,
-.c10 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c10 .react-select__control .react-select__indicator:hover,
-.c10 .react-select__control .react-select__dropdown-indicator:hover,
-.c10 .react-select__control .react-select__indicator:focus,
-.c10 .react-select__control .react-select__dropdown-indicator:focus,
-.c10 .react-select__control .react-select__indicator:active,
-.c10 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c10 .react-select__control--is-focused {
-  border-color: rgba(255, 255, 255, 0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c10 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c10 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c10 .react-select__placeholder {
-  color: rgba(255, 255, 255, 0.54);
-}
-
-.c10 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c10 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c10 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c10 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c10 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c10 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c10 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c10 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c10 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c10 .react-select__clear-indicator {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c10 .react-select__clear-indicator:hover,
-.c10 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c10 .react-select__clear-indicator:hover svg,
-.c10 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c10 .react-select__menu {
-  margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
-}
-
-.c10 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c10 .react-select__indicator-separator {
-  display: none;
-}
-
-.c10 .react-select__loading-indicator {
-  display: none;
-}
-
-.c10 .react-select__control--is-disabled {
-  color: rgba(255, 255, 255, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.36);
-}
-
-.c10 .react-select__control--is-disabled .react-select__single-value,
-.c10 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255, 255, 255, 0.36);
-}
-
-.c10 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255, 255, 255, 0.36);
-}
-
-.c10 .react-select__input {
-  color: #FFFFFF;
-}
-
-<div
-  class="c0"
-  data-testid="Modal"
->
-  <div
-    aria-hidden="true"
-    class="c1"
-    data-testid="backdrop"
-  />
-  <div
-    class="c2"
-  >
-    <div
-      class="c3"
-      data-testid="dialogbox"
-    >
-      <div
-        class="c4 c5"
-      >
-        <div
-          class="c6"
-          color="text.main"
-        >
-          Select a maintenance start window
-        </div>
-      </div>
-      <div
-        class="c7 c8"
-      >
-        <div
-          class="c9"
-        >
-          Teleport provides different cluster maintenance windows to minimize downtime during upgrades, patches, etc.
-        </div>
-        <div
-          class="c10"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -1015,16 +1025,16 @@ exports[`render loaded 1`] = `
         </div>
       </div>
       <div
-        class="c11"
+        class="c12"
       >
         <button
-          class="c12"
+          class="c13"
           fill="filled"
         >
           Save
         </button>
         <button
-          class="c13"
+          class="c14"
           fill="filled"
         >
           Cancel
@@ -1036,7 +1046,7 @@ exports[`render loaded 1`] = `
 `;
 
 exports[`render processing 1`] = `
-.c12 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1067,8 +1077,8 @@ exports[`render processing 1`] = `
   margin-right: 16px;
 }
 
-.c12:focus-visible,
-.teleport-button__force-focus-visible .c12 {
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -1076,22 +1086,22 @@ exports[`render processing 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c12:hover,
-.teleport-button__force-hover .c12 {
+.c13:hover,
+.teleport-button__force-hover .c13 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c12:active,
-.teleport-button__force-active .c12 {
+.c13:active,
+.teleport-button__force-active .c13 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c12:disabled {
+.c13:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1099,7 +1109,7 @@ exports[`render processing 1`] = `
   cursor: auto;
 }
 
-.c13 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1129,8 +1139,8 @@ exports[`render processing 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c13:focus-visible,
-.teleport-button__force-focus-visible .c13 {
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -1138,22 +1148,22 @@ exports[`render processing 1`] = `
   outline: none;
 }
 
-.c13:hover,
-.teleport-button__force-hover .c13 {
+.c14:hover,
+.teleport-button__force-hover .c14 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c13:active,
-.teleport-button__force-active .c13 {
+.c14:active,
+.teleport-button__force-active .c14 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c13:disabled {
+.c14:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1212,18 +1222,18 @@ exports[`render processing 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
-.c9 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 8px;
 }
 
@@ -1236,11 +1246,10 @@ exports[`render processing 1`] = `
 .c7 {
   box-sizing: border-box;
   min-width: 500px;
-  margin-bottom: 32px;
   flex: 0 0 auto;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
 }
 
@@ -1251,10 +1260,16 @@ exports[`render processing 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c10 .react-select-container {
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+.c11 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1266,7 +1281,7 @@ exports[`render processing 1`] = `
   border-radius: 4px;
 }
 
-.c10 .react-select__control {
+.c11 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -1276,141 +1291,141 @@ exports[`render processing 1`] = `
   box-shadow: none;
 }
 
-.c10 .react-select__control .react-select__dropdown-indicator {
+.c11 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c10 .react-select__control:hover,
-.c10 .react-select__control:focus,
-.c10 .react-select__control:active {
+.c11 .react-select__control:hover,
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c10 .react-select__control:hover .react-select__dropdown-indicator,
-.c10 .react-select__control:focus .react-select__dropdown-indicator,
-.c10 .react-select__control:active .react-select__dropdown-indicator {
+.c11 .react-select__control:hover .react-select__dropdown-indicator,
+.c11 .react-select__control:focus .react-select__dropdown-indicator,
+.c11 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c10 .react-select__control .react-select__indicator:hover,
-.c10 .react-select__control .react-select__dropdown-indicator:hover,
-.c10 .react-select__control .react-select__indicator:focus,
-.c10 .react-select__control .react-select__dropdown-indicator:focus,
-.c10 .react-select__control .react-select__indicator:active,
-.c10 .react-select__control .react-select__dropdown-indicator:active {
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover,
+.c11 .react-select__control .react-select__indicator:focus,
+.c11 .react-select__control .react-select__dropdown-indicator:focus,
+.c11 .react-select__control .react-select__indicator:active,
+.c11 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c10 .react-select__control--is-focused {
+.c11 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c10 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c10 .react-select__single-value {
+.c11 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c10 .react-select__placeholder {
+.c11 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c10 .react-select__multi-value {
+.c11 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c10 .react-select__multi-value .react-select__multi-value__label {
+.c11 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c10 .react-select__multi-value .react-select__multi-value__remove {
+.c11 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c10 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c10 .react-select__option:hover {
+.c11 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c10 .react-select__option--is-focused {
+.c11 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c10 .react-select__option--is-focused:hover {
+.c11 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c10 .react-select__option--is-selected {
+.c11 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c10 .react-select__option--is-selected:hover {
+.c11 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c10 .react-select__clear-indicator {
+.c11 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c10 .react-select__clear-indicator:hover,
-.c10 .react-select__clear-indicator:focus {
+.c11 .react-select__clear-indicator:hover,
+.c11 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c10 .react-select__clear-indicator:hover svg,
-.c10 .react-select__clear-indicator:focus svg {
+.c11 .react-select__clear-indicator:hover svg,
+.c11 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c10 .react-select__menu {
+.c11 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c10 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c10 .react-select__indicator-separator {
+.c11 .react-select__indicator-separator {
   display: none;
 }
 
-.c10 .react-select__loading-indicator {
+.c11 .react-select__loading-indicator {
   display: none;
 }
 
-.c10 .react-select__control--is-disabled {
+.c11 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c10 .react-select__control--is-disabled .react-select__single-value,
-.c10 .react-select__control--is-disabled .react-select__placeholder {
+.c11 .react-select__control--is-disabled .react-select__single-value,
+.c11 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c10 .react-select__control--is-disabled .react-select__indicator {
+.c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c10 .react-select__input {
+.c11 .react-select__input {
   color: #FFFFFF;
 }
 
@@ -1441,15 +1456,15 @@ exports[`render processing 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           Teleport provides different cluster maintenance windows to minimize downtime during upgrades, patches, etc.
         </div>
         <div
-          class="c10"
+          class="c11"
         >
           <div
             class="react-select-container react-select--is-disabled css-14jk2my-container"
@@ -1520,17 +1535,17 @@ exports[`render processing 1`] = `
         </div>
       </div>
       <div
-        class="c11"
+        class="c12"
       >
         <button
-          class="c12"
+          class="c13"
           disabled=""
           fill="filled"
         >
           Save
         </button>
         <button
-          class="c13"
+          class="c14"
           disabled=""
           fill="filled"
         >

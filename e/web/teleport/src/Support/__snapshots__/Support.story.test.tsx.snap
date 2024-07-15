@@ -4,16 +4,14 @@ exports[`render support cloud section 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -58,16 +56,16 @@ exports[`render support cloud section 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -75,19 +73,19 @@ exports[`render support cloud section 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c1 {
@@ -109,6 +107,9 @@ exports[`render support cloud section 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
