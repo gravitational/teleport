@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
@@ -539,6 +540,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		if err = config.Configure(&ccf, conf, command != appStartCmd.FullCommand()); err != nil {
 			utils.FatalError(err)
 		}
+
+		// Validate binary modules against the device trust configuration.
+		// Catches errors in file-based configs.
+		if conf.Auth.Enabled {
+			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+				utils.FatalError(err)
+			}
+		}
+
 		if !options.InitOnly {
 			err = OnStart(ccf, conf)
 		}
