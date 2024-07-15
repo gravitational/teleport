@@ -10,6 +10,12 @@ resource "google_compute_instance" "teleport_agent" {
   name  = "teleport-agent-${count.index}"
   zone  = var.gcp_zone
 
+  // Initialize the instance tags to an empty map to prevent errors when the
+  // Teleport SSH Service fetches them.
+  params {
+    resource_manager_tags = {}
+  }
+
   boot_disk {
     initialize_params {
       image = "family/ubuntu-2204-lts"
