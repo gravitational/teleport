@@ -116,6 +116,9 @@
 static VNEDaemonService *daemonService = NULL;
 
 void DaemonStart(const char *bundle_path) {
+  if (daemonService) {
+    return;
+  }
   daemonService = [[VNEDaemonService alloc] initWithBundlePath:@(bundle_path)];
   [daemonService start];
 }
