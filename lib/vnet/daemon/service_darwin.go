@@ -26,7 +26,7 @@ import "C"
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 	"unsafe"
 
@@ -68,7 +68,7 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 func waitForVnetConfig(ctx context.Context) (Config, error) {
 	const waitForVnetConfigTimeout = 20 * time.Second
 	ctx, cancel := context.WithTimeoutCause(ctx, waitForVnetConfigTimeout,
-		fmt.Errorf("did not receive the VNet config within the timeout"))
+		errors.New("did not receive the VNet config within the timeout"))
 	defer cancel()
 
 	var config Config
@@ -87,7 +87,7 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 		// This call gets unblocked when the daemon gets stopped through C.DaemonStop.
 		C.WaitForVnetConfig(&result)
 		if !result.ok {
-			errC <- trace.Errorf(C.GoString(result.error_description))
+			errC <- trace.Wrap(errors.New(C.GoString(result.error_description)))
 			return
 		}
 
