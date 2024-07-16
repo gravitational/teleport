@@ -106,9 +106,10 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 			aws.StringValue(rdsCluster.DBClusterIdentifier), err)
 
-		// services.NewDatabasesFromRDSCluster maybe partially successful.
+		// common.NewDatabasesFromRDSCluster maybe partially successful so
+		// continue if at least one database is returned.
 		if len(databases) == 0 {
-			return nil
+			return trace.Wrap(err)
 		}
 	}
 	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, rdsCluster))
@@ -271,4 +272,32 @@ func (c *urlChecker) checkOpenSearchEndpoint(ctx context.Context, database types
 		// that.
 		return trace.BadParameter(`cannot validate OpenSearch custom domain %v. Please provide Database Service "es:DescribeDomains" permission to validate the URL.`, database.GetURI())
 	}
+}
+
+func (c *urlChecker) checkDocumentDB(ctx context.Context, database types.Database) error {
+	meta := database.GetAWS()
+	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cluster, err := describeRDSCluster(ctx, rdsClient, meta.DocumentDB.ClusterID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	databases, err := common.NewDatabasesFromDocumentDBCluster(cluster)
+	if err != nil {
+		c.log.Warnf("Could not convert DocumentDB cluster %q to database resources: %v.",
+			aws.StringValue(cluster.DBClusterIdentifier), err)
+
+		// common.NewDatabasesFromDocumentDBCluster maybe partially successful
+		// so continue if at least one database is returned.
+		if len(databases) == 0 {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, cluster))
 }
