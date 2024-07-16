@@ -6171,6 +6171,10 @@ message PluginStatusV1 {
     PluginGitlabStatusV1 gitlab = 4;
     PluginEntraIDStatusV1 entra_id = 5;
   }
+
+  // error_description is a human-readable error description that can be displayed to the user when
+  // the plugin is in an error state.
+  string error_description = 6;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.
