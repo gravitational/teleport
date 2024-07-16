@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
@@ -850,7 +851,8 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		return trace.Wrap(err)
 	}
 
-	// generate a keypair:
+	// Generate a keypair.
+	// TODO(nklaassen): support configurable key algorithms, split SSH and TLS keys.
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
@@ -919,10 +921,17 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		certUsage = proto.UserCertsRequest_Database
 	}
 
+	sshPublicKey := key.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:         key.MarshalSSHPublicKey(),
+		SSHPublicKey:      sshPublicKey,
+		TLSPublicKey:      tlsPublicKey,
 		Username:          a.genUser,
 		Expires:           reqExpiry,
 		Format:            certificateFormat,

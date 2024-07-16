@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -232,6 +233,8 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 
 // generateKeys generates TLS and SSH keypairs.
 func generateKeys() (private, sshpub, tlspub []byte, err error) {
+	// TODO(nklaassen): split SSH and TLS keys, support configurable key
+	// algorithms.
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -315,13 +318,26 @@ func generateIdentity(
 	// Generate a fresh keypair for the impersonated identity. We don't care to
 	// reuse keys here: impersonated certs might not be as well-protected so
 	// constantly rotating private keys
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	// TODO(nklaassen): split SSH and TLS keys, support configurable algorithms.
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	req := proto.UserCertsRequest{
-		PublicKey:      publicKey,
+		SSHPublicKey:   sshPublicKey,
+		TLSPublicKey:   tlsPublicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
 		Expires:        time.Now().Add(ttl),
 		RoleRequests:   roles,
@@ -372,9 +388,14 @@ func generateIdentity(
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = currentIdentity.SSHCACertBytes
 
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKey,
-		PublicKeyBytes:  publicKey,
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  sshPublicKey,
 	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)

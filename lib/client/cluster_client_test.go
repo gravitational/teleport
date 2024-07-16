@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -330,37 +331,39 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 						}
 					},
 					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-						cert, err := ca.keygen.GenerateUserCert(services.UserCertParams{
-							CASigner:          caSigner,
-							PublicUserKey:     req.PublicKey,
-							TTL:               req.Expires.Sub(clock.Now()),
-							Username:          req.Username,
-							CertificateFormat: req.Format,
-							RouteToCluster:    req.RouteToCluster,
-						})
-						if err != nil {
-							return nil, trace.Wrap(err)
+						var sshCert, tlsCert []byte
+						var err error
+						if req.SSHPublicKey != nil {
+							sshCert, err = ca.keygen.GenerateUserCert(services.UserCertParams{
+								CASigner:          caSigner,
+								PublicUserKey:     req.SSHPublicKey,
+								TTL:               req.Expires.Sub(clock.Now()),
+								Username:          req.Username,
+								CertificateFormat: req.Format,
+								RouteToCluster:    req.RouteToCluster,
+							})
+							if err != nil {
+								return nil, trace.Wrap(err)
+							}
 						}
-
-						priv, err := ca.keygen.GeneratePrivateKey()
-						require.NoError(t, err)
-
-						identity := tlsca.Identity{
-							Username: req.Username,
-							Groups:   []string{"groups"},
+						if req.TLSPublicKey != nil {
+							pub, err := keys.ParsePublicKey(req.TLSPublicKey)
+							require.NoError(t, err)
+							identity := tlsca.Identity{
+								Username: req.Username,
+								Groups:   []string{"groups"},
+							}
+							subject, err := identity.Subject()
+							require.NoError(t, err)
+							tlsCert, err = ca.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+								Clock:     clock,
+								PublicKey: pub,
+								Subject:   subject,
+								NotAfter:  req.Expires,
+							})
+							require.NoError(t, err)
 						}
-						subject, err := identity.Subject()
-						require.NoError(t, err)
-
-						tlsCert, err := ca.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-							Clock:     clock,
-							PublicKey: priv.Public(),
-							Subject:   subject,
-							NotAfter:  req.Expires,
-						})
-						require.NoError(t, err)
-
-						return &proto.Certs{SSH: cert, TLS: tlsCert}, nil
+						return &proto.Certs{SSH: sshCert, TLS: tlsCert}, nil
 					},
 				},
 				Tracer:  tracing.NoopTracer("test"),
