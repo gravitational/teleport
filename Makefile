@@ -1646,7 +1646,8 @@ ifneq ($(WEBASSETS_SKIP_BUILD),1)
 			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm...'; \
 			corepack enable pnpm; \
 		else \
-			echo 'Warning: Corepack is not installed, cannot enable pnpm.'; \
+			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
+			exit 1; \
 		fi \
 	fi
 endif
