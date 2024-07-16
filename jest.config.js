@@ -29,7 +29,11 @@ module.exports = {
     // '**/packages/design/src/**/*.jsx',
     '**/packages/shared/components/**/*.jsx',
   ],
-  // https://jestjs.io/docs/configuration#transformignorepatterns-arraystring
+  // Copied from https://jestjs.io/docs/configuration#transformignorepatterns-arraystring
+  // Because in pnpm packages are symlinked to node_modules/.pnpm,
+  // we need to transform packages in that directory.
+  // We use a relative pattern to match the second 'node_modules/' in
+  // 'node_modules/.pnpm/@scope+pkg-b@x.x.x/node_modules/@scope/pkg-b/'.
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e'],
