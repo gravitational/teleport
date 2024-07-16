@@ -21,7 +21,9 @@ package workloadattest
 import (
 	"cmp"
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -277,8 +279,9 @@ func (a *KubernetesAttestor) getPodForID(ctx context.Context, podID string) (*v1
 const (
 	// nodeNameEnv is used to inject the current nodes name via the downward API.
 	// This provides a hostname for the kubelet client to use.
-	nodeNameEnv                = "TELEPORT_NODE_NAME"
-	defaultServiceAccountToken = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	nodeNameEnv                    = "TELEPORT_NODE_NAME"
+	defaultServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultCAPath                  = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 )
 
 // KubeletClientConfig holds the configuration for the Kubelet client
@@ -308,12 +311,21 @@ func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
 	host := os.Getenv(nodeNameEnv)
 	port := cmp.Or(c.cfg.SecurePort, 10250)
 	client := &http.Client{
-		Transport: http.DefaultTransport,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:            nil,  // TODO:
+				InsecureSkipVerify: true, // TODO
+			},
+		},
 	}
 	reqUrl := url.URL{
 		Scheme: "https",
 		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
 		Path:   "/pods",
+	}
+	token, err := os.ReadFile(cmp.Or(c.cfg.TokenPath, defaultServiceAccountTokenPath))
+	if err != nil {
+		return nil, trace.Wrap(err, "reading token file")
 	}
 
 	// TODO: Support for read only port...
@@ -322,6 +334,9 @@ func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "creating request")
 	}
+
+	// TODO: Only include token if using secure port!
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	res, err := client.Do(req)
 	if err != nil {
