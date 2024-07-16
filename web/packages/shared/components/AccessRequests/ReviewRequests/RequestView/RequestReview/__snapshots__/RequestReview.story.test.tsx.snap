@@ -31,10 +31,10 @@ exports[`failed state 1`] = `
 
 .c1 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -124,17 +124,17 @@ exports[`failed state 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c17 {
@@ -142,7 +142,8 @@ exports[`failed state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c6 {
@@ -351,10 +352,10 @@ exports[`loaded state 1`] = `
 
 .c1 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -444,17 +445,17 @@ exports[`loaded state 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c16 {
@@ -462,7 +463,8 @@ exports[`loaded state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c5 {

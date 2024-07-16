@@ -79,8 +79,8 @@ exports[`render DocumentBlank 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 40px;
   margin-top: 72px;
+  margin-bottom: 40px;
 }
 
 .c1 {

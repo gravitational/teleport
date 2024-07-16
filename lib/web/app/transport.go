@@ -296,7 +296,7 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	}
 
 	// Create a new jwt key using the web session private key to sign a new token.
-	wsPrivateKey, err := keys.ParsePrivateKey(t.c.ws.GetPriv())
+	wsPrivateKey, err := keys.ParsePrivateKey(t.c.ws.GetTLSPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -467,7 +467,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 
 	// Configure the identity that will be used to connect to the server. This
 	// allows the server to verify the identity of the caller.
-	certificate, err := tls.X509KeyPair(c.ws.GetTLSCert(), c.ws.GetPriv())
+	certificate, err := tls.X509KeyPair(c.ws.GetTLSCert(), c.ws.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse certificate or key")
 	}

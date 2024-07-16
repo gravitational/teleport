@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,41 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
 
-import {
-  space,
-  color,
-  width,
-  height,
-  maxWidth,
-  maxHeight,
-  alignSelf,
-} from 'design/system';
-
-const Image = props => {
-  return <StyledImg {...props} />;
-};
-
-Image.propTypes = {
-  /** Image Src */
-  src: PropTypes.string,
-  ...space.propTypes,
-  ...color.propTypes,
-  ...width.propTypes,
-  ...height.propTypes,
-  ...maxWidth.propTypes,
-  ...maxHeight.propTypes,
-};
-
-Image.displayName = 'Logo';
-
-export default Image;
-
-const StyledImg = styled.img`
-  display: block;
-  outline: none;
-  ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}
+export const Mark = styled.mark`
+  padding: 2px 5px;
+  border-radius: 6px;
+  font-family: ${p => p.theme.fonts.mono};
+  font-size: ${p => p.theme.fontSizes[1]}px;
+  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
+  color: inherit;
 `;

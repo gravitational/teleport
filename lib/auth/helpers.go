@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -283,7 +284,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	srv.AuthServer, err = NewServer(&InitConfig{
+		DataDir:                cfg.Dir,
 		Backend:                srv.Backend,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.NewWithClock(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,
@@ -985,7 +988,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authcli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetPriv())
+	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -1143,6 +1146,24 @@ func (t *TestTLSServer) Stop() error {
 		t.Listener.Close()
 	}
 	return err
+}
+
+// FakeTeleportVersion fake version storage implementation always return current version.
+type FakeTeleportVersion struct{}
+
+// NewFakeTeleportVersion creates fake version storage.
+func NewFakeTeleportVersion() *FakeTeleportVersion {
+	return &FakeTeleportVersion{}
+}
+
+// GetTeleportVersion returns current Teleport version.
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
+	return teleport.SemVersion, nil
+}
+
+// WriteTeleportVersion stub function for writing.
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+	return nil
 }
 
 // NewServerIdentity generates new server identity, used in tests

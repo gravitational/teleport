@@ -1202,8 +1202,9 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 	return webclient.AuthenticationSettings{
 		Type: constants.SAML,
 		SAML: &webclient.SAMLSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:                connector.GetName(),
+			Display:             connector.GetDisplay(),
+			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
 		},
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
@@ -2065,6 +2066,9 @@ type CreateSessionResponse struct {
 	// If not nil it should be forwarded to Connect for the device authentication
 	// ceremony.
 	DeviceWebToken *types.DeviceWebToken `json:"deviceWebToken,omitempty"`
+	// TrustedDeviceRequirement calculated for the web session.
+	// Follows [types.TrustedDeviceRequirement].
+	TrustedDeviceRequirement int32 `json:"trusted_device_requirement,omitempty"`
 }
 
 func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
@@ -2088,6 +2092,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 		TokenExpiresIn:           int(token.Expiry().Sub(sctx.cfg.Parent.clock.Now()) / time.Second),
 		SessionInactiveTimeoutMS: int(sctx.cfg.Session.GetIdleTimeout().Milliseconds()),
 		DeviceWebToken:           sctx.cfg.Session.GetDeviceWebToken(),
+		TrustedDeviceRequirement: int32(sctx.cfg.Session.GetTrustedDeviceRequirement()),
 	}, nil
 }
 

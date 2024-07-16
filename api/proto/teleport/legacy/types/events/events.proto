@@ -4134,6 +4134,147 @@ message DiscoveryConfigDeleteAll {
   ];
 }
 
+// IntegrationCreate is emitted when an integration resource is created.
+message IntegrationCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  IntegrationMetadata Integration = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// IntegrationUpdate is emitted when an integration resource is updated.
+message IntegrationUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  IntegrationMetadata Integration = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// IntegrationDelete is emitted when an integration is deleted.
+message IntegrationDelete {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  IntegrationMetadata Integration = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// IntegrationMetadata contains information about integration resources.
+message IntegrationMetadata {
+  // SubKind is the sub kind of the integration resource.
+  string SubKind = 1 [(gogoproto.jsontag) = "sub_kind"];
+
+  // AWSOIDC contains metadata for AWS OIDC integrations.
+  AWSOIDCIntegrationMetadata AWSOIDC = 2 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+  // AzureOIDC contains metadata for Azure OIDC integrations.
+  AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+}
+
+// AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
+message AWSOIDCIntegrationMetadata {
+  // RoleARN contains the Role ARN used to set up the Integration.
+  // This is the AWS Role that Teleport will use to issue tokens for API Calls.
+  string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
+
+  // IssuerS3URI is the Identity Provider that was configured in AWS.
+  string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+}
+
+// AzureOIDCIntegrationMetadata contains metadata for Azure OIDC integrations.
+message AzureOIDCIntegrationMetadata {
+  // TenantID specifies the ID of Entra Tenant (Directory).
+  string TenantID = 1 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+
+  // ClientID specifies the ID of Azure enterprise application (client).
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
@@ -4300,6 +4441,10 @@ message OneOf {
     events.DiscoveryConfigUpdate DiscoveryConfigUpdate = 161;
     events.DiscoveryConfigDelete DiscoveryConfigDelete = 162;
     events.DiscoveryConfigDeleteAll DiscoveryConfigDeleteAll = 163;
+    events.AccessGraphSettingsUpdate AccessGraphSettingsUpdate = 164;
+    events.IntegrationCreate IntegrationCreate = 165;
+    events.IntegrationUpdate IntegrationUpdate = 166;
+    events.IntegrationDelete IntegrationDelete = 167;
   }
 }
 
@@ -6472,5 +6617,36 @@ message SpannerRPC {
   google.protobuf.Struct Args = 7 [
     (gogoproto.jsontag) = "args,omitempty",
     (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// AccessGraphSettingsUpdate is emitted when the Access Graph Settings config is updated.
+message AccessGraphSettingsUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }

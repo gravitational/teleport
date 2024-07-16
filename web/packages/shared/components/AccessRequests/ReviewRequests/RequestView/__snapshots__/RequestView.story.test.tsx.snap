@@ -58,10 +58,10 @@ exports[`loaded approved role based request state 1`] = `
 
 .c24 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -86,20 +86,20 @@ exports[`loaded approved role based request state 1`] = `
 
 .c34 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c40 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c15 {
@@ -245,78 +245,78 @@ exports[`loaded approved role based request state 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c26 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c27 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 12px;
   line-height: 24px;
-  margin: 0px;
 }
 
 .c33 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c37 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c41 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -354,7 +354,6 @@ exports[`loaded approved role based request state 1`] = `
   padding-bottom: 4px;
   background: #00BFA6;
   color: #000000;
-  font-size: 10px;
 }
 
 .c38 {
@@ -369,11 +368,10 @@ exports[`loaded approved role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #00BFA6;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c39 {
@@ -388,11 +386,10 @@ exports[`loaded approved role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c1 {
@@ -482,7 +479,6 @@ exports[`loaded approved role based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="success"
               style="font-weight: bold;"
             >
@@ -745,7 +741,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c38"
-          font-size="0"
           kind="success"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -763,7 +758,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c39"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -781,7 +775,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c38"
-          font-size="0"
           kind="success"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -852,10 +845,10 @@ exports[`loaded denied role based request state 1`] = `
 
 .c22 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -889,20 +882,20 @@ exports[`loaded denied role based request state 1`] = `
 
 .c33 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c39 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c15 {
@@ -985,78 +978,78 @@ exports[`loaded denied role based request state 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c25 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 12px;
   line-height: 24px;
-  margin: 0px;
 }
 
 .c32 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c36 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c40 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -1094,7 +1087,6 @@ exports[`loaded denied role based request state 1`] = `
   padding-bottom: 4px;
   background: #FF6257;
   color: #000000;
-  font-size: 10px;
 }
 
 .c37 {
@@ -1109,11 +1101,10 @@ exports[`loaded denied role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FF6257;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c38 {
@@ -1128,11 +1119,10 @@ exports[`loaded denied role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c1 {
@@ -1222,7 +1212,6 @@ exports[`loaded denied role based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="danger"
               style="font-weight: bold;"
             >
@@ -1454,7 +1443,6 @@ exports[`loaded denied role based request state 1`] = `
         </div>
         <span
           class="c37"
-          font-size="0"
           kind="danger"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1472,7 +1460,6 @@ exports[`loaded denied role based request state 1`] = `
         </div>
         <span
           class="c38"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1543,10 +1530,10 @@ exports[`loaded pending role based request state 1`] = `
 
 .c25 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -1589,20 +1576,20 @@ exports[`loaded pending role based request state 1`] = `
 
 .c49 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c54 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c18 {
@@ -1740,102 +1727,102 @@ exports[`loaded pending role based request state 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 10px;
-  margin: 0px;
   margin-left: 4px;
 }
 
 .c27 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c28 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 12px;
   line-height: 24px;
-  margin: 0px;
 }
 
 .c31 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c39 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c48 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c52 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c55 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -1859,7 +1846,8 @@ exports[`loaded pending role based request state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c7 {
@@ -1881,7 +1869,6 @@ exports[`loaded pending role based request state 1`] = `
   padding-bottom: 4px;
   background: #FFAB00;
   color: #000000;
-  font-size: 10px;
 }
 
 .c53 {
@@ -1896,11 +1883,10 @@ exports[`loaded pending role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c1 {
@@ -2072,7 +2058,6 @@ exports[`loaded pending role based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="warning"
               style="font-weight: bold;"
             >
@@ -2337,7 +2322,6 @@ exports[`loaded pending role based request state 1`] = `
         </div>
         <span
           class="c53"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -2355,7 +2339,6 @@ exports[`loaded pending role based request state 1`] = `
         </div>
         <span
           class="c53"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -2426,10 +2409,10 @@ exports[`loaded pending search based request state 1`] = `
 
 .c25 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -2441,10 +2424,10 @@ exports[`loaded pending search based request state 1`] = `
 
 .c30 {
   box-sizing: border-box;
-  padding-bottom: 16px;
+  padding-top: 0;
   padding-left: 16px;
-  padding-right: 0px;
-  padding-top: 0px;
+  padding-right: 0;
+  padding-bottom: 16px;
   background-color: #344179;
 }
 
@@ -2481,20 +2464,20 @@ exports[`loaded pending search based request state 1`] = `
 
 .c53 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c58 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c18 {
@@ -2632,102 +2615,102 @@ exports[`loaded pending search based request state 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 10px;
-  margin: 0px;
   margin-left: 4px;
 }
 
 .c27 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c28 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 12px;
   line-height: 24px;
-  margin: 0px;
 }
 
 .c35 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c43 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c52 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 24px;
-  margin: 0px;
   margin-right: 8px;
 }
 
 .c56 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 16px;
 }
 
 .c59 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -2751,7 +2734,8 @@ exports[`loaded pending search based request state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c7 {
@@ -2773,7 +2757,6 @@ exports[`loaded pending search based request state 1`] = `
   padding-bottom: 4px;
   background: #FFAB00;
   color: #000000;
-  font-size: 10px;
 }
 
 .c57 {
@@ -2788,11 +2771,10 @@ exports[`loaded pending search based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c1 {
@@ -3066,7 +3048,6 @@ exports[`loaded pending search based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="warning"
               style="font-weight: bold;"
             >
@@ -3437,7 +3418,6 @@ exports[`loaded pending search based request state 1`] = `
         </div>
         <span
           class="c57"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -3455,7 +3435,6 @@ exports[`loaded pending search based request state 1`] = `
         </div>
         <span
           class="c57"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"

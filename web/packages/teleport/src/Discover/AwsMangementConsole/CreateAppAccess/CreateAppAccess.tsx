@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Text, Flex, Link, Mark } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { Danger } from 'design/Alert';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -31,7 +31,7 @@ import cfg from 'teleport/config';
 import { Container } from 'teleport/Discover/Shared/CommandBox';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { ActionButtons, Header, Mark } from '../../Shared';
+import { ActionButtons, Header } from '../../Shared';
 
 import { AppCreatedDialog } from './AppCreatedDialog';
 

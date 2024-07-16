@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// DevicesGetter allows to list all registered devices from storage.
 type DevicesGetter interface {
 	ListDevices(ctx context.Context, pageSize int, pageToken string, view devicepb.DeviceView) (devices []*devicepb.Device, nextPageToken string, err error)
 }

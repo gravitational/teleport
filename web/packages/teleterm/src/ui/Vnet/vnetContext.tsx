@@ -27,11 +27,13 @@ import {
   useEffect,
 } from 'react';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
+import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { isTshdRpcError } from 'teleterm/services/tshd';
+import { IAppContext } from 'teleterm/ui/types';
 
 /**
  * VnetContext manages the VNet instance.
@@ -84,6 +86,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
+      await notifyAboutDaemonBackgroundItem(appCtx);
+
       try {
         await vnet.start({});
       } catch (error) {
@@ -93,7 +97,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       }
       setStatus({ value: 'running' });
       setAppState({ autoStart: true });
-    }, [vnet, setAppState])
+    }, [vnet, setAppState, appCtx])
   );
 
   const [stopAttempt, stop] = useAsync(
@@ -184,4 +188,30 @@ export const useVnetContext = () => {
   }
 
   return context;
+};
+
+const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
+  const { vnet, notificationsService } = ctx;
+
+  let backgroundItemStatus: BackgroundItemStatus;
+  try {
+    const { response } = await vnet.getBackgroundItemStatus({});
+    backgroundItemStatus = response.status;
+  } catch (error) {
+    // vnet.getBackgroundItemStatus returns UNIMPLEMENTED if tsh was compiled without the
+    // vnetdaemon build tag.
+    if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
+      return;
+    }
+
+    throw error;
+  }
+
+  if (backgroundItemStatus === BackgroundItemStatus.ENABLED) {
+    return;
+  }
+
+  notificationsService.notifyInfo(
+    'Please enable the background item for tsh.app in System Settings > General > Login Items to start VNet.'
+  );
 };
