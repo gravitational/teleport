@@ -201,7 +201,7 @@ function Reviewers({
         `}
       >
         <Text
-          typography="body2"
+          typography="body3"
           bold
           style={{ whiteSpace: 'nowrap', maxWidth: '200px' }}
           title={reviewer.value}

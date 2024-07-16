@@ -26,6 +26,31 @@ export const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34];
 export const fontWeights = { light, regular, bold };
 
 const typography = {
+  body1: {
+    fontSize: '16px',
+    fontWeight: light,
+    lineHeight: '24px',
+    letterSpacing: '0.08px',
+  },
+  body2: {
+    fontSize: '14px',
+    fontWeight: light,
+    lineHeight: '20px',
+    letterSpacing: '0.035px',
+  },
+  body3: {
+    fontSize: '12px',
+    fontWeight: regular,
+    lineHeight: '20px',
+    letterSpacing: '0.015px',
+  },
+  body4: {
+    fontSize: '10px',
+    fontWeight: regular,
+    lineHeight: '16px',
+    letterSpacing: '0.013px',
+  },
+
   /**
    * Don't use directly, prefer the `H1` component except for text that doesn't
    * introduce document structure.
@@ -44,60 +69,39 @@ const typography = {
     fontSize: '18px',
     lineHeight: '24px',
   },
+  /**
+   * Don't use directly, prefer the `H3` component except for text that doesn't
+   * introduce document structure.
+   */
   h3: {
-    fontWeight: 300,
-    fontSize: '22px',
-    lineHeight: '32px',
+    fontWeight: bold,
+    fontSize: '14px',
+    lineHeight: '20px',
   },
   h4: {
-    fontWeight: regular,
-    fontSize: '18px',
-    lineHeight: '32px',
-  },
-  h5: {
-    fontWeight: regular,
-    fontSize: '16px',
-    lineHeight: '24px',
-  },
-  h6: {
-    fontWeight: bold,
-    fontSize: '14px',
-    lineHeight: '24px',
-  },
-  body1: {
-    fontWeight: regular,
-    fontSize: '14px',
-    lineHeight: '24px',
-  },
-  body2: {
-    fontWeight: regular,
+    fontWeight: medium,
     fontSize: '12px',
-    lineHeight: '16px',
-  },
-  paragraph: {
-    fontWeight: light,
-    fontSize: '16px',
-    lineHeight: '32px',
-  },
-  paragraph2: {
-    fontWeight: light,
-    fontSize: '12px',
-    lineHeight: '24px',
+    lineHeight: '20px',
+    letterSpacing: '0.03px',
+    textTransform: 'uppercase',
   },
   subtitle1: {
+    fontSize: '16px',
     fontWeight: regular,
-    fontSize: '14px',
     lineHeight: '24px',
+    letterSpacing: '0.024px',
   },
   subtitle2: {
-    fontWeight: bold,
-    fontSize: '10px',
-    lineHeight: '16px',
+    fontSize: '14px',
+    fontWeight: regular,
+    lineHeight: '20px',
+    letterSpacing: '0.014px',
   },
   subtitle3: {
-    fontSize: '10px',
-    fontWeight: regular,
-    lineHeight: '14px',
+    fontSize: '12px',
+    fontWeight: bold,
+    lineHeight: '20px',
+    letterSpacing: '0.012px',
   },
   table: {
     fontWeight: light,
@@ -109,26 +113,6 @@ const typography = {
     fontWeight: bold,
     fontSize: '14px',
     lineHeight: '20px',
-  },
-
-  // TODO(bl-nero): Migrate everything to the new typography.
-  newBody1: {
-    fontSize: '16px',
-    fontWeight: light,
-    lineHeight: '24px',
-    letterSpacing: '0.08px',
-  },
-  newBody2: {
-    fontSize: '14px',
-    fontWeight: light,
-    lineHeight: '20px',
-    letterSpacing: '0.035px',
-  },
-  newBody3: {
-    fontSize: '12px',
-    fontWeight: regular,
-    lineHeight: '20px',
-    letterSpacing: '0.015px',
   },
 };
 
