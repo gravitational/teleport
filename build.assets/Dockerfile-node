@@ -20,7 +20,7 @@ FROM node:${NODE_VERSION}-buster AS buildbox
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
 
-RUN corepack enable
+RUN corepack enable pnpm
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile

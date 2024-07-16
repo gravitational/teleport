@@ -144,7 +144,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        corepack enable
+        corepack enable pnpm
         Write-Host "::endgroup::"
     }
 }
