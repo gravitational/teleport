@@ -25,6 +25,9 @@ import (
 	"text/template"
 	"time"
 
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
+	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -34,6 +37,7 @@ import (
 )
 
 var supportedCredentialSources = CredentialSources{
+	CredentialsFromNativeMachineID{},
 	CredentialsFromKeyAndCertPath{},
 	CredentialsFromKeyAndCertBase64{},
 	CredentialsFromIdentityFilePath{},
@@ -451,6 +455,76 @@ func (CredentialsFromProfile) Credentials(ctx context.Context, config providerDa
 	profileDir := stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
 
 	return client.LoadProfile(profileDir, profileName), nil
+}
+
+// CredentialsFromNativeMachineID builds credentials by performing a MachineID join and
+type CredentialsFromNativeMachineID struct{}
+
+// Name implements CredentialSource and returns the source name.
+func (CredentialsFromNativeMachineID) Name() string {
+	return "by performing native MachineID joining"
+}
+
+// IsActive implements CredentialSource and returns if the source is active and why.
+func (CredentialsFromNativeMachineID) IsActive(config providerData) (bool, string) {
+	joinMethod := stringFromConfigOrEnv(config.JoinMethod, constants.EnvVarTerraformJoinMethod, "")
+	joinToken := stringFromConfigOrEnv(config.JoinToken, constants.EnvVarTerraformJoinToken, "")
+
+	// This method is active as soon as a token or a join method are set.
+	active := joinMethod != "" || joinToken != ""
+	return activeReason(
+		active,
+		attributeTerraformJoinMethod, attributeTerraformJoinToken,
+		constants.EnvVarTerraformJoinMethod, constants.EnvVarTerraformJoinToken,
+	)
+}
+
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
+func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
+	joinMethod := stringFromConfigOrEnv(config.JoinMethod, constants.EnvVarTerraformJoinMethod, "")
+	joinToken := stringFromConfigOrEnv(config.JoinToken, constants.EnvVarTerraformJoinToken, "")
+	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
+	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
+
+	if joinMethod == "" {
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
+	}
+	if joinToken == "" {
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
+	}
+	if addr == "" {
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformAddress, constants.EnvVarTerraformAddress)
+	}
+
+	// TODO: reject token JoinMethod (or gate behind an env var)
+
+	if err := apitypes.ValidateJoinMethod(apitypes.JoinMethod(joinMethod)); err != nil {
+		return nil, trace.Wrap(err, "Invalid Join Method")
+	}
+	botConfig := &embeddedtbot.BotConfig{
+		AuthServer: addr,
+		Onboarding: tbotconfig.OnboardingConfig{
+			TokenValue: joinToken,
+			CAPath:     caPath,
+			JoinMethod: apitypes.JoinMethod(joinMethod),
+		},
+		CertificateTTL:  time.Hour,
+		RenewalInterval: 20 * time.Minute,
+	}
+	bot, err := embeddedtbot.New(botConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "Failed to create bot configuration, this is a provider bug, please open a GitHub issue.")
+	}
+
+	preflightCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	_, err = bot.Preflight(preflightCtx)
+	if err != nil {
+		return nil, trace.Wrap(err, "Failed to preflight bot configuration")
+	}
+
+	creds, err := bot.StartAndWaitForCredentials(ctx, 20*time.Second /* deadline */)
+	return creds, trace.Wrap(err, "Waiting for bot to obtain credentials")
 }
 
 // activeReason renders a user-friendly active reason message describing if the credentials source is active
