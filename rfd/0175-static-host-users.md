@@ -107,6 +107,52 @@ service UsersService {
   rpc UpsertStaticHostUser(UpsertStaticHostUserRequest) returns (UpsertStaticHostUserResponse);
   rpc DeleteStaticHostUser(DeleteStaticHostUserRequest) returns (google.protobuf.Empty);
 }
+
+message GetStaticHostUserRequest {
+    string name = 1;
+}
+
+message GetStaticHostUserResponse {
+    types.StaticHostUserV1 user = 1;
+}
+
+message ListStaticHostUsersRequest {
+    int32 page_size = 1;
+    string page_token = 2;
+}
+
+message ListStaticHostUsersResponse {
+    repeated types.StaticHostUserV1 users = 1;
+    string next_page_token = 2;
+}
+
+message CreateStaticHostUserRequest {
+    types.StaticHostUserV1 user = 1;
+}
+
+message CreateStaticHostUserResponse {
+    types.StaticHostUserV1 user = 1;
+}
+
+message UpdateStaticHostUserRequest {
+    types.StaticHostUserV1 user = 1;
+}
+
+message UpdateStaticHostUserResponse {
+    types.StaticHostUserV1 user = 1;
+}
+
+message UpsertStaticHostUserRequest {
+    types.StaticHostUserV1 user = 1;
+}
+
+message UpsertStaticHostUserResponse {
+    types.StaticHostUserV1 user = 1;
+}
+
+message DeleteStaticHostUserRequest {
+    string name = 1;
+}
 ```
 
 ### Propagation
@@ -127,6 +173,9 @@ to true in their config) will ignore `static_host_user`s entirely.
 The `session.start` audit event will be extened to include a flag
 indicating whether or not the host user for an SSH session was
 created by Teleport (for both static and non-static host users).
+
+Two new audit events, `host_user.create` and `host_user.update`, will be added
+and emitted by nodes when they create or update a host user, respectively.
 
 ### Product usage
 
