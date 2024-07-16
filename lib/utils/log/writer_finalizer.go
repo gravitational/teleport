@@ -24,26 +24,26 @@ import (
 )
 
 // WriterFinalizer is a wrapper for the [io.WriteCloser] to automate resource cleanup.
-type WriterFinalizer struct {
-	writer io.WriteCloser
+type WriterFinalizer[T io.WriteCloser] struct {
+	writer T
 }
 
 // NewWriterFinalizer wraps the provided writer [io.WriteCloser] to trigger Close function
 // after writer is unassigned from any variable.
-func NewWriterFinalizer(writer io.WriteCloser) *WriterFinalizer {
-	wr := &WriterFinalizer{
+func NewWriterFinalizer[T io.WriteCloser](writer T) *WriterFinalizer[T] {
+	wr := &WriterFinalizer[T]{
 		writer: writer,
 	}
-	runtime.SetFinalizer(wr, (*WriterFinalizer).Close)
+	runtime.SetFinalizer(wr, (*WriterFinalizer[T]).Close)
 	return wr
 }
 
 // Write writes len(b) bytes from b to the writer.
-func (w *WriterFinalizer) Write(b []byte) (int, error) {
+func (w *WriterFinalizer[T]) Write(b []byte) (int, error) {
 	return w.writer.Write(b)
 }
 
 // Close wraps closing function of internal writer.
-func (w *WriterFinalizer) Close() error {
+func (w *WriterFinalizer[T]) Close() error {
 	return w.writer.Close()
 }

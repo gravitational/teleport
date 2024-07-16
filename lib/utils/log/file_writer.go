@@ -20,6 +20,7 @@ package log
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -30,6 +31,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var (
+	// ErrFileSharedWriterClosed is returned when file shared writer is already closed.
+	ErrFileSharedWriterClosed = errors.New("file shared writer is closed")
+)
+
 // FileSharedWriter is similar to SharedWriter except that it requires a `os.File` instead of a `io.Writer`.
 // This is to allow the File reopen required by logrotate and similar tools.
 type FileSharedWriter struct {
@@ -38,6 +44,7 @@ type FileSharedWriter struct {
 	fileMode    fs.FileMode
 	file        *os.File
 	watcher     *fsnotify.Watcher
+	closed      bool
 
 	lock sync.Mutex
 }
@@ -70,30 +77,39 @@ func NewFileSharedWriter(logFileName string, flag int, mode fs.FileMode) (*FileS
 func (s *FileSharedWriter) Write(b []byte) (int, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	if s.closed {
+		return 0, ErrFileSharedWriterClosed
+	}
 
 	return s.file.Write(b)
 }
 
 // Reopen closes the file and opens it again using APPEND mode.
-func (s *FileSharedWriter) Reopen() (err error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if err := s.file.Close(); err != nil {
-		return trace.Wrap(err)
-	}
-	s.file, err = os.OpenFile(s.logFileName, s.fileFlag, s.fileMode)
+func (s *FileSharedWriter) Reopen() error {
+	// If opening the file is locked we should not acquire a lock and blocking write.
+	file, err := os.OpenFile(s.logFileName, s.fileFlag, s.fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	s.lock.Lock()
+	if s.closed {
+		return trace.NewAggregate(ErrFileSharedWriterClosed, file.Close())
+	}
+	oldLogFile := s.file
+	s.file = file
+	s.lock.Unlock()
+
+	return trace.Wrap(oldLogFile.Close())
 }
 
 // RunWatcherReopen runs a filesystem watcher for rename/remove events to reopen the log.
 func (s *FileSharedWriter) RunWatcherReopen() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	if s.closed {
+		return ErrFileSharedWriterClosed
+	}
 
 	return s.runWatcherFunc(s.Reopen)
 }
@@ -101,10 +117,6 @@ func (s *FileSharedWriter) RunWatcherReopen() error {
 // runWatcherFunc spawns goroutine with the watcher loop to consume events of renaming
 // or removing the log file to trigger the action function when event appeared.
 func (s *FileSharedWriter) runWatcherFunc(action func() error) error {
-	if s.watcher.WatchList() == nil {
-		return trace.BadParameter("watcher is already closed")
-	}
-
 	go func() {
 		for {
 			select {
@@ -141,11 +153,10 @@ func (s *FileSharedWriter) Close() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if err := s.watcher.Close(); err != nil {
-		return trace.Wrap(err)
+	if s.closed {
+		return ErrFileSharedWriterClosed
 	}
-	if err := s.file.Close(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	s.closed = true
+
+	return trace.NewAggregate(s.watcher.Close(), s.file.Close())
 }

@@ -108,6 +108,8 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 
 	// Set wrapped file shared writer to fake logger output variable.
 	output = NewWriterFinalizer(firstLogWriter)
+	_, err = output.Write([]byte("test"))
+	require.NoError(t, err)
 
 	// Initiate the second file shared writer and override it in common output,
 	// previous must be closed automatically by finalizer and stop reacting on events.
@@ -143,12 +145,12 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	// Check that we receive the error if we are going to try to run watcher
 	// again for closed one.
 	err = firstLogWriter.RunWatcherReopen()
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrFileSharedWriterClosed)
 
 	// First file shared writer must be already closed and produce error after
 	// trying to close it second time.
 	err = firstLogWriter.Close()
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrFileSharedWriterClosed)
 
 	// Write must not fail after override.
 	_, err = output.Write([]byte("test"))
