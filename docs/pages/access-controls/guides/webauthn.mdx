@@ -252,6 +252,16 @@ for accessing protected resources, complementing user identity and role enforcem
 configured cluster-wide or via RBAC. Supported resources include apps (role-based only), SSH nodes, 
 databases, Kubernetes clusters, and first MFA device enrollment. The latter helps prevent auto-provisioning of new users through compromised IdPs.
 
+<Admonition type="note" title="Machine ID and Device Trust">
+
+  We do not currently support Machine ID and Device Trust. Requiring Device Trust 
+  cluster-wide or for roles impersonated by Machine ID will prevent credentials 
+  produced by Machine ID from being used to connect to resources.
+
+  As a work-around, configure Device Trust enforcement on a role-by-role basis and 
+  ensure that it is not required for roles that you will impersonate using Machine ID.
+</Admonition>
+
 ## Prerequisites
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
