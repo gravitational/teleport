@@ -68,6 +68,12 @@ cd 3rdparty/${ARCH}
 # Unlock sysroot
 chmod -R +w "${SYSROOT}"
 
+# Hack to make Rust linker happy
+cd "${SYSROOT}/lib"
+rm libgcc_s.so
+ln -s libgcc_s.so.1 libgcc_s.so
+cd -
+
 # Build and install
 
 #zlib
