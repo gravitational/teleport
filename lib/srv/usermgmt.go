@@ -319,7 +319,9 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 
 	var home string
 	if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+		//nolint:staticcheck // SA4023. False positive on macOS.
 		home, err = readDefaultHome(name)
+		//nolint:staticcheck // SA4023. False positive on macOS.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

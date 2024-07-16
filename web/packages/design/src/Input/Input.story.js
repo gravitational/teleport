@@ -28,5 +28,7 @@ export const Inputs = () => (
   <>
     <Input mb={4} placeholder="Enter SomeText" />
     <Input mb={4} hasError={true} defaultValue="This field has an error" />
+    <Input mb={4} readOnly defaultValue="Read-only field" />
+    <Input mb={4} disabled defaultValue="Disabled field" />
   </>
 );

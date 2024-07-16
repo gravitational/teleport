@@ -36,6 +36,7 @@ import {
   fontWeight,
 } from 'design/system';
 import { fontWeights } from 'design/theme/typography';
+import { shouldForwardTypographyProp } from 'design/system/typography';
 
 interface FontWeightProps {
   fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
@@ -49,9 +50,12 @@ export interface TextProps
     TextAlignProps,
     FontWeightProps {}
 
-const Text = styled.div<TextProps>`
+const Text = styled.div.withConfig({
+  shouldForwardProp: shouldForwardTypographyProp,
+})<TextProps>`
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   ${typography}
   ${fontSize}
   ${space}
@@ -61,9 +65,5 @@ const Text = styled.div<TextProps>`
 `;
 
 Text.displayName = 'Text';
-
-Text.defaultProps = {
-  m: 0,
-};
 
 export default Text;

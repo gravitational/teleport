@@ -73,9 +73,16 @@ locally.
 
 </Details>
 
-### Enable impersonation of the Event Handler plugin user
+### Enable issuing of credentials for the Event Handler role
 
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export the access plugin identity
 
@@ -455,5 +462,5 @@ visualizations and alerts.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-id/getting-started.mdx)
+more reliable renewals. Read [our guide](../../enroll-resources/machine-id/getting-started.mdx)
 to getting started with Machine ID.

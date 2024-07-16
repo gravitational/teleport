@@ -79,8 +79,10 @@ type AccessCacheWithEvents interface {
 type TLSServerConfig struct {
 	// Listener is a listener to bind to
 	Listener net.Listener
-	// TLS is a base TLS configuration
+	// TLS is the server TLS configuration.
 	TLS *tls.Config
+	// GetClientCertificate returns auth client credentials.
+	GetClientCertificate func() (*tls.Certificate, error)
 	// API is API server configuration
 	APIConfig
 	// LimiterConfig is limiter config
@@ -118,6 +120,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.TLS.Certificates) == 0 {
 		return trace.BadParameter("missing parameter TLS.Certificates")
+	}
+	if c.GetClientCertificate == nil {
+		return trace.BadParameter("missing parameter GetClientCertificate")
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
@@ -261,7 +266,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer, cfg.GetClientCertificate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

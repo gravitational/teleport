@@ -191,8 +191,8 @@ func TestSearchEvents(t *testing.T) {
 			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
 				wantSingleCallToAthena(t, mock)
 				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND session_id = ? AND event_type IN (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "'session.end'", "'windows.desktop.session.end'")...)
+					` AND session_id = ? AND event_type IN (?,?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "'session.end'", "'windows.desktop.session.end'", "'db.session.end'")...)
 			},
 		},
 		{

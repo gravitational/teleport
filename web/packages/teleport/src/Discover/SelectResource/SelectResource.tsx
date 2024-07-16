@@ -271,7 +271,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         font-size: 12px;
         opacity: 0.7;
 
-        :hover {
+        &:hover {
           cursor: pointer;
           opacity: 1;
         }
@@ -612,7 +612,7 @@ const ResourceCard = styled.div<{ hasAccess?: boolean }>`
 
   opacity: ${props => (props.hasAccess ? '1' : '0.45')};
 
-  :hover {
+  &:hover {
     background: ${props => props.theme.colors.spotBackground[1]};
   }
 `;
