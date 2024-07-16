@@ -1,3 +1,4 @@
+---
 name: Post-release
 
 on:
@@ -28,9 +29,11 @@ jobs:
       # to determine it another way.
       - name: Determine release latest flag and version
         id: artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CURRENT_RELEASE_ID: ${{ github.event.release.node_id }}
         run: |
           LATEST_RELEASE_ID=$(gh release view --json id -q .id)
-          CURRENT_RELEASE_ID=${{ github.event.release.node_id }}
 
           if [ "$LATEST_RELEASE_ID" == "$CURRENT_RELEASE_ID" ]; then
             echo "type=latest" >> "$GITHUB_OUTPUT"
@@ -38,9 +41,7 @@ jobs:
             echo "type=other" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "version=$(make --no-print-directory print-version)" >> "$GITHUB_OUTPUT"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          echo "version=$(make -s print-version)" >> "$GITHUB_OUTPUT"
 
   update-ami-ids:
     name: Update AMI IDs
@@ -58,8 +59,9 @@ jobs:
     steps:
       - name: Get Release Branch
         id: get-branch
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG=${{ github.event.release.tag_name }}
           BRANCH="branch/$(echo -n $TAG | cut -d '.' -f 1)"
           MAJOR=${BRANCH#"branch/v"} # trim the 'branch/v' prefix
           VERSION=${TAG#"v"} # trim the leading v to get just the version
@@ -80,6 +82,13 @@ jobs:
           ref: ${{ steps.get-branch.outputs.branch }}
 
       - name: Make PR
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          MAJOR_VERSION: ${{ steps.get-branch.outputs.major }}
+          FULL_VERSION: ${{ steps.get-branch.outputs.version }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          BASE_BRANCH: ${{ steps.get-branch.outputs.branch }}
+          REVIEWER: ${{ github.event.release.author.login }}
         run: |
           BRANCH_NAME="release-auto-branch-$(date +%s)"
           git config --global user.email "noreply@github.com"
@@ -87,8 +96,8 @@ jobs:
 
           # update versions in docs/config.json
           # for docker images replace version number after <docker image name>:
-          jq --arg major ${{ steps.get-branch.outputs.major }} \
-             --arg version ${{ steps.get-branch.outputs.version }} \
+          jq --arg major "${MAJOR_VERSION}" \
+             --arg version "${FULL_VERSION}" \
              '.variables.teleport.major_version |= $major |
               .variables.teleport.version |= $version |
               .variables.teleport.plugin.version |= $version |
@@ -102,11 +111,9 @@ jobs:
 
           git add docs/config.json
           git switch -c $BRANCH_NAME
-          git commit -am "[auto] docs: Update version to ${{ github.event.release.tag_name }}"
+          git commit -am "[auto] docs: Update version to ${TAG_NAME}"
           git push --set-upstream origin $BRANCH_NAME
-          gh pr create --fill --base=${{ steps.get-branch.outputs.branch }} \
+          gh pr create --fill "--base=${BASE_BRANCH}" \
              --label=automated --label=documentation --label=no-changelog \
-             --reviewer=${{ github.event.release.author.login }}
+             "--reviewer=${REVIEWER}"
            echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
-        env:
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
