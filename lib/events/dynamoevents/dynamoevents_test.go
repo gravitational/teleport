@@ -68,7 +68,6 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-		Endpoint:     "http://localhost:8000",
 	})
 	require.NoError(t, err)
 
@@ -473,6 +472,78 @@ func TestEmitSessionEventsSameIndex(t *testing.T) {
 	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, "")))
 	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
 	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
+}
+
+// TestSearchEventsLimitEndOfDay tests if the search events function can handle
+// moving the cursor to the next day when the limit is reached exactly at the
+// end of the day.
+// This only works if tests run against a real DynamoDB instance.
+func TestSearchEventsLimitEndOfDay(t *testing.T) {
+
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	blob := "data"
+	const eventCount int = 10
+
+	// create events for two days
+	for dayDiff := 0; dayDiff < 2; dayDiff++ {
+		for i := 0; i < eventCount; i++ {
+			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
+				Method:       events.LoginMethodSAML,
+				Status:       apievents.Status{Success: true},
+				UserMetadata: apievents.UserMetadata{User: "bob"},
+				Metadata: apievents.Metadata{
+					Type: events.UserLoginEvent,
+					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
+				},
+				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	windowStart := time.Date(
+		tt.suite.Clock.Now().UTC().Year(),
+		tt.suite.Clock.Now().UTC().Month(),
+		tt.suite.Clock.Now().UTC().Day(),
+		0, /* hour */
+		0, /* minute */
+		0, /* second */
+		0, /* nanosecond */
+		time.UTC)
+	windowEnd := windowStart.Add(time.Hour * 24)
+
+	data, err := json.Marshal(checkpointKey{
+		Date: windowStart.Format("2006-01-02"),
+	})
+	require.NoError(t, err)
+	checkpoint := string(data)
+
+	var gotEvents []apievents.AuditEvent
+	for {
+		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:     windowStart,
+			To:       windowEnd,
+			Limit:    eventCount,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		require.NoError(t, err)
+		checkpoint = lCheckpoint
+		gotEvents = append(gotEvents, fetched...)
+
+		if checkpoint == "" {
+			break
+		}
+	}
+
+	require.Len(t, gotEvents, eventCount)
+	lastTime := tt.suite.Clock.Now().UTC().Add(-time.Hour)
+
+	for _, event := range gotEvents {
+		require.True(t, event.GetTime().After(lastTime))
+		lastTime = event.GetTime()
+	}
 }
 
 // TestValidationErrorsHandling given events that return validation
