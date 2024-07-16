@@ -1294,6 +1294,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 								builder.String(common.OriginAWSIdentityCenter),
 							).String(),
 						},
+						types.NewRule(types.KindAccessList, services.RO()),
 						{
 							Resources: []string{types.KindAccessList},
 							Verbs:     services.RW(),
@@ -1302,6 +1303,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 								builder.String(common.OriginAWSIdentityCenter),
 							).String(),
 						},
+						types.NewRule(types.KindAccessListMember, services.RO()),
 						types.NewRule(types.KindProvisioningState, services.RW()),
 					},
 				},

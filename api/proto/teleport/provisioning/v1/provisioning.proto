@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.provisioning.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1;provisioningv1";
@@ -36,9 +37,7 @@ message PrincipalState {
 enum Status {
   STATUS_UNSPECIFIED = 0;
   STATUS_STALE = 1;
-  STATUS_PROCESSING = 2;
-  STATUS_PROVISIONED = 3;
-  STATUS_ERROR = 4;
+  STATUS_PROVISIONED = 2;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalState
@@ -72,6 +71,10 @@ message PrincipalStateStatus {
   // principal
   string external_id = 2;
 
+  // LastProvisioned records the last time this record was provisioined into
+  // the downstream system
+  google.protobuf.Timestamp last_provisioned = 3;
+
   // Error holds a description of the last provisioing error, if any.
-  string error = 3;
+  string error = 4;
 }

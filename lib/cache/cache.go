@@ -180,7 +180,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
-		{Kind: types.KindProvisioningState},
+		//{Kind: types.KindProvisioningState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream

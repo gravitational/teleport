@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	provisioningStatePrefix   = "provisioning_status"
+	provisioningStatePrefix   = "provisioning_state"
 	provisioningStatePageSize = 100
 )
 
@@ -66,7 +66,7 @@ func (ss *ProvisioningStateService) CreateProvisioningState(ctx context.Context,
 }
 
 func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context, state *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error) {
-	updatedState, err := ss.service.UpdateResource(ctx, state)
+	updatedState, err := ss.service.ConditionalUpdateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "updating new user state record")
 	}

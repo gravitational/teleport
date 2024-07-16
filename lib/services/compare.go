@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -52,6 +53,7 @@ func CompareResources[T any](resA, resB T) int {
 			cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
 
 			cmpopts.IgnoreUnexported(
+				timestamppb.Timestamp{},
 				provisioningv1.PrincipalState{},
 				provisioningv1.PrincipalStateSpec{},
 				provisioningv1.PrincipalStateStatus{}),
