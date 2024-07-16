@@ -26,10 +26,6 @@ on:
         type: string
         default: build-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -44,19 +40,10 @@ on:
       environment:
         type: string
         default: build-stage
-      workflow-tag:
-        type: string
 
 run-name: Build Kube Agent Updater Images for Teleport ${{ inputs.source-tag }}
 
 jobs:
-  identity:
-    runs-on: ubuntu-latest
-    if: inputs.workflow-tag != ''
-    steps:
-      - name: ${{ inputs.workflow-tag }}
-        run: echo ${{ inputs.workflow-tag }}
-
   configure:
     name: Configure Build
     runs-on: ubuntu-latest
@@ -73,7 +60,7 @@ jobs:
             TAG=${{ inputs.oss-teleport-ref }}
           fi
           VERSION=${TAG#v}
-          echo teleport_version=$VERSION >> "$GITHUB_OUTPUT"
+          echo "teleport_version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Checkout OSS Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:

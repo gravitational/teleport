@@ -31,22 +31,12 @@ on:
         type: string
         default: build-stage
 
-      workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event.
-        type: string
-
 jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
       teleport-version: ${{ steps.config.outputs.teleport-version }}
     steps:
-
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: echo ${{ inputs.workflow-tag }}
-
       - name: Configure vars
         id: config
         env:

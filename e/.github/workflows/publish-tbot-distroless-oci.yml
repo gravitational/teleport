@@ -13,10 +13,6 @@ on:
         type: string
         default: publish-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -26,8 +22,6 @@ on:
       environment:
         type: environment
         default: publish-stage
-      workflow-tag:
-        type: string
 
 run-name: 'Publish Tbot OCI images for ${{ inputs.release-source-tag }}'
 
@@ -39,9 +33,6 @@ jobs:
       teleport-version: ${{ steps.version.outputs.full }}
       dest-image-tags: ${{ steps.version.outputs.labels }}
     steps:
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: echo ${{ inputs.workflow-tag }}
       # Generates a list of tags that will be applied to the published image. In the
       # case of a "normal" release (identified by a version tag with no pre-release
       # suffix) the published image is assumed to take over all of the more-significant

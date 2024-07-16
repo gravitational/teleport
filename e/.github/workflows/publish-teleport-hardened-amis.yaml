@@ -29,10 +29,6 @@ on:
         description: GitHub environment to publish to.
         type: string
         default: publish-stage
-        
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -51,19 +47,10 @@ on:
       environment:
         type: environment
         default: publish-stage
-      workflow-tag:
-        type: string
 
 run-name: 'Publish Hardened AMIs for Teleport ${{ inputs.release-source-tag }}'
 
 jobs:
-  identity:
-    runs-on: ubuntu-latest
-    if: inputs.workflow-tag != ''
-    steps:
-      - name: ${{ inputs.workflow-tag }}
-        run: echo ${{ inputs.workflow-tag }}
-
   publish-images:
     runs-on: ubuntu-latest
 
@@ -79,7 +66,7 @@ jobs:
         env:
           VERSION: ${{ inputs.release-source-tag || inputs.oss-teleport-ref }}
         run: |
-          echo teleport=${VERSION#v} >> $GITHUB_OUTPUT
+          echo teleport="${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
@@ -92,7 +79,7 @@ jobs:
 
       - name: Determine Toolchain Versions and cache paths
         run: |
-          echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
+          echo GOLANG_VERSION="$(make -s -C build.assets print-go-version | sed 's/^go//')" >> "$GITHUB_ENV"
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -116,6 +103,6 @@ jobs:
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
         run: |
           go run ./cmd/make-public \
-            --aws-account ${AWS_ACCOUNT_ID} \
-            --regions ${AWS_REGIONS} \
-            --teleport-version ${TELEPORT_VERSION}
+            --aws-account "${AWS_ACCOUNT_ID}" \
+            --regions "${AWS_REGIONS}" \
+            --teleport-version "${TELEPORT_VERSION}"

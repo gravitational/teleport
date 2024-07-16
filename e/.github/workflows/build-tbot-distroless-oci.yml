@@ -26,10 +26,6 @@ on:
         type: string
         default: build-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -44,8 +40,6 @@ on:
       environment:
         type: string
         default: build-stage
-      workflow-tag:
-        type: string
 
 run-name: Build Tbot OCI Images for ${{ inputs.source-tag }}
 
@@ -56,9 +50,6 @@ jobs:
     outputs:
       teleport-version: ${{ steps.version.outputs.full }}
     steps:
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: echo ${{ inputs.workflow-tag }}
       - name: Parse version
         id: version
         uses: gravitational/teleport.e/.github/actions/parse-version@master

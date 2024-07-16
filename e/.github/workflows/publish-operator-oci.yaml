@@ -13,10 +13,6 @@ on:
         type: string
         default: publish-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   workflow_dispatch:
     inputs:
       teleport-version:
@@ -26,9 +22,6 @@ on:
       environment:
         type: string
         default: publish-stage
-
-      workflow-tag:
-        type: string
 
 jobs:
   publish:
@@ -93,9 +86,3 @@ jobs:
               echo "Published image: ${dst}"
             fi >> "$GITHUB_STEP_SUMMARY"
           done
-
-      # Required for gh-trigger-workflow to find dispatched workflow.
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: |
-          # Do nothing

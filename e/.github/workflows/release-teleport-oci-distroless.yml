@@ -26,10 +26,6 @@ on:
         type: string
         default: build-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -44,19 +40,10 @@ on:
       environment:
         type: string
         default: build-stage
-      workflow-tag:
-        type: string
 
 run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
 
 jobs:
-  identity:
-    runs-on: ubuntu-latest
-    if: inputs.workflow-tag != ''
-    steps:
-      - name: ${{ inputs.workflow-tag }}
-        run: echo ${{ inputs.workflow-tag }}
-
   configure:
     name: Configure Build
     runs-on: ubuntu-latest
@@ -71,7 +58,7 @@ jobs:
             TAG=${{ inputs.oss-teleport-ref }}
           fi
           VERSION=${TAG#v}
-          echo teleport_version=$VERSION >> $GITHUB_OUTPUT
+          echo teleport_version="$VERSION" >> "$GITHUB_OUTPUT"
 
   build-docker-images:
     name: Build OCI container images
@@ -194,5 +181,5 @@ jobs:
           DESTINATION_REPO_PREFIX: ${{ vars.ECR_PENDING_REPO_BASE }}
         run: |
           IMAGE_UNDER_TEST=${DESTINATION_REPO_PREFIX}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ needs.configure.outputs.teleport_version }}
-          ./run linux/${{ matrix.arch }} $IMAGE_UNDER_TEST ${{ matrix.release }}
+          ./run linux/${{ matrix.arch }} "$IMAGE_UNDER_TEST" ${{ matrix.release }}
         working-directory: ./teleport/build.assets/charts/smoke_tests

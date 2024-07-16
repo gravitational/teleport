@@ -32,10 +32,6 @@ on:
         type: string
         default: build-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -53,18 +49,9 @@ on:
       environment:
         type: string
         default: build-stage
-      workflow-tag:
-        type: string
 
 run-name: Build Hardened AMIs for Teleport ${{ inputs.source-tag != '' && inputs.source-tag || inputs.oss-teleport-ref }}
 jobs:
-  identity:
-    runs-on: ubuntu-latest
-    if: inputs.workflow-tag != ''
-    steps:
-      - name: ${{ inputs.workflow-tag }}
-        run: echo ${{ inputs.workflow-tag }}
-
   build-amis:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -96,7 +83,7 @@ jobs:
         env:
           VERSION: ${{ inputs.source-tag || inputs.oss-teleport-ref }}
         run: |
-          echo teleport=${VERSION#v} >> $GITHUB_OUTPUT
+          echo teleport="${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
@@ -124,9 +111,9 @@ jobs:
           TAR_FIPS_INFIX: ${{ matrix.fips-infix }}
           SRC_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
-          TARBALL_NAME=teleport${TAR_EDITION_INFIX}-v${TELEPORT_VERSION}-linux-${ARCHITECTURE}${TAR_FIPS_INFIX}-bin.tar.gz
-          aws s3 cp s3://${SRC_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TARBALL_NAME} ./${TARBALL_NAME}
-          echo path=$(readlink -f ./${TARBALL_NAME}) >> $GITHUB_OUTPUT
+          TARBALL_NAME="teleport${TAR_EDITION_INFIX}-v${TELEPORT_VERSION}-linux-${ARCHITECTURE}${TAR_FIPS_INFIX}-bin.tar.gz"
+          aws s3 cp "s3://${SRC_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TARBALL_NAME}" "./${TARBALL_NAME}"
+          echo path="$(readlink -f "./${TARBALL_NAME}")" >> "$GITHUB_OUTPUT"
 
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -157,7 +144,7 @@ jobs:
 
           export TZ=UTC
           BUILD_TIMESTAMP=$(/bin/date "+%Y%m%d-%H%M%S%Z")
-          echo timestamp=${BUILD_TIMESTAMP} >> $GITHUB_OUTPUT
+          echo timestamp="${BUILD_TIMESTAMP}" >> "$GITHUB_OUTPUT"
 
           TELEPORT_FIPS_TAG=""
           if ${TELEPORT_FIPS}; then
@@ -175,16 +162,16 @@ jobs:
           fi
 
           packer build \
-            -var aws_account_id=${AWS_ACCOUNT_ID} \
+            -var aws_account_id="${AWS_ACCOUNT_ID}" \
             -var aws_region=us-west-2 \
-            -var aws_vpc_id=${AWS_VPC_ID} \
-            -var aws_instance_type=${AWS_INSTANCE_TYPE} \
-            -var teleport_version=${TELEPORT_VERSION} \
-            -var teleport_type=${TELEPORT_TYPE} \
-            -var teleport_fips=${TELEPORT_FIPS} \
-            -var teleport_tarball=${TELEPORT_TARBALL} \
-            -var ami_name=teleport-${TELEPORT_TYPE}-${TELEPORT_VERSION}-${AMI_ARCH}${TELEPORT_FIPS_TAG}-${BUILD_TIMESTAMP} \
-            -var ami_arch=${AMI_ARCH} \
-            -var ami_build_timestamp=${BUILD_TIMESTAMP} \
-            -var ami_destination_regions=${DEST_AMI_REGIONS} \
+            -var aws_vpc_id="${AWS_VPC_ID}" \
+            -var aws_instance_type="${AWS_INSTANCE_TYPE}" \
+            -var teleport_version="${TELEPORT_VERSION}" \
+            -var teleport_type="${TELEPORT_TYPE}" \
+            -var teleport_fips="${TELEPORT_FIPS}" \
+            -var teleport_tarball="${TELEPORT_TARBALL}" \
+            -var ami_name="teleport-${TELEPORT_TYPE}-${TELEPORT_VERSION}-${AMI_ARCH}${TELEPORT_FIPS_TAG}-${BUILD_TIMESTAMP}" \
+            -var ami_arch="${AMI_ARCH}" \
+            -var ami_build_timestamp="${BUILD_TIMESTAMP}" \
+            -var ami_destination_regions="${DEST_AMI_REGIONS}" \
             single-ami.pkr.hcl

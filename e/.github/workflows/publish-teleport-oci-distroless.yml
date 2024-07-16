@@ -13,10 +13,6 @@ on:
         type: string
         default: publish-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -26,19 +22,10 @@ on:
       environment:
         type: environment
         default: publish-stage
-      workflow-tag:
-        type: string
 
 run-name: 'Publish OCI images for Teleport ${{ inputs.release-source-tag }}'
 
 jobs:
-  identity:
-    runs-on: ubuntu-latest
-    if: inputs.workflow-tag != ''
-    steps:
-      - name: ${{ inputs.workflow-tag }}
-        run: echo ${{ inputs.workflow-tag }}
-
   configure:
     name: Configure Build
     runs-on: ubuntu-latest
@@ -73,12 +60,14 @@ jobs:
           tags="${version}"
           [[ -z "$4" ]] && tags+=" $1.$2 $1" # add major.minor and major tags if not prerelease
 
-          echo full=${version} >> $GITHUB_OUTPUT
-          echo major=$1 >> $GITHUB_OUTPUT
-          echo minor=$2 >> $GITHUB_OUTPUT
-          echo patch=$3 >> $GITHUB_OUTPUT
-          echo prerelease=$4 >> $GITHUB_OUTPUT
-          echo image_tags=${tags} >> $GITHUB_OUTPUT
+          {
+            echo full="${version}"
+            echo major="$1"
+            echo minor="$2"
+            echo patch="$3"
+            echo prerelease="$4"
+            echo image_tags="${tags}"
+          } >> "$GITHUB_OUTPUT"
 
   publish-images:
     needs: configure

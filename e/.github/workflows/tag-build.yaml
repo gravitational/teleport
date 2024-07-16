@@ -38,10 +38,6 @@ on:
         type: boolean
         default: false
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -79,11 +75,6 @@ jobs:
           # Else reject it
           echo "::error title=Prerelease sent to production environment::Prereleases must not be sent to production environments (${TARGET_ENVIRONMENT})." >&2
           exit 1
-
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: |
-          # Do nothing
 
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
