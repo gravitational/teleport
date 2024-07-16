@@ -683,6 +683,13 @@
                 "cloud",
                 "enterprise"
               ]
+            },
+              "title": "Analyze GitLab permissions",
+              "slug": "/access-controls/access-graph/gitlab/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
