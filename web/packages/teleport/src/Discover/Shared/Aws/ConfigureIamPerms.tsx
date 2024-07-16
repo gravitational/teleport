@@ -142,7 +142,9 @@ export function ConfigureIamPerms({
       "Action": [
         "rds:DescribeDBInstances",
         "rds:DescribeDBClusters",
-        "ec2:DescribeSecurityGroups"
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs"
       ],
       "Resource": "*"
     }
