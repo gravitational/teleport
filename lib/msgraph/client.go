@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -227,8 +228,16 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 }
 
 func (c *Client) endpointURI(segments ...string) *url.URL {
+	escapedSegments := make([]string, 0, cap(segments))
+	for _, s := range segments {
+		// Handling of slash vs escaped slash (%2F) in paths is ambiguous and inconsistent.
+		// See e.g.: https://stackoverflow.com/questions/1957115/is-a-slash-equivalent-to-an-encoded-slash-2f-in-the-path-portion-of-a
+		// We do not expect slashes to be needed within a single path segment,
+		// so we just remove slashes from each segment.
+		escapedSegments = append(escapedSegments, url.PathEscape(strings.ReplaceAll(s, "/", "")))
+	}
 	uri := c.baseURL
-	uri = uri.JoinPath(segments...)
+	uri = uri.JoinPath(escapedSegments...)
 	return uri
 }
 
