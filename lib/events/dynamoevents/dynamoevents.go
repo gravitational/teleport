@@ -1242,9 +1242,16 @@ dateLoop:
 			}
 			values = append(values, result...)
 			if limitReached {
-				// If we achieved the limit, we need to check if we have more events to fetch from the current date
+				// If we've reached the limit, we need to determine whether there are more events to fetch from the current date
 				// or if we need to move the cursor to the next date.
-				if hasLeft() && len(l.checkpoint.Iterator) == 0 {
+				// To do this, we check if the iterator is empty and if the EventKey is empty.
+				// DynamoDB returns an empty iterator if all events from the current date have been consumed.
+				// We need to check if the EventKey is empty because it indicates that we left the page midway
+				// due to reaching the maximum response size. In this case, we need to resume the query
+				// from the same date and the request's iterator to fetch the remainder of the page.
+				// If the input iterator is empty but the EventKey is not, we need to resume the query from the same date
+				// and we shouldn't move to the next date.
+				if i < len(l.dates)-1 && len(l.checkpoint.Iterator) == 0 && l.checkpoint.EventKey == "" {
 					l.checkpoint.Date = l.dates[i+1]
 				}
 				return values, nil
