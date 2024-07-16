@@ -188,7 +188,9 @@ message KubeProvisionSpec {
 ```
 
 Every five minutes we will run a reconciliation loop that will compare the current state on Kubernetes clusters under
-Teleport management with the desired state and update the cluster's RBAC if there's a difference.
+Teleport management with the desired state and update the cluster's RBAC if there's a difference. KubeProvision resources
+will be added to the KubeService cache, so we won't need to request potentially large but rarely changed resources from the 
+Auth server every reconciliation iteration.
 
 Teleport will mark RBAC resources under its control with the "app.kubernetes.io/managed-by: Teleport" label. That way we will
 separate resources managed by Teleport and those managed by the user manually.
