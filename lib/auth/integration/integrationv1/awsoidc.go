@@ -319,6 +319,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		RDSType:   req.RdsType,
 		Engines:   req.Engines,
 		NextToken: req.NextToken,
+		VpcId:     req.VpcId,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

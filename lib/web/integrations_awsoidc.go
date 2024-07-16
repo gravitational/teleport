@@ -78,6 +78,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		RdsType:     req.RDSType,
 		Engines:     req.Engines,
 		NextToken:   req.NextToken,
+		VpcId:       req.VPCID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
