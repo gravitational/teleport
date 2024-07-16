@@ -40,13 +40,10 @@ enables public-key cryptography for web authentication. Teleport supports WebAut
 for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters. 
 It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric authenticators like Touch ID and Windows Hello.
 
-## Step 1/3. Enable WebAuthn support
+### Step 1/3. Enable WebAuthn support
 
 WebAuthn is disabled by default. To enable WebAuthn support, update your
 Teleport configuration as below:
-
-<Tabs>
-  <TabItem label="Dynamic resources">
 
   Edit the `cluster_auth_preference` resource:
 
@@ -98,46 +95,6 @@ Teleport configuration as below:
   cluster auth preference has been updated
   ```
 
-  </TabItem>
-  <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Service's `teleport.yaml` file and restart all Auth Service instances:
-
-  ```yaml
-  # snippet from /etc/teleport.yaml:
-  auth_service:
-    authentication:
-      type: local
-      # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-      second_factor: on
-      webauthn:
-        # Required, replace with proxy web address (example.com, example.teleport.sh).
-        # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
-        # (https://) and port number.
-        rp_id: example.com
-        # Optional, attestation_allowed_cas is an optional allow list
-        # of certificate authorities.
-        attestation_allowed_cas:
-        # Entries can be paths to certificate files:
-        - "/path/to/allowed_ca.pem"
-        # Entries can also be inline certificates:
-        - |
-          -----BEGIN CERTIFICATE-----
-          ...
-          -----END CERTIFICATE-----
-        # Optional, attestation_denied_cas is an optional deny list
-        # of certificate authorities.
-        attestation_denied_cas:
-        # Entries can be paths to certificate files:
-        - "/path/to/denied_ca.pem"
-        # Entries can also be inline certificates:
-        - |
-          -----BEGIN CERTIFICATE-----
-          ...
-          -----END CERTIFICATE-----
-  ```
-
-  </TabItem>
-</Tabs>
 
 ### `webauthn` fields definitions
 
@@ -163,7 +120,7 @@ allowing all others (provided they clear `attestation_allowed_cas` as well).
 Devices within this list will be rejected during registration. By default no
 devices are forbidden.
 
-## Step 2/3. Register WebAuthn devices as a user
+### Step 2/3. Register WebAuthn devices as a user
 
 A user can register multiple WebAuthn devices using `tsh`:
 
@@ -176,48 +133,9 @@ $ tsh mfa add
 # MFA device "desktop yubikey" added.
 ```
 
-## Step 3/3. Log in using WebAuthn
+### Step 3/3. Log in using WebAuthn
 
 Once a WebAuthn device is registered, the user will be prompted for it on login:
-
-<Tabs>
-<TabItem label="Teleport Community Edition">
-
-```code
-$ tsh login --proxy=example.com
-# Enter password for Teleport user codingllama:
-# Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://example.com
-#   Logged in as:       codingllama
-#   Cluster:            example.com
-#   Roles:              access, editor
-#   Logins:             codingllama
-#   Kubernetes:         enabled
-#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
-#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
-
-```code
-$ tsh login --proxy=example.com
-# Enter password for Teleport user codingllama:
-# Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://example.com
-#   Logged in as:       codingllama
-#   Cluster:            example.com
-#   Roles:              access, editor, reviewer
-#   Logins:             codingllama
-#   Kubernetes:         enabled
-#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
-#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-
-<TabItem label="Teleport Enterprise">
 
 ```code
 $ tsh login --proxy=example.teleport.sh
@@ -233,16 +151,13 @@ $ tsh login --proxy=example.teleport.sh
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</TabItem>
-</Tabs>
-
 <Admonition type="note">
   WebAuthn for logging in to Teleport is only required for [local users](
   ../../reference/authentication.mdx#local-no-authentication-connector).
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
-### Configure per-session MFA
+## Configure per-session MFA
 
 Ensure that multi-factor authentication is required for each session, not just at initial login, 
 to maintain continuous security. Teleport's per-session MFA enhances security by protecting 
@@ -264,7 +179,7 @@ when starting new:
   to improve security.
 </Notice>
 
-## Step 1/1. Enforce MFA checks
+### Step 1/1. Enforce MFA checks
 
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
@@ -332,7 +247,7 @@ spec:
     ...
 ```
 
-### Implement cluster-wide Device Trust
+## Implement cluster-wide Device Trust
 Develop a system to verify and manage trusted devices across your organization, reducing the risk 
 of unauthorized access from unknown or compromised devices. Device Trust adds an extra layer of security by requiring the use of trusted devices 
 for accessing protected resources, complementing user identity and role enforcement. This can be 
@@ -343,7 +258,7 @@ databases, Kubernetes clusters, and first MFA device enrollment. The latter help
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-## Step 1/3. Register a trusted device
+### Step 1/3. Register a trusted device
 
 The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
@@ -408,7 +323,7 @@ Asset Tag    OS    Enroll Status Device ID
 (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
 
-## Step 2/3. Create a device enrollment token
+### Step 2/3. Create a device enrollment token
 
 A registered device becomes a trusted device after it goes through the
 enrollment ceremony. To enroll the device, a device enrollment token is
@@ -424,7 +339,7 @@ Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
 tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
-## Step 3/3. Enroll a trusted device
+### Step 3/3. Enroll a trusted device
 
 To perform the enrollment ceremony, using the device specified above, type the
 command printed by `tctl devices enroll`:
@@ -462,7 +377,7 @@ integration, like the [Jamf Pro integration](../device-trust/jamf-integration.md
 - Auto-enrollment must be enabled in the cluster setting.
 - User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
 
-## Step 1/2. Enable auto-enrollment in your cluster settings
+### Step 1/2. Enable auto-enrollment in your cluster settings
 
 Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
 
@@ -478,7 +393,7 @@ spec:
 +   auto_enroll: true
 ```
 
-## Step 2/2. Log out and back in
+### Step 2/2. Log out and back in
 
 Once enabled, user's with their device registered in Teleport and with the required permission
 (preset `editor` or `device-enroll` role) will have their device enrolled to Teleport in
