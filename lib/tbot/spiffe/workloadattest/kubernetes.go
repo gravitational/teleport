@@ -20,6 +20,7 @@ package workloadattest
 
 import (
 	"context"
+	"log/slog"
 	"path"
 	"regexp"
 	"strconv"
@@ -51,8 +52,42 @@ type KubernetesAttestation struct {
 	Labels map[string]string
 }
 
+// LogValue implements slog.LogValue to provide a nicely formatted set of
+// log keys for a given attestation.
+func (a KubernetesAttestation) LogValue() slog.Value {
+	values := []slog.Attr{
+		slog.Bool("attested", a.Attested),
+	}
+	if a.Attested {
+		labels := []slog.Attr{}
+		for k, v := range a.Labels {
+			labels = append(labels, slog.String(k, v))
+		}
+		values = append(values,
+			slog.String("namespace", a.Namespace),
+			slog.String("service_account", a.ServiceAccount),
+			slog.String("container", a.Container),
+			slog.String("pod_name", a.PodName),
+			slog.String("pod_uid", a.PodUID),
+			slog.Attr{
+				Key:   "labels",
+				Value: slog.GroupValue(labels...),
+			},
+		)
+	}
+	return slog.GroupValue(values...)
+}
+
+type KubernetesAttestorConfig struct {
+	Enabled bool
+}
+
 type KubernetesAttestor struct {
 	// TODO: Configurable bits...
+}
+
+func NewKubernetesAttestor(cfg KubernetesAttestorConfig) *KubernetesAttestor {
+	return &KubernetesAttestor{}
 }
 
 // Attest resolves the Kubernetes pod information from the

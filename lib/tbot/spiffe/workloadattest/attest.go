@@ -23,26 +23,51 @@ import (
 	"log/slog"
 )
 
+// Attestation holds the results of the attestation process carried out on a
+// PID by the attestor.
 type Attestation struct {
 	Unix       UnixAttestation
 	Kubernetes KubernetesAttestation
 }
 
+// LogValue implements slog.LogValue to provide a nicely formatted set of
+// log keys for a given attestation.
+func (a Attestation) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Attr{
+			Key:   "unix",
+			Value: a.Unix.LogValue(),
+		},
+		slog.Attr{
+			Key:   "kubernetes",
+			Value: a.Kubernetes.LogValue(),
+		},
+	)
+}
+
+// Attestor runs the workload attestation process on a given PID to determine
+// key information about the process.
 type Attestor struct {
 	log        *slog.Logger
 	kubernetes *KubernetesAttestor
 	unix       *UnixAttestor
 }
 
+// Config is the configuration for Attestor
 type Config struct {
+	Kubernetes KubernetesAttestorConfig
 }
 
+// NewAttestor returns an Attestor from the given config.
 func NewAttestor(log *slog.Logger, cfg Config) *Attestor {
-	// TODO: Setup Unix/Kubernetes attestators
-	return &Attestor{
+	att := &Attestor{
 		log:  log,
 		unix: &UnixAttestor{},
 	}
+	if cfg.Kubernetes.Enabled {
+		att.kubernetes = NewKubernetesAttestor(cfg.Kubernetes)
+	}
+	return att
 }
 
 func (a *Attestor) Attest(ctx context.Context, pid int) (Attestation, error) {

@@ -2,16 +2,38 @@ package workloadattest
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
 type UnixAttestation struct {
+	// Attested is true if the PID was successfully attested to a Unix
+	// process. This indicates the validity of the rest of the fields.
 	Attested bool
-	PID      int
-	UID      int
-	GID      int
+	// PID is the process ID of the attested process.
+	PID int
+	// UID is the primary user ID of the attested process.
+	UID int
+	// GID is the primary group ID of the attested process.
+	GID int
+}
+
+// LogValue implements slog.LogValue to provide a nicely formatted set of
+// log keys for a given attestation.
+func (a UnixAttestation) LogValue() slog.Value {
+	values := []slog.Attr{
+		slog.Bool("attested", a.Attested),
+	}
+	if a.Attested {
+		values = append(values,
+			slog.Int("uid", a.UID),
+			slog.Int("pid", a.UID),
+			slog.Int("gid", a.GID),
+		)
+	}
+	return slog.GroupValue(values...)
 }
 
 type UnixAttestor struct {
