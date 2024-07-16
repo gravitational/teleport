@@ -146,3 +146,8 @@ export type PrioritizedResources = {
   preferredResources: Resource[];
   hasPreferredResources: boolean;
 };
+
+export type ResourceAction = {
+  action: 'edit' | 'delete';
+  resourceSpec: ResourceSpec;
+};

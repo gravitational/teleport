@@ -49,7 +49,10 @@ import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
-import { UnifiedResource } from 'teleport/services/agents';
+import {
+  UnifiedResource,
+  DeleteUnifiedResourceItem,
+} from 'teleport/services/agents';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -100,17 +103,20 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
+  deleteItem,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
   getActionButton?: (
     resource: UnifiedResource,
-    includedResourceMode: IncludedResourceMode
+    includedResourceMode: IncludedResourceMode,
+    resourceIndex: number
   ) => JSX.Element;
   showCheckout?: boolean;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
+  deleteItem?: DeleteUnifiedResourceItem;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -187,6 +193,10 @@ export function ClusterResources({
     ),
   });
 
+  if (deleteItem?.backendDeleted) {
+    resources.splice(deleteItem.index, 1);
+  }
+
   // This state is used to recognize when the `params` value has changed,
   // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a
   // `useEffect` here, but doing so can cause unwanted behavior where the previous,
@@ -236,12 +246,13 @@ export function ClusterResources({
             emptyStateInfo={emptyStateInfo}
           />
         }
-        resources={resources.map(resource => ({
+        resources={resources.map((resource, index) => ({
           resource,
           ui: {
             ActionButton: getActionButton?.(
               resource,
-              params.includedResourceMode
+              params.includedResourceMode,
+              index
             ) || <ResourceActionButton resource={resource} />,
           },
         }))}

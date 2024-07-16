@@ -109,7 +109,7 @@ export const Cards: Story = {
               ActionButton: (
                 <ResourceActionButton
                   resource={resource}
-                  setResourceSpec={() =>
+                  setResourceAction={() =>
                     alert('Sets resource spec and opens update dialog')
                   }
                 />

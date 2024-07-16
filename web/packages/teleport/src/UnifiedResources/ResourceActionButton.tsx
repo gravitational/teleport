@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, Dispatch, SetStateAction } from 'react';
+import React, { useState } from 'react';
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
-import { UnifiedResource } from 'teleport/services/agents';
+import {
+  UnifiedResource,
+  DeleteUnifiedResourceItem,
+} from 'teleport/services/agents';
 import cfg from 'teleport/config';
 
 import useTeleport from 'teleport/useTeleport';
@@ -39,19 +42,33 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import type { ResourceAction } from 'teleport/Discover/SelectResource/types';
 
 type Props = {
   resource: UnifiedResource;
-  setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
+  setResourceAction?: (resourceAction: ResourceAction) => void;
+  resourceIndex?: number;
+  setDeletedItem?: (deleteItem: DeleteUnifiedResourceItem) => void;
 };
 
-export const ResourceActionButton = ({ resource, setResourceSpec }: Props) => {
+export const ResourceActionButton = ({
+  resource,
+  setResourceAction,
+  resourceIndex,
+  setDeletedItem,
+}: Props) => {
   switch (resource.kind) {
     case 'node':
       return <NodeConnect node={resource} />;
     case 'app':
-      return <AppLaunch app={resource} setResourceSpec={setResourceSpec} />;
+      return (
+        <AppLaunch
+          app={resource}
+          setResourceAction={setResourceAction}
+          resourceIndex={resourceIndex}
+          setDeletedItem={setDeletedItem}
+        />
+      );
     case 'db':
       return <DatabaseConnect database={resource} />;
     case 'kube_cluster':
@@ -145,9 +162,16 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
 type AppLaunchProps = {
   app: App;
-  setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
+  setResourceAction?: (resourceAction: ResourceAction) => void;
+  resourceIndex?: number;
+  setDeletedItem?: (deleteItem: DeleteUnifiedResourceItem) => void;
 };
-const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
+const AppLaunch = ({
+  app,
+  setResourceAction,
+  resourceIndex,
+  setDeletedItem,
+}: AppLaunchProps) => {
   const {
     name,
     launchUrl,
@@ -190,18 +214,25 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
       </ButtonBorder>
     );
   }
-  function handleSamlAppEditButtonClick() {
-    setResourceSpec({
-      name: name,
-      event: DiscoverEventResource.SamlApplication,
-      kind: ResourceKind.SamlApplication,
-      samlMeta: { preset: samlAppPreset },
-      icon: 'Application',
-      keywords: 'saml',
+  function handleSamlMenuButtonClick(action: 'edit' | 'delete') {
+    setResourceAction({
+      action: action,
+      resourceSpec: {
+        name: name,
+        event: DiscoverEventResource.SamlApplication,
+        kind: ResourceKind.SamlApplication,
+        samlMeta: { preset: samlAppPreset },
+        icon: 'Application',
+        keywords: 'saml',
+      },
     });
+
+    if (action === 'delete') {
+      setDeletedItem({ backendDeleted: false, index: resourceIndex });
+    }
   }
   if (samlApp) {
-    if (setResourceSpec) {
+    if (setResourceAction) {
       return (
         <ButtonWithMenu
           text="Log In"
@@ -214,7 +245,12 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
           forwardedAs="a"
           title="Log in to SAML application"
         >
-          <MenuItem onClick={handleSamlAppEditButtonClick}>Edit</MenuItem>
+          <MenuItem onClick={() => handleSamlMenuButtonClick('edit')}>
+            Edit
+          </MenuItem>
+          <MenuItem onClick={() => handleSamlMenuButtonClick('delete')}>
+            Delete
+          </MenuItem>
         </ButtonWithMenu>
       );
     } else {
