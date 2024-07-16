@@ -58,6 +58,8 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 // Any CredentialSource failing to return a Credential and a tls.Config causes a hard failure.
 // If we have a valid credential but cannot connect, we send a warning and continue with the next credential
 // (this is for backward compatibility).
+// Expired credentials are skipped for the sake of UX. This is the most common failure mode and we can
+// return an error quickly instead of hanging for 30 whole seconds.
 func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Config, providerCfg providerData) (*client.Client, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 	for _, source := range s {
@@ -96,15 +98,15 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 		now := time.Now()
 		if expiry, ok := creds.Expiry(); ok && !expiry.IsZero() && expiry.Before(now) {
 			diags.AddWarning(
-				fmt.Sprintf("Credential %s are expired", source.Name()),
-				fmt.Sprintf(`The credentials %s are expired. Expiration is %q while current time is %q).
-You might need to refresh them. The provider will not attempt to use those credentials.`,
+				fmt.Sprintf("Credentials %s are expired", source.Name()),
+				fmt.Sprintf(`The credentials %s are expired. Expiration is %q while current time is %q). You might need to refresh them. The provider will not attempt to use those credentials.`,
 					source.Name(), expiry.Local(), now.Local()),
 			)
 			continue
 		}
 
 		clientCfg.Credentials = []client.Credentials{creds}
+		// In case of connection failure, this takes 30 seconds to return, which is very, very long.
 		clt, err := client.New(ctx, clientCfg)
 		if err != nil {
 			logFields["error"] = err.Error()
@@ -124,6 +126,8 @@ You might need to refresh them. The provider will not attempt to use those crede
 	return nil, diags
 }
 
+// failedToBuildClientErrorSummary builds a user-friendly message explaining we failed to build a functional Teleport
+// client and listing every connection method we tried.
 func (s CredentialSources) failedToBuildClientErrorSummary(addr string) string {
 	sb := strings.Builder{}
 	sb.WriteString("Every credential source provided has failed. The Terraform cannot connect to the Teleport cluster '")
@@ -141,6 +145,7 @@ func (s CredentialSources) failedToBuildClientErrorSummary(addr string) string {
 	return sb.String()
 }
 
+// brokenCredentialErrorSummary returns a user-friendly message expalining why we failed to
 func brokenCredentialErrorSummary(name, activeReason string, err error) string {
 	sb := strings.Builder{}
 	sb.WriteString("The Terraform provider tried to build credentials ")
@@ -153,30 +158,40 @@ func brokenCredentialErrorSummary(name, activeReason string, err error) string {
 	return sb.String()
 }
 
+// CredentialSource is a potential way for the Terraform provider to obtain the
+// client.Credentials needed to connect to the Teleport cluster.
+// A CredentialSource is active if the user specified configuration specific to this source.
+// Only active CredentialSources are considered by the Provider.
 type CredentialSource interface {
 	Name() string
 	IsActive(providerData) (bool, string)
 	Credentials(context.Context, providerData) (client.Credentials, error)
 }
 
+// CredentialsFromKeyAndCertPath builds credentials from key, cert and ca cert paths.
 type CredentialsFromKeyAndCertPath struct{}
 
+// Name implements CredentialSource and returns the source name.
 func (CredentialsFromKeyAndCertPath) Name() string {
 	return "from Key, Cert, and CA path"
 }
 
+// IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromKeyAndCertPath) IsActive(config providerData) (bool, string) {
 	certPath := stringFromConfigOrEnv(config.CertPath, constants.EnvVarTerraformCertificates, "")
 	keyPath := stringFromConfigOrEnv(config.KeyPath, constants.EnvVarTerraformKey, "")
 
 	// This method is active as soon as a cert or a key path are set.
-	if certPath == "" && keyPath == "" {
-		return false, "neither cert_path, key_path, TF_TELEPORT_CERT nor TF_TELEPORT_KEY are set"
-	}
+	active := certPath != "" || keyPath != ""
 
-	return true, "at least one of cert_path, key_path, TF_TELEPORT_CERT nor TF_TELEPORT_KEY is set"
+	return activeReason(
+		active,
+		attributeTerraformCertificates, attributeTerraformKey,
+		constants.EnvVarTerraformCertificates, constants.EnvVarTerraformKey,
+	)
 }
 
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromKeyAndCertPath) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	certPath := stringFromConfigOrEnv(config.CertPath, constants.EnvVarTerraformCertificates, "")
 	keyPath := stringFromConfigOrEnv(config.KeyPath, constants.EnvVarTerraformKey, "")
@@ -184,13 +199,13 @@ func (CredentialsFromKeyAndCertPath) Credentials(ctx context.Context, config pro
 
 	// Validate that we have all paths.
 	if certPath == "" {
-		return nil, trace.BadParameter("missing parameter 'cert_path' or environment variable 'TF_TELEPORT_CERT'")
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformCertificates, constants.EnvVarTerraformCertificates)
 	}
 	if keyPath == "" {
-		return nil, trace.BadParameter("missing parameter 'key_path' or environment variable 'TF_TELEPORT_KEY'")
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformKey, constants.EnvVarTerraformKey)
 	}
 	if caPath == "" {
-		return nil, trace.BadParameter("missing parameter 'root_ca_path' or environment variable 'TF_TELEPORT_ROOT_CA'")
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformRootCertificates, constants.EnvVarTerraformRootCertificates)
 	}
 
 	// Validate the files exist for a better UX?
@@ -199,24 +214,30 @@ func (CredentialsFromKeyAndCertPath) Credentials(ctx context.Context, config pro
 	return creds, nil
 }
 
+// CredentialsFromKeyAndCertBase64 builds credentials from key, cert, and CA cert base64.
 type CredentialsFromKeyAndCertBase64 struct{}
 
+// Name implements CredentialSource and returns the source name.
 func (CredentialsFromKeyAndCertBase64) Name() string {
 	return "from Key, Cert, and CA base64"
 }
 
+// IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromKeyAndCertBase64) IsActive(config providerData) (bool, string) {
 	certBase64 := stringFromConfigOrEnv(config.CertBase64, constants.EnvVarTerraformCertificatesBase64, "")
 	keyBase64 := stringFromConfigOrEnv(config.KeyBase64, constants.EnvVarTerraformKeyBase64, "")
 
-	// This method is active as soon as a cert or a key path are set.
-	if certBase64 == "" && keyBase64 == "" {
-		return false, "neither cert_base64, key_base64, TF_TELEPORT_CERT_BASE64 nor TF_TELEPORT_KEY_BASE64 are set"
-	}
+	// This method is active as soon as a cert or a key is passed.
+	active := certBase64 != "" || keyBase64 != ""
 
-	return true, "at least one of cert_base64, key_base64, TF_TELEPORT_CERT_BASE64 nor TF_TELEPORT_KEY_BASE64 is set"
+	return activeReason(
+		active,
+		attributeTerraformCertificatesBase64, attributeTerraformKeyBase64,
+		constants.EnvVarTerraformCertificatesBase64, constants.EnvVarTerraformKeyBase64,
+	)
 }
 
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromKeyAndCertBase64) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	certBase64 := stringFromConfigOrEnv(config.CertBase64, constants.EnvVarTerraformCertificatesBase64, "")
 	keyBase64 := stringFromConfigOrEnv(config.KeyBase64, constants.EnvVarTerraformKeyBase64, "")
@@ -224,13 +245,13 @@ func (CredentialsFromKeyAndCertBase64) Credentials(ctx context.Context, config p
 
 	// Validate that we have all paths.
 	if certBase64 == "" {
-		return nil, trace.BadParameter("missing parameter 'cert_base64' or environment variable 'TF_TELEPORT_CERT_BASE64'")
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformCertificatesBase64, constants.EnvVarTerraformCertificatesBase64)
 	}
 	if keyBase64 == "" {
-		return nil, trace.BadParameter("missing parameter 'key_base64' or environment variable 'TF_TELEPORT_KEY_BASE64'")
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformKeyBase64, constants.EnvVarTerraformKeyBase64)
 	}
 	if caBase64 == "" {
-		return nil, trace.BadParameter("missing parameter 'root_ca_base64' or environment variable 'TF_TELEPORT_ROOT_CA_BASE64'")
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformRootCertificatesBase64, constants.EnvVarTerraformRootCertificatesBase64)
 	}
 
 	certPEM, err := base64.StdEncoding.DecodeString(certBase64)
@@ -250,69 +271,82 @@ func (CredentialsFromKeyAndCertBase64) Credentials(ctx context.Context, config p
 	return creds, trace.Wrap(err, "failed to load credentials from the PEM-encoded key and certificate")
 }
 
+// CredentialsFromIdentityFilePath builds credentials from an identity file path.
 type CredentialsFromIdentityFilePath struct{}
 
+// Name implements CredentialSource and returns the source name.
 func (CredentialsFromIdentityFilePath) Name() string {
 	return "from the identity file path"
 }
 
+// IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromIdentityFilePath) IsActive(config providerData) (bool, string) {
 	identityFilePath := stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
 
-	// This method is active as soon as a cert or a key path are set.
-	if identityFilePath == "" {
-		return false, "neither identity_file_path nor TF_TELEPORT_IDENTITY_FILE_PATH are set"
-	}
+	active := identityFilePath != ""
 
-	return true, "either identity_file_path or TF_TELEPORT_IDENTITY_FILE_PATH is set"
+	return activeReason(
+		active,
+		attributeTerraformIdentityFilePath, constants.EnvVarTerraformIdentityFilePath,
+	)
 }
 
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromIdentityFilePath) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	identityFilePath := stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
 
 	return client.LoadIdentityFile(identityFilePath), nil
 }
 
+// CredentialsFromIdentityFileString builds credentials from an identity file passed as a string.
 type CredentialsFromIdentityFileString struct{}
 
+// Name implements CredentialSource and returns the source name.
 func (CredentialsFromIdentityFileString) Name() string {
 	return "from the identity file (passed as a string)"
 }
 
+// IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromIdentityFileString) IsActive(config providerData) (bool, string) {
 	identityFileString := stringFromConfigOrEnv(config.IdentityFile, constants.EnvVarTerraformIdentityFile, "")
 
-	// This method is active as soon as a cert or a key path are set.
-	if identityFileString == "" {
-		return false, "neither identity_file nor TF_TELEPORT_IDENTITY_FILE are set"
-	}
+	active := identityFileString != ""
 
-	return true, "either identity_file or TF_TELEPORT_IDENTITY_FILE is set"
+	return activeReason(
+		active,
+		attributeTerraformIdentityFile, constants.EnvVarTerraformIdentityFile,
+	)
 }
 
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromIdentityFileString) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	identityFileString := stringFromConfigOrEnv(config.IdentityFile, constants.EnvVarTerraformIdentityFile, "")
 
 	return client.LoadIdentityFileFromString(identityFileString), nil
 }
 
+// CredentialsFromIdentityFileBase64 builds credentials from an identity file passed as a base64-encoded string.
 type CredentialsFromIdentityFileBase64 struct{}
 
+// Name implements CredentialSource and returns the source name.
 func (CredentialsFromIdentityFileBase64) Name() string {
 	return "from the identity file (passed as a base64-encoded string)"
 }
 
+// IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromIdentityFileBase64) IsActive(config providerData) (bool, string) {
 	identityFileBase64 := stringFromConfigOrEnv(config.IdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64, "")
 
 	// This method is active as soon as a cert or a key path are set.
-	if identityFileBase64 == "" {
-		return false, "neither identity_file_base64 nor TF_TELEPORT_IDENTITY_FILE_BASE64 are set"
-	}
+	active := identityFileBase64 != ""
 
-	return true, "either identity_file_base64 or TF_TELEPORT_IDENTITY_FILE_BASE64 is set"
+	return activeReason(
+		active,
+		attributeTerraformIdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64,
+	)
 }
 
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromIdentityFileBase64) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	identityFileBase64 := stringFromConfigOrEnv(config.IdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64, "")
 
@@ -324,27 +358,65 @@ func (CredentialsFromIdentityFileBase64) Credentials(ctx context.Context, config
 	return client.LoadIdentityFileFromString(string(identityFile)), nil
 }
 
+// CredentialsFromProfile builds credentials from a local tsh profile.
 type CredentialsFromProfile struct{}
 
+// Name implements CredentialSource and returns the source name.
 func (CredentialsFromProfile) Name() string {
 	return "from the local profile"
 }
 
+// IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromProfile) IsActive(config providerData) (bool, string) {
 	profileName := stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
 	profileDir := stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
 
 	// This method is active as soon as a cert or a key path are set.
-	if profileDir == "" && profileName == "" {
-		return false, "neither profile_name, profile_dir, TF_TELEPORT_PROFILE_NAME or TF_TELEPORT_PROFILE_PATH are set"
-	}
-
-	return true, "either profile_name, profile_dir, TF_TELEPORT_PROFILE_NAME or TF_TELEPORT_PROFILE_PATH are set"
+	active := profileDir != "" || profileName != ""
+	return activeReason(
+		active,
+		attributeTerraformProfileName, attributeTerraformProfilePath,
+		constants.EnvVarTerraformProfileName, constants.EnvVarTerraformProfilePath,
+	)
 }
 
+// Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromProfile) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	profileName := stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
 	profileDir := stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
 
 	return client.LoadProfile(profileDir, profileName), nil
+}
+
+// activeReason renders a user-friendly active reason message describing if the credentials source is active
+// and which parameters are controlling its activity.
+func activeReason(active bool, params ...string) (bool, string) {
+	sb := new(strings.Builder)
+	var firstConjunction, lastConjunction string
+
+	switch active {
+	case true:
+		firstConjunction = "either "
+		lastConjunction = "or "
+	case false:
+		firstConjunction = "neither "
+		lastConjunction = "nor "
+	}
+
+	sb.WriteString(firstConjunction)
+
+	for i, item := range params {
+		switch i {
+		case len(params) - 1:
+			sb.WriteString(lastConjunction)
+			sb.WriteString(item)
+			sb.WriteRune(' ')
+		default:
+			sb.WriteString(item)
+			sb.WriteString(", ")
+		}
+
+	}
+	sb.WriteString("are set")
+	return active, sb.String()
 }
