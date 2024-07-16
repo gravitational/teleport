@@ -75,7 +75,7 @@ func (f *rdsDocumentDBFetcher) GetDatabases(ctx context.Context, cfg *awsFetcher
 			continue
 		}
 
-		if !libcloudaws.IsDocumentDBClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
+		if !libcloudaws.IsDBClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
 			cfg.Logger.DebugContext(ctx, "DocumentDB cluster is not available. Skipping.",
 				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
 				"status", aws.StringValue(cluster.Status))

@@ -106,9 +106,10 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 			aws.StringValue(rdsCluster.DBClusterIdentifier), err)
 
-		// services.NewDatabasesFromRDSCluster maybe partially successful.
+		// common.NewDatabasesFromRDSCluster maybe partially successful so
+		// continue if at least one database is returned.
 		if len(databases) == 0 {
-			return nil
+			return trace.Wrap(err)
 		}
 	}
 	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, rdsCluster))
@@ -292,9 +293,10 @@ func (c *urlChecker) checkDocumentDB(ctx context.Context, database types.Databas
 		c.log.Warnf("Could not convert DocumentDB cluster %q to database resources: %v.",
 			aws.StringValue(cluster.DBClusterIdentifier), err)
 
-		// services.NewDatabasesFromDocumentDBCluster maybe partially successful.
+		// common.NewDatabasesFromDocumentDBCluster maybe partially successful
+		// so continue if at least one database is returned.
 		if len(databases) == 0 {
-			return nil
+			return trace.Wrap(err)
 		}
 	}
 	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, cluster))

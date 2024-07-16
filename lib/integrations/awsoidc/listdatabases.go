@@ -153,7 +153,7 @@ func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatab
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBInstances))
 	for _, db := range rdsDBs.DBInstances {
-		if !cloudaws.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
+		if !cloudaws.IsDBClusterAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
 			continue
 		}
 
@@ -191,7 +191,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBClusters))
 	for _, db := range rdsDBs.DBClusters {
-		if !cloudaws.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
+		if !cloudaws.IsDBClusterAvailable(db.Status, db.DBClusterIdentifier) {
 			continue
 		}
 

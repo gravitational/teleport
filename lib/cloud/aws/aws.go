@@ -37,7 +37,7 @@ import (
 //
 // Note that this function checks some common values but not necessarily covers
 // everything. For types that have other known status values, separate
-// functions (e.g. IsRDSClusterAvailable) can be implemented.
+// functions (e.g. IsDBClusterAvailable) can be implemented.
 func IsResourceAvailable(r interface{}, status *string) bool {
 	switch strings.ToLower(aws.StringValue(status)) {
 	case "available", "modifying", "snapshotting", "active":
@@ -156,8 +156,7 @@ func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
 		return false
 	}
 
-	minIAMSupportedVer := semver.New("5.0.0")
-	return !ver.LessThan(*minIAMSupportedVer)
+	return !ver.LessThan(semver.Version{Major: 5})
 }
 
 // IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
@@ -210,8 +209,8 @@ func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 	}
 }
 
-// IsRDSClusterAvailable checks if the RDS cluster is available.
-func IsRDSClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
+// IsDBClusterAvailable checks if the RDS or DocumentDB cluster is available.
+func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
 	switch aws.StringValue(clusterStatus) {
@@ -237,13 +236,6 @@ func IsRDSClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 		)
 		return true
 	}
-}
-
-// IsDocumentDBClusterAvailable checks if the DocumentDB cluster is available.
-func IsDocumentDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
-	// List of status values for DocumentDB is a subset of RDS's list:
-	// https://docs.aws.amazon.com/documentdb/latest/developerguide/monitoring_docdb-cluster_status.html
-	return IsRDSClusterAvailable(clusterStatus, clusterIndetifier)
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
