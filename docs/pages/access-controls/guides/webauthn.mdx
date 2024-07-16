@@ -95,7 +95,6 @@ Teleport configuration as below:
   cluster auth preference has been updated
   ```
 
-
 ### `webauthn` fields definitions
 
 `rp_id` is the public domain of the Teleport Proxy Service, *excluding* protocol
@@ -158,7 +157,6 @@ $ tsh login --proxy=example.teleport.sh
 </Admonition>
 
 ## Configure per-session MFA
-
 Ensure that multi-factor authentication is required for each session, not just at initial login, 
 to maintain continuous security. Teleport's per-session MFA enhances security by protecting 
 against compromised on-disk certificates. It requires additional MFA checks when initiating new SSH, Kubernetes, database, or desktop sessions.
@@ -179,7 +177,7 @@ when starting new:
   to improve security.
 </Notice>
 
-### Step 1/1. Enforce MFA checks
+### Step 1/2. Enforce MFA checks
 
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
@@ -222,7 +220,7 @@ spec:
 version: v2
 ```
 
-Create the resource:
+### Step 2/2. Create the resource
 
 ```code
 $ tctl create -f cap.yaml
@@ -258,8 +256,6 @@ databases, Kubernetes clusters, and first MFA device enrollment. The latter help
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-### Step 1/3. Register a trusted device
-
 The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
@@ -271,6 +267,8 @@ removing devices that are no longer in use.
   $ tsh device enroll --current-device
   ```
 </Admonition>
+
+### Step 1/3. Register a trusted device
 
 Before you can enroll the device, you need to register it. To register
 a device, you first need to determine its serial number.
@@ -420,6 +418,7 @@ The presence of the `teleport-device-*` extensions shows that the device was
 successfully enrolled and authenticated.
 
 ## Require MFA for administrative actions
+
 Add an extra layer of security for sensitive administrative operations by requiring multi-factor authentication 
 for these high-privilege actions. Teleport enforces additional MFA verification for administrative 
 actions across all clients (tctl, tsh, Web UI, and Connect). This feature adds an extra security 
@@ -470,7 +469,7 @@ Examples of administrative actions include, but are not limited to:
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
-## Enable MFA for admin actions
+### Step 1/2. Edit the resource
 
   Edit the `cluster_auth_preference` resource:
 
@@ -493,7 +492,9 @@ Update the `cluster_auth_preference` definition to include the following content
       rp_id: example.com
   ```
 
-  Save and exit the file. `tctl` will update the remote definition:
+  ### Step 2/2. Save and exit the file
+  
+  The comand `tctl` will update the remote definition:
 
   ```text
   cluster auth preference has been updated
@@ -501,8 +502,8 @@ Update the `cluster_auth_preference` definition to include the following content
 
 For more information about cluster hardening, see:
 
-- [Per-Session MFA](../access-controls/guides/per-session-mfa.mdx): Per-session multi-factor authentication.
-- [MFA for Administrative Actions](../access-controls/guides/mfa-for-admin-actions.mdx): Multi-factor authentication for admin actions.
-- [Locking](../access-controls/guides/locking.mdx): Lock access to active user sessions or hosts.
-- [Moderated Sessions](../access-controls/guides/moderated-sessions.mdx): Require session auditors and allow fine-grained live session access.
-- [Hardware Key Support](../access-controls/guides/hardware-key-support.mdx): Enforce the use of hardware-based private keys.
+- [Per-Session MFA](./per-session-mfa.mdx): Per-session multi-factor authentication.
+- [MFA for Administrative Actions](./mfa-for-admin-actions.mdx): Multi-factor authentication for admin actions.
+- [Locking](./locking.mdx): Lock access to active user sessions or hosts.
+- [Moderated Sessions](./moderated-sessions.mdx): Require session auditors and allow fine-grained live session access.
+- [Hardware Key Support](./hardware-key-support.mdx): Enforce the use of hardware-based private keys.
