@@ -139,7 +139,6 @@ func (process *MockEventsProcess) WaitReady(ctx context.Context) (bool, error) {
 	return process.eventsJob.WaitReady(ctx)
 }
 
-
 // Shutdown sends a termination signal and waits for process completion.
 func (process *MockEventsProcess) Shutdown(ctx context.Context) error {
 	process.Terminate()
