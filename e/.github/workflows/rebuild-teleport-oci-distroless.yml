@@ -31,35 +31,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       teleport_version: ${{ steps.version.outputs.full }}
-      image_tags: ${{ steps.tags.outputs.tags  }}
+      image_tags: ${{ steps.version.outputs.labels }}
     steps:
-      - name: Parse version tag
+      - name: Parse version
         id: version
-        shell: bash
-        run: |
-          version=${{ inputs.teleport-release-tag }}
-          version="${version#v}"
-
-          if ! [[ "${version}" =~ [^0-9]*([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.+-]+)? ]]; then
-                  echo bad version
-                  exit 1
-          fi
-
-          set -- "${BASH_REMATCH[@]:1}" # get regex groups as $1, $2, ... etc
-          echo full=${version} >> $GITHUB_OUTPUT
-          echo major=$1 >> $GITHUB_OUTPUT
-          echo minor=$2 >> $GITHUB_OUTPUT
-          echo patch=$3 >> $GITHUB_OUTPUT
-          echo prerelease=$4 >> $GITHUB_OUTPUT
-
-      - name: Generate image tags
-        id: tags
-        shell: bash
-        run: |
-          tags="${{ steps.version.outputs.major }}"
-          tags+="  ${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}"
-          tags+="  ${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}.${{ steps.version.outputs.patch }}"
-          echo tags=$tags >> $GITHUB_OUTPUT
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.teleport-release-tag }}
 
   rebuild-image:
     name: Rebuild OCI container images for ${{ inputs.teleport-release-tag }}
@@ -111,6 +89,7 @@ jobs:
       dest-image-registry-region: us-east-1
       dest-image-repo: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.image_tags }}
+      environment: build-prod
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
