@@ -250,7 +250,13 @@ feature to understand if there's demand for such extension of capabilities.
 
 ## Audit
 
-No changes to the audit events will be required.
+We will track changes to the KubeProvision resources in the Audit log. There will be three new events:
+
+* `kube.provision.create`
+* `kube.provision.update`
+* `kube.provision.delete`
+
+Issued when a KubeProvision resource is created/updated/deleted accordingly.
 
 ## Test plan
 
