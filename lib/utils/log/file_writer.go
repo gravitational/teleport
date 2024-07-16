@@ -30,16 +30,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var (
-	// fileSharedWriter global file shared writer with the ability to reopen the log file
-	// in the same mode and with the same flags, either by function call or by filesystem
-	// notification subscription on the changes.
-	fileSharedWriter *FileSharedWriter
-
-	// mu protects global setter/getter of the file shared writer.
-	mu sync.Mutex
-)
-
 // FileSharedWriter is similar to SharedWriter except that it requires a `os.File` instead of a `io.Writer`.
 // This is to allow the File reopen required by logrotate and similar tools.
 type FileSharedWriter struct {
@@ -50,28 +40,6 @@ type FileSharedWriter struct {
 	watcher     *fsnotify.Watcher
 
 	lock sync.Mutex
-}
-
-// SetFileSharedWriter sets the global file shared writer, closing the current
-// one (if any). The returned error is the error from the closing operation.
-func SetFileSharedWriter(sharedWriter *FileSharedWriter) (err error) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if fileSharedWriter != nil {
-		err = fileSharedWriter.Close()
-	}
-	fileSharedWriter = sharedWriter
-
-	return trace.Wrap(err)
-}
-
-// GetFileSharedWriter returns instance of the global file shared writer.
-func GetFileSharedWriter() *FileSharedWriter {
-	mu.Lock()
-	defer mu.Unlock()
-
-	return fileSharedWriter
 }
 
 // NewFileSharedWriter wraps the provided [os.File] in a writer that is thread safe,
@@ -123,16 +91,16 @@ func (s *FileSharedWriter) Reopen() (err error) {
 }
 
 // RunWatcherReopen runs a filesystem watcher for rename/remove events to reopen the log.
-func (s *FileSharedWriter) RunWatcherReopen(ctx context.Context) error {
+func (s *FileSharedWriter) RunWatcherReopen() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	return s.runWatcherFunc(ctx, s.Reopen)
+	return s.runWatcherFunc(s.Reopen)
 }
 
 // runWatcherFunc spawns goroutine with the watcher loop to consume events of renaming
 // or removing the log file to trigger the action function when event appeared.
-func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() error) error {
+func (s *FileSharedWriter) runWatcherFunc(action func() error) error {
 	if s.watcher.WatchList() == nil {
 		return trace.BadParameter("watcher is already closed")
 	}
@@ -145,9 +113,9 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 					return
 				}
 				if s.logFileName == event.Name && (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) {
-					slog.DebugContext(ctx, "Log file was moved/removed", "file", event.Name)
+					slog.DebugContext(context.Background(), "Log file was moved/removed", "file", event.Name)
 					if err := action(); err != nil {
-						slog.ErrorContext(ctx, "Failed to take action", "error", err, "file", event.Name)
+						slog.ErrorContext(context.Background(), "Failed to take action", "error", err, "file", event.Name)
 						continue
 					}
 				}
@@ -155,7 +123,7 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 				if !ok {
 					return
 				}
-				slog.ErrorContext(ctx, "Error received on logger watcher", "error", err)
+				slog.ErrorContext(context.Background(), "Error received on logger watcher", "error", err)
 			}
 		}
 	}()
@@ -168,10 +136,16 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 	return nil
 }
 
-// Close stops the internal watcher.
+// Close stops the internal watcher and close the log file.
 func (s *FileSharedWriter) Close() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	return s.watcher.Close()
+	if err := s.watcher.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.file.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

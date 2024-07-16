@@ -19,10 +19,11 @@
 package log
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -32,8 +33,6 @@ import (
 // TestFileSharedWriterNotify checks that if we create the file with shared writer and enable
 // watcher functionality, we should expect the file to be reopened after renaming the original one.
 func TestFileSharedWriterNotify(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	logDir := t.TempDir()
 	testFileMode := os.FileMode(0o600)
 	testFileFlag := os.O_WRONLY | os.O_CREATE | os.O_APPEND
@@ -43,12 +42,11 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	t.Cleanup(func() {
-		cancel()
 		require.NoError(t, logWriter.Close())
 	})
 
 	signal := make(chan struct{})
-	err = logWriter.runWatcherFunc(ctx, func() error {
+	err = logWriter.runWatcherFunc(func() error {
 		err := logWriter.Reopen()
 		signal <- struct{}{}
 		return err
@@ -86,45 +84,48 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	require.Equal(t, secondPhrase, string(data), "second written phrase does not match")
 }
 
-// TestFileSharedWriterGlobalSet verifies that logic with closing file shared writer
-// after overriding it in the global variable.
-func TestFileSharedWriterGlobalSet(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+// TestFileSharedWriterFinalizer verifies the logic with closing file shared writer
+// after overriding it in `logger.SetOutput`.
+func TestFileSharedWriterFinalizer(t *testing.T) {
+	// output simulates setting the file shared writer to logger.
+	var output io.WriteCloser
 
 	logDir := t.TempDir()
 	testFileMode := os.FileMode(0o600)
 	testFileFlag := os.O_WRONLY | os.O_CREATE | os.O_APPEND
 	logFileName := filepath.Join(logDir, "test.log")
 
-	// Initiate the first file shared writer and set it as global.
+	// Initiate the first file shared writer and set it to output.
 	var firstWatcherTriggered bool
 	firstLogWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
-	err = firstLogWriter.runWatcherFunc(ctx, func() error {
+	err = firstLogWriter.runWatcherFunc(func() error {
 		firstWatcherTriggered = true
 		return nil
 	})
 	require.NoError(t, err, "failed to run reopen watcher")
 
-	err = SetFileSharedWriter(firstLogWriter)
-	require.NoError(t, err, "can't set the global writer")
+	// Set wrapped file shared writer to fake logger output variable.
+	output = NewWriterFinalizer(firstLogWriter)
 
-	// Initiate the second file shared writer and set it as global,
-	// previous must be closed automatically and stop reacting on events.
+	// Initiate the second file shared writer and override it in common output,
+	// previous must be closed automatically by finalizer and stop reacting on events.
 	secondLogWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	signal := make(chan struct{})
-	err = secondLogWriter.runWatcherFunc(ctx, func() error {
+	err = secondLogWriter.runWatcherFunc(func() error {
 		err := secondLogWriter.Reopen()
 		signal <- struct{}{}
 		return err
 	})
 	require.NoError(t, err, "failed to run reopen watcher")
 
-	err = SetFileSharedWriter(secondLogWriter)
-	require.NoError(t, err, "can't set the global writer")
+	// Overriding second file shared writer to free resources of the first one
+	// and trigger finalizing logic.
+	output = secondLogWriter
+	runtime.GC()
 
 	// Move the original file to a new location to simulate the logrotate operation.
 	err = os.Rename(logFileName, fmt.Sprintf("%s.1", logFileName))
@@ -141,12 +142,19 @@ func TestFileSharedWriterGlobalSet(t *testing.T) {
 
 	// Check that we receive the error if we are going to try to run watcher
 	// again for closed one.
-	err = firstLogWriter.RunWatcherReopen(ctx)
+	err = firstLogWriter.RunWatcherReopen()
 	require.Error(t, err)
 
+	// First file shared writer must be already closed and produce error after
+	// trying to close it second time.
+	err = firstLogWriter.Close()
+	require.Error(t, err)
+
+	// Write must not fail after override.
+	_, err = output.Write([]byte("test"))
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
-		cancel()
-		require.NoError(t, firstLogWriter.Close())
-		require.NoError(t, secondLogWriter.Close())
+		require.NoError(t, output.Close())
 	})
 }

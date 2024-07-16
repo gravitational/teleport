@@ -1423,14 +1423,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	// Enable shared log file watcher if configuration is set, to react on filesystem event.
-	sharedWriter := logutils.GetFileSharedWriter()
-	if cfg.WatchLogFile && sharedWriter != nil {
-		if err := sharedWriter.RunWatcherReopen(process.ExitContext()); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// notify parent process that this process has started
 	go process.notifyParent()
 
