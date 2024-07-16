@@ -20,11 +20,17 @@
 package common
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type vnetCommand struct {
@@ -57,9 +63,15 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	return trace.Wrap(processManager.Wait())
 }
 
+// vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
+// vnetdaemon build tag. This is typically the case when running tsh in development where it's not
+// signed and bundled in tsh.app.
+//
+// This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for communication with the parent process.
+	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
+	// the unprivileged process.
 	socketPath string
 	// ipv6Prefix is the IPv6 prefix for the VNet.
 	ipv6Prefix string
@@ -78,5 +90,42 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr))
+	homePath := os.Getenv(types.HomeEnvVar)
+	if homePath == "" {
+		// This runs as root so we need to be configured with the user's home path.
+		return trace.BadParameter("%s must be set", types.HomeEnvVar)
+	}
+
+	config := daemon.Config{
+		SocketPath: c.socketPath,
+		IPv6Prefix: c.ipv6Prefix,
+		DNSAddr:    c.dnsAddr,
+		HomePath:   homePath,
+	}
+
+	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
+}
+
+type vnetDaemonCommand struct {
+	*kingpin.CmdClause
+	// Launch daemons added through SMAppService are launched from a static .plist file, hence
+	// why this command does not accept any arguments.
+	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
+}
+
+func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
+	return &vnetDaemonCommand{
+		// The command must match the command provided in the .plist file.
+		CmdClause: app.Command("vnet-daemon", "Start the VNet daemon").Hidden(),
+	}
+}
+
+func (c *vnetDaemonCommand) run(cf *CLIConf) error {
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
+	} else {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+	}
+
+	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
 }
