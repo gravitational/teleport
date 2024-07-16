@@ -165,6 +165,8 @@ type AWSOIDCListDatabasesRequest struct {
 	Engines []string `json:"engines"`
 	// Region is the AWS Region.
 	Region string `json:"region"`
+	// VPCID filters databases to only include those deployed in the VPC.
+	VPCID string `json:"vpcId"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
 	NextToken string `json:"nextToken"`
