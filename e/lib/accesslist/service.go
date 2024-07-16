@@ -66,7 +66,7 @@ var (
 	}
 
 	// oktaValidModifications lists the fields that can be modified in an Okta sourced access list.
-	oktaValidModifications = append([]cmp.Option{cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires")},
+	oktaValidModifications = append([]cmp.Option{cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires", "Audit")},
 		ignoreEphemeralFields...)
 )
 

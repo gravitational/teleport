@@ -1885,6 +1885,14 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			newAccessListMember(t, aOkta.GetName(), member3, c.clock),
 		}, require.NoError)
 	})
+
+	t.Run("owner can modify okta sourced audit properties", func(t *testing.T) {
+		resp, err := c.svc.accessLists.GetAccessList(c.userCtx, "okta")
+		require.NoError(t, err)
+		resp.Spec.Audit.NextAuditDate = c.svc.clock.Now().Add(time.Hour * 24 * 10)
+		_, err = c.svc.accessLists.UpsertAccessList(c.ownerCtx, resp)
+		require.NoError(t, err)
+	})
 }
 
 func TestService_AuthOrIsOwner(t *testing.T) {
