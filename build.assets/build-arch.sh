@@ -14,9 +14,9 @@ case $1 in
         export SYSROOT="${HOME}/x-tools/aarch64-unknown-linux-gnu/aarch64-unknown-linux-gnu/sysroot"
 
         export PATH="${HOME}/x-tools/aarch64-unknown-linux-gnu/bin:$PATH"
-        export CC="aarch64-unknown-linux-gnu-cc --sysroot=${SYSROOT} -I${SYSROOT}/include" # Hacky but works
+        export CC="aarch64-unknown-linux-gnu-cc --sysroot=${SYSROOT} -I${SYSROOT}/include -fuse-ld=gold" # Hacky but works
         export CXX="aarch64-unknown-linux-gnu-c++ --sysroot=${SYSROOT}"
-        export LD="aarch64-unknown-linux-gnu-ld --sysroot=${SYSROOT}"
+        export LD="aarch64-unknown-linux-gnu-ld.gold --sysroot=${SYSROOT}"
         export PKG_CONFIG_PATH="${SYSROOT}/lib/pkgconfig"
         ;;
     "arm")
