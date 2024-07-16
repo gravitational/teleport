@@ -18,7 +18,7 @@ You can make production builds locally, or you can use Docker to do that.
 
 Install Node.js (you can take the version by executing 
 `make -C build.assets print-node-version` from the root directory).
-After that, run `corepack enable` to enable installing a package manager.
+After that, run `corepack enable pnpm` to enable installing a package manager.
 
 Then you need to download and initialize JavaScript dependencies.
 

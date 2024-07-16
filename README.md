@@ -150,7 +150,7 @@ Ensure you have installed correct versions of necessary dependencies:
 * For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
   `pkg-config` installed locally
 * To build the web UI:
-  * [`pnpm`](if you have Node.js installed, run `corepack enable` to make `pnpm` available).
+  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
   * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
   * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
