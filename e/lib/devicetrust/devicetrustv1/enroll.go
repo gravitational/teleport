@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	_ "crypto/sha256" // imported for crypto.SHA256
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -14,6 +15,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
+
+var errDeniedByNonAutoToken = errors.New("user lacks permissions to spend non auto-enroll token")
 
 type enrollCeremony struct {
 	logger           *slog.Logger
@@ -33,8 +36,12 @@ type enrollCeremony struct {
 // The ceremony auditCallback is guaranteed to be called exactly once, either
 // after the first error or before the last Send of the stream.
 // The outcome of the last Send is not considered for audit purposes.
-func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer, user string) (*devicepb.Device, error) {
-	dev, err := c.enrollDevice(stream, user)
+func (c *enrollCeremony) EnrollDevice(
+	stream devicepb.DeviceTrustService_EnrollDeviceServer,
+	user string,
+	allowedByAutoEnroll bool,
+) (*devicepb.Device, error) {
+	dev, err := c.enrollDevice(stream, user, allowedByAutoEnroll)
 	c.auditCallback(dev, err)
 	if err != nil {
 		return dev, trace.Wrap(err)
@@ -51,7 +58,11 @@ func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollD
 	return dev, trace.Wrap(err)
 }
 
-func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer, user string) (*devicepb.Device, error) {
+func (c *enrollCeremony) enrollDevice(
+	stream devicepb.DeviceTrustService_EnrollDeviceServer,
+	user string,
+	allowedByAutoEnroll bool,
+) (*devicepb.Device, error) {
 	// 1. Init.
 	req, err := stream.Recv()
 	if err != nil {
@@ -83,9 +94,13 @@ func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollD
 	// against it.
 
 	// ...then immediately spend the enrollment token.
-	if err := c.storage.SpendDeviceEnrollToken(ctx, dev.Id, initReq.Token); err != nil {
+	tokenData, err := c.storage.SpendDeviceEnrollToken(ctx, dev.Id, initReq.Token)
+	if err != nil {
 		// err swallowed/obscured on purpose.
 		return dev, trace.AccessDenied("invalid device enrollment token")
+	}
+	if allowedByAutoEnroll && !tokenData.CreatedByAutoEnroll {
+		return dev, trace.Wrap(errDeniedByNonAutoToken)
 	}
 
 	// Perform remaining init validation.

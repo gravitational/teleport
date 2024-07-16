@@ -2069,6 +2069,135 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	})
 }
 
+func TestService_EnrollDevice_autoEnrollE2E(t *testing.T) {
+	// Test that auto-enrollment is possible, end-to-end, even for a user that has
+	// no special device verbs.
+
+	const adminUser = "llama"
+	const endUser = "alpaca"
+	authorizer := &userAwareAuthorizer{
+		knownUsers:      []string{adminUser, endUser}, // Passes Authorize() calls.
+		authorizedUsers: []string{adminUser},          // Passes CheckAccessToRule() calls.
+	}
+
+	dt := &types.DeviceTrust{
+		Mode:       constants.DeviceTrustModeRequired,
+		AutoEnroll: true,
+	}
+	env := testenv.NewUsingT(
+		t,
+		testenv.WithAuthorizer(authorizer),
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: dt,
+		}),
+	)
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Register device.
+	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "alpaca-dev-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	type createTokenParams struct {
+		user string
+		req  *devicepb.CreateDeviceEnrollTokenRequest
+	}
+
+	autoEnrollToken := func() createTokenParams {
+		return createTokenParams{
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: defaultCollectData(dev), // Auto-enroll token
+			},
+		}
+	}
+
+	adminToken := func() createTokenParams {
+		return createTokenParams{
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId: dev.Id, // "Regular" token.
+			},
+		}
+	}
+
+	// Note: tests run in sequence and may alter system state.
+	tests := []struct {
+		name            string
+		createToken     createTokenParams
+		enrollUser      string
+		beforeEnroll    func(t *testing.T) // Optional.
+		assertEnrollErr func(error) bool   // Optional. nil means no error wanted.
+	}{
+		{
+			name:        "ok",
+			createToken: autoEnrollToken(),
+			enrollUser:  endUser,
+		},
+		{
+			name:            "exemption only applies to auto-enroll tokens",
+			createToken:     adminToken(),
+			enrollUser:      endUser,
+			assertEnrollErr: trace.IsAccessDenied, // needs device/enroll permissions
+		},
+
+		// Keep this last, it changes system settings.
+		{
+			name:        "exemption only applies if auto-enroll is enabled",
+			createToken: adminToken(),
+			enrollUser:  endUser,
+			beforeEnroll: func(_ *testing.T) {
+				// Disable system auto-enroll.
+				dt.AutoEnroll = false
+			},
+			assertEnrollErr: trace.IsAccessDenied,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create DeviceEnrollToken. The request decides whether it's an auto-enroll
+			// token or not.
+			enrollToken, err := devices.CreateDeviceEnrollToken(
+				contextWithUser(ctx, test.createToken.user),
+				test.createToken.req,
+			)
+			if err != nil {
+				t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
+			}
+			dev.EnrollToken = enrollToken
+
+			// Run the before EnrollDevice hook.
+			if test.beforeEnroll != nil {
+				test.beforeEnroll(t)
+			}
+
+			// Attempt to enroll the device.
+			// User + enrollToken will decide the outcome.
+			_, _, err = enrollDevice(
+				contextWithUser(ctx, test.enrollUser),
+				devices, dev, defaultCollectData,
+			)
+			switch {
+			case test.assertEnrollErr != nil:
+				if !test.assertEnrollErr(err) {
+					t.Errorf("EnrollDevice assertErr failed: err=%v (%T)", err, trace.Unwrap(err))
+				}
+			case err != nil:
+				t.Errorf("EnrollDevice returned err=%v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestService_DeviceEnrollToken_expireTime(t *testing.T) {
 	env := testenv.NewUsingT(t, testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
 		DeviceTrust: &types.DeviceTrust{

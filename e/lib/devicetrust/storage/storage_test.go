@@ -3069,8 +3069,10 @@ func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
 			}
 
 			// Spend the token to verify that it works.
-			if err := s.SpendDeviceEnrollToken(ctx, got.Id, got.EnrollToken.Token); err != nil {
+			if tokenData, err := s.SpendDeviceEnrollToken(ctx, got.Id, got.EnrollToken.Token); err != nil {
 				t.Errorf("SpendDeviceEnrollToken failed: %v", err)
+			} else if !tokenData.CreatedByAutoEnroll {
+				t.Errorf("SpendDeviceEnrollToken returned tokenData=%#v, want tokenData.CreatedByAutoEnroll=true", tokenData)
 			}
 		})
 	}
@@ -3272,7 +3274,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 		deviceID        string
 		expiresAt       time.Time
 		createToken     func(ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error)
-		spendToken      func(ctx context.Context, deviceID, token string) error
+		spendToken      func(ctx context.Context, deviceID, token string) (*storage.DeviceEnrollTokenData, error)
 		assertCreateErr func(err error) bool
 		assertSpendErr  func(err error) bool
 	}{
@@ -3302,7 +3304,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 				}
 
 				// First token cannot be spent anymore.
-				if err := s.SpendDeviceEnrollToken(ctx, deviceID, first.Token); !trace.IsBadParameter(err) {
+				if _, err := s.SpendDeviceEnrollToken(ctx, deviceID, first.Token); !trace.IsBadParameter(err) {
 					// Original error type erased on purpose (%v instead of %w)
 					return nil, fmt.Errorf("unexpected error attempting to spend first token: %w", err)
 				}
@@ -3350,7 +3352,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			name:        "token is tied to device",
 			deviceID:    deviceID,
 			createToken: s.CreateDeviceEnrollToken,
-			spendToken: func(ctx context.Context, _, token string) error {
+			spendToken: func(ctx context.Context, _, token string) (*storage.DeviceEnrollTokenData, error) {
 				return s.SpendDeviceEnrollToken(ctx, dev2.Id /* wrong device */, token)
 			},
 			assertSpendErr: trace.IsNotFound,
@@ -3359,7 +3361,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			name:        "token must match",
 			deviceID:    deviceID,
 			createToken: s.CreateDeviceEnrollToken,
-			spendToken: func(ctx context.Context, deviceID, token string) error {
+			spendToken: func(ctx context.Context, deviceID, token string) (*storage.DeviceEnrollTokenData, error) {
 				return s.SpendDeviceEnrollToken(ctx, deviceID, token+"bad")
 			},
 			assertSpendErr: trace.IsBadParameter,
@@ -3374,7 +3376,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			name:        "unknown device fails spend",
 			deviceID:    deviceID,
 			createToken: s.CreateDeviceEnrollToken,
-			spendToken: func(ctx context.Context, _, token string) error {
+			spendToken: func(ctx context.Context, _, token string) (*storage.DeviceEnrollTokenData, error) {
 				return s.SpendDeviceEnrollToken(ctx, "unknown", token)
 			},
 			assertSpendErr: trace.IsNotFound,
@@ -3383,9 +3385,9 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			name:        "double spend fails",
 			deviceID:    deviceID,
 			createToken: s.CreateDeviceEnrollToken,
-			spendToken: func(ctx context.Context, deviceID string, token string) error {
-				if err := s.SpendDeviceEnrollToken(ctx, deviceID, token); err != nil {
-					return errors.New("first spend failed")
+			spendToken: func(ctx context.Context, deviceID string, token string) (*storage.DeviceEnrollTokenData, error) {
+				if _, err := s.SpendDeviceEnrollToken(ctx, deviceID, token); err != nil {
+					return nil, errors.New("first spend failed")
 				}
 
 				return s.SpendDeviceEnrollToken(ctx, deviceID, token)
@@ -3402,7 +3404,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			name:        "SpendDeviceEnrollToken requires device ID",
 			deviceID:    deviceID,
 			createToken: s.CreateDeviceEnrollToken,
-			spendToken: func(ctx context.Context, _, token string) error {
+			spendToken: func(ctx context.Context, _, token string) (*storage.DeviceEnrollTokenData, error) {
 				return s.SpendDeviceEnrollToken(ctx, "" /* deviceID */, token)
 			},
 			assertSpendErr: trace.IsBadParameter,
@@ -3411,7 +3413,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			name:        "SpendDeviceEnrollToken requires token",
 			deviceID:    deviceID,
 			createToken: s.CreateDeviceEnrollToken,
-			spendToken: func(ctx context.Context, deviceID, _ string) error {
+			spendToken: func(ctx context.Context, deviceID, _ string) (*storage.DeviceEnrollTokenData, error) {
 				return s.SpendDeviceEnrollToken(ctx, deviceID, "" /* token */)
 			},
 			assertSpendErr: trace.IsBadParameter,
@@ -3430,13 +3432,15 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 				t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
 			}
 
-			switch err := test.spendToken(ctx, test.deviceID, token.GetToken()); {
+			switch tokenData, err := test.spendToken(ctx, test.deviceID, token.GetToken()); {
 			case test.assertSpendErr != nil:
 				if !test.assertSpendErr(err) {
 					t.Errorf("SpendDeviceEnrollmentToken: assert failed, err=%v", err)
 				}
 			case err != nil:
 				t.Fatalf("SpendDeviceEnrollmentToken failed: %v", err)
+			case tokenData.CreatedByAutoEnroll:
+				t.Errorf("SpendDeviceEnrollmentToken returned tokenData=%#v, want tokenData.CreatedByAutoEnroll=false", tokenData)
 			}
 		})
 	}

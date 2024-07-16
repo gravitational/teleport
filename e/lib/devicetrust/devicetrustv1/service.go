@@ -597,34 +597,22 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 			Observe(time.Since(start).Seconds())
 	}()
 
-	authCtx, err := s.authorize(ctx)
+	authorizeOutcome, err :=
+		s.authorizeWithAutoEnrollExemption(ctx, types.KindDevice, types.VerbCreateEnrollToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	authPref, err := s.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	autoEnrollEnabled := authPref.GetDeviceTrust() != nil && authPref.GetDeviceTrust().AutoEnroll
-
-	// Verify access to the necessary verbs.
-	// It's possible to issue an enroll token without the verb if auto-enrollment
-	// is enabled.
-	checkErr := authCtx.Checker.CheckAccessToRule(
-		&services.Context{User: authCtx.User},
-		defaults.Namespace, types.KindDevice, types.VerbCreateEnrollToken,
-	)
-	if checkErr != nil && !autoEnrollEnabled {
-		return nil, trace.Wrap(checkErr)
-	}
+	authCtx := authorizeOutcome.authCtx
+	autoEnrollEnabled := authorizeOutcome.autoEnrollEnabled
+	allowedByAutoEnroll := authorizeOutcome.allowedByAutoEnroll
+	checkErr := authorizeOutcome.checkErr
 
 	// Auto-enroll if:
-	// - User failed verb check
+	// - User failed verb check (aka allowedByAutoEnroll)
 	// - User succeeded verb check, but only supplied auto-enroll information.
 	//   (Otherwise, favor legacy behavior.)
 	var devMetadata *apievents.DeviceMetadata
-	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled) {
+	if allowedByAutoEnroll || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled) {
 		// Rate limit auto-enroll/data-based token creation.
 		if err := s.rateLimitByUser(authCtx.User.GetName()); err != nil {
 			return nil, trace.Wrap(err)
@@ -669,6 +657,48 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	})
 
 	return token, nil
+}
+
+type authorizeWithAutoEnrollOutcome struct {
+	authCtx             *authz.Context
+	autoEnrollEnabled   bool
+	allowedByAutoEnroll bool  // Implies `autoEnrollEnabled && checkErr != nil`.
+	checkErr            error // CheckAccessToRule error for supplied verbs.
+}
+
+func (s *Service) authorizeWithAutoEnrollExemption(ctx context.Context, kind, verb string) (*authorizeWithAutoEnrollOutcome, error) {
+	// Authorize user.
+	authCtx, err := s.authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch auto-enroll setting.
+	authPref, err := s.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	autoEnrollEnabled := authPref.GetDeviceTrust() != nil && authPref.GetDeviceTrust().AutoEnroll
+
+	// Verify access to the required verbs, allowing for an exemption if
+	// auto-enroll is enabled.
+	allowedByAutoEnroll := false
+	checkErr := authCtx.Checker.CheckAccessToRule(
+		&services.Context{User: authCtx.User},
+		defaults.Namespace, kind, verb,
+	)
+	if checkErr != nil && autoEnrollEnabled {
+		allowedByAutoEnroll = true
+	} else if checkErr != nil {
+		return nil, trace.Wrap(checkErr)
+	}
+
+	return &authorizeWithAutoEnrollOutcome{
+		authCtx:             authCtx,
+		autoEnrollEnabled:   autoEnrollEnabled,
+		allowedByAutoEnroll: allowedByAutoEnroll,
+		checkErr:            checkErr,
+	}, nil
 }
 
 func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, actualErr error) error {
@@ -720,10 +750,16 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	var dev *devicepb.Device
 	defer func() { err = s.redactDataDriftErr(dev, err) }()
 
-	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll)
+	// Both device/enroll or auto-enroll allow access to enrolling devices
+	// (provided the user has a token, of course).
+	authorizeOutcome, err :=
+		s.authorizeWithAutoEnrollExemption(ctx, types.KindDevice, types.VerbEnroll)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	authCtx := authorizeOutcome.authCtx
+	allowedByAutoEnroll := authorizeOutcome.allowedByAutoEnroll
+	checkErr := authorizeOutcome.checkErr
 
 	if err := s.storage.VerifyEnrolledDevicesLimit(ctx); err != nil {
 		return trace.Wrap(err)
@@ -769,7 +805,19 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 			})
 		},
 	}
-	dev, err = c.EnrollDevice(stream, user)
+	dev, err = c.EnrollDevice(stream, user, allowedByAutoEnroll)
+	// If denied because the user tried to spend a non-auto enroll token, then
+	// return the original CheckAccessToRule error.
+	// Sadly the token is already spent at this stage, which is not the behavior
+	// for an ordinary permission failure.
+	if errors.Is(err, errDeniedByNonAutoToken) {
+		s.logger.DebugContext(ctx,
+			"Denied by non auto-enroll error swallowed, user is missing device/enroll permissions",
+			"error", err,
+		)
+		// err swallowed on purpose.
+		return trace.Wrap(checkErr)
+	}
 	return trace.Wrap(err)
 }
 

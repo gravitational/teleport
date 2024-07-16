@@ -39,7 +39,8 @@ type devicesRef struct {
 
 // storedEnrollToken represents a devicepb.DeviceEnrollToken in storage.
 type storedEnrollToken struct {
-	HashedToken []byte `json:"hashed_token"` // Required.
+	HashedToken         []byte `json:"hashed_token"`           // Required.
+	CreatedByAutoEnroll bool   `json:"created_by_auto_enroll"` // Optional.
 }
 
 // collectedDataOrigin represents the origin of the collected data.

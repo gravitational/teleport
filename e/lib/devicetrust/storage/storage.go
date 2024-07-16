@@ -1468,7 +1468,8 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 	// unenrolled and the client did not pass a device challenge to get here.
 
 	defaultExpire := time.Time{}
-	token, err := s.createDeviceEnrollToken(ctx, targetDev.Id, defaultExpire)
+	token, err := s.createDeviceEnrollToken(
+		ctx, targetDev.Id, defaultExpire, true /* createdByAutoEnroll */)
 	if err != nil {
 		return targetDev, trace.Wrap(err)
 	}
@@ -1498,11 +1499,15 @@ func (s *S) CreateDeviceEnrollToken(
 		return nil, trace.Wrap(err)
 	}
 
-	return s.createDeviceEnrollToken(ctx, deviceID, expiresAt)
+	return s.createDeviceEnrollToken(ctx, deviceID, expiresAt, false /* createdByAutoEnroll */)
 }
 
 func (s *S) createDeviceEnrollToken(
-	ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error) {
+	ctx context.Context,
+	deviceID string,
+	expiresAt time.Time,
+	createdByAutoEnroll bool,
+) (*devicepb.DeviceEnrollToken, error) {
 	// Draw a few random bytes, base64 encode into a valid string and use the
 	// resulting string as the password.
 	// tokenPlain is sent to the client.
@@ -1519,7 +1524,8 @@ func (s *S) createDeviceEnrollToken(
 	}
 
 	val, err := json.Marshal(&storedEnrollToken{
-		HashedToken: tokenHashed,
+		HashedToken:         tokenHashed,
+		CreatedByAutoEnroll: createdByAutoEnroll,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "marshal enrollment token")
@@ -1545,42 +1551,49 @@ func (s *S) createDeviceEnrollToken(
 	}, nil
 }
 
+// DeviceEnrollTokenData holds internal data about a spent DeviceEnrollToken.
+type DeviceEnrollTokenData struct {
+	CreatedByAutoEnroll bool
+}
+
 // SpendDeviceEnrollToken spends an existing enrollment token, allowing the
 // enrollment ceremony to proceed.
 // The token is immediately spent in a positive match.
 // Callers are encouraged to "erase" the resulting errors with a constant
 // type/message, as to avoid leaking information about storage state.
-func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) error {
+func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) (*DeviceEnrollTokenData, error) {
 	switch {
 	case deviceID == "":
-		return trace.BadParameter("device ID required")
+		return nil, trace.BadParameter("device ID required")
 	case token == "":
-		return trace.BadParameter("token required")
+		return nil, trace.BadParameter("token required")
 	}
 
 	// Device must exist, the easiest way to check is to read the key.
 	if _, err := s.backend.Get(ctx, deviceKey(deviceID)); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	key := deviceTokenKey(deviceID)
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	stored := &storedEnrollToken{}
 	if err := json.Unmarshal(item.Value, stored); err != nil {
-		return trace.Wrap(err, "unmarshal enrollment token")
+		return nil, trace.Wrap(err, "unmarshal enrollment token")
 	}
 
 	if err := bcrypt.CompareHashAndPassword(stored.HashedToken, []byte(token)); err != nil {
-		return trace.BadParameter("invalid token")
+		return nil, trace.BadParameter("invalid token")
 	}
 	if err := s.backend.Delete(ctx, key); err != nil {
-		return trace.Wrap(err, "failed to spend enrollment token")
+		return nil, trace.Wrap(err, "failed to spend enrollment token")
 	}
 
-	return nil
+	return &DeviceEnrollTokenData{
+		CreatedByAutoEnroll: stored.CreatedByAutoEnroll,
+	}, nil
 }
 
 // GetDevicesUsage returns the current usage numbers for Device Trust.
