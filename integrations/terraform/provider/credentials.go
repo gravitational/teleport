@@ -496,7 +496,16 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformAddress, constants.EnvVarTerraformAddress)
 	}
 
-	// TODO: reject token JoinMethod (or gate behind an env var)
+	if apitypes.JoinMethod(joinMethod) == apitypes.JoinMethodToken {
+		return nil, trace.BadParameter(`the secret token join method ('token') is not supported for native Machine ID joining.
+
+Secret tokens are single use and the Terraform provider does not save the certificates it obtained, so the token join method can only be used once.
+If you want to run the Terraform provider in the CI (GitHub Actions, GitlabCI, Circle CI) or in a supported runtime (AWS, GCP, Azure, Kubernetes, machine with a TPM)
+you should use the join method specific to your environment.
+If you want to use MachineID with secret tokens, the best approach is to run a local tbot on the server where the terraform provider runs.
+
+See https://goteleport.com/docs/reference/join-methods for more details.`)
+	}
 
 	if err := apitypes.ValidateJoinMethod(apitypes.JoinMethod(joinMethod)); err != nil {
 		return nil, trace.Wrap(err, "Invalid Join Method")
