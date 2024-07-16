@@ -212,6 +212,6 @@ const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
   }
 
   notificationsService.notifyInfo(
-    'Please enable the background item for tsh.app in the Login Items section of System Settings to start VNet.'
+    'Please enable the background item for tsh.app in System Settings > General > Login Items to start VNet.'
   );
 };
