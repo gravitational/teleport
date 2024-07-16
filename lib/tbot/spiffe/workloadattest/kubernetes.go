@@ -19,8 +19,14 @@
 package workloadattest
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -41,9 +47,9 @@ type KubernetesAttestation struct {
 	Namespace string
 	// ServiceAccount is the service account of the pod.
 	ServiceAccount string
-	// Container is the individual container that the PID resolved to within
+	// ContainerName is the individual container that the PID resolved to within
 	// the pod.
-	Container string
+	ContainerName string
 	// PodName is the name of the pod.
 	PodName string
 	// PodUID is the UID of the pod.
@@ -66,7 +72,7 @@ func (a KubernetesAttestation) LogValue() slog.Value {
 		values = append(values,
 			slog.String("namespace", a.Namespace),
 			slog.String("service_account", a.ServiceAccount),
-			slog.String("container", a.Container),
+			slog.String("container_name", a.ContainerName),
 			slog.String("pod_name", a.PodName),
 			slog.String("pod_uid", a.PodUID),
 			slog.Attr{
@@ -78,16 +84,26 @@ func (a KubernetesAttestation) LogValue() slog.Value {
 	return slog.GroupValue(values...)
 }
 
+// KubernetesAttestorConfig holds the configuration for the KubernetesAttestor.
 type KubernetesAttestorConfig struct {
-	Enabled bool
+	// Enabled is true if the KubernetesAttestor is enabled. If false,
+	// Kubernetes attestation will not be attempted.
+	Enabled bool                `yaml:"enabled"`
+	Kubelet KubeletClientConfig `yaml:"kubelet"`
 }
 
+// KubernetesAttestor attests a workload to a Kubernetes pod.
 type KubernetesAttestor struct {
-	// TODO: Configurable bits...
+	kubeletClient *kubeletClient
 }
 
+// NewKubernetesAttestor creates a new KubernetesAttestor.
 func NewKubernetesAttestor(cfg KubernetesAttestorConfig) *KubernetesAttestor {
-	return &KubernetesAttestor{}
+	return &KubernetesAttestor{
+		kubeletClient: &kubeletClient{
+			cfg: cfg.Kubelet,
+		},
+	}
 }
 
 // Attest resolves the Kubernetes pod information from the
@@ -136,7 +152,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAtt
 		Attested:       true,
 		Namespace:      pod.Namespace,
 		ServiceAccount: pod.Spec.ServiceAccountName,
-		Container:      container.Name,
+		ContainerName:  container.Name,
 		PodName:        pod.Name,
 		PodUID:         string(pod.UID),
 		Labels:         pod.Labels,
@@ -241,6 +257,81 @@ func mountpointSourceToContainerAndPodID(source string) (podID string, container
 
 // getPodForID retrieves the pod information for the provided pod ID.
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/server/server.go#L371
+//
+// Internally, this may retry a few times if not found. This accounts for any
+// potential raciness.
 func (a *KubernetesAttestor) getPodForID(ctx context.Context, podID string) (*v1.Pod, error) {
-	return nil, trace.NotImplemented("method not implemented")
+	// TODO: Retry w/ short backoff if not found.
+	pods, err := a.kubeletClient.ListAllPods(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "listing all pods")
+	}
+	for _, pod := range pods.Items {
+		if string(pod.UID) == podID {
+			return &pod, nil
+		}
+	}
+	return nil, trace.NotFound("pod %q not found", podID)
+}
+
+const (
+	// nodeNameEnv is used to inject the current nodes name via the downward API.
+	// This provides a hostname for the kubelet client to use.
+	nodeNameEnv                = "TELEPORT_NODE_NAME"
+	defaultServiceAccountToken = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+)
+
+// KubeletClientConfig holds the configuration for the Kubelet client
+// used to query the Kubelet API for workload attestation.
+type KubeletClientConfig struct {
+	// ReadOnlyPort is the port on which the Kubelet API is exposed for
+	// read-only operations. This is mutually exclusive with SecurePort.
+	// This is primarily left for legacy support - since Kubernetes 1.16, the
+	// read-only port is disabled by default.
+	ReadOnlyPort int `yaml:"read_only_port"`
+	// SecurePort specifies the secure port on which the Kubelet API is exposed.
+	// If unspecified, this defaults to `10250`. This is mutually exclusive
+	// with ReadOnlyPort.
+	SecurePort int `yaml:"secure_port"`
+
+	// TokenPath is the path to the token file used to authenticate with the
+	// Kubelet API. Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+	TokenPath string `yaml:"token_path"`
+}
+
+// kubeletClient is a HTTP client for the Kubelet API
+type kubeletClient struct {
+	cfg KubeletClientConfig
+}
+
+func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
+	host := os.Getenv(nodeNameEnv)
+	port := cmp.Or(c.cfg.SecurePort, 10250)
+	client := &http.Client{
+		Transport: http.DefaultTransport,
+	}
+	reqUrl := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+		Path:   "/pods",
+	}
+
+	// TODO: Support for read only port...
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating request")
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err, "performing request")
+	}
+	defer res.Body.Close()
+
+	out := &v1.PodList{}
+	if err := json.NewDecoder(res.Body).Decode(out); err != nil {
+		return nil, trace.Wrap(err, "decoding response")
+	}
+	return out, nil
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
+// UnixAttestation holds the Unix process information retrieved from the
+// workload attestation process.
 type UnixAttestation struct {
 	// Attested is true if the PID was successfully attested to a Unix
 	// process. This indicates the validity of the rest of the fields.
@@ -36,9 +38,16 @@ func (a UnixAttestation) LogValue() slog.Value {
 	return slog.GroupValue(values...)
 }
 
+// UnixAttestor attests a process id to a Unix process.
 type UnixAttestor struct {
 }
 
+// NewUnixAttestor returns a new UnixAttestor.
+func NewUnixAttestor() *UnixAttestor {
+	return &UnixAttestor{}
+}
+
+// Attest attests a process id to a Unix process.
 func (a *UnixAttestor) Attest(ctx context.Context, pid int) (UnixAttestation, error) {
 	p, err := process.NewProcessWithContext(ctx, int32(pid))
 	if err != nil {

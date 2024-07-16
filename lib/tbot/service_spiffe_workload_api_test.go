@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/uds"
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -39,13 +39,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 	tests := []struct {
 		name string
-		uds  *uds.Creds
+		att  workloadattest.Attestation
 		in   []config.SVIDRequestWithRules
 		want []config.SVIDRequest
 	}{
 		{
 			name: "no rules",
-			uds:  nil,
 			in: []config.SVIDRequestWithRules{
 				{
 					SVIDRequest: config.SVIDRequest{
@@ -68,11 +67,14 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 			},
 		},
 		{
-			name: "no rules with uds",
-			uds: &uds.Creds{
-				UID: 1000,
-				GID: 1001,
-				PID: 1002,
+			name: "no rules with attestation",
+			att: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					UID:      1000,
+					GID:      1001,
+					PID:      1002,
+				},
 			},
 			in: []config.SVIDRequestWithRules{
 				{
@@ -96,11 +98,43 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 			},
 		},
 		{
-			name: "no matching rules with uds",
-			uds: &uds.Creds{
-				UID: 1000,
-				GID: 1001,
-				PID: 1002,
+			name: "no rules with attestation",
+			att: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					// We don't expect that workloadattest will ever return
+					// Attested: false and include UID/PID/GID but we want to
+					// ensure we handle this by failing regardless.
+					Attested: false,
+					UID:      1000,
+					GID:      1001,
+					PID:      1002,
+				},
+			},
+			in: []config.SVIDRequestWithRules{
+				{
+					SVIDRequest: config.SVIDRequest{
+						Path: "/foo",
+					},
+					Rules: []config.SVIDRequestRule{
+						{
+							Unix: config.SVIDRequestRuleUnix{
+								UID: ptr(1000),
+							},
+						},
+					},
+				},
+			},
+			want: []config.SVIDRequest{},
+		},
+		{
+			name: "no matching rules with attestation",
+			att: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					UID:      1000,
+					GID:      1001,
+					PID:      1002,
+				},
 			},
 			in: []config.SVIDRequestWithRules{
 				{
@@ -137,8 +171,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "no matching rules without uds",
-			uds:  nil,
+			name: "no matching rules without attestation",
 			in: []config.SVIDRequestWithRules{
 				{
 					SVIDRequest: config.SVIDRequest{
@@ -174,10 +207,13 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "some matching rules with uds",
-			uds: &uds.Creds{
-				UID: 1000,
-				GID: 1001,
-				PID: 1002,
+			att: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					UID:      1000,
+					GID:      1001,
+					PID:      1002,
+				},
 			},
 			in: []config.SVIDRequestWithRules{
 				{
@@ -230,7 +266,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterSVIDRequests(ctx, log, tt.in, tt.uds)
+			got := filterSVIDRequests(ctx, log, tt.in, tt.att)
 			assert.Empty(t, gocmp.Diff(tt.want, got))
 		})
 	}

@@ -495,6 +495,7 @@ func filterSVIDRequests(
 }
 
 func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
+	// The zero value of the attestation is equivalent to no attestation.
 	var att workloadattest.Attestation
 
 	p, ok := peer.FromContext(ctx)
@@ -511,13 +512,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slo
 			return nil, att, trace.Wrap(err, "performing workload attestation")
 		}
 		log = log.With(
-			slog.Group("workload",
-				slog.Group("unix",
-					"pid", authInfo.Creds.PID,
-					"uid", authInfo.Creds.UID,
-					"gid", authInfo.Creds.GID,
-				),
-			),
+			"workload", slog.LogValuer(att),
 		)
 	}
 	if p.Addr.String() != "" {
