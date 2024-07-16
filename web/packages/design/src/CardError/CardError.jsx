@@ -113,7 +113,7 @@ LoginFailed.propTypes = {
 
 export const LogoutFailed = ({ message, loginUrl }) => (
   <CardError>
-    <Header>Login Unsuccessful</Header>
+    <Header>Logout Unsuccessful</Header>
     <Content
       message={message}
       desc={

@@ -195,7 +195,8 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 				Cluster:     profile.SiteName,
 				KubeEnabled: profile.KubeProxyAddr != "",
 				// Set ValidUntil to now to show that the keys are not available.
-				ValidUntil: time.Now(),
+				ValidUntil:              time.Now(),
+				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 			}, nil
 		}
 		return nil, trace.Wrap(err)
@@ -204,13 +205,14 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
 	return profileStatusFromKey(key, profileOptions{
-		ProfileName:   profileName,
-		ProfileDir:    profile.Dir,
-		WebProxyAddr:  profile.WebProxyAddr,
-		Username:      profile.Username,
-		SiteName:      profile.SiteName,
-		KubeProxyAddr: profile.KubeProxyAddr,
-		IsVirtual:     !onDisk,
+		ProfileName:             profileName,
+		ProfileDir:              profile.Dir,
+		WebProxyAddr:            profile.WebProxyAddr,
+		Username:                profile.Username,
+		SiteName:                profile.SiteName,
+		KubeProxyAddr:           profile.KubeProxyAddr,
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		IsVirtual:               !onDisk,
 	})
 }
 
