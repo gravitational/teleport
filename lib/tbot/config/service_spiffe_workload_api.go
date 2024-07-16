@@ -60,6 +60,31 @@ type SVIDRequestRuleUnix struct {
 	GID *int `yaml:"gid,omitempty"`
 }
 
+// SVIDRequestRuleKubernetes is a workload attestation ruleset for workloads
+// that connect via Unix domain sockets and are running in a Kubernetes pod.
+//
+// Requires the "kubernetes" attestor to be enabled.
+//
+// Fields should be a subset of workloadattest.KubernetesAttestation.
+type SVIDRequestRuleKubernetes struct {
+	// Namespace is the Kubernetes namespace that a workload must be running in
+	// to be issued this SVID.
+	// If unspecified, the namespace is not checked.
+	Namespace string `yaml:"namespace,omitempty"`
+	// ServiceAccount is the Kubernetes service account that a workload must be
+	// running as to be issued this SVID.
+	// If unspecified, the service account is not checked.
+	ServiceAccount string `yaml:"service_account,omitempty"`
+	// PodName is the Kubernetes pod name that a workload must be running in to
+	// be issued this SVID.
+	// If unspecified, the pod name is not checked.
+	PodName string `yaml:"pod_name,omitempty"`
+	// ContainerName is the Kubernetes container name that a workload must be
+	// running in to be issued this SVID.
+	// If unspecified, the container name is not checked.
+	ContainerName string `yaml:"container_name,omitempty"`
+}
+
 // SVIDRequestRule is an individual workload attestation rule. All values
 // specified within the rule must be satisfied for the rule itself to pass.
 type SVIDRequestRule struct {
@@ -67,6 +92,10 @@ type SVIDRequestRule struct {
 	// Unix domain sockets. If any value here is set, the rule will not pass
 	// unless the workload is connecting via a Unix domain socket.
 	Unix SVIDRequestRuleUnix `yaml:"unix"`
+	// Kubernetes is the workload attestation ruleset for workloads that connect
+	// via the Unix domain socket and are running in a Kubernetes pod.
+	// The "kubernetes" attestor must be enabled or these rules will fail.
+	Kubernetes SVIDRequestRuleKubernetes `yaml:"kubernetes"`
 }
 
 func (o SVIDRequestRule) LogValue() slog.Value {

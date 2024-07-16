@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -334,11 +335,21 @@ func newKubeletClient(cfg KubeletClientConfig) (*kubeletClient, error) {
 func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
 	host := os.Getenv(nodeNameEnv)
 	port := cmp.Or(c.cfg.SecurePort, 10250)
+
+	certPool := x509.NewCertPool()
+	caPEM, err := os.ReadFile(defaultCAPath) // TODO: make configurable, only bother if not skip veirfy
+	if err != nil {
+		return nil, trace.Wrap(err, "reading CA file %q", defaultCAPath)
+	}
+	if !certPool.AppendCertsFromPEM(caPEM) {
+		return nil, trace.BadParameter("failed to append CA cert from %q", defaultCAPath)
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				RootCAs:            nil,  // TODO:
-				InsecureSkipVerify: true, // TODO
+				RootCAs:            certPool,
+				InsecureSkipVerify: false, // TODO
 			},
 		},
 	}
