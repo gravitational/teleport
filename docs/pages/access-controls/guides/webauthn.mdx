@@ -252,7 +252,7 @@ for accessing protected resources, complementing user identity and role enforcem
 configured cluster-wide or via RBAC. Supported resources include apps (role-based only), SSH nodes, 
 databases, Kubernetes clusters, and first MFA device enrollment. The latter helps prevent auto-provisioning of new users through compromised IdPs.
 
-<Admonition type="note" title="Machine ID and Device Trust">
+<Admonition type="warning" title="Machine ID and Device Trust">
 
   We do not currently support Machine ID and Device Trust. Requiring Device Trust 
   cluster-wide or for roles impersonated by Machine ID will prevent credentials 
@@ -510,10 +510,9 @@ Update the `cluster_auth_preference` definition to include the following content
   cluster auth preference has been updated
   ```
 
-For more information about cluster hardening, see:
+For additional cluster hardening measures, see:
 
-- [Per-Session MFA](./per-session-mfa.mdx): Per-session multi-factor authentication.
-- [MFA for Administrative Actions](./mfa-for-admin-actions.mdx): Multi-factor authentication for admin actions.
+- [Passwordless Authentication](./passwordless.mdx): Provides passwordless and usernameless authentication.
 - [Locking](./locking.mdx): Lock access to active user sessions or hosts.
 - [Moderated Sessions](./moderated-sessions.mdx): Require session auditors and allow fine-grained live session access.
 - [Hardware Key Support](./hardware-key-support.mdx): Enforce the use of hardware-based private keys.
