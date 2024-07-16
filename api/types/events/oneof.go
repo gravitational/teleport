@@ -652,6 +652,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionRecordingConfigUpdate{
 			SessionRecordingConfigUpdate: e,
 		}
+	case *AccessGraphSettingsUpdate:
+		out.Event = &OneOf_AccessGraphSettingsUpdate{
+			AccessGraphSettingsUpdate: e,
+		}
 	case *DatabaseUserCreate:
 		out.Event = &OneOf_DatabaseUserCreate{
 			DatabaseUserCreate: e,
@@ -687,6 +691,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *DiscoveryConfigDeleteAll:
 		out.Event = &OneOf_DiscoveryConfigDeleteAll{
 			DiscoveryConfigDeleteAll: e,
+		}
+	case *IntegrationCreate:
+		out.Event = &OneOf_IntegrationCreate{
+			IntegrationCreate: e,
+		}
+	case *IntegrationUpdate:
+		out.Event = &OneOf_IntegrationUpdate{
+			IntegrationUpdate: e,
+		}
+	case *IntegrationDelete:
+		out.Event = &OneOf_IntegrationDelete{
+			IntegrationDelete: e,
 		}
 
 	default:

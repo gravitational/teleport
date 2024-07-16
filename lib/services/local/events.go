@@ -211,6 +211,14 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessMonitoringRuleParser()
 		case types.KindBotInstance:
 			parser = newBotInstanceParser()
+		case types.KindInstance:
+			parser = newInstanceParser()
+		case types.KindDevice:
+			parser = newDeviceParser()
+		case types.KindAccessGraphSecretPrivateKey:
+			parser = newAccessGraphSecretPrivateKeyParser()
+		case types.KindAccessGraphSecretAuthorizedKey:
+			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindProvisioningState:
 			parser = newProvisioningStateParser()
 		default:

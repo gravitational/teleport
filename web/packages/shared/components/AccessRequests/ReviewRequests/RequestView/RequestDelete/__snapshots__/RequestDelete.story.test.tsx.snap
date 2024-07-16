@@ -9,20 +9,14 @@ exports[`approved role escalation 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c9 {
-  box-sizing: border-box;
 }
 
 .c14 {
   box-sizing: border-box;
-  margin-top: 8px;
   padding: 8px;
-  color: #FFFFFF;
+  margin-top: 8px;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
@@ -31,12 +25,12 @@ exports[`approved role escalation 1`] = `
   margin-right: 8px;
 }
 
-.c18 {
+.c17 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c19 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -66,8 +60,8 @@ exports[`approved role escalation 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c19:focus-visible,
-.teleport-button__force-focus-visible .c19 {
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -75,30 +69,30 @@ exports[`approved role escalation 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c19:hover,
-.teleport-button__force-hover .c19 {
+.c18:hover,
+.teleport-button__force-hover .c18 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c19:active,
-.teleport-button__force-active .c19 {
+.c18:active,
+.teleport-button__force-active .c18 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c19:disabled {
+.c18:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c20 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -129,8 +123,8 @@ exports[`approved role escalation 1`] = `
   margin-right: 16px;
 }
 
-.c20:focus-visible,
-.teleport-button__force-focus-visible .c20 {
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
   background-color: #FF6257;
   color: #000000;
   border-color: #000000;
@@ -138,30 +132,30 @@ exports[`approved role escalation 1`] = `
   outline: 2px solid #FF6257;
 }
 
-.c20:hover,
-.teleport-button__force-hover .c20 {
+.c19:hover,
+.teleport-button__force-hover .c19 {
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c20:active,
-.teleport-button__force-active .c20 {
+.c19:active,
+.teleport-button__force-active .c19 {
   background-color: #FFA19A;
   border-color: transparent;
   color: #000000;
 }
 
-.c20:disabled {
+.c19:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c21 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -181,7 +175,7 @@ exports[`approved role escalation 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -191,33 +185,33 @@ exports[`approved role escalation 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c21:focus-visible,
-.teleport-button__force-focus-visible .c21 {
+.c20:focus-visible,
+.teleport-button__force-focus-visible .c20 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
 
-.c21:hover,
-.teleport-button__force-hover .c21 {
+.c20:hover,
+.teleport-button__force-hover .c20 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c21:active,
-.teleport-button__force-active .c21 {
+.c20:active,
+.teleport-button__force-active .c20 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c21:disabled {
+.c20:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -226,32 +220,32 @@ exports[`approved role escalation 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c13 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
-  margin-bottom: 8px;
   margin-top: 16px;
+  margin-bottom: 8px;
 }
 
 .c12 {
@@ -276,7 +270,6 @@ exports[`approved role escalation 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c10 {
@@ -292,10 +285,6 @@ exports[`approved role escalation 1`] = `
   justify-content: space-between;
 }
 
-.c17 {
-  display: flex;
-}
-
 .c1 {
   z-index: -1;
   position: fixed;
@@ -303,7 +292,7 @@ exports[`approved role escalation 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -345,6 +334,12 @@ exports[`approved role escalation 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -372,10 +367,10 @@ exports[`approved role escalation 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9 c10"
+          class="c7 c10"
         >
           <div
             class="c11"
@@ -387,7 +382,7 @@ exports[`approved role escalation 1`] = `
              for the following roles:
           </div>
           <div
-            class="c9"
+            class="c7"
           >
             <div
               class="c12"
@@ -407,11 +402,11 @@ exports[`approved role escalation 1`] = `
           color="light"
         >
           <div
-            class="c16 c17"
+            class="c16 c8"
             style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div
-              class="c18"
+              class="c17"
               style="user-select: none;"
             >
               $
@@ -421,7 +416,7 @@ exports[`approved role escalation 1`] = `
             </div>
           </div>
           <button
-            class="c19"
+            class="c18"
             fill="filled"
             style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
           >
@@ -430,16 +425,16 @@ exports[`approved role escalation 1`] = `
         </div>
       </div>
       <div
-        class="c9"
+        class="c7"
       >
         <button
-          class="c20"
+          class="c19"
           fill="filled"
         >
           Delete Request
         </button>
         <button
-          class="c21"
+          class="c20"
           fill="filled"
         >
           Cancel
@@ -451,7 +446,7 @@ exports[`approved role escalation 1`] = `
 `;
 
 exports[`failed state 1`] = `
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -468,7 +463,7 @@ exports[`failed state 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
@@ -479,12 +474,6 @@ exports[`failed state 1`] = `
 }
 
 .c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c10 {
   box-sizing: border-box;
 }
 
@@ -533,7 +522,7 @@ exports[`failed state 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c14:active,
@@ -545,7 +534,7 @@ exports[`failed state 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -571,7 +560,7 @@ exports[`failed state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -584,8 +573,8 @@ exports[`failed state 1`] = `
 .c15:focus-visible,
 .teleport-button__force-focus-visible .c15 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -607,7 +596,7 @@ exports[`failed state 1`] = `
 
 .c15:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -616,21 +605,21 @@ exports[`failed state 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c13 {
@@ -655,7 +644,6 @@ exports[`failed state 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c11 {
@@ -672,7 +660,7 @@ exports[`failed state 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -714,6 +702,12 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -741,16 +735,16 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="danger"
         >
           server error
         </div>
         <div
-          class="c10 c11"
+          class="c7 c11"
         >
           <div
             class="c12"
@@ -762,7 +756,7 @@ exports[`failed state 1`] = `
              for the following roles:
           </div>
           <div
-            class="c10"
+            class="c7"
           >
             <div
               class="c13"
@@ -774,7 +768,7 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="c10"
+        class="c7"
       >
         <button
           class="c14"
@@ -803,12 +797,6 @@ exports[`loaded state 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c9 {
-  box-sizing: border-box;
 }
 
 .c13 {
@@ -856,7 +844,7 @@ exports[`loaded state 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -868,7 +856,7 @@ exports[`loaded state 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -894,7 +882,7 @@ exports[`loaded state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -907,8 +895,8 @@ exports[`loaded state 1`] = `
 .c14:focus-visible,
 .teleport-button__force-focus-visible .c14 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -930,7 +918,7 @@ exports[`loaded state 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -939,21 +927,21 @@ exports[`loaded state 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c12 {
@@ -978,7 +966,6 @@ exports[`loaded state 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c10 {
@@ -995,7 +982,7 @@ exports[`loaded state 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -1037,6 +1024,12 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -1064,10 +1057,10 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9 c10"
+          class="c7 c10"
         >
           <div
             class="c11"
@@ -1079,7 +1072,7 @@ exports[`loaded state 1`] = `
              for the following roles:
           </div>
           <div
-            class="c9"
+            class="c7"
           >
             <div
               class="c12"
@@ -1091,7 +1084,7 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="c9"
+        class="c7"
       >
         <button
           class="c13"
@@ -1120,12 +1113,6 @@ exports[`processing state 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c9 {
-  box-sizing: border-box;
 }
 
 .c13 {
@@ -1173,7 +1160,7 @@ exports[`processing state 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -1185,7 +1172,7 @@ exports[`processing state 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1211,7 +1198,7 @@ exports[`processing state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -1224,8 +1211,8 @@ exports[`processing state 1`] = `
 .c14:focus-visible,
 .teleport-button__force-focus-visible .c14 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1247,7 +1234,7 @@ exports[`processing state 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1256,21 +1243,21 @@ exports[`processing state 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c12 {
@@ -1295,7 +1282,6 @@ exports[`processing state 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c10 {
@@ -1312,7 +1298,7 @@ exports[`processing state 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -1354,6 +1340,12 @@ exports[`processing state 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -1381,10 +1373,10 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9 c10"
+          class="c7 c10"
         >
           <div
             class="c11"
@@ -1396,7 +1388,7 @@ exports[`processing state 1`] = `
              for the following roles:
           </div>
           <div
-            class="c9"
+            class="c7"
           >
             <div
               class="c12"
@@ -1408,7 +1400,7 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="c9"
+        class="c7"
       >
         <button
           class="c13"

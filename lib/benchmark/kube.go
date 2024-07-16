@@ -101,7 +101,7 @@ func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (res
 
 	certPem := k.KubeTLSCerts[tc.KubernetesCluster]
 
-	rsaKeyPEM, err := k.PrivateKey.RSAPrivateKeyPEM()
+	keyPEM, err := k.PrivateKey.SoftwarePrivateKeyPEM()
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
@@ -133,7 +133,7 @@ func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (res
 	return rest.TLSClientConfig{
 		CAData:     bytes.Join(clusterCAs, []byte("\n")),
 		CertData:   certPem,
-		KeyData:    rsaKeyPEM,
+		KeyData:    keyPEM,
 		ServerName: tlsServerName,
 	}, nil
 }

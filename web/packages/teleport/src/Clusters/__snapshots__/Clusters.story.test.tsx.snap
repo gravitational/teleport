@@ -3,16 +3,9 @@
 exports[`render clusters 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c18 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -32,74 +25,72 @@ exports[`render clusters 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
-.c18:focus-visible,
-.teleport-button__force-focus-visible .c18 {
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
 
-.c18:hover,
-.teleport-button__force-hover .c18 {
+.c17:hover,
+.teleport-button__force-hover .c17 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c18:active,
-.teleport-button__force-active .c18 {
+.c17:active,
+.teleport-button__force-active .c17 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c18:disabled {
+.c17:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c16 {
+.c15 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c19 {
+.c18 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 8px;
-  margin-right: -8px;
 }
 
-.c6 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
-  margin: 0px;
 }
 
-.c17 {
+.c16 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -116,22 +107,25 @@ exports[`render clusters 1`] = `
   display: flex;
 }
 
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
 }
 
-.c5 {
+.c4 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
+  align-items: center;
 }
 
-.c7 {
+.c6 {
   white-space: nowrap;
 }
 
@@ -139,6 +133,8 @@ exports[`render clusters 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -146,7 +142,7 @@ exports[`render clusters 1`] = `
   padding-bottom: 24px;
 }
 
-.c14 {
+.c13 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -154,39 +150,39 @@ exports[`render clusters 1`] = `
   width: 100%;
 }
 
-.c14 > thead > tr > th,
-.c14 > tbody > tr > th,
-.c14 > tfoot > tr > th,
-.c14 > thead > tr > td,
-.c14 > tbody > tr > td,
-.c14 > tfoot > tr > td {
+.c13>thead>tr>th,
+.c13>tbody>tr>th,
+.c13>tfoot>tr>th,
+.c13>thead>tr>td,
+.c13>tbody>tr>td,
+.c13>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c14 > thead > tr > th:first-child,
-.c14 > tbody > tr > th:first-child,
-.c14 > tfoot > tr > th:first-child,
-.c14 > thead > tr > td:first-child,
-.c14 > tbody > tr > td:first-child,
-.c14 > tfoot > tr > td:first-child {
+.c13>thead>tr>th:first-child,
+.c13>tbody>tr>th:first-child,
+.c13>tfoot>tr>th:first-child,
+.c13>thead>tr>td:first-child,
+.c13>tbody>tr>td:first-child,
+.c13>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c14 > thead > tr > th:last-child,
-.c14 > tbody > tr > th:last-child,
-.c14 > tfoot > tr > th:last-child,
-.c14 > thead > tr > td:last-child,
-.c14 > tbody > tr > td:last-child,
-.c14 > tfoot > tr > td:last-child {
+.c13>thead>tr>th:last-child,
+.c13>tbody>tr>th:last-child,
+.c13>tfoot>tr>th:last-child,
+.c13>thead>tr>td:last-child,
+.c13>tbody>tr>td:last-child,
+.c13>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c14 > tbody > tr > td {
+.c13>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c14 > thead > tr > th {
+.c13>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -198,11 +194,11 @@ exports[`render clusters 1`] = `
   white-space: nowrap;
 }
 
-.c14 > thead > tr > th svg {
+.c13>thead>tr>th svg {
   height: 12px;
 }
 
-.c14 > tbody > tr > td {
+.c13>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -210,19 +206,19 @@ exports[`render clusters 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c14 tbody tr {
+.c13 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c14 tbody tr:hover {
+.c13 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c14 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+.c13 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -232,11 +228,11 @@ exports[`render clusters 1`] = `
   height: 100%;
 }
 
-.c14 tbody tr:hover + tr {
+.c13 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c8 {
+.c7 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -246,7 +242,7 @@ exports[`render clusters 1`] = `
   margin-top: 4px;
 }
 
-.c13 {
+.c12 {
   position: relative;
   height: 100%;
   right: 0;
@@ -256,7 +252,7 @@ exports[`render clusters 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c12 {
+.c11 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -267,7 +263,7 @@ exports[`render clusters 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c10 {
+.c9 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -277,13 +273,13 @@ exports[`render clusters 1`] = `
   max-width: 725px;
 }
 
-.c9 {
+.c8 {
   border-radius: 200px;
   width: 100%;
   height: 40px;
 }
 
-.c11 {
+.c10 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -298,7 +294,7 @@ exports[`render clusters 1`] = `
   padding-left: 24px;
 }
 
-.c15 td {
+.c14 td {
   height: 22px;
 }
 
@@ -306,40 +302,40 @@ exports[`render clusters 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c3 c4"
   >
     <div
-      class="c6 c7"
+      class="c5 c6"
     >
       Manage Clusters
     </div>
   </div>
   <nav
-    class="c8"
+    class="c7"
   >
     <div
-      class="c9"
+      class="c8"
     >
       <div
-        class="c10"
+        class="c9"
       >
         <input
-          class="c11"
+          class="c10"
           placeholder="Search..."
           value=""
         />
         <div
-          class="c12"
+          class="c11"
         >
           <div
-            class="c13"
+            class="c12"
           />
         </div>
       </div>
     </div>
   </nav>
   <table
-    class="c14 c15"
+    class="c13 c14"
   >
     <thead>
       <tr>
@@ -352,7 +348,7 @@ exports[`render clusters 1`] = `
           >
             Name
             <span
-              class="c16 icon icon-chevronup"
+              class="c15 icon icon-chevronup"
               title="sort items asc"
             >
               <svg
@@ -381,7 +377,7 @@ exports[`render clusters 1`] = `
           style="width: 40px;"
         >
           <div
-            class="c17"
+            class="c16"
             kind="primary"
           >
             ROOT
@@ -394,13 +390,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -430,13 +425,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -466,13 +460,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -502,13 +495,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -538,13 +530,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -574,13 +565,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -610,13 +600,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -646,13 +635,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -682,13 +670,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -718,13 +705,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -754,13 +740,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -790,13 +775,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -826,13 +810,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -862,13 +845,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -898,13 +880,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -934,13 +915,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -970,13 +950,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1006,13 +985,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1042,13 +1020,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1078,13 +1055,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1114,13 +1090,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1150,13 +1125,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1186,13 +1160,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1222,13 +1195,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1258,13 +1230,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1294,13 +1265,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1330,13 +1300,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1366,13 +1335,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1402,13 +1370,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1438,13 +1405,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1474,13 +1440,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1510,13 +1475,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1546,13 +1510,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1582,13 +1545,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1618,13 +1580,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1654,13 +1615,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1690,13 +1650,12 @@ exports[`render clusters 1`] = `
           align="right"
         >
           <button
-            class="c18"
+            class="c17"
             fill="border"
-            height="24px"
           >
-            OPTIONS
+            Options
             <span
-              class="c19 icon icon-chevrondown"
+              class="c18 icon icon-chevrondown"
               color="text.slightlyMuted"
             >
               <svg
@@ -1718,7 +1677,7 @@ exports[`render clusters 1`] = `
     </tbody>
   </table>
   <nav
-    class="c8"
+    class="c7"
   />
 </div>
 `;

@@ -38,6 +38,7 @@ import Label from './Label';
 import LabelInput from './LabelInput';
 import LabelState from './LabelState';
 import Link from './Link';
+import { Mark } from './Mark';
 import Image from './Image';
 import Text from './Text';
 import SideNav, { SideNavItem } from './SideNav';
@@ -74,6 +75,7 @@ export {
   Label,
   LabelInput,
   LabelState,
+  Mark,
   Link,
   Pill,
   Popover,

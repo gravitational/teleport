@@ -25,7 +25,7 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -38,8 +38,8 @@ exports[`buttons 1`] = `
 .c3:focus-visible,
 .teleport-button__force-focus-visible .c3 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -61,7 +61,7 @@ exports[`buttons 1`] = `
 
 .c3:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -111,7 +111,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c4:active,
@@ -123,7 +123,7 @@ exports[`buttons 1`] = `
 
 .c4:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -173,7 +173,7 @@ exports[`buttons 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c5:active,
@@ -185,7 +185,7 @@ exports[`buttons 1`] = `
 
 .c5:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -235,7 +235,7 @@ exports[`buttons 1`] = `
   background-color: #33CCB8;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c6:active,
@@ -247,7 +247,7 @@ exports[`buttons 1`] = `
 
 .c6:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -273,7 +273,7 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -286,8 +286,8 @@ exports[`buttons 1`] = `
 .c7:focus-visible,
 .teleport-button__force-focus-visible .c7 {
   background-color: transparent;
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -296,7 +296,7 @@ exports[`buttons 1`] = `
 .teleport-button__force-hover .c7 {
   background-color: rgba(255,255,255,0.07);
   border-color: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   box-shadow: none;
 }
 
@@ -309,7 +309,7 @@ exports[`buttons 1`] = `
 
 .c7:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -356,7 +356,7 @@ exports[`buttons 1`] = `
 
 .c8:hover,
 .teleport-button__force-hover .c8 {
-  background-color: rgba(159,133,255,0.1);
+  background-color: rgba(159,133,255, 0.1);
   border-color: transparent;
   color: #B29DFF;
   box-shadow: none;
@@ -364,14 +364,14 @@ exports[`buttons 1`] = `
 
 .c8:active,
 .teleport-button__force-active .c8 {
-  background-color: rgba(159,133,255,0.18);
+  background-color: rgba(159,133,255, 0.18);
   border-color: transparent;
   color: #C5B6FF;
 }
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -418,7 +418,7 @@ exports[`buttons 1`] = `
 
 .c9:hover,
 .teleport-button__force-hover .c9 {
-  background-color: rgba(255,98,87,0.1);
+  background-color: rgba(255, 98, 87, 0.1);
   border-color: transparent;
   color: #FF8179;
   box-shadow: none;
@@ -426,14 +426,14 @@ exports[`buttons 1`] = `
 
 .c9:active,
 .teleport-button__force-active .c9 {
-  background-color: rgba(255,98,87,0.18);
+  background-color: rgba(255, 98, 87, 0.18);
   border-color: transparent;
   color: #FF8179;
 }
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -480,7 +480,7 @@ exports[`buttons 1`] = `
 
 .c10:hover,
 .teleport-button__force-hover .c10 {
-  background-color: rgba(0,191,166,0.1);
+  background-color: rgba(0, 191, 166, 0.1);
   border-color: transparent;
   color: #33CCB8;
   box-shadow: none;
@@ -488,14 +488,14 @@ exports[`buttons 1`] = `
 
 .c10:active,
 .teleport-button__force-active .c10 {
-  background-color: rgba(0,191,166,0.18);
+  background-color: rgba(0, 191, 166, 0.18);
   border-color: transparent;
   color: #33CCB8;
 }
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -521,8 +521,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -534,8 +534,8 @@ exports[`buttons 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -557,7 +557,7 @@ exports[`buttons 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -607,7 +607,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c12:active,
@@ -619,7 +619,7 @@ exports[`buttons 1`] = `
 
 .c12:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -669,7 +669,7 @@ exports[`buttons 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -681,7 +681,7 @@ exports[`buttons 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -731,7 +731,7 @@ exports[`buttons 1`] = `
   background-color: #33CCB8;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c14:active,
@@ -743,7 +743,7 @@ exports[`buttons 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -793,7 +793,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c17:active,
@@ -805,7 +805,7 @@ exports[`buttons 1`] = `
 
 .c17:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -855,7 +855,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c18:active,
@@ -867,7 +867,7 @@ exports[`buttons 1`] = `
 
 .c18:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -917,7 +917,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c19:active,
@@ -929,69 +929,7 @@ exports[`buttons 1`] = `
 
 .c19:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
-  border-color: transparent;
-  box-shadow: none;
-  cursor: auto;
-}
-
-.c21 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
-  -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
-  border-width: 1.5px;
-  padding: 0 14.5px;
-  min-height: 44px;
-  font-size: 16px;
-  line-height: 24px;
-  letter-spacing: 0.2px;
-}
-
-.c21:focus-visible,
-.teleport-button__force-focus-visible .c21 {
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: #000000;
-  border-radius: 2px;
-  outline: 2px solid #9F85FF;
-}
-
-.c21:hover,
-.teleport-button__force-hover .c21 {
-  background-color: #B29DFF;
-  border-color: transparent;
-  color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
-}
-
-.c21:active,
-.teleport-button__force-active .c21 {
-  background-color: #C5B6FF;
-  border-color: transparent;
-  color: #000000;
-}
-
-.c21:disabled {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1021,10 +959,10 @@ exports[`buttons 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 14.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.2px;
 }
 
 .c22:focus-visible,
@@ -1041,7 +979,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c22:active,
@@ -1053,7 +991,7 @@ exports[`buttons 1`] = `
 
 .c22:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1083,10 +1021,10 @@ exports[`buttons 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 14.5px;
-  min-height: 32px;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.15px;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
 }
 
 .c23:focus-visible,
@@ -1103,7 +1041,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c23:active,
@@ -1115,7 +1053,7 @@ exports[`buttons 1`] = `
 
 .c23:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1145,7 +1083,7 @@ exports[`buttons 1`] = `
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 14.5px;
-  min-height: 24px;
+  min-height: 32px;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
@@ -1165,7 +1103,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c24:active,
@@ -1177,7 +1115,7 @@ exports[`buttons 1`] = `
 
 .c24:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1206,12 +1144,11 @@ exports[`buttons 1`] = `
   color: #000000;
   border-color: transparent;
   border-width: 1.5px;
-  padding: 0 30.5px;
-  min-height: 32px;
+  padding: 0 14.5px;
+  min-height: 24px;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  width: 100%;
 }
 
 .c25:focus-visible,
@@ -1228,7 +1165,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c25:active,
@@ -1240,7 +1177,7 @@ exports[`buttons 1`] = `
 
 .c25:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1274,7 +1211,7 @@ exports[`buttons 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  gap: 8px;
+  width: 100%;
 }
 
 .c26:focus-visible,
@@ -1291,7 +1228,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c26:active,
@@ -1303,13 +1240,76 @@ exports[`buttons 1`] = `
 
 .c26:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c30 {
+.c27 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+  gap: 8px;
+}
+
+.c27:focus-visible,
+.teleport-button__force-focus-visible .c27 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
+}
+
+.c27:hover,
+.teleport-button__force-hover .c27 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c27:active,
+.teleport-button__force-active .c27 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c27:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c31 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1329,8 +1329,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -1341,95 +1341,33 @@ exports[`buttons 1`] = `
   padding-right: 4px;
 }
 
-.c30:focus-visible,
-.teleport-button__force-focus-visible .c30 {
+.c31:focus-visible,
+.teleport-button__force-focus-visible .c31 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
 
-.c30:hover,
-.teleport-button__force-hover .c30 {
+.c31:hover,
+.teleport-button__force-hover .c31 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c30:active,
-.teleport-button__force-active .c30 {
+.c31:active,
+.teleport-button__force-active .c31 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c30:disabled {
+.c31:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
-  border-color: transparent;
-  box-shadow: none;
-  cursor: auto;
-}
-
-.c33 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
-  -webkit-font-smoothing: antialiased;
-  background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
-  border-width: 1.5px;
-  padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
-}
-
-.c33:focus-visible,
-.teleport-button__force-focus-visible .c33 {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
-  border-radius: 4px;
-  outline: none;
-}
-
-.c33:hover,
-.teleport-button__force-hover .c33 {
-  background-color: rgba(255,255,255,0.13);
-  border-color: transparent;
-  color: #FFFFFF;
-  box-shadow: none;
-}
-
-.c33:active,
-.teleport-button__force-active .c33 {
-  background-color: rgba(255,255,255,0.18);
-  border-color: transparent;
-  color: #FFFFFF;
-}
-
-.c33:disabled {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1455,23 +1393,21 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 40px;
   font-size: 14px;
   line-height: 20px;
   letter-spacing: 0.175px;
-  padding-left: 4px;
-  padding-right: 4px;
 }
 
 .c34:focus-visible,
 .teleport-button__force-focus-visible .c34 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1493,7 +1429,7 @@ exports[`buttons 1`] = `
 
 .c34:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1519,21 +1455,23 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
-  padding: 0 6.5px;
-  min-height: 24px;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.15px;
+  padding: 0 30.5px;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 .c35:focus-visible,
 .teleport-button__force-focus-visible .c35 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1555,7 +1493,7 @@ exports[`buttons 1`] = `
 
 .c35:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1581,23 +1519,21 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  padding-left: 4px;
-  padding-right: 4px;
 }
 
 .c36:focus-visible,
 .teleport-button__force-focus-visible .c36 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1619,13 +1555,77 @@ exports[`buttons 1`] = `
 
 .c36:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c37 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.c37:focus-visible,
+.teleport-button__force-focus-visible .c37 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c37:hover,
+.teleport-button__force-hover .c37 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c37:active,
+.teleport-button__force-active .c37 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c37:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c38 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1655,8 +1655,8 @@ exports[`buttons 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c37:focus-visible,
-.teleport-button__force-focus-visible .c37 {
+.c38:focus-visible,
+.teleport-button__force-focus-visible .c38 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -1664,40 +1664,40 @@ exports[`buttons 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c37:hover,
-.teleport-button__force-hover .c37 {
+.c38:hover,
+.teleport-button__force-hover .c38 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c37:active,
-.teleport-button__force-active .c37 {
+.c38:active,
+.teleport-button__force-active .c38 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c37:disabled {
+.c38:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
   pointer-events: none;
 }
 
-.c37[disabled] {
+.c38[disabled] {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
   pointer-events: none;
 }
 
-.c38 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1717,21 +1717,21 @@ exports[`buttons 1`] = `
   width: 32px;
 }
 
-.c38:disabled {
-  color: rgba(255,255,255,0.36);
+.c39:disabled {
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c38:not(:disabled):hover,
-.c38:not(:disabled):focus {
+.c39:not(:disabled):hover,
+.c39:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:not(:disabled):active {
+.c39:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c40 {
+.c41 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1751,21 +1751,21 @@ exports[`buttons 1`] = `
   width: 48px;
 }
 
-.c40:disabled {
-  color: rgba(255,255,255,0.36);
+.c41:disabled {
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c40:not(:disabled):hover,
-.c40:not(:disabled):focus {
+.c41:not(:disabled):hover,
+.c41:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c40:not(:disabled):active {
+.c41:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c41 {
+.c42 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1785,21 +1785,21 @@ exports[`buttons 1`] = `
   width: 24px;
 }
 
-.c41:disabled {
-  color: rgba(255,255,255,0.36);
+.c42:disabled {
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c41:not(:disabled):hover,
-.c41:not(:disabled):focus {
+.c42:not(:disabled):hover,
+.c42:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:not(:disabled):active {
+.c42:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c39 {
+.c40 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1808,48 +1808,49 @@ exports[`buttons 1`] = `
   padding: 0 8px;
 }
 
-.c39:hover,
-.c39:focus {
+.c40:hover,
+.c40:focus {
   color: #33B1FF;
+  box-shadow: none;
 }
 
-.c39:active {
+.c40:active {
   color: #66C5FF;
 }
 
-.c39:hover,
-.c39:focus,
-.c39:active {
+.c40:hover,
+.c40:focus,
+.c40:active {
   background: #222C59;
 }
 
-.c27 {
+.c28 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c32 {
+.c33 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.c29 {
+.c30 {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
-.c31 {
+.c32 {
   border-left: none;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
 
-.c20 {
+.c21 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1860,37 +1861,38 @@ exports[`buttons 1`] = `
   width: 100%;
   background: #222C59;
   color: #FFFFFF;
+  width: 480px;
 }
 
-.c20:hover,
-.c20:focus,
-.c20:active {
-  border: 1px solid rgba(255,255,255,0.72);
+.c21:hover,
+.c21:focus,
+.c21:active {
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
-.c20::-ms-clear {
+.c21::-ms-clear {
   display: none;
 }
 
-.c20::placeholder {
-  color: rgba(255,255,255,0.54);
+.c21::placeholder {
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
-.c20:read-only {
+.c21:read-only {
   cursor: not-allowed;
 }
 
-.c20:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+.c21:disabled {
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c1 {
   display: flex;
   align-items: flex-start;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
 }
 
 .c15 {
@@ -1904,7 +1906,14 @@ exports[`buttons 1`] = `
   gap: 16px;
 }
 
-.c28 {
+.c20 {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.c29 {
   display: flex;
 }
 
@@ -2842,36 +2851,41 @@ exports[`buttons 1`] = `
         Small
       </button>
     </div>
-    <input
-      class="c20"
-      value="Some text"
-    />
-    <button
-      class="c21"
-      fill="filled"
+    <div
+      class="c0 c20"
     >
-      Extra large with input alignment
-    </button>
+      <input
+        class="c21"
+        value="Padding of buttons below should match padding of this input"
+        width="480px"
+      />
+      <button
+        class="c22"
+        fill="filled"
+      >
+        Extra large with input alignment
+      </button>
+      <button
+        class="c23"
+        fill="filled"
+      >
+        Large with input alignment
+      </button>
+      <button
+        class="c24"
+        fill="filled"
+      >
+        Medium with input alignment
+      </button>
+      <button
+        class="c25"
+        fill="filled"
+      >
+        Small with input alignment
+      </button>
+    </div>
     <button
-      class="c22"
-      fill="filled"
-    >
-      Large with input alignment
-    </button>
-    <button
-      class="c23"
-      fill="filled"
-    >
-      Medium with input alignment
-    </button>
-    <button
-      class="c24"
-      fill="filled"
-    >
-      Small with input alignment
-    </button>
-    <button
-      class="c25"
+      class="c26"
       fill="filled"
     >
       block = true
@@ -2897,11 +2911,11 @@ exports[`buttons 1`] = `
       class="c0 c15"
     >
       <button
-        class="c26"
+        class="c27"
         fill="filled"
       >
         <span
-          class="c27 icon icon-addusers"
+          class="c28 icon icon-addusers"
         >
           <svg
             fill="currentColor"
@@ -2926,21 +2940,21 @@ exports[`buttons 1`] = `
       class="c0 c16"
     >
       <div
-        class="c0 c28"
+        class="c0 c29"
       >
         <button
-          class="c11 c29"
+          class="c11 c30"
           fill="border"
         >
           Button with menu
         </button>
         <button
-          class="c30 c31"
+          class="c31 c32"
           fill="border"
           title="Open menu"
         >
           <span
-            class="c32 icon icon-morevert"
+            class="c33 icon icon-morevert"
             color="text.slightlyMuted"
           >
             <svg
@@ -2963,21 +2977,21 @@ exports[`buttons 1`] = `
         </button>
       </div>
       <div
-        class="c0 c28"
+        class="c0 c29"
       >
         <button
-          class="c33 c29"
+          class="c34 c30"
           fill="border"
         >
           Large
         </button>
         <button
-          class="c34 c31"
+          class="c35 c32"
           fill="border"
           title="Open menu"
         >
           <span
-            class="c32 icon icon-morevert"
+            class="c33 icon icon-morevert"
             color="text.slightlyMuted"
           >
             <svg
@@ -3000,21 +3014,21 @@ exports[`buttons 1`] = `
         </button>
       </div>
       <div
-        class="c0 c28"
+        class="c0 c29"
       >
         <button
-          class="c35 c29"
+          class="c36 c30"
           fill="border"
         >
           Small
         </button>
         <button
-          class="c36 c31"
+          class="c37 c32"
           fill="border"
           title="Open menu"
         >
           <span
-            class="c32 icon icon-morevert"
+            class="c33 icon icon-morevert"
             color="text.slightlyMuted"
           >
             <svg
@@ -3037,21 +3051,21 @@ exports[`buttons 1`] = `
         </button>
       </div>
       <div
-        class="c0 c28"
+        class="c0 c29"
       >
         <button
-          class="c11 c29"
+          class="c11 c30"
           fill="border"
         >
           With different icon
         </button>
         <button
-          class="c30 c31"
+          class="c31 c32"
           fill="border"
           title="Open menu"
         >
           <span
-            class="c32 icon icon-cog"
+            class="c33 icon icon-cog"
             color="text.slightlyMuted"
           >
             <svg
@@ -3095,7 +3109,7 @@ exports[`buttons 1`] = `
         Link as button
       </a>
       <a
-        class="c37"
+        class="c38"
         disabled=""
         fill="filled"
         href="https://example.com"
@@ -3104,13 +3118,13 @@ exports[`buttons 1`] = `
         Link as button, disabled
       </a>
       <a
-        class="c38"
+        class="c39"
         href="https://example.com"
         size="1"
         target="_blank"
       >
         <span
-          class="c27 icon icon-link"
+          class="c28 icon icon-link"
         >
           <svg
             fill="currentColor"
@@ -3132,7 +3146,7 @@ exports[`buttons 1`] = `
       class="c0 c15"
     >
       <a
-        class="c39 c4"
+        class="c40 c4"
         fill="filled"
         href=""
       >
@@ -3146,262 +3160,266 @@ exports[`buttons 1`] = `
       </button>
     </div>
     <div
-      class="c0 c15"
+      class="c0 c20"
     >
-      <button
-        class="c40"
-        size="2"
+      <div
+        class="c0 c15"
       >
-        <span
-          class="c27 icon icon-addusers"
+        <button
+          class="c41"
+          size="2"
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c28 icon icon-addusers"
           >
-            <path
-              clip-rule="evenodd"
-              d="M3.75 9.375C3.75 5.85418 6.60418 3 10.125 3C13.6458 3 16.5 5.85418 16.5 9.375C16.5 11.6544 15.3037 13.6544 13.5047 14.7814C15.508 15.4374 17.2277 16.6655 18.5742 18.2674C18.8407 18.5845 18.7997 19.0576 18.4826 19.3241C18.1655 19.5907 17.6924 19.5496 17.4259 19.2326C15.6266 17.0918 13.1097 15.75 10.125 15.75C7.14033 15.75 4.62341 17.0918 2.82416 19.2326C2.55765 19.5496 2.08455 19.5907 1.76746 19.3241C1.45037 19.0576 1.40937 18.5845 1.67588 18.2674C3.0223 16.6655 4.74199 15.4374 6.7453 14.7814C4.9463 13.6544 3.75 11.6544 3.75 9.375ZM10.125 4.5C7.43261 4.5 5.25 6.68261 5.25 9.375C5.25 12.0674 7.43261 14.25 10.125 14.25C12.8174 14.25 15 12.0674 15 9.375C15 6.68261 12.8174 4.5 10.125 4.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c40"
-        size="2"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M3.75 9.375C3.75 5.85418 6.60418 3 10.125 3C13.6458 3 16.5 5.85418 16.5 9.375C16.5 11.6544 15.3037 13.6544 13.5047 14.7814C15.508 15.4374 17.2277 16.6655 18.5742 18.2674C18.8407 18.5845 18.7997 19.0576 18.4826 19.3241C18.1655 19.5907 17.6924 19.5496 17.4259 19.2326C15.6266 17.0918 13.1097 15.75 10.125 15.75C7.14033 15.75 4.62341 17.0918 2.82416 19.2326C2.55765 19.5496 2.08455 19.5907 1.76746 19.3241C1.45037 19.0576 1.40937 18.5845 1.67588 18.2674C3.0223 16.6655 4.74199 15.4374 6.7453 14.7814C4.9463 13.6544 3.75 11.6544 3.75 9.375ZM10.125 4.5C7.43261 4.5 5.25 6.68261 5.25 9.375C5.25 12.0674 7.43261 14.25 10.125 14.25C12.8174 14.25 15 12.0674 15 9.375C15 6.68261 12.8174 4.5 10.125 4.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c41"
+          size="2"
+        >
+          <span
+            class="c28 icon icon-ellipsis"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M1.5 12C1.5 10.3431 2.84315 9 4.5 9C6.15685 9 7.5 10.3431 7.5 12C7.5 13.6569 6.15685 15 4.5 15C2.84315 15 1.5 13.6569 1.5 12ZM4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12ZM12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c41"
+          disabled=""
+          size="2"
+        >
+          <span
+            class="c28 icon icon-trash"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M9.75 9C10.1642 9 10.5 9.33579 10.5 9.75V15.75C10.5 16.1642 10.1642 16.5 9.75 16.5C9.33579 16.5 9 16.1642 9 15.75V9.75C9 9.33579 9.33579 9 9.75 9Z"
+              />
+              <path
+                d="M15 15.75V9.75C15 9.33579 14.6642 9 14.25 9C13.8358 9 13.5 9.33579 13.5 9.75V15.75C13.5 16.1642 13.8358 16.5 14.25 16.5C14.6642 16.5 15 16.1642 15 15.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M9.75 1.5C9.15326 1.5 8.58097 1.73705 8.15901 2.15901C7.73705 2.58097 7.5 3.15326 7.5 3.75V4.5H3.75C3.33579 4.5 3 4.83579 3 5.25C3 5.66421 3.33579 6 3.75 6H4.5V19.5C4.5 19.8978 4.65804 20.2794 4.93934 20.5607C5.22065 20.842 5.60218 21 6 21H18C18.3978 21 18.7794 20.842 19.0607 20.5607C19.342 20.2794 19.5 19.8978 19.5 19.5V6H20.25C20.6642 6 21 5.66421 21 5.25C21 4.83579 20.6642 4.5 20.25 4.5H16.5V3.75C16.5 3.15326 16.2629 2.58097 15.841 2.15901C15.419 1.73705 14.8467 1.5 14.25 1.5H9.75ZM15 4.5V3.75C15 3.55109 14.921 3.36032 14.7803 3.21967C14.6397 3.07902 14.4489 3 14.25 3H9.75C9.55109 3 9.36032 3.07902 9.21967 3.21967C9.07902 3.36032 9 3.55109 9 3.75V4.5H15ZM6 6V19.5H18V6H6Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+      <div
+        class="c0 c15"
       >
-        <span
-          class="c27 icon icon-ellipsis"
+        <button
+          class="c39"
+          size="1"
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c28 icon icon-addusers"
           >
-            <path
-              clip-rule="evenodd"
-              d="M1.5 12C1.5 10.3431 2.84315 9 4.5 9C6.15685 9 7.5 10.3431 7.5 12C7.5 13.6569 6.15685 15 4.5 15C2.84315 15 1.5 13.6569 1.5 12ZM4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12ZM12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c40"
-        disabled=""
-        size="2"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M3.75 9.375C3.75 5.85418 6.60418 3 10.125 3C13.6458 3 16.5 5.85418 16.5 9.375C16.5 11.6544 15.3037 13.6544 13.5047 14.7814C15.508 15.4374 17.2277 16.6655 18.5742 18.2674C18.8407 18.5845 18.7997 19.0576 18.4826 19.3241C18.1655 19.5907 17.6924 19.5496 17.4259 19.2326C15.6266 17.0918 13.1097 15.75 10.125 15.75C7.14033 15.75 4.62341 17.0918 2.82416 19.2326C2.55765 19.5496 2.08455 19.5907 1.76746 19.3241C1.45037 19.0576 1.40937 18.5845 1.67588 18.2674C3.0223 16.6655 4.74199 15.4374 6.7453 14.7814C4.9463 13.6544 3.75 11.6544 3.75 9.375ZM10.125 4.5C7.43261 4.5 5.25 6.68261 5.25 9.375C5.25 12.0674 7.43261 14.25 10.125 14.25C12.8174 14.25 15 12.0674 15 9.375C15 6.68261 12.8174 4.5 10.125 4.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c39"
+          size="1"
+        >
+          <span
+            class="c28 icon icon-ellipsis"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M1.5 12C1.5 10.3431 2.84315 9 4.5 9C6.15685 9 7.5 10.3431 7.5 12C7.5 13.6569 6.15685 15 4.5 15C2.84315 15 1.5 13.6569 1.5 12ZM4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12ZM12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c39"
+          disabled=""
+          size="1"
+        >
+          <span
+            class="c28 icon icon-trash"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M9.75 9C10.1642 9 10.5 9.33579 10.5 9.75V15.75C10.5 16.1642 10.1642 16.5 9.75 16.5C9.33579 16.5 9 16.1642 9 15.75V9.75C9 9.33579 9.33579 9 9.75 9Z"
+              />
+              <path
+                d="M15 15.75V9.75C15 9.33579 14.6642 9 14.25 9C13.8358 9 13.5 9.33579 13.5 9.75V15.75C13.5 16.1642 13.8358 16.5 14.25 16.5C14.6642 16.5 15 16.1642 15 15.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M9.75 1.5C9.15326 1.5 8.58097 1.73705 8.15901 2.15901C7.73705 2.58097 7.5 3.15326 7.5 3.75V4.5H3.75C3.33579 4.5 3 4.83579 3 5.25C3 5.66421 3.33579 6 3.75 6H4.5V19.5C4.5 19.8978 4.65804 20.2794 4.93934 20.5607C5.22065 20.842 5.60218 21 6 21H18C18.3978 21 18.7794 20.842 19.0607 20.5607C19.342 20.2794 19.5 19.8978 19.5 19.5V6H20.25C20.6642 6 21 5.66421 21 5.25C21 4.83579 20.6642 4.5 20.25 4.5H16.5V3.75C16.5 3.15326 16.2629 2.58097 15.841 2.15901C15.419 1.73705 14.8467 1.5 14.25 1.5H9.75ZM15 4.5V3.75C15 3.55109 14.921 3.36032 14.7803 3.21967C14.6397 3.07902 14.4489 3 14.25 3H9.75C9.55109 3 9.36032 3.07902 9.21967 3.21967C9.07902 3.36032 9 3.55109 9 3.75V4.5H15ZM6 6V19.5H18V6H6Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+      <div
+        class="c0 c15"
       >
-        <span
-          class="c27 icon icon-trash"
+        <button
+          class="c42"
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c28 icon icon-addusers"
           >
-            <path
-              d="M9.75 9C10.1642 9 10.5 9.33579 10.5 9.75V15.75C10.5 16.1642 10.1642 16.5 9.75 16.5C9.33579 16.5 9 16.1642 9 15.75V9.75C9 9.33579 9.33579 9 9.75 9Z"
-            />
-            <path
-              d="M15 15.75V9.75C15 9.33579 14.6642 9 14.25 9C13.8358 9 13.5 9.33579 13.5 9.75V15.75C13.5 16.1642 13.8358 16.5 14.25 16.5C14.6642 16.5 15 16.1642 15 15.75Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M9.75 1.5C9.15326 1.5 8.58097 1.73705 8.15901 2.15901C7.73705 2.58097 7.5 3.15326 7.5 3.75V4.5H3.75C3.33579 4.5 3 4.83579 3 5.25C3 5.66421 3.33579 6 3.75 6H4.5V19.5C4.5 19.8978 4.65804 20.2794 4.93934 20.5607C5.22065 20.842 5.60218 21 6 21H18C18.3978 21 18.7794 20.842 19.0607 20.5607C19.342 20.2794 19.5 19.8978 19.5 19.5V6H20.25C20.6642 6 21 5.66421 21 5.25C21 4.83579 20.6642 4.5 20.25 4.5H16.5V3.75C16.5 3.15326 16.2629 2.58097 15.841 2.15901C15.419 1.73705 14.8467 1.5 14.25 1.5H9.75ZM15 4.5V3.75C15 3.55109 14.921 3.36032 14.7803 3.21967C14.6397 3.07902 14.4489 3 14.25 3H9.75C9.55109 3 9.36032 3.07902 9.21967 3.21967C9.07902 3.36032 9 3.55109 9 3.75V4.5H15ZM6 6V19.5H18V6H6Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-    </div>
-    <div
-      class="c0 c15"
-    >
-      <button
-        class="c38"
-        size="1"
-      >
-        <span
-          class="c27 icon icon-addusers"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M3.75 9.375C3.75 5.85418 6.60418 3 10.125 3C13.6458 3 16.5 5.85418 16.5 9.375C16.5 11.6544 15.3037 13.6544 13.5047 14.7814C15.508 15.4374 17.2277 16.6655 18.5742 18.2674C18.8407 18.5845 18.7997 19.0576 18.4826 19.3241C18.1655 19.5907 17.6924 19.5496 17.4259 19.2326C15.6266 17.0918 13.1097 15.75 10.125 15.75C7.14033 15.75 4.62341 17.0918 2.82416 19.2326C2.55765 19.5496 2.08455 19.5907 1.76746 19.3241C1.45037 19.0576 1.40937 18.5845 1.67588 18.2674C3.0223 16.6655 4.74199 15.4374 6.7453 14.7814C4.9463 13.6544 3.75 11.6544 3.75 9.375ZM10.125 4.5C7.43261 4.5 5.25 6.68261 5.25 9.375C5.25 12.0674 7.43261 14.25 10.125 14.25C12.8174 14.25 15 12.0674 15 9.375C15 6.68261 12.8174 4.5 10.125 4.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c42"
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c28 icon icon-ellipsis"
           >
-            <path
-              clip-rule="evenodd"
-              d="M3.75 9.375C3.75 5.85418 6.60418 3 10.125 3C13.6458 3 16.5 5.85418 16.5 9.375C16.5 11.6544 15.3037 13.6544 13.5047 14.7814C15.508 15.4374 17.2277 16.6655 18.5742 18.2674C18.8407 18.5845 18.7997 19.0576 18.4826 19.3241C18.1655 19.5907 17.6924 19.5496 17.4259 19.2326C15.6266 17.0918 13.1097 15.75 10.125 15.75C7.14033 15.75 4.62341 17.0918 2.82416 19.2326C2.55765 19.5496 2.08455 19.5907 1.76746 19.3241C1.45037 19.0576 1.40937 18.5845 1.67588 18.2674C3.0223 16.6655 4.74199 15.4374 6.7453 14.7814C4.9463 13.6544 3.75 11.6544 3.75 9.375ZM10.125 4.5C7.43261 4.5 5.25 6.68261 5.25 9.375C5.25 12.0674 7.43261 14.25 10.125 14.25C12.8174 14.25 15 12.0674 15 9.375C15 6.68261 12.8174 4.5 10.125 4.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c38"
-        size="1"
-      >
-        <span
-          class="c27 icon icon-ellipsis"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M1.5 12C1.5 10.3431 2.84315 9 4.5 9C6.15685 9 7.5 10.3431 7.5 12C7.5 13.6569 6.15685 15 4.5 15C2.84315 15 1.5 13.6569 1.5 12ZM4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12ZM12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5Z"
+                fill-rule="evenodd"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c42"
+          disabled=""
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c28 icon icon-trash"
           >
-            <path
-              clip-rule="evenodd"
-              d="M1.5 12C1.5 10.3431 2.84315 9 4.5 9C6.15685 9 7.5 10.3431 7.5 12C7.5 13.6569 6.15685 15 4.5 15C2.84315 15 1.5 13.6569 1.5 12ZM4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12ZM12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c38"
-        disabled=""
-        size="1"
-      >
-        <span
-          class="c27 icon icon-trash"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              d="M9.75 9C10.1642 9 10.5 9.33579 10.5 9.75V15.75C10.5 16.1642 10.1642 16.5 9.75 16.5C9.33579 16.5 9 16.1642 9 15.75V9.75C9 9.33579 9.33579 9 9.75 9Z"
-            />
-            <path
-              d="M15 15.75V9.75C15 9.33579 14.6642 9 14.25 9C13.8358 9 13.5 9.33579 13.5 9.75V15.75C13.5 16.1642 13.8358 16.5 14.25 16.5C14.6642 16.5 15 16.1642 15 15.75Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M9.75 1.5C9.15326 1.5 8.58097 1.73705 8.15901 2.15901C7.73705 2.58097 7.5 3.15326 7.5 3.75V4.5H3.75C3.33579 4.5 3 4.83579 3 5.25C3 5.66421 3.33579 6 3.75 6H4.5V19.5C4.5 19.8978 4.65804 20.2794 4.93934 20.5607C5.22065 20.842 5.60218 21 6 21H18C18.3978 21 18.7794 20.842 19.0607 20.5607C19.342 20.2794 19.5 19.8978 19.5 19.5V6H20.25C20.6642 6 21 5.66421 21 5.25C21 4.83579 20.6642 4.5 20.25 4.5H16.5V3.75C16.5 3.15326 16.2629 2.58097 15.841 2.15901C15.419 1.73705 14.8467 1.5 14.25 1.5H9.75ZM15 4.5V3.75C15 3.55109 14.921 3.36032 14.7803 3.21967C14.6397 3.07902 14.4489 3 14.25 3H9.75C9.55109 3 9.36032 3.07902 9.21967 3.21967C9.07902 3.36032 9 3.55109 9 3.75V4.5H15ZM6 6V19.5H18V6H6Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-    </div>
-    <div
-      class="c0 c15"
-    >
-      <button
-        class="c41"
-      >
-        <span
-          class="c27 icon icon-addusers"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M3.75 9.375C3.75 5.85418 6.60418 3 10.125 3C13.6458 3 16.5 5.85418 16.5 9.375C16.5 11.6544 15.3037 13.6544 13.5047 14.7814C15.508 15.4374 17.2277 16.6655 18.5742 18.2674C18.8407 18.5845 18.7997 19.0576 18.4826 19.3241C18.1655 19.5907 17.6924 19.5496 17.4259 19.2326C15.6266 17.0918 13.1097 15.75 10.125 15.75C7.14033 15.75 4.62341 17.0918 2.82416 19.2326C2.55765 19.5496 2.08455 19.5907 1.76746 19.3241C1.45037 19.0576 1.40937 18.5845 1.67588 18.2674C3.0223 16.6655 4.74199 15.4374 6.7453 14.7814C4.9463 13.6544 3.75 11.6544 3.75 9.375ZM10.125 4.5C7.43261 4.5 5.25 6.68261 5.25 9.375C5.25 12.0674 7.43261 14.25 10.125 14.25C12.8174 14.25 15 12.0674 15 9.375C15 6.68261 12.8174 4.5 10.125 4.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c41"
-      >
-        <span
-          class="c27 icon icon-ellipsis"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M1.5 12C1.5 10.3431 2.84315 9 4.5 9C6.15685 9 7.5 10.3431 7.5 12C7.5 13.6569 6.15685 15 4.5 15C2.84315 15 1.5 13.6569 1.5 12ZM4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12ZM12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5Z"
-              fill-rule="evenodd"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c41"
-        disabled=""
-      >
-        <span
-          class="c27 icon icon-trash"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              d="M9.75 9C10.1642 9 10.5 9.33579 10.5 9.75V15.75C10.5 16.1642 10.1642 16.5 9.75 16.5C9.33579 16.5 9 16.1642 9 15.75V9.75C9 9.33579 9.33579 9 9.75 9Z"
-            />
-            <path
-              d="M15 15.75V9.75C15 9.33579 14.6642 9 14.25 9C13.8358 9 13.5 9.33579 13.5 9.75V15.75C13.5 16.1642 13.8358 16.5 14.25 16.5C14.6642 16.5 15 16.1642 15 15.75Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M9.75 1.5C9.15326 1.5 8.58097 1.73705 8.15901 2.15901C7.73705 2.58097 7.5 3.15326 7.5 3.75V4.5H3.75C3.33579 4.5 3 4.83579 3 5.25C3 5.66421 3.33579 6 3.75 6H4.5V19.5C4.5 19.8978 4.65804 20.2794 4.93934 20.5607C5.22065 20.842 5.60218 21 6 21H18C18.3978 21 18.7794 20.842 19.0607 20.5607C19.342 20.2794 19.5 19.8978 19.5 19.5V6H20.25C20.6642 6 21 5.66421 21 5.25C21 4.83579 20.6642 4.5 20.25 4.5H16.5V3.75C16.5 3.15326 16.2629 2.58097 15.841 2.15901C15.419 1.73705 14.8467 1.5 14.25 1.5H9.75ZM15 4.5V3.75C15 3.55109 14.921 3.36032 14.7803 3.21967C14.6397 3.07902 14.4489 3 14.25 3H9.75C9.55109 3 9.36032 3.07902 9.21967 3.21967C9.07902 3.36032 9 3.55109 9 3.75V4.5H15ZM6 6V19.5H18V6H6Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M9.75 9C10.1642 9 10.5 9.33579 10.5 9.75V15.75C10.5 16.1642 10.1642 16.5 9.75 16.5C9.33579 16.5 9 16.1642 9 15.75V9.75C9 9.33579 9.33579 9 9.75 9Z"
+              />
+              <path
+                d="M15 15.75V9.75C15 9.33579 14.6642 9 14.25 9C13.8358 9 13.5 9.33579 13.5 9.75V15.75C13.5 16.1642 13.8358 16.5 14.25 16.5C14.6642 16.5 15 16.1642 15 15.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M9.75 1.5C9.15326 1.5 8.58097 1.73705 8.15901 2.15901C7.73705 2.58097 7.5 3.15326 7.5 3.75V4.5H3.75C3.33579 4.5 3 4.83579 3 5.25C3 5.66421 3.33579 6 3.75 6H4.5V19.5C4.5 19.8978 4.65804 20.2794 4.93934 20.5607C5.22065 20.842 5.60218 21 6 21H18C18.3978 21 18.7794 20.842 19.0607 20.5607C19.342 20.2794 19.5 19.8978 19.5 19.5V6H20.25C20.6642 6 21 5.66421 21 5.25C21 4.83579 20.6642 4.5 20.25 4.5H16.5V3.75C16.5 3.15326 16.2629 2.58097 15.841 2.15901C15.419 1.73705 14.8467 1.5 14.25 1.5H9.75ZM15 4.5V3.75C15 3.55109 14.921 3.36032 14.7803 3.21967C14.6397 3.07902 14.4489 3 14.25 3H9.75C9.55109 3 9.36032 3.07902 9.21967 3.21967C9.07902 3.36032 9 3.55109 9 3.75V4.5H15ZM6 6V19.5H18V6H6Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
     </div>
   </div>
 </div>
