@@ -2,21 +2,21 @@
 
 set -e
 
-export GOLANG_VERSION=go1.21.5
+export GOLANG_VERSION=go1.22.5
 
-export RUST_VERSION=1.71.1
+export RUST_VERSION=1.79.0
 
 # Switch depending on the architecture which is passed as the script argument
 case $1 in
     "arm64")
         export ARCH="arm64"
         export GO_ARCH="arm64"
-        export SYSROOT="${HOME}/x-tools/aarch64-centos7-linux-gnu/aarch64-centos7-linux-gnu/sysroot"
+        export SYSROOT="${HOME}/x-tools/aarch64-unknown-linux-gnu/aarch64-unknown-linux-gnu/sysroot"
 
-        export PATH="${HOME}/x-tools/aarch64-centos7-linux-gnu/bin:$PATH"
-        export CC="aarch64-centos7-linux-gnu-cc --sysroot=${SYSROOT} -I${SYSROOT}/include" # Hacky but works
-        export CXX="aarch64-centos7-linux-gnu-c++ --sysroot=${SYSROOT}"
-        export LD="aarch64-centos7-linux-gnu-ld --sysroot=${SYSROOT}"
+        export PATH="${HOME}/x-tools/aarch64-unknown-linux-gnu/bin:$PATH"
+        export CC="aarch64-unknown-linux-gnu-cc --sysroot=${SYSROOT} -I${SYSROOT}/include" # Hacky but works
+        export CXX="aarch64-unknown-linux-gnu-c++ --sysroot=${SYSROOT}"
+        export LD="aarch64-unknown-linux-gnu-ld --sysroot=${SYSROOT}"
         export PKG_CONFIG_PATH="${SYSROOT}/lib/pkgconfig"
         ;;
     "arm")
@@ -141,6 +141,8 @@ fi
 cd ..
 # Build teleport
 WEBASSETS_SKIP_BUILD=1 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} go env
+WEBASSETS_SKIP_BUILD=1 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
+cd e
 WEBASSETS_SKIP_BUILD=1 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
 
 # check
