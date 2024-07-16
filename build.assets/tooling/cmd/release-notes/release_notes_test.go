@@ -63,7 +63,7 @@ func Test_generateReleaseNotes(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, got, tt.want)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
