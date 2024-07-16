@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 )
 
 const SPIFFEWorkloadAPIServiceType = "spiffe-workload-api"
@@ -92,6 +94,9 @@ type SPIFFEWorkloadAPIService struct {
 	// SVIDs is the list of SVIDs that the SPIFFE Workload API server should
 	// provide.
 	SVIDs []SVIDRequestWithRules `yaml:"svids"`
+	// Attestor is the configuration for the workload attestation process.
+	// TODO(noah): Less ugly name ??
+	Attestor workloadattest.Config `yaml:"attestor"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {

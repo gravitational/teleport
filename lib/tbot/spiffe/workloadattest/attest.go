@@ -21,6 +21,8 @@ package workloadattest
 import (
 	"context"
 	"log/slog"
+
+	"github.com/gravitational/trace"
 )
 
 // Attestation holds the results of the attestation process carried out on a
@@ -55,19 +57,23 @@ type Attestor struct {
 
 // Config is the configuration for Attestor
 type Config struct {
-	Kubernetes KubernetesAttestorConfig
+	Kubernetes KubernetesAttestorConfig `yaml:"kubernetes"`
 }
 
 // NewAttestor returns an Attestor from the given config.
-func NewAttestor(log *slog.Logger, cfg Config) *Attestor {
+func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	att := &Attestor{
 		log:  log,
 		unix: &UnixAttestor{},
 	}
 	if cfg.Kubernetes.Enabled {
-		att.kubernetes = NewKubernetesAttestor(cfg.Kubernetes)
+		var err error
+		att.kubernetes, err = NewKubernetesAttestor(cfg.Kubernetes)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating kubernetes attestor")
+		}
 	}
-	return att
+	return att, nil
 }
 
 func (a *Attestor) Attest(ctx context.Context, pid int) (Attestation, error) {

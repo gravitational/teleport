@@ -95,31 +95,36 @@ type KubernetesAttestorConfig struct {
 }
 
 // KubernetesAttestor attests a workload to a Kubernetes pod.
+//
+// It requires:
+//
+// - `hostPID: true` so we can view the /proc of other pods.
+// - `TELEPORT_MY_NODE_NAME` to be set to the node name of the current node.
+// - A service account that allows it to query the Kubelet API.
+//
+// It roughly takes the following steps:
+//  1. From the PID, determine the container ID and pod ID from the
+//     /proc/<pid>/mountinfo file.
+//  2. Makes a request to the Kubelet API to list all pods on the node.
+//  3. Find the pod and container with the matching ID.
+//  4. Convert the pod information to a KubernetesAttestation.
 type KubernetesAttestor struct {
 	kubeletClient *kubeletClient
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
-func NewKubernetesAttestor(cfg KubernetesAttestorConfig) *KubernetesAttestor {
-	return &KubernetesAttestor{
-		kubeletClient: &kubeletClient{
-			cfg: cfg.Kubelet,
-		},
+func NewKubernetesAttestor(cfg KubernetesAttestorConfig) (*KubernetesAttestor, error) {
+	kubeletClient, err := newKubeletClient(cfg.Kubelet)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &KubernetesAttestor{
+		kubeletClient: kubeletClient,
+	}, nil
 }
 
 // Attest resolves the Kubernetes pod information from the
 // PID of the workload.
-//
-// From what I can tell, there's two common ways of doing this:
-// - /proc/<pid>/mountinfo
-// - /proc/<pid>/cgroup
-//
-// This implementation leverages /proc/<pid>/mountinfo
-//
-// Requires `hostPID: true` so we can see the /proc of other pods.
-//
-// We can then query the kubelet api to find the pod that this corresponds to.
 func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAttestation, error) {
 	podID, containerID, err := a.getContainerAndPodID(pid)
 	if err != nil {
@@ -302,9 +307,28 @@ type KubeletClientConfig struct {
 	TokenPath string `yaml:"token_path"`
 }
 
+func (c KubeletClientConfig) CheckAndSetDefaults() error {
+	if c.ReadOnlyPort != 0 && c.SecurePort != 0 {
+		return trace.BadParameter("readOnlyPort and securePort are mutually exclusive")
+	}
+	if c.TokenPath == "" {
+		c.TokenPath = defaultServiceAccountTokenPath
+	}
+	return nil
+}
+
 // kubeletClient is a HTTP client for the Kubelet API
 type kubeletClient struct {
 	cfg KubeletClientConfig
+}
+
+func newKubeletClient(cfg KubeletClientConfig) (*kubeletClient, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &kubeletClient{
+		cfg: cfg,
+	}, nil
 }
 
 func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
