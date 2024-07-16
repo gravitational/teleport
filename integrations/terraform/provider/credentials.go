@@ -47,7 +47,7 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 	}
 	if len(activeSources) == 0 {
 		return nil, diag.Diagnostics{diag.NewErrorDiagnostic(
-			"No active credentials source found",
+			"No active Teleport credentials source found",
 			inactiveReason.String(),
 		)}
 	}
@@ -73,7 +73,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 			tflog.Error(ctx, "failed to obtain credential", logFields)
 			_, reason := source.IsActive(providerCfg)
 			diags.AddError(
-				fmt.Sprintf("Failed to build credentials %s", source.Name()),
+				fmt.Sprintf("Failed to obtain Teleport credentials %s", source.Name()),
 				brokenCredentialErrorSummary(source.Name(), reason, err),
 			)
 			return nil, diags
@@ -88,7 +88,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 			tflog.Error(ctx, "failed to get a TLSConfig from the credential", logFields)
 			_, reason := source.IsActive(providerCfg)
 			diags.AddError(
-				fmt.Sprintf("Failed to build credentials %s", source.Name()),
+				fmt.Sprintf("Invalid Teleport credentials %s", source.Name()),
 				brokenCredentialErrorSummary(source.Name(), reason, err),
 			)
 
@@ -98,7 +98,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 		now := time.Now()
 		if expiry, ok := creds.Expiry(); ok && !expiry.IsZero() && expiry.Before(now) {
 			diags.AddWarning(
-				fmt.Sprintf("Credentials %s are expired", source.Name()),
+				fmt.Sprintf("Teleport credentials %s are expired", source.Name()),
 				fmt.Sprintf(`The credentials %s are expired. Expiration is %q while current time is %q). You might need to refresh them. The provider will not attempt to use those credentials.`,
 					source.Name(), expiry.Local(), now.Local()),
 			)
@@ -130,10 +130,9 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 // client and listing every connection method we tried.
 func (s CredentialSources) failedToBuildClientErrorSummary(addr string) string {
 	sb := strings.Builder{}
-	sb.WriteString("Every credential source provided has failed. The Terraform cannot connect to the Teleport cluster '")
+	sb.WriteString("Every credential source provided has failed. The Terraform provider cannot connect to the Teleport cluster '")
 	sb.WriteString(addr)
-	sb.WriteString("'.\n")
-	sb.WriteRune('\n')
+	sb.WriteString("'.\n\n")
 	sb.WriteString("We tried building a client:\n")
 	for _, source := range s {
 		sb.WriteString(" - ")
