@@ -647,7 +647,9 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 
 	if startKey != "" {
 		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
-			if fromUTC.After(createdAt) {
+			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
+			// that are not present in the cursor.
+			if fromUTC.Unix() > createdAt.Unix() {
 				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
 				// This is a guard check when iterating over the events using sliding window
 				// and the previous cursor no longer fits the new window.
@@ -774,7 +776,7 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 		return time.Time{}, errors.New("createdAt is invalid")
 	}
 
-	return time.Unix(e.CreatedAt, 0), nil
+	return time.Unix(e.CreatedAt, 0).UTC(), nil
 }
 
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
