@@ -139,7 +139,11 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAtt
 
 	var container *v1.ContainerStatus
 	for _, c := range pod.Status.ContainerStatuses {
-		if c.ContainerID == containerID {
+		cURL, err := url.Parse(c.ContainerID)
+		if err != nil {
+			panic("ohno")
+		}
+		if cURL.Host == containerID {
 			container = &c
 			break
 		}
@@ -179,6 +183,8 @@ func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, contai
 		)
 	}
 
+	// TODO: Test based on the whole mountfiles
+
 	// Find the cgroup or cgroupv2 mount
 	// TODO(noah): Is it possible for there to be multiple cgroup mounts?
 	// If so, how should we handle.
@@ -193,11 +199,11 @@ func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, contai
 	}
 
 	podID, containerID, err = mountpointSourceToContainerAndPodID(
-		cgroupMount.Source,
+		cgroupMount.Root,
 	)
 	if err != nil {
 		return "", "", trace.Wrap(
-			err, "parsing cgroup mount (source: %q)", cgroupMount.Source,
+			err, "parsing cgroup mount (root: %q)", cgroupMount.Root,
 		)
 	}
 	return podID, containerID, nil
@@ -349,7 +355,7 @@ func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:            certPool,
-				InsecureSkipVerify: false, // TODO
+				InsecureSkipVerify: true, // TODO: Setting to false breaks on my docker desktop??
 			},
 		},
 	}
