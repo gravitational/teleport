@@ -1,5 +1,19 @@
 # Changelog
 
+## 15.4.9 (07/11/24)
+
+* Honor proxy templates in tsh ssh. [#44027](https://github.com/gravitational/teleport/pull/44027)
+* Fixed Redshift auto-user deactivation/deletion failure that occurs when a user is created or deleted and another user is deactivated concurrently. [#43975](https://github.com/gravitational/teleport/pull/43975)
+* Teleport AMIs now optionally source environment variables from `/etc/default/teleport` as regular Teleport package installations do. [#43961](https://github.com/gravitational/teleport/pull/43961)
+* Enabled setting event types to forward, skip events, skip session types in event-handler helm chart. [#43939](https://github.com/gravitational/teleport/pull/43939)
+* Correctly propagate `extraLabels` configured in teleport-kube-agent chart values to post-delete hooks. A new `extraLabels.job` object has been added for labels which should only apply to the post-delete job. [#43931](https://github.com/gravitational/teleport/pull/43931)
+* Machine ID outputs now execute individually and concurrently, meaning that one failing output does not disrupt other outputs, and that performance when generating a large number of outputs is improved. [#43883](https://github.com/gravitational/teleport/pull/43883)
+* Omit control plane services from the inventory list output for Cloud-Hosted instances. [#43778](https://github.com/gravitational/teleport/pull/43778)
+* Fixed session recordings getting overwritten or not uploaded. [#42164](https://github.com/gravitational/teleport/pull/42164)
+
+Enterprise:
+* Fixed inaccurately notifying user that access list reviews are due in the web UI.
+
 ## 15.4.7 (07/03/24)
 
 * Added audit events for discovery config actions. [#43794](https://github.com/gravitational/teleport/pull/43794)
