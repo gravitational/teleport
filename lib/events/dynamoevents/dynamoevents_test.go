@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -64,10 +65,12 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
 
 	log, err := New(context.Background(), Config{
-		Region:       "eu-north-1",
-		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
-		Clock:        fakeClock,
-		UIDGenerator: utils.NewFakeUID(),
+		Region:             "us-east-1",
+		Tablename:          fmt.Sprintf("teleport-test-%v", uuid.New().String()),
+		Clock:              fakeClock,
+		UIDGenerator:       utils.NewFakeUID(),
+		ReadCapacityUnits:  100,
+		WriteCapacityUnits: 100,
 	})
 	require.NoError(t, err)
 
@@ -300,14 +303,16 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	err := tt.suite.Log.EmitAuditEvent(ctx, dbQueryEvent)
 	require.NoError(t, err)
 
-	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
-		From:       now.Add(-1 * time.Hour),
-		To:         now.Add(time.Hour),
-		EventTypes: []string{events.DatabaseSessionQueryEvent},
-		Order:      types.EventOrderAscending,
-	})
-	require.NoError(t, err)
-	require.Len(t, result, 1)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       now.Add(-1 * time.Hour),
+			To:         now.Add(time.Hour),
+			EventTypes: []string{events.DatabaseSessionQueryEvent},
+			Order:      types.EventOrderAscending,
+		})
+		assert.NoError(t, err)
+		assert.Len(t, result, 1)
+	}, 10*time.Second, 500*time.Millisecond)
 
 	appReqEvent := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
