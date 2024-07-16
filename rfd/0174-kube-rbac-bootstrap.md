@@ -248,6 +248,10 @@ KubeProvision capabilities might be expanded to include any type of resource in 
 Terraform for Kubernetes, but defined completely in Teleport. We should gather feedback after releasing initial KubeProvision
 feature to understand if there's demand for such extension of capabilities.
 
+Also in the future we can add a dashboard showing current state of KubeProvision reconciliation. We could add a `status` field to
+the KubeProvision resource definition, where we could track any errors that happened when KubeService tried to provision the resource and then 
+propagate that information to the UI.
+
 ## Audit
 
 We will track changes to the KubeProvision resources in the Audit log. There will be three new events:
