@@ -1153,12 +1153,6 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		// Because this may break on non page boundaries an additional
 		// checkpoint is needed for sub-page breaks.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			hf := false
-			if hasLeftFun != nil {
-				hf = hasLeftFun()
-			}
-			l.hasLeft = hf || len(l.checkpoint.Iterator) != 0
-
 			key, err := getSubPageCheckpoint(&e)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
@@ -1167,6 +1161,12 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 
 			// We need to reset the iterator so we get the previous page again.
 			l.checkpoint.Iterator = oldIterator
+
+			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
+			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
+			// the new iterator being empty.
+			l.hasLeft = true
+
 			return out, true, nil
 		}
 		l.totalSize += len(data)
