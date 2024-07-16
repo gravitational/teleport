@@ -125,7 +125,7 @@ buildbox-thirdparty:
 # on the $(STAGE) variable. These stage builds are used for development
 # of the thirdparty buildbox, whether to configure crosstool-NG
 # (see config/buildbox-ng), or when adding additional third party
-# libraries using either the compilers stage or tplibs stage.
+# libraries using either the compilers stage or libs stage.
 #
 .PHONY: buildbox-thirdparty-stage
 buildbox-thirdparty-stage:
@@ -144,9 +144,9 @@ buildbox-thirdparty-crosstoolng: buildbox-thirdparty-stage
 buildbox-thirdparty-compilers: STAGE=compilers
 buildbox-thirdparty-compilers: buildbox-thirdparty-stage
 
-.PHONY: buildbox-thirdparty-tplibs
-buildbox-thirdparty-tplibs: STAGE=tplibs
-buildbox-thirdparty-tplibs: buildbox-thirdparty-stage
+.PHONY: buildbox-thirdparty-libs
+buildbox-thirdparty-libs: STAGE=libs
+buildbox-thirdparty-libs: buildbox-thirdparty-stage
 
 #
 # Build the buildbox-ng using the pre-built third party components from the
@@ -444,7 +444,7 @@ enter-root: buildbox
 # $ make config/buildbox-ng CROSSTOOLNG_ARCH=arm64
 #
 # After saving and exiting in the menuconfig, you should have an updated
-# defconfig file in build.assets/buildbox/ct-ng-configs
+# defconfig file in build.assets/buildbox/crosstoolng-configs
 #
 # You need to have a local copy of the configuration container image
 # created with: make buildbox-thirdparty-crosstoolng
@@ -452,12 +452,12 @@ enter-root: buildbox
 .PHONY: config/buildbox-ng
 config/buildbox-ng:
 	@: $(or $(CROSSTOOLNG_ARCH),$(error CROSSTOOLNG_ARCH variable must be set))
-	@: $(or $(wildcard buildbox/ct-ng-configs/$(CROSSTOOLNG_ARCH).defconfig),\
+	@: $(or $(wildcard buildbox/crosstoolng-configs/$(CROSSTOOLNG_ARCH).defconfig),\
 		$(error No config for arch $(CROSSTOOLNG_ARCH)))
 	docker run -it --rm \
 		--volume $(shell pwd)/..:/home/teleport \
 		--workdir /home/teleport \
-		buildbox-thirdparty-crosstoolng \
+		buildbox-thirdparty-crosstoolng:$(BUILDBOX_VERSION) \
 		make -C build.assets/buildbox -f crosstoolng.mk crosstoolng-menuconfig \
 		ARCH=$(CROSSTOOLNG_ARCH)
 

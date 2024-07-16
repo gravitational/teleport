@@ -74,7 +74,7 @@ RUN apt-get install -y \
 USER buildbox
 WORKDIR /home/buildbox
 
-COPY cronsstoolng-configs cronsstoolng-configs
+COPY crosstoolng-configs crosstoolng-configs
 COPY pkgconfig pkgconfig
 COPY buildbox-common.mk crosstoolng.mk .
 
@@ -90,19 +90,19 @@ FROM crosstoolng AS compilers
 
 # Build cross-compiling toolchains with ct-ng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f crosstoolng.mk crosstoolng ARCH=amd64 && \
+	make -f crosstoolng.mk crosstoolng-build ARCH=amd64 && \
 	rm -rf ${THIRDPARTY_DIR}/amd64/crosstoolng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f crosstoolng.mk crosstoolng ARCH=arm64 && \
+	make -f crosstoolng.mk crosstoolng-build ARCH=arm64 && \
 	rm -rf ${THIRDPARTY_DIR}/arm64/crosstoolng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f crosstoolng.mk crosstoolng ARCH=386 && \
+	make -f crosstoolng.mk crosstoolng-build ARCH=386 && \
 	rm -rf ${THIRDPARTY_DIR}/386/crosstoolng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
-	make -f crosstoolng.mk crosstoolng ARCH=arm && \
+	make -f crosstoolng.mk crosstoolng-build ARCH=arm && \
 	rm -rf ${THIRDPARTY_DIR}/arm/crosstoolng
 
-FROM compilers AS tplibs
+FROM compilers AS libs
 
 COPY cross-compile.mk thirdparty-libs.mk .
 
@@ -128,4 +128,4 @@ FROM ${BASE_IMAGE} AS buildbox-thirdparty
 
 # Install third party toolchain and libraries
 ARG THIRDPARTY_DIR
-COPY --from=tplibs ${THIRDPARTY_DIR} ${THIRDPARTY_DIR}
+COPY --from=libs ${THIRDPARTY_DIR} ${THIRDPARTY_DIR}
