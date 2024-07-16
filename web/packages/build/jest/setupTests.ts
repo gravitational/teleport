@@ -23,7 +23,7 @@ const failOnConsole = require('jest-fail-on-console');
 
 let entFailOnConsoleIgnoreList = [];
 try {
-  entFailOnConsoleIgnoreList = require('../../../e/web/testsWithIgnoredConsole');
+  entFailOnConsoleIgnoreList = require('../../../../e/web/testsWithIgnoredConsole');
 } catch (err) {
   // Ignore errors related to teleport.e not being present. This allows OSS users and OSS CI to run
   // tests without teleport.e.
@@ -44,7 +44,7 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
   disconnect: jest.fn(),
 }));
 
-const rootDir = path.join(__dirname, '..', '..', '..');
+const rootDir = path.join(__dirname, '..', '..', '..', '..');
 // Do not add new paths to this list, instead fix the underlying problem which causes console.error
 // or console.warn to be used.
 //
