@@ -195,6 +195,7 @@ jobs:
     needs:
       - setup
       - publish-distroless-oci
+      - publish-tbot-distroless-oci
       - publish-hardened-amis
       - publish-helm
       - publish-kube-agent-updater-oci
