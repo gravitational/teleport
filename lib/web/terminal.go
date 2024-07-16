@@ -49,6 +49,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -560,23 +561,19 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	}
 
 	// Prepare UserCertsRequest.
-	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetSSHPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key := &client.Key{
-		PrivateKey: pk,
-		Cert:       t.ctx.cfg.Session.GetPub(),
-		TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
-	}
-	tlsCert, err := key.TeleportTLSCertificate()
+	sshCert, err := sshutils.ParseCertificate(t.ctx.cfg.Session.GetPub())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	expires := time.Unix(int64(sshCert.ValidBefore), 0)
 	certsReq := &authproto.UserCertsRequest{
-		PublicKey:      key.MarshalSSHPublicKey(),
-		Username:       tlsCert.Subject.CommonName,
-		Expires:        tlsCert.NotAfter,
+		PublicKey:      pk.MarshalSSHPublicKey(),
+		Username:       sshCert.KeyId, // SSH cert KeyId is set to teleport username.
+		Expires:        expires,
 		RouteToCluster: t.sessionData.ClusterName,
 		NodeName:       t.sessionData.ServerID,
 		Usage:          authproto.UserCertsRequest_SSH,
@@ -584,7 +581,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
 		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
@@ -599,15 +596,16 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: certsReq,
-		Key:      key,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key.ClusterName = t.sessionData.ClusterName
-
-	am, err := key.AsAuthMethod()
+	sshCert, err = sshutils.ParseCertificate(certs.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	am, err := sshutils.AsAuthMethod(sshCert, pk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

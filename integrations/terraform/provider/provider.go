@@ -38,7 +38,8 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -107,89 +108,89 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 			"addr": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "host:port where Teleport Auth server is running.",
+				Description: "host:port where Teleport Auth server is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.",
 			},
 			"cert_path": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Path to Teleport auth certificate file.",
+				Description: "Path to Teleport auth certificate file. This can also be set with the environment variable `TF_TELEPORT_CERT`.",
 			},
 			"cert_base64": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Base64 encoded TLS auth certificate.",
+				Description: "Base64 encoded TLS auth certificate. This can also be set with the environment variable `TF_TELEPORT_CERT_BASE64`.",
 			},
 			"key_path": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Path to Teleport auth key file.",
+				Description: "Path to Teleport auth key file. This can also be set with the environment variable `TF_TELEPORT_KEY`.",
 			},
 			"key_base64": {
 				Type:        types.StringType,
 				Sensitive:   true,
 				Optional:    true,
-				Description: "Base64 encoded TLS auth key.",
+				Description: "Base64 encoded TLS auth key. This can also be set with the environment variable `TF_TELEPORT_KEY_BASE64`.",
 			},
 			"root_ca_path": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Path to Teleport Root CA.",
+				Description: "Path to Teleport Root CA. This can also be set with the environment variable `TF_TELEPORT_ROOT_CA`.",
 			},
 			"root_ca_base64": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Base64 encoded Root CA.",
+				Description: "Base64 encoded Root CA. This can also be set with the environment variable `TF_TELEPORT_CA_BASE64`.",
 			},
 			"profile_name": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Teleport profile name.",
+				Description: "Teleport profile name. This can also be set with the environment variable `TF_TELEPORT_PROFILE_NAME`.",
 			},
 			"profile_dir": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Teleport profile path.",
+				Description: "Teleport profile path. This can also be set with the environment variable `TF_TELEPORT_PROFILE_PATH`.",
 			},
 			"identity_file_path": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Teleport identity file path.",
+				Description: "Teleport identity file path. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_PATH`.",
 			},
 			"identity_file": {
 				Type:        types.StringType,
 				Sensitive:   true,
 				Optional:    true,
-				Description: "Teleport identity file content.",
+				Description: "Teleport identity file content. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE`.",
 			},
 			"identity_file_base64": {
 				Type:        types.StringType,
 				Sensitive:   true,
 				Optional:    true,
-				Description: "Teleport identity file content base64 encoded.",
+				Description: "Teleport identity file content base64 encoded. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`.",
 			},
 			"retry_base_duration": {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration).",
+				Description: "Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_BASE_DURATION`.",
 			},
 			"retry_cap_duration": {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "Retry algorithm when the API returns 'not found': max duration between retries (https://pkg.go.dev/time#ParseDuration).",
+				Description: "Retry algorithm when the API returns 'not found': max duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_CAP_DURATION`.",
 			},
 			"retry_max_tries": {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "Retry algorithm when the API returns 'not found': max tries.",
+				Description: "Retry algorithm when the API returns 'not found': max tries. This can also be set with the environment variable `TF_TELEPORT_RETRY_MAX_TRIES`.",
 			},
 			"dial_timeout_duration": {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "DialTimeout sets timeout when trying to connect to the server.",
+				Description: "DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `TF_TELEPORT_DIAL_TIMEOUT_DURATION`.",
 			},
 		},
 	}, nil
@@ -220,22 +221,22 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	addr := p.stringFromConfigOrEnv(config.Addr, "TF_TELEPORT_ADDR", "")
-	certPath := p.stringFromConfigOrEnv(config.CertPath, "TF_TELEPORT_CERT", "")
-	certBase64 := p.stringFromConfigOrEnv(config.CertBase64, "TF_TELEPORT_CERT_BASE64", "")
-	keyPath := p.stringFromConfigOrEnv(config.KeyPath, "TF_TELEPORT_KEY", "")
-	keyBase64 := p.stringFromConfigOrEnv(config.KeyBase64, "TF_TELEPORT_KEY_BASE64", "")
-	caPath := p.stringFromConfigOrEnv(config.RootCaPath, "TF_TELEPORT_ROOT_CA", "")
-	caBase64 := p.stringFromConfigOrEnv(config.RootCaBase64, "TF_TELEPORT_CA_BASE64", "")
-	profileName := p.stringFromConfigOrEnv(config.ProfileName, "TF_TELEPORT_PROFILE_NAME", "")
-	profileDir := p.stringFromConfigOrEnv(config.ProfileDir, "TF_TELEPORT_PROFILE_PATH", "")
-	identityFilePath := p.stringFromConfigOrEnv(config.IdentityFilePath, "TF_TELEPORT_IDENTITY_FILE_PATH", "")
-	identityFile := p.stringFromConfigOrEnv(config.IdentityFile, "TF_TELEPORT_IDENTITY_FILE", "")
-	identityFileBase64 := p.stringFromConfigOrEnv(config.IdentityFileBase64, "TF_TELEPORT_IDENTITY_FILE_BASE64", "")
-	retryBaseDurationStr := p.stringFromConfigOrEnv(config.RetryBaseDuration, "TF_TELEPORT_RETRY_BASE_DURATION", "1s")
-	retryCapDurationStr := p.stringFromConfigOrEnv(config.RetryCapDuration, "TF_TELEPORT_RETRY_CAP_DURATION", "5s")
-	maxTriesStr := p.stringFromConfigOrEnv(config.RetryMaxTries, "TF_TELEPORT_RETRY_MAX_TRIES", "10")
-	dialTimeoutDurationStr := p.stringFromConfigOrEnv(config.DialTimeoutDuration, "TF_TELEPORT_DIAL_TIMEOUT_DURATION", "30s")
+	addr := p.stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
+	certPath := p.stringFromConfigOrEnv(config.CertPath, constants.EnvVarTerraformCertificates, "")
+	certBase64 := p.stringFromConfigOrEnv(config.CertBase64, constants.EnvVarTerraformCertificatesBase64, "")
+	keyPath := p.stringFromConfigOrEnv(config.KeyPath, constants.EnvVarTerraformKey, "")
+	keyBase64 := p.stringFromConfigOrEnv(config.KeyBase64, constants.EnvVarTerraformKeyBase64, "")
+	caPath := p.stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
+	caBase64 := p.stringFromConfigOrEnv(config.RootCaBase64, constants.EnvVarTerraformRootCertificatesBase64, "")
+	profileName := p.stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
+	profileDir := p.stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
+	identityFilePath := p.stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
+	identityFile := p.stringFromConfigOrEnv(config.IdentityFile, constants.EnvVarTerraformIdentityFile, "")
+	identityFileBase64 := p.stringFromConfigOrEnv(config.IdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64, "")
+	retryBaseDurationStr := p.stringFromConfigOrEnv(config.RetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, "1s")
+	retryCapDurationStr := p.stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
+	maxTriesStr := p.stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
+	dialTimeoutDurationStr := p.stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
 
 	if !p.validateAddr(addr, resp) {
 		return
@@ -391,7 +392,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
 		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())

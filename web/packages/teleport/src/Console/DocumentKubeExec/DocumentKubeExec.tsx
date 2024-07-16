@@ -52,7 +52,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
       tty={tty}
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
-      convertEol={!doc.isInteractive}
+      convertEol
     />
   );
 

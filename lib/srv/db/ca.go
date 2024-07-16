@@ -49,7 +49,7 @@ func (s *Server) startCARenewer(ctx context.Context) {
 		case <-schedule.Chan():
 			for _, database := range s.getProxiedDatabases() {
 				if err := s.initCACert(ctx, database); err != nil {
-					s.log.WithError(err).Errorf("Failed to renew database %q CA.", database.GetName())
+					s.log.ErrorContext(ctx, "Failed to renew database CA.", "db", database.GetName(), "error", err)
 				}
 			}
 		case <-ctx.Done():
@@ -155,7 +155,7 @@ func (s *Server) getCACert(ctx context.Context, database types.Database, filePat
 	}
 	// The update flow is going to create/update the cached CA, so we can read
 	// the contents from it.
-	s.log.Debugf("Loaded CA certificate %v.", filePath)
+	s.log.DebugContext(ctx, "Loaded CA certificate.", "path", filePath)
 	return os.ReadFile(filePath)
 }
 
@@ -213,7 +213,7 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 }
 
 // saveCACert saves the downloaded certificate to the filesystem.
-func (s *Server) saveCACert(filePath string, content []byte, version []byte) error {
+func (s *Server) saveCACert(ctx context.Context, filePath string, content []byte, version []byte) error {
 	// Save CA contents.
 	err := os.WriteFile(filePath, content, teleport.FileMaskOwnerOnly)
 	if err != nil {
@@ -226,7 +226,7 @@ func (s *Server) saveCACert(filePath string, content []byte, version []byte) err
 		return trace.Wrap(err)
 	}
 
-	s.log.Debugf("Saved CA certificate %v.", filePath)
+	s.log.DebugContext(ctx, "Saved CA certificate.", "path", filePath)
 	return nil
 }
 
@@ -252,7 +252,7 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 	}
 
 	if equal {
-		s.log.Debugf("Database %q CA is up-to-date.", database.GetName())
+		s.log.DebugContext(ctx, "Database CA is up-to-date.", "db", database.GetName(), "type", database.GetType())
 		return nil
 	}
 
@@ -264,12 +264,12 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 		}
 	}
 
-	err = s.saveCACert(filePath, contents, version)
+	err = s.saveCACert(ctx, filePath, contents, version)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.log.Infof("Database %q CA updated.", database.GetName())
+	s.log.InfoContext(ctx, "Database CA updated.", "db", database.GetName(), "type", database.GetType())
 	return nil
 }
 

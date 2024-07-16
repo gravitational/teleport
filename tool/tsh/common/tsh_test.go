@@ -5086,6 +5086,18 @@ func TestShowSessions(t *testing.T) {
         "participants": [
             "someParticipant"
         ]
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID4",
+        "time": "0001-01-01T00:00:00Z",
+        "user": "someUser",
+        "sid": "",
+        "db_protocol": "postgres",
+        "db_uri": "",
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z"
     }
 ]`
 	sessions := []events.AuditEvent{
@@ -5112,6 +5124,19 @@ func TestShowSessions(t *testing.T) {
 			StartTime:    time.Time{},
 			EndTime:      time.Time{},
 			Participants: []string{"someParticipant"},
+		},
+		&events.DatabaseSessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID4",
+			},
+			UserMetadata: events.UserMetadata{
+				User: "someUser",
+			},
+			DatabaseMetadata: events.DatabaseMetadata{
+				DatabaseProtocol: "postgres",
+			},
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
 		},
 	}
 	var buf bytes.Buffer

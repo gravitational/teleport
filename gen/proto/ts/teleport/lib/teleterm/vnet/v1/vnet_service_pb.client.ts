@@ -23,6 +23,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { VnetService } from "./vnet_service_pb";
+import type { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
+import type { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import type { ListDNSZonesResponse } from "./vnet_service_pb";
 import type { ListDNSZonesRequest } from "./vnet_service_pb";
 import type { StopResponse } from "./vnet_service_pb";
@@ -64,6 +66,13 @@ export interface IVnetServiceClient {
      * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
      */
     listDNSZones(input: ListDNSZonesRequest, options?: RpcOptions): UnaryCall<ListDNSZonesRequest, ListDNSZonesResponse>;
+    /**
+     * GetBackgroundItemStatus returns the status of the background item responsible for launching
+     * VNet daemon. macOS only.
+     *
+     * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
+     */
+    getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
 }
 /**
  * VnetService provides methods to manage a VNet instance.
@@ -110,5 +119,15 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
     listDNSZones(input: ListDNSZonesRequest, options?: RpcOptions): UnaryCall<ListDNSZonesRequest, ListDNSZonesResponse> {
         const method = this.methods[2], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListDNSZonesRequest, ListDNSZonesResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetBackgroundItemStatus returns the status of the background item responsible for launching
+     * VNet daemon. macOS only.
+     *
+     * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
+     */
+    getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse> {
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>("unary", this._transport, method, opt, input);
     }
 }

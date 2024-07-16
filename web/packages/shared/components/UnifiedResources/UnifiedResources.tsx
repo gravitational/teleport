@@ -27,14 +27,7 @@ import React, {
 } from 'react';
 
 import styled from 'styled-components';
-import {
-  Box,
-  Flex,
-  ButtonLink,
-  ButtonSecondary,
-  Text,
-  ButtonBorder,
-} from 'design';
+import { Box, Flex, Button, ButtonSecondary, Text, ButtonBorder } from 'design';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
@@ -455,7 +448,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             {resourcesFetchAttempt.statusCode !== 400 &&
               resourcesFetchAttempt.statusCode !== 403 && (
                 <Box flex="0 0 auto" ml={2}>
-                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+                  <Button type="button" onClick={onRetryClicked}>
+                    Retry
+                  </Button>
                 </Box>
               )}
           </Danger>

@@ -16,29 +16,12 @@ package main
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path"
-	"slices"
-	"sort"
-	"strings"
 	"text/template"
-
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/olekukonko/tablewriter"
-
-	"github.com/gravitational/teleport/integrations/terraform/provider"
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
-	accesslistSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1"
-	devicetrustSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1"
-	loginruleSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1"
-	tokenSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
 )
 
 // payload represents template payload
@@ -143,8 +126,6 @@ const (
 	singularDataSource      = "singular_data_source.go.tpl"
 	outFileResourceFormat   = "provider/resource_%s.go"
 	outFileDataSourceFormat = "provider/data_source_%s.go"
-
-	referenceDocsTemplate = "referencedocs.go.tpl"
 )
 
 var (
@@ -457,11 +438,7 @@ var (
 )
 
 func main() {
-	if len(os.Args) == 2 && os.Args[1] == "docs" {
-		genReferenceDocs()
-	} else {
-		genTFSchema()
-	}
+	genTFSchema()
 }
 
 func genTFSchema() {
@@ -549,186 +526,4 @@ func generate(p payload, tpl, outFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// Create Docs Markdown
-var (
-	mapResourceSchema = map[string]func(context.Context) (tfsdk.Schema, diag.Diagnostics){
-		"access_list":                accesslistSchema.GenSchemaAccessList,
-		"app":                        tfschema.GenSchemaAppV3,
-		"auth_preference":            tfschema.GenSchemaAuthPreferenceV2,
-		"bot":                        provider.GenSchemaBot,
-		"cluster_maintenance_config": tfschema.GenSchemaClusterMaintenanceConfigV1,
-		"cluster_networking_config":  tfschema.GenSchemaClusterNetworkingConfigV2,
-		"database":                   tfschema.GenSchemaDatabaseV3,
-		"trusted_device":             devicetrustSchema.GenSchemaDeviceV1,
-		"github_connector":           tfschema.GenSchemaGithubConnectorV3,
-		"login_rule":                 loginruleSchema.GenSchemaLoginRule,
-		"okta_import_rule":           tfschema.GenSchemaOktaImportRuleV1,
-		"oidc_connector":             tfschema.GenSchemaOIDCConnectorV3,
-		"provision_token":            tokenSchema.GenSchemaProvisionTokenV2,
-		"role":                       tfschema.GenSchemaRoleV6,
-		"saml_connector":             tfschema.GenSchemaSAMLConnectorV2,
-		"session_recording_config":   tfschema.GenSchemaSessionRecordingConfigV2,
-		"trusted_cluster":            tfschema.GenSchemaTrustedClusterV2,
-		"user":                       tfschema.GenSchemaUserV2,
-		"server":                     tfschema.GenSchemaServerV2,
-	}
-
-	// hiddenFields are fields that are not outputted to the reference doc.
-	// It supports non-top level fields by adding its prefix. Eg: metadata.namespace
-	hiddenFields = []string{
-		"id",   // read only field
-		"kind", // each resource already defines its kind so this is redundant
-	}
-
-	// fieldComments is used to define specific descriptions for the given fields.
-	// Typical usage is for enums which we don't have comments yet.
-	fieldComments = map[string]string{
-		"teleport_auth_preference.spec.require_session_mfa": "RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch",
-		"teleport_role.spec.options.require_session_mfa":    "RequireMFAType is the type of MFA requirement enforced for this role: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch",
-	}
-)
-
-func genReferenceDocs() {
-	sortedNames := make([]string, 0, len(mapResourceSchema))
-	for k := range mapResourceSchema {
-		sortedNames = append(sortedNames, k)
-	}
-	sort.Strings(sortedNames)
-
-	t, err := template.ParseFiles(path.Join("gen", referenceDocsTemplate))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	referenceDocsResource := make([]referenceDocResource, 0, len(mapResourceSchema))
-	for _, name := range sortedNames {
-		resourceName := "teleport_" + name
-
-		schemaFn := mapResourceSchema[name]
-		schema, diags := schemaFn(context.Background())
-		if diags.HasError() {
-			log.Fatalf("%v", diags)
-		}
-
-		fieldDescBuilder := strings.Builder{}
-		dumpAttributes(&fieldDescBuilder, 0, resourceName, "", schema.Attributes)
-
-		exampleFileName := fmt.Sprintf("example/%s.tf.example", name)
-		exampleBytes, err := os.ReadFile(exampleFileName)
-		if err != nil {
-			log.Fatalf("error loading %q file: %v", exampleFileName, err)
-		}
-
-		referenceDocsResource = append(referenceDocsResource, referenceDocResource{
-			Name:       resourceName,
-			FieldsDesc: fieldDescBuilder.String(),
-			Example:    string(exampleBytes),
-		})
-	}
-
-	var b bytes.Buffer
-	err = t.ExecuteTemplate(&b, referenceDocsTemplate, map[string]any{
-		"resourceList": sortedNames,
-		"resourcesDoc": referenceDocsResource,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = os.WriteFile("reference.mdx", b.Bytes(), 0777)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-type referenceDocResource struct {
-	Name       string
-	FieldsDesc string
-	Example    string
-}
-
-func dumpAttributes(fp io.Writer, level int, resourceName string, prefix string, attrs map[string]tfsdk.Attribute) {
-	sortedAttrKeys := make([]string, 0, len(attrs))
-	for k := range attrs {
-		sortedAttrKeys = append(sortedAttrKeys, k)
-	}
-	sort.Strings(sortedAttrKeys)
-
-	table := tablewriter.NewWriter(fp)
-	table.SetHeader([]string{"Name", "Type", "Required", "Description"})
-	table.SetAutoWrapText(false)
-	table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
-	table.SetCenterSeparator("|")
-	table.SetAutoFormatHeaders(false)
-
-	for _, name := range sortedAttrKeys {
-		fullFieldPath := resourceName + "." + prefix + name
-		attr := attrs[name]
-
-		if slices.Contains(hiddenFields, prefix+name) {
-			continue
-		}
-
-		description := attr.Description
-		if d, found := fieldComments[fullFieldPath]; found {
-			description = d
-		}
-		// Using html.EscapeString also escapes `'`` (into `&#39;`)
-		// This generates a lint error when running cspell because the word `doesn't` becomes `doesn&#39;t`
-		// and `doesn` isn't a valid word.
-		// This lint error happens when running the `Lint (docs)` CI step in the teleport repo.
-		// The mdx format supports `'"&` (the other chars that html.EscapeString escapes) without escaping.
-		descriptionMDXEscaped := strings.ReplaceAll(strings.ReplaceAll(description, "<", "&lt;"), ">", "&gt;")
-		table.Append([]string{name, typ(attr.Type), requiredString(attr.Required), descriptionMDXEscaped})
-	}
-	table.Render()
-	fmt.Fprintln(fp)
-
-	for _, name := range sortedAttrKeys {
-		attr := attrs[name]
-		if attr.Attributes != nil {
-			fmt.Fprintf(fp, "%s %s\n", strings.Repeat("#", 3+level), prefix+name)
-			fmt.Fprintln(fp)
-			fmt.Fprintln(fp, attr.Description)
-			fmt.Fprintln(fp)
-
-			dumpAttributes(fp, level+1, resourceName, prefix+name+".", attr.Attributes.GetAttributes())
-		}
-	}
-}
-
-func typ(typ attr.Type) string {
-	if typ == nil {
-		return "object"
-	}
-
-	switch typ.String() {
-	case "types.StringType":
-		return "string"
-	case "TimeType(2006-01-02T15:04:05Z07:00)":
-		return "RFC3339 time"
-	case "DurationType":
-		return "duration"
-	case "types.BoolType":
-		return "bool"
-	case "types.MapType[types.StringType]":
-		return "map of strings"
-	case "types.ListType[types.StringType]":
-		return "array of strings"
-	case "types.MapType[types.ListType[types.StringType]]":
-		return "map of string arrays"
-	case "types.Int64Type":
-		return "number"
-	default:
-		return typ.String()
-	}
-}
-
-func requiredString(r bool) string {
-	if r {
-		return "*"
-	}
-	return " "
 }

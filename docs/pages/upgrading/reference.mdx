@@ -278,10 +278,6 @@ self-hosted clusters, as well as all Teleport agents.
    ...
    ```
 
-   Note that the `inventory ls` command will also list `teleport-auth` and
-   `teleport-proxy` services. These services are managed by the Teleport team, and
-   updates will be performed automatically.
-
 1. For each agent ID returned by the `tctl inventory ls` command, copy the ID
    and run the following `tctl` command to access the host via `tsh`:
 
@@ -373,7 +369,7 @@ your `teleport-cluster` release is called `teleport-cluster`.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-cluster` chart:
 
-    (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+    (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Upgrade the `teleport-cluster` Helm release:
 
@@ -399,7 +395,7 @@ that your `teleport-kube-agent` release is called `teleport-agent`.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-kube-agent` chart:
 
-      (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+      (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Upgrade the Helm release:
 

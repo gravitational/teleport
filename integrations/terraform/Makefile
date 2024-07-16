@@ -8,6 +8,7 @@ TFDIR ?= example
 
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+# CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
@@ -103,7 +104,6 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
-	@go run ./gen/main.go docs
 
 .PHONY: release
 ifeq ($(OS)-$(ARCH),darwin-universal)
@@ -155,3 +155,16 @@ destroy:
 .PHONY: lint
 lint:
 	golangci-lint run -c ../../.golangci.yml
+
+.PHONY: docs
+docs: gen-tfschema install bin/tfplugindocs
+	./gen/docs.sh $(VERSION)
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+bin/tfplugindocs: go.mod $(LOCALBIN)
+	mkdir -p bin
+	GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

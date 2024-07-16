@@ -31,7 +31,7 @@ module.exports = {
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e'],
   setupFilesAfterEnv: [
-    '<rootDir>/web/packages/shared/setupTests.tsx',
+    '<rootDir>/web/packages/build/jest/setupTests.ts',
     '<rootDir>/web/packages/build/jest/customMatchers.ts',
   ],
 };
