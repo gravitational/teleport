@@ -3860,7 +3860,8 @@ message WebSessionSpecV2 {
   // Pub is the SSH certificate for the user, marshaled in the authorized key
   // format.
   bytes Pub = 2 [(gogoproto.jsontag) = "pub"];
-  // Priv is the SSH private key for the user.
+  // Priv is the SSH private key for the user, in PEM-encoded PKCS#1 or PKCS#8
+  // format. If TLSPriv is unset, this is also the TLS private key.
   bytes Priv = 3 [(gogoproto.jsontag) = "priv,omitempty"];
   // TLSCert is the X.509 certificate for the user (PEM-encoded).
   bytes TLSCert = 4 [(gogoproto.jsontag) = "tls_cert,omitempty"];
@@ -3914,6 +3915,9 @@ message WebSessionSpecV2 {
   // Transient, only set in certain situations (such as the initial session
   // returned during login).
   TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
+  // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
+  // format. If unset, then Priv is used as both the SSH and TLS private key.
+  bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
 }
 
 // TrustedDeviceRequirement indicates whether access may be hindered by the lack
