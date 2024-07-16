@@ -28,9 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
+const EnvFeatureFlag = "VNETDAEMON"
+
 func execAdminProcess(ctx context.Context, config daemon.Config) error {
 	// TODO(ravicious): Remove the feature env var after the daemon gets implemented.
-	if os.Getenv("VNETDAEMON") == "yes" {
+	if os.Getenv(EnvFeatureFlag) == "yes" {
 		return trace.Wrap(daemon.RegisterAndCall(ctx, config))
 	}
 

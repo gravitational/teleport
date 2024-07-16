@@ -20,6 +20,7 @@
 package common
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -59,6 +60,8 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		<-cf.Context.Done()
 		processManager.Close()
 	}()
+
+	fmt.Println("VNet is ready.")
 
 	return trace.Wrap(processManager.Wait())
 }
