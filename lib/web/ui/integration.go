@@ -355,6 +355,28 @@ type AWSOIDCListSecurityGroupsResponse struct {
 	NextToken string `json:"nextToken,omitempty"`
 }
 
+// AWSOIDCListSubnetsRequest is a request to ListSubnets using the AWS OIDC Integration.
+type AWSOIDCListSubnetsRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// VPCID is the VPC to filter subnets by.
+	VPCID string `json:"vpcId"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListSubnetsResponse contains a list of VPC subnets and a next token if
+// more pages are available.
+type AWSOIDCListSubnetsResponse struct {
+	// Subnets contains the page of subnets
+	Subnets []awsoidc.Subnet `json:"subnets"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
 // AWSOIDCRequiredVPCSRequest is a request to get required (missing) VPC's and its subnets.
 type AWSOIDCRequiredVPCSRequest struct {
 	// Region is the AWS Region.
