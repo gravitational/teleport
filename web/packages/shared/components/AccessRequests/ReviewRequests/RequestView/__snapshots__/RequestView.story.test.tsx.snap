@@ -21,17 +21,17 @@ exports[`loaded approved role based request state 1`] = `
   border-top-right-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   flex: 1;
 }
 
-.c18 {
+.c19 {
   box-sizing: border-box;
   padding-top: 16px;
 }
 
-.c19 {
+.c20 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -40,7 +40,7 @@ exports[`loaded approved role based request state 1`] = `
   border-radius: 50%;
 }
 
-.c21 {
+.c23 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -49,14 +49,14 @@ exports[`loaded approved role based request state 1`] = `
   border-radius: 50%;
 }
 
-.c23 {
+.c25 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #0C143D;
 }
 
-.c24 {
+.c26 {
   box-sizing: border-box;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -65,19 +65,19 @@ exports[`loaded approved role based request state 1`] = `
   background-color: #0C143D;
 }
 
-.c28 {
+.c29 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #344179;
 }
 
-.c30 {
+.c31 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c31 {
+.c32 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -102,7 +102,7 @@ exports[`loaded approved role based request state 1`] = `
   margin-left: 4px;
 }
 
-.c15 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -133,8 +133,8 @@ exports[`loaded approved role based request state 1`] = `
   width: 60px;
 }
 
-.c15:focus-visible,
-.teleport-button__force-focus-visible .c15 {
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -142,22 +142,22 @@ exports[`loaded approved role based request state 1`] = `
   outline: none;
 }
 
-.c15:hover,
-.teleport-button__force-hover .c15 {
+.c16:hover,
+.teleport-button__force-hover .c16 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c15:active,
-.teleport-button__force-active .c15 {
+.c16:active,
+.teleport-button__force-active .c16 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c15:disabled {
+.c16:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -165,7 +165,7 @@ exports[`loaded approved role based request state 1`] = `
   cursor: auto;
 }
 
-.c29 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -196,8 +196,8 @@ exports[`loaded approved role based request state 1`] = `
   margin-top: 24px;
 }
 
-.c29:focus-visible,
-.teleport-button__force-focus-visible .c29 {
+.c30:focus-visible,
+.teleport-button__force-focus-visible .c30 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -205,22 +205,22 @@ exports[`loaded approved role based request state 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c29:hover,
-.teleport-button__force-hover .c29 {
+.c30:hover,
+.teleport-button__force-hover .c30 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c29:active,
-.teleport-button__force-active .c29 {
+.c30:active,
+.teleport-button__force-active .c30 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c29:disabled {
+.c30:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -228,21 +228,21 @@ exports[`loaded approved role based request state 1`] = `
   cursor: auto;
 }
 
-.c20 {
+.c21 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c22 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -314,61 +314,61 @@ exports[`loaded approved role based request state 1`] = `
   width: 10px;
 }
 
-.c9 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 4px;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.c26 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
   font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
+  margin-right: 4px;
 }
 
-.c27 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
   font-size: 12px;
-  line-height: 24px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 8px;
 }
 
-.c33 {
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
+  letter-spacing: 0.035px;
+}
+
+.c28 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 20px;
   margin-right: 8px;
 }
 
@@ -376,9 +376,10 @@ exports[`loaded approved role based request state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 16px;
 }
 
@@ -386,9 +387,10 @@ exports[`loaded approved role based request state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -401,13 +403,13 @@ exports[`loaded approved role based request state 1`] = `
   align-items: center;
 }
 
-.c8 {
+.c9 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
 }
 
-.c14 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -415,7 +417,7 @@ exports[`loaded approved role based request state 1`] = `
   gap: 8px;
 }
 
-.c25 {
+.c27 {
   display: flex;
   align-items: baseline;
 }
@@ -426,7 +428,7 @@ exports[`loaded approved role based request state 1`] = `
   justify-content: space-between;
 }
 
-.c17 {
+.c18 {
   position: absolute;
   height: calc(100% - 34px);
   width: 2px;
@@ -435,7 +437,7 @@ exports[`loaded approved role based request state 1`] = `
   border-left: 2px solid rgba(255,255,255,0.07);
 }
 
-.c16 {
+.c17 {
   position: relative;
   background-color: #222C59;
   padding: 24px;
@@ -456,7 +458,7 @@ exports[`loaded approved role based request state 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c32 {
+.c33 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -484,59 +486,63 @@ exports[`loaded approved role based request state 1`] = `
             >
               APPROVED
             </span>
-            <div
-              class="c0 c8"
+            <h3
+              class="c8"
             >
               <div
-                class="c9"
-                style="max-width: 120px;"
-                title="Sam"
-              >
-                Sam
-              </div>
-              <div
-                class="c10"
-                style="flex-shrink: 0; white-space: nowrap;"
-              >
-                is requesting roles:
-              </div>
-              <div
-                class="c0"
+                class="c0 c9"
               >
                 <div
-                  class="c11"
-                  kind="secondary"
+                  class="c10"
+                  style="max-width: 120px;"
+                  title="Sam"
                 >
-                  admin
+                  Sam
                 </div>
                 <div
                   class="c11"
-                  kind="secondary"
+                  style="flex-shrink: 0; white-space: nowrap;"
                 >
-                  kaco
+                  is requesting roles:
                 </div>
                 <div
-                  class="c11"
-                  kind="secondary"
+                  class="c0"
                 >
-                  ziuzzow
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    admin
+                  </div>
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    kaco
+                  </div>
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    ziuzzow
+                  </div>
+                </div>
+                <div
+                  class="c13"
+                >
+                  for 
+                  5 days
+                  , starting 
+                  12/01/2020 at 12:00AM
                 </div>
               </div>
-              <div
-                class="c12"
-              >
-                for 
-                5 days
-                , starting 
-                12/01/2020 at 12:00AM
-              </div>
-            </div>
+            </h3>
           </div>
           <div
-            class="c13 c14"
+            class="c14 c15"
           >
             <button
-              class="c15"
+              class="c16"
               fill="border"
               width="60px"
             >
@@ -545,22 +551,22 @@ exports[`loaded approved role based request state 1`] = `
           </div>
         </div>
         <div
-          class="c16"
+          class="c17"
           style="position: relative;"
         >
           <div
-            class="c17"
+            class="c18"
           />
           <div
-            class="c18 c6"
+            class="c19 c6"
             style="position: relative;"
           >
             <div
-              class="c19"
+              class="c20"
               style="display: flex;"
             >
               <span
-                class="c20 icon icon-chevroncircledown"
+                class="c21 icon icon-chevroncircledown"
                 color="text.muted"
               >
                 <svg
@@ -581,7 +587,7 @@ exports[`loaded approved role based request state 1`] = `
               </span>
             </div>
             <div
-              class="c0"
+              class="c22"
             >
               <b>
                 Sam
@@ -598,15 +604,15 @@ exports[`loaded approved role based request state 1`] = `
             class="c0"
           >
             <div
-              class="c18 c6"
+              class="c19 c6"
               style="position: relative;"
             >
               <div
-                class="c21"
+                class="c23"
                 style="display: flex;"
               >
                 <span
-                  class="c22 icon icon-circlecheck"
+                  class="c24 icon icon-circlecheck"
                   color="light"
                 >
                   <svg
@@ -627,7 +633,7 @@ exports[`loaded approved role based request state 1`] = `
                 </span>
               </div>
               <div
-                class="c0"
+                class="c22"
               >
                 <b>
                   alice
@@ -641,39 +647,39 @@ exports[`loaded approved role based request state 1`] = `
               </div>
             </div>
             <div
-              class="c23"
+              class="c25"
               style="position: relative;"
             >
               <div
-                class="c24 c25"
+                class="c26 c27"
               >
-                <div
-                  class="c26"
+                <h3
+                  class="c28"
                 >
                   alice
-                </div>
+                </h3>
                 <div
-                  class="c27"
+                  class="c13"
                 >
                   26 hours ago
                 </div>
               </div>
               <div
-                class="c28"
+                class="c29"
               >
                 Approving for developer role not admin. Admins access is not needed for this request.
               </div>
             </div>
             <div
-              class="c18 c6"
+              class="c19 c6"
               style="position: relative;"
             >
               <div
-                class="c21"
+                class="c23"
                 style="display: flex;"
               >
                 <span
-                  class="c22 icon icon-circlecheck"
+                  class="c24 icon icon-circlecheck"
                   color="light"
                 >
                   <svg
@@ -694,7 +700,7 @@ exports[`loaded approved role based request state 1`] = `
                 </span>
               </div>
               <div
-                class="c0"
+                class="c22"
               >
                 <b>
                   test-long-user-name@testing.com
@@ -711,23 +717,23 @@ exports[`loaded approved role based request state 1`] = `
         </div>
       </div>
       <button
-        class="c29"
+        class="c30"
         fill="filled"
       >
         Assume Roles
       </button>
     </div>
     <div
-      class="c30"
+      class="c31"
     >
       <div
-        class="c31 c1 c32"
+        class="c32 c1 c33"
       >
-        <div
-          class="c33"
+        <h3
+          class="c28"
         >
           Reviewers
-        </div>
+        </h3>
       </div>
       <div
         class="c34 c35 c36"
@@ -817,17 +823,17 @@ exports[`loaded denied role based request state 1`] = `
   border-top-right-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   flex: 1;
 }
 
-.c18 {
+.c19 {
   box-sizing: border-box;
   padding-top: 16px;
 }
 
-.c19 {
+.c20 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -836,14 +842,14 @@ exports[`loaded denied role based request state 1`] = `
   border-radius: 50%;
 }
 
-.c21 {
+.c23 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #0C143D;
 }
 
-.c22 {
+.c24 {
   box-sizing: border-box;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -852,13 +858,13 @@ exports[`loaded denied role based request state 1`] = `
   background-color: #0C143D;
 }
 
-.c26 {
+.c27 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #344179;
 }
 
-.c27 {
+.c28 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -867,13 +873,13 @@ exports[`loaded denied role based request state 1`] = `
   border-radius: 50%;
 }
 
-.c29 {
+.c30 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c30 {
+.c31 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -898,7 +904,7 @@ exports[`loaded denied role based request state 1`] = `
   margin-left: 4px;
 }
 
-.c15 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -929,8 +935,8 @@ exports[`loaded denied role based request state 1`] = `
   width: 60px;
 }
 
-.c15:focus-visible,
-.teleport-button__force-focus-visible .c15 {
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -938,22 +944,22 @@ exports[`loaded denied role based request state 1`] = `
   outline: none;
 }
 
-.c15:hover,
-.teleport-button__force-hover .c15 {
+.c16:hover,
+.teleport-button__force-hover .c16 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c15:active,
-.teleport-button__force-active .c15 {
+.c16:active,
+.teleport-button__force-active .c16 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c15:disabled {
+.c16:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -961,21 +967,21 @@ exports[`loaded denied role based request state 1`] = `
   cursor: auto;
 }
 
-.c20 {
+.c21 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c28 {
+.c29 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1047,61 +1053,61 @@ exports[`loaded denied role based request state 1`] = `
   width: 10px;
 }
 
-.c9 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 4px;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.c24 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
   font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
+  margin-right: 4px;
 }
 
-.c25 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
   font-size: 12px;
-  line-height: 24px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 8px;
 }
 
-.c32 {
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
+  letter-spacing: 0.035px;
+}
+
+.c26 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 20px;
   margin-right: 8px;
 }
 
@@ -1109,9 +1115,10 @@ exports[`loaded denied role based request state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 16px;
 }
 
@@ -1119,9 +1126,10 @@ exports[`loaded denied role based request state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -1134,13 +1142,13 @@ exports[`loaded denied role based request state 1`] = `
   align-items: center;
 }
 
-.c8 {
+.c9 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
 }
 
-.c14 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1148,7 +1156,7 @@ exports[`loaded denied role based request state 1`] = `
   gap: 8px;
 }
 
-.c23 {
+.c25 {
   display: flex;
   align-items: baseline;
 }
@@ -1159,7 +1167,7 @@ exports[`loaded denied role based request state 1`] = `
   justify-content: space-between;
 }
 
-.c17 {
+.c18 {
   position: absolute;
   height: calc(100% - 34px);
   width: 2px;
@@ -1168,7 +1176,7 @@ exports[`loaded denied role based request state 1`] = `
   border-left: 2px solid rgba(255,255,255,0.07);
 }
 
-.c16 {
+.c17 {
   position: relative;
   background-color: #222C59;
   padding: 24px;
@@ -1189,7 +1197,7 @@ exports[`loaded denied role based request state 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c31 {
+.c32 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -1217,53 +1225,57 @@ exports[`loaded denied role based request state 1`] = `
             >
               DENIED
             </span>
-            <div
-              class="c0 c8"
+            <h3
+              class="c8"
             >
               <div
-                class="c9"
-                style="max-width: 120px;"
-                title="Sam"
-              >
-                Sam
-              </div>
-              <div
-                class="c10"
-                style="flex-shrink: 0; white-space: nowrap;"
-              >
-                is requesting roles:
-              </div>
-              <div
-                class="c0"
+                class="c0 c9"
               >
                 <div
-                  class="c11"
-                  kind="secondary"
+                  class="c10"
+                  style="max-width: 120px;"
+                  title="Sam"
                 >
-                  admin
+                  Sam
                 </div>
                 <div
                   class="c11"
-                  kind="secondary"
+                  style="flex-shrink: 0; white-space: nowrap;"
                 >
-                  ruhh
+                  is requesting roles:
+                </div>
+                <div
+                  class="c0"
+                >
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    admin
+                  </div>
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    ruhh
+                  </div>
+                </div>
+                <div
+                  class="c13"
+                >
+                  for 
+                  4 days
+                  , starting 
+                  12/02/2020 at 12:00AM
                 </div>
               </div>
-              <div
-                class="c12"
-              >
-                for 
-                4 days
-                , starting 
-                12/02/2020 at 12:00AM
-              </div>
-            </div>
+            </h3>
           </div>
           <div
-            class="c13 c14"
+            class="c14 c15"
           >
             <button
-              class="c15"
+              class="c16"
               fill="border"
               width="60px"
             >
@@ -1272,22 +1284,22 @@ exports[`loaded denied role based request state 1`] = `
           </div>
         </div>
         <div
-          class="c16"
+          class="c17"
           style="position: relative;"
         >
           <div
-            class="c17"
+            class="c18"
           />
           <div
-            class="c18 c6"
+            class="c19 c6"
             style="position: relative;"
           >
             <div
-              class="c19"
+              class="c20"
               style="display: flex;"
             >
               <span
-                class="c20 icon icon-chevroncircledown"
+                class="c21 icon icon-chevroncircledown"
                 color="text.muted"
               >
                 <svg
@@ -1308,7 +1320,7 @@ exports[`loaded denied role based request state 1`] = `
               </span>
             </div>
             <div
-              class="c0"
+              class="c22"
             >
               <b>
                 Sam
@@ -1322,25 +1334,25 @@ exports[`loaded denied role based request state 1`] = `
             </div>
           </div>
           <div
-            class="c21"
+            class="c23"
             style="position: relative;"
           >
             <div
-              class="c22 c23"
+              class="c24 c25"
             >
-              <div
-                class="c24"
+              <h3
+                class="c26"
               >
                 Sam
-              </div>
+              </h3>
               <div
-                class="c25"
+                class="c13"
               >
                 35 minutes ago
               </div>
             </div>
             <div
-              class="c26"
+              class="c27"
             >
               Some short request reason
             </div>
@@ -1349,15 +1361,15 @@ exports[`loaded denied role based request state 1`] = `
             class="c0"
           >
             <div
-              class="c18 c6"
+              class="c19 c6"
               style="position: relative;"
             >
               <div
-                class="c27"
+                class="c28"
                 style="display: flex;"
               >
                 <span
-                  class="c28 icon icon-circlecross"
+                  class="c29 icon icon-circlecross"
                   color="light"
                 >
                   <svg
@@ -1378,7 +1390,7 @@ exports[`loaded denied role based request state 1`] = `
                 </span>
               </div>
               <div
-                class="c0"
+                class="c22"
               >
                 <b>
                   alice
@@ -1392,25 +1404,25 @@ exports[`loaded denied role based request state 1`] = `
               </div>
             </div>
             <div
-              class="c21"
+              class="c23"
               style="position: relative;"
             >
               <div
-                class="c22 c23"
+                class="c24 c25"
               >
-                <div
-                  class="c24"
+                <h3
+                  class="c26"
                 >
                   alice
-                </div>
+                </h3>
                 <div
-                  class="c25"
+                  class="c13"
                 >
                   26 hours ago
                 </div>
               </div>
               <div
-                class="c26"
+                class="c27"
               >
                 Not today
               </div>
@@ -1420,16 +1432,16 @@ exports[`loaded denied role based request state 1`] = `
       </div>
     </div>
     <div
-      class="c29"
+      class="c30"
     >
       <div
-        class="c30 c1 c31"
+        class="c31 c1 c32"
       >
-        <div
-          class="c32"
+        <h3
+          class="c26"
         >
           Reviewers
-        </div>
+        </h3>
       </div>
       <div
         class="c33 c34 c35"
@@ -1502,17 +1514,17 @@ exports[`loaded pending role based request state 1`] = `
   border-top-right-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   flex: 1;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   padding-top: 16px;
 }
 
-.c22 {
+.c23 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -1521,14 +1533,14 @@ exports[`loaded pending role based request state 1`] = `
   border-radius: 50%;
 }
 
-.c24 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #0C143D;
 }
 
-.c25 {
+.c27 {
   box-sizing: border-box;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -1537,37 +1549,37 @@ exports[`loaded pending role based request state 1`] = `
   background-color: #0C143D;
 }
 
-.c29 {
+.c30 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #344179;
 }
 
-.c30 {
+.c31 {
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
   border-color: #0C143D;
 }
 
-.c32 {
+.c33 {
   box-sizing: border-box;
   margin-bottom: 16px;
 }
 
-.c40 {
+.c41 {
   box-sizing: border-box;
   max-width: 500px;
   margin-bottom: 24px;
 }
 
-.c45 {
+.c46 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c46 {
+.c47 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -1592,7 +1604,7 @@ exports[`loaded pending role based request state 1`] = `
   margin-left: 4px;
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1623,8 +1635,8 @@ exports[`loaded pending role based request state 1`] = `
   width: 60px;
 }
 
-.c18:focus-visible,
-.teleport-button__force-focus-visible .c18 {
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -1632,22 +1644,22 @@ exports[`loaded pending role based request state 1`] = `
   outline: none;
 }
 
-.c18:hover,
-.teleport-button__force-hover .c18 {
+.c19:hover,
+.teleport-button__force-hover .c19 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c18:active,
-.teleport-button__force-active .c18 {
+.c19:active,
+.teleport-button__force-active .c19 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c18:disabled {
+.c19:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1655,7 +1667,7 @@ exports[`loaded pending role based request state 1`] = `
   cursor: auto;
 }
 
-.c44 {
+.c45 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1685,8 +1697,8 @@ exports[`loaded pending role based request state 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c44:focus-visible,
-.teleport-button__force-focus-visible .c44 {
+.c45:focus-visible,
+.teleport-button__force-focus-visible .c45 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -1694,22 +1706,22 @@ exports[`loaded pending role based request state 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c44:hover,
-.teleport-button__force-hover .c44 {
+.c45:hover,
+.teleport-button__force-hover .c45 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c44:active,
-.teleport-button__force-active .c44 {
+.c45:active,
+.teleport-button__force-active .c45 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c44:disabled {
+.c45:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1717,14 +1729,14 @@ exports[`loaded pending role based request state 1`] = `
   cursor: auto;
 }
 
-.c23 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1739,7 +1751,7 @@ exports[`loaded pending role based request state 1`] = `
   margin-right: 4px;
 }
 
-.c41 {
+.c42 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -1787,36 +1799,45 @@ exports[`loaded pending role based request state 1`] = `
   width: 10px;
 }
 
-.c9 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 4px;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
+  font-weight: 600;
+  margin-right: 4px;
 }
 
-.c12 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 8px;
 }
 
-.c15 {
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -1824,58 +1845,50 @@ exports[`loaded pending role based request state 1`] = `
   margin-left: 4px;
 }
 
-.c27 {
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
-}
-
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
+  font-size: 14px;
   font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
-.c31 {
+.c29 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 20px;
+  margin-right: 8px;
+}
+
+.c32 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin-right: 16px;
 }
 
-.c39 {
+.c40 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-}
-
-.c48 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin-right: 8px;
 }
 
 .c52 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 16px;
 }
 
@@ -1883,9 +1896,10 @@ exports[`loaded pending role based request state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -1898,13 +1912,13 @@ exports[`loaded pending role based request state 1`] = `
   align-items: center;
 }
 
-.c8 {
+.c9 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
 }
 
-.c14 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1912,12 +1926,12 @@ exports[`loaded pending role based request state 1`] = `
   gap: 8px;
 }
 
-.c26 {
+.c28 {
   display: flex;
   align-items: baseline;
 }
 
-.c33 {
+.c34 {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1929,7 +1943,7 @@ exports[`loaded pending role based request state 1`] = `
   justify-content: space-between;
 }
 
-.c42 {
+.c43 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
@@ -1946,58 +1960,58 @@ exports[`loaded pending role based request state 1`] = `
   resize: vertical;
 }
 
-.c42::placeholder {
+.c43::placeholder {
   color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
-.c42:hover,
-.c42:focus,
-.c42:active {
+.c43:hover,
+.c43:focus,
+.c43:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
-.c42:read-only {
+.c43:read-only {
   cursor: not-allowed;
 }
 
-.c42:disabled {
+.c43:disabled {
   color: rgba(255, 255, 255, 0.36);
   border-color: rgba(255, 255, 255, 0.36);
 }
 
-.c34 {
+.c35 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c37 {
+.c38 {
   display: flex;
   align-items: center;
   cursor: not-allowed;
 }
 
-.c35 {
+.c36 {
   margin: 0 8px 0 0;
   accent-color: #9F85FF;
   cursor: inherit;
 }
 
-.c36 {
+.c37 {
   opacity: 1;
 }
 
-.c38 {
+.c39 {
   opacity: 0.5;
 }
 
-.c43 {
+.c44 {
   font-size: 14px;
   min-height: 100px;
 }
 
-.c20 {
+.c21 {
   position: absolute;
   height: calc(100% - 34px);
   width: 2px;
@@ -2006,7 +2020,7 @@ exports[`loaded pending role based request state 1`] = `
   border-left: 2px solid rgba(255,255,255,0.07);
 }
 
-.c19 {
+.c20 {
   position: relative;
   background-color: #222C59;
   padding: 24px;
@@ -2015,11 +2029,11 @@ exports[`loaded pending role based request state 1`] = `
   border-bottom-right-radius: 16px;
 }
 
-.c16 {
+.c17 {
   font-style: italic;
 }
 
-.c17 {
+.c18 {
   line-height: normal;
 }
 
@@ -2035,7 +2049,7 @@ exports[`loaded pending role based request state 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c47 {
+.c48 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -2063,54 +2077,58 @@ exports[`loaded pending role based request state 1`] = `
             >
               PENDING
             </span>
-            <div
-              class="c0 c8"
+            <h3
+              class="c8"
             >
               <div
-                class="c9"
-                style="max-width: 120px;"
-                title="Sam"
-              >
-                Sam
-              </div>
-              <div
-                class="c10"
-                style="flex-shrink: 0; white-space: nowrap;"
-              >
-                is requesting roles:
-              </div>
-              <div
-                class="c0"
+                class="c0 c9"
               >
                 <div
-                  class="c11"
-                  kind="secondary"
+                  class="c10"
+                  style="max-width: 120px;"
+                  title="Sam"
                 >
-                  admin
+                  Sam
+                </div>
+                <div
+                  class="c11"
+                  style="flex-shrink: 0; white-space: nowrap;"
+                >
+                  is requesting roles:
+                </div>
+                <div
+                  class="c0"
+                >
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    admin
+                  </div>
+                </div>
+                <div
+                  class="c13"
+                >
+                  for 
+                  1 day
+                  , starting 
+                  12/05/2020 at 12:00AM
                 </div>
               </div>
-              <div
-                class="c12"
-              >
-                for 
-                1 day
-                , starting 
-                12/05/2020 at 12:00AM
-              </div>
-            </div>
+            </h3>
           </div>
           <div
-            class="c13 c14"
+            class="c14 c15"
           >
             <div
-              class="c15 c16 c17"
+              class="c16 c17 c18"
               font-size="0"
             >
               Request expires in 
               2 hours
             </div>
             <button
-              class="c18"
+              class="c19"
               fill="border"
               width="60px"
             >
@@ -2119,22 +2137,22 @@ exports[`loaded pending role based request state 1`] = `
           </div>
         </div>
         <div
-          class="c19"
+          class="c20"
           style="position: relative;"
         >
           <div
-            class="c20"
+            class="c21"
           />
           <div
-            class="c21 c6"
+            class="c22 c6"
             style="position: relative;"
           >
             <div
-              class="c22"
+              class="c23"
               style="display: flex;"
             >
               <span
-                class="c23 icon icon-chevroncircledown"
+                class="c24 icon icon-chevroncircledown"
                 color="text.muted"
               >
                 <svg
@@ -2155,7 +2173,7 @@ exports[`loaded pending role based request state 1`] = `
               </span>
             </div>
             <div
-              class="c0"
+              class="c25"
             >
               <b>
                 Sam
@@ -2169,93 +2187,93 @@ exports[`loaded pending role based request state 1`] = `
             </div>
           </div>
           <div
-            class="c24"
+            class="c26"
             style="position: relative;"
           >
             <div
-              class="c25 c26"
+              class="c27 c28"
             >
-              <div
-                class="c27"
+              <h3
+                class="c29"
               >
                 Sam
-              </div>
+              </h3>
               <div
-                class="c28"
+                class="c13"
               >
                 1 minute ago
               </div>
             </div>
             <div
-              class="c29"
+              class="c30"
             >
               Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
             </div>
           </div>
           <div
-            class="c30"
+            class="c31"
             style="position: relative;"
           >
             <div
-              class="c25"
+              class="c27"
             >
-              <div
-                class="c31"
+              <h3
+                class="c32"
               >
                 loggedInUsername
                  - add a review
-              </div>
+              </h3>
             </div>
             <div
-              class="c29"
+              class="c30"
             >
               <div
-                class="c32 c33"
+                class="c33 c34"
               >
                 <label
-                  class="c34"
+                  class="c35"
                 >
                   <input
                     checked=""
-                    class="c35"
+                    class="c36"
                     name="DENIED"
                     type="radio"
                     value="DENIED"
                   />
                   <span
-                    class="c36"
+                    class="c37"
                   >
                     Reject request
                   </span>
                 </label>
                 <label
-                  class="c34"
+                  class="c35"
                 >
                   <input
-                    class="c35"
+                    class="c36"
                     name="APPROVED"
                     type="radio"
                     value="APPROVED"
                   />
                   <span
-                    class="c36"
+                    class="c37"
                   >
                     Approve short-term access
                      (1 day)
                   </span>
                 </label>
                 <label
-                  class="c37"
+                  class="c38"
                 >
                   <input
-                    class="c35"
+                    class="c36"
                     disabled=""
                     name="PROMOTED"
                     type="radio"
                     value="PROMOTED"
                   />
                   <span
-                    class="c38"
+                    class="c39"
                   >
                     <div
                       class="c0 c1"
@@ -2264,7 +2282,7 @@ exports[`loaded pending role based request state 1`] = `
                         class="c0 c6"
                       >
                         <div
-                          class="c39"
+                          class="c40"
                         >
                           Approve long-term access via Access List with the requested resources
                         </div>
@@ -2274,21 +2292,21 @@ exports[`loaded pending role based request state 1`] = `
                 </label>
               </div>
               <div
-                class="c40"
+                class="c41"
               >
                 <label
-                  class="c41"
+                  class="c42"
                 >
                   Message
                   <textarea
                     autocomplete="off"
-                    class="c42 c43"
+                    class="c43 c44"
                     placeholder="Optional message..."
                   />
                 </label>
               </div>
               <button
-                class="c44"
+                class="c45"
                 fill="filled"
               >
                 Submit Review
@@ -2299,16 +2317,16 @@ exports[`loaded pending role based request state 1`] = `
       </div>
     </div>
     <div
-      class="c45"
+      class="c46"
     >
       <div
-        class="c46 c1 c47"
+        class="c47 c1 c48"
       >
-        <div
-          class="c48"
+        <h3
+          class="c29"
         >
           Reviewers
-        </div>
+        </h3>
       </div>
       <div
         class="c49 c50 c51"
@@ -2381,17 +2399,17 @@ exports[`loaded pending search based request state 1`] = `
   border-top-right-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   flex: 1;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   padding-top: 16px;
 }
 
-.c22 {
+.c23 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -2400,14 +2418,14 @@ exports[`loaded pending search based request state 1`] = `
   border-radius: 50%;
 }
 
-.c24 {
+.c26 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #0C143D;
 }
 
-.c25 {
+.c27 {
   box-sizing: border-box;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2416,13 +2434,13 @@ exports[`loaded pending search based request state 1`] = `
   background-color: #0C143D;
 }
 
-.c29 {
+.c30 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #344179;
 }
 
-.c30 {
+.c31 {
   box-sizing: border-box;
   padding-top: 0;
   padding-left: 16px;
@@ -2431,31 +2449,31 @@ exports[`loaded pending search based request state 1`] = `
   background-color: #344179;
 }
 
-.c34 {
+.c35 {
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
   border-color: #0C143D;
 }
 
-.c36 {
+.c37 {
   box-sizing: border-box;
   margin-bottom: 16px;
 }
 
-.c44 {
+.c45 {
   box-sizing: border-box;
   max-width: 500px;
   margin-bottom: 24px;
 }
 
-.c49 {
+.c50 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c50 {
+.c51 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -2480,7 +2498,7 @@ exports[`loaded pending search based request state 1`] = `
   margin-left: 4px;
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2511,8 +2529,8 @@ exports[`loaded pending search based request state 1`] = `
   width: 60px;
 }
 
-.c18:focus-visible,
-.teleport-button__force-focus-visible .c18 {
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -2520,22 +2538,22 @@ exports[`loaded pending search based request state 1`] = `
   outline: none;
 }
 
-.c18:hover,
-.teleport-button__force-hover .c18 {
+.c19:hover,
+.teleport-button__force-hover .c19 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c18:active,
-.teleport-button__force-active .c18 {
+.c19:active,
+.teleport-button__force-active .c19 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c18:disabled {
+.c19:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -2543,7 +2561,7 @@ exports[`loaded pending search based request state 1`] = `
   cursor: auto;
 }
 
-.c48 {
+.c49 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2573,8 +2591,8 @@ exports[`loaded pending search based request state 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c48:focus-visible,
-.teleport-button__force-focus-visible .c48 {
+.c49:focus-visible,
+.teleport-button__force-focus-visible .c49 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -2582,22 +2600,22 @@ exports[`loaded pending search based request state 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c48:hover,
-.teleport-button__force-hover .c48 {
+.c49:hover,
+.teleport-button__force-hover .c49 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c48:active,
-.teleport-button__force-active .c48 {
+.c49:active,
+.teleport-button__force-active .c49 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c48:disabled {
+.c49:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -2605,14 +2623,14 @@ exports[`loaded pending search based request state 1`] = `
   cursor: auto;
 }
 
-.c23 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -2627,7 +2645,7 @@ exports[`loaded pending search based request state 1`] = `
   margin-right: 4px;
 }
 
-.c45 {
+.c46 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -2675,36 +2693,45 @@ exports[`loaded pending search based request state 1`] = `
   width: 10px;
 }
 
-.c9 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 4px;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
+  font-weight: 600;
+  margin-right: 4px;
 }
 
-.c12 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 8px;
 }
 
-.c15 {
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -2712,58 +2739,50 @@ exports[`loaded pending search based request state 1`] = `
   margin-left: 4px;
 }
 
-.c27 {
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 8px;
-}
-
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
+  font-size: 14px;
   font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
-.c35 {
+.c29 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 20px;
+  margin-right: 8px;
+}
+
+.c36 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin-right: 16px;
 }
 
-.c43 {
+.c44 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-}
-
-.c52 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin-right: 8px;
 }
 
 .c56 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 16px;
 }
 
@@ -2771,9 +2790,10 @@ exports[`loaded pending search based request state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -2786,13 +2806,13 @@ exports[`loaded pending search based request state 1`] = `
   align-items: center;
 }
 
-.c8 {
+.c9 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
 }
 
-.c14 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -2800,12 +2820,12 @@ exports[`loaded pending search based request state 1`] = `
   gap: 8px;
 }
 
-.c26 {
+.c28 {
   display: flex;
   align-items: baseline;
 }
 
-.c37 {
+.c38 {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2817,7 +2837,7 @@ exports[`loaded pending search based request state 1`] = `
   justify-content: space-between;
 }
 
-.c46 {
+.c47 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
@@ -2834,27 +2854,27 @@ exports[`loaded pending search based request state 1`] = `
   resize: vertical;
 }
 
-.c46::placeholder {
+.c47::placeholder {
   color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
-.c46:hover,
-.c46:focus,
-.c46:active {
+.c47:hover,
+.c47:focus,
+.c47:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
-.c46:read-only {
+.c47:read-only {
   cursor: not-allowed;
 }
 
-.c46:disabled {
+.c47:disabled {
   color: rgba(255, 255, 255, 0.36);
   border-color: rgba(255, 255, 255, 0.36);
 }
 
-.c32 {
+.c33 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -2862,42 +2882,43 @@ exports[`loaded pending search based request state 1`] = `
   width: 100%;
 }
 
-.c32>thead>tr>th,
-.c32>tbody>tr>th,
-.c32>tfoot>tr>th,
-.c32>thead>tr>td,
-.c32>tbody>tr>td,
-.c32>tfoot>tr>td {
+.c33>thead>tr>th,
+.c33>tbody>tr>th,
+.c33>tfoot>tr>th,
+.c33>thead>tr>td,
+.c33>tbody>tr>td,
+.c33>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c32>thead>tr>th:first-child,
-.c32>tbody>tr>th:first-child,
-.c32>tfoot>tr>th:first-child,
-.c32>thead>tr>td:first-child,
-.c32>tbody>tr>td:first-child,
-.c32>tfoot>tr>td:first-child {
+.c33>thead>tr>th:first-child,
+.c33>tbody>tr>th:first-child,
+.c33>tfoot>tr>th:first-child,
+.c33>thead>tr>td:first-child,
+.c33>tbody>tr>td:first-child,
+.c33>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c32>thead>tr>th:last-child,
-.c32>tbody>tr>th:last-child,
-.c32>tfoot>tr>th:last-child,
-.c32>thead>tr>td:last-child,
-.c32>tbody>tr>td:last-child,
-.c32>tfoot>tr>td:last-child {
+.c33>thead>tr>th:last-child,
+.c33>tbody>tr>th:last-child,
+.c33>tfoot>tr>th:last-child,
+.c33>thead>tr>td:last-child,
+.c33>tbody>tr>td:last-child,
+.c33>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c32>tbody>tr>td {
+.c33>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c32>thead>tr>th {
+.c33>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -2906,11 +2927,11 @@ exports[`loaded pending search based request state 1`] = `
   white-space: nowrap;
 }
 
-.c32>thead>tr>th svg {
+.c33>thead>tr>th svg {
   height: 12px;
 }
 
-.c32>tbody>tr>td {
+.c33>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2918,18 +2939,18 @@ exports[`loaded pending search based request state 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c32 tbody tr {
+.c33 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c32 tbody tr:hover {
+.c33 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c32 tbody tr:hover:after {
+.c33 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -2940,42 +2961,42 @@ exports[`loaded pending search based request state 1`] = `
   height: 100%;
 }
 
-.c32 tbody tr:hover +tr {
+.c33 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c38 {
+.c39 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c41 {
+.c42 {
   display: flex;
   align-items: center;
   cursor: not-allowed;
 }
 
-.c39 {
+.c40 {
   margin: 0 8px 0 0;
   accent-color: #9F85FF;
   cursor: inherit;
 }
 
-.c40 {
+.c41 {
   opacity: 1;
 }
 
-.c42 {
+.c43 {
   opacity: 0.5;
 }
 
-.c47 {
+.c48 {
   font-size: 14px;
   min-height: 100px;
 }
 
-.c20 {
+.c21 {
   position: absolute;
   height: calc(100% - 34px);
   width: 2px;
@@ -2984,15 +3005,15 @@ exports[`loaded pending search based request state 1`] = `
   border-left: 2px solid rgba(255,255,255,0.07);
 }
 
-.c33 {
+.c34 {
   width: 90%;
 }
 
-.c33>tbody>tr>td {
+.c34>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c19 {
+.c20 {
   position: relative;
   background-color: #222C59;
   padding: 24px;
@@ -3001,11 +3022,11 @@ exports[`loaded pending search based request state 1`] = `
   border-bottom-right-radius: 16px;
 }
 
-.c16 {
+.c17 {
   font-style: italic;
 }
 
-.c17 {
+.c18 {
   line-height: normal;
 }
 
@@ -3017,7 +3038,7 @@ exports[`loaded pending search based request state 1`] = `
   background: #344179;
 }
 
-.c31 {
+.c32 {
   margin: 0 auto;
 }
 
@@ -3025,7 +3046,7 @@ exports[`loaded pending search based request state 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c51 {
+.c52 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -3053,54 +3074,58 @@ exports[`loaded pending search based request state 1`] = `
             >
               PENDING
             </span>
-            <div
-              class="c0 c8"
+            <h3
+              class="c8"
             >
               <div
-                class="c9"
-                style="max-width: 120px;"
-                title="Sam"
-              >
-                Sam
-              </div>
-              <div
-                class="c10"
-                style="flex-shrink: 0; white-space: nowrap;"
-              >
-                is requesting roles:
-              </div>
-              <div
-                class="c0"
+                class="c0 c9"
               >
                 <div
-                  class="c11"
-                  kind="secondary"
+                  class="c10"
+                  style="max-width: 120px;"
+                  title="Sam"
                 >
-                  test
+                  Sam
+                </div>
+                <div
+                  class="c11"
+                  style="flex-shrink: 0; white-space: nowrap;"
+                >
+                  is requesting roles:
+                </div>
+                <div
+                  class="c0"
+                >
+                  <div
+                    class="c12"
+                    kind="secondary"
+                  >
+                    test
+                  </div>
+                </div>
+                <div
+                  class="c13"
+                >
+                  for 
+                  2 days
+                  , starting 
+                  12/04/2020 at 12:00AM
                 </div>
               </div>
-              <div
-                class="c12"
-              >
-                for 
-                2 days
-                , starting 
-                12/04/2020 at 12:00AM
-              </div>
-            </div>
+            </h3>
           </div>
           <div
-            class="c13 c14"
+            class="c14 c15"
           >
             <div
-              class="c15 c16 c17"
+              class="c16 c17 c18"
               font-size="0"
             >
               Request expires in 
               1 hour
             </div>
             <button
-              class="c18"
+              class="c19"
               fill="border"
               width="60px"
             >
@@ -3109,22 +3134,22 @@ exports[`loaded pending search based request state 1`] = `
           </div>
         </div>
         <div
-          class="c19"
+          class="c20"
           style="position: relative;"
         >
           <div
-            class="c20"
+            class="c21"
           />
           <div
-            class="c21 c6"
+            class="c22 c6"
             style="position: relative;"
           >
             <div
-              class="c22"
+              class="c23"
               style="display: flex;"
             >
               <span
-                class="c23 icon icon-chevroncircledown"
+                class="c24 icon icon-chevroncircledown"
                 color="text.muted"
               >
                 <svg
@@ -3145,7 +3170,7 @@ exports[`loaded pending search based request state 1`] = `
               </span>
             </div>
             <div
-              class="c0"
+              class="c25"
             >
               <b>
                 Sam
@@ -3159,33 +3184,33 @@ exports[`loaded pending search based request state 1`] = `
             </div>
           </div>
           <div
-            class="c24"
+            class="c26"
             style="position: relative;"
           >
             <div
-              class="c25 c26"
+              class="c27 c28"
             >
-              <div
-                class="c27"
+              <h3
+                class="c29"
               >
                 Sam
-              </div>
+              </h3>
               <div
-                class="c28"
+                class="c13"
               >
                 1 minute ago
               </div>
             </div>
             <div
-              class="c29"
+              class="c30"
             >
               Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
             </div>
             <div
-              class="c30 c31"
+              class="c31 c32"
             >
               <table
-                class="c32 c33"
+                class="c33 c34"
               >
                 <thead>
                   <tr>
@@ -3289,69 +3314,69 @@ exports[`loaded pending search based request state 1`] = `
             </div>
           </div>
           <div
-            class="c34"
+            class="c35"
             style="position: relative;"
           >
             <div
-              class="c25"
+              class="c27"
             >
-              <div
-                class="c35"
+              <h3
+                class="c36"
               >
                 loggedInUsername
                  - add a review
-              </div>
+              </h3>
             </div>
             <div
-              class="c29"
+              class="c30"
             >
               <div
-                class="c36 c37"
+                class="c37 c38"
               >
                 <label
-                  class="c38"
+                  class="c39"
                 >
                   <input
                     checked=""
-                    class="c39"
+                    class="c40"
                     name="DENIED"
                     type="radio"
                     value="DENIED"
                   />
                   <span
-                    class="c40"
+                    class="c41"
                   >
                     Reject request
                   </span>
                 </label>
                 <label
-                  class="c38"
+                  class="c39"
                 >
                   <input
-                    class="c39"
+                    class="c40"
                     name="APPROVED"
                     type="radio"
                     value="APPROVED"
                   />
                   <span
-                    class="c40"
+                    class="c41"
                   >
                     Approve short-term access
                      (2 days)
                   </span>
                 </label>
                 <label
-                  class="c41"
+                  class="c42"
                 >
                   <input
-                    class="c39"
+                    class="c40"
                     disabled=""
                     name="PROMOTED"
                     type="radio"
                     value="PROMOTED"
                   />
                   <span
-                    class="c42"
+                    class="c43"
                   >
                     <div
                       class="c0 c1"
@@ -3360,7 +3385,7 @@ exports[`loaded pending search based request state 1`] = `
                         class="c0 c6"
                       >
                         <div
-                          class="c43"
+                          class="c44"
                         >
                           Approve long-term access via Access List with the requested resources
                         </div>
@@ -3370,21 +3395,21 @@ exports[`loaded pending search based request state 1`] = `
                 </label>
               </div>
               <div
-                class="c44"
+                class="c45"
               >
                 <label
-                  class="c45"
+                  class="c46"
                 >
                   Message
                   <textarea
                     autocomplete="off"
-                    class="c46 c47"
+                    class="c47 c48"
                     placeholder="Optional message..."
                   />
                 </label>
               </div>
               <button
-                class="c48"
+                class="c49"
                 fill="filled"
               >
                 Submit Review
@@ -3395,16 +3420,16 @@ exports[`loaded pending search based request state 1`] = `
       </div>
     </div>
     <div
-      class="c49"
+      class="c50"
     >
       <div
-        class="c50 c1 c51"
+        class="c51 c1 c52"
       >
-        <div
-          class="c52"
+        <h3
+          class="c29"
         >
           Reviewers
-        </div>
+        </h3>
       </div>
       <div
         class="c53 c54 c55"

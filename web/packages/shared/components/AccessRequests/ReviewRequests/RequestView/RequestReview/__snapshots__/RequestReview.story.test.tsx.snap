@@ -136,7 +136,7 @@ exports[`failed state 1`] = `
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 20px;
   margin-right: 16px;
 }
 
@@ -237,12 +237,12 @@ exports[`failed state 1`] = `
     <div
       class="c1"
     >
-      <div
+      <h3
         class="c2"
       >
         loggedInUsername
          - add a review
-      </div>
+      </h3>
     </div>
     <div
       class="c3"
@@ -457,7 +457,7 @@ exports[`loaded state 1`] = `
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 20px;
   margin-right: 16px;
 }
 
@@ -558,12 +558,12 @@ exports[`loaded state 1`] = `
     <div
       class="c1"
     >
-      <div
+      <h3
         class="c2"
       >
         loggedInUsername
          - add a review
-      </div>
+      </h3>
     </div>
     <div
       class="c3"

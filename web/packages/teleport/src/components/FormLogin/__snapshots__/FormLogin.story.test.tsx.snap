@@ -2740,9 +2740,12 @@ exports[`no login enabled 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+p+.c5 {
+  margin-top: 16px;
   margin-left: 24px;
   margin-right: 24px;
 }
@@ -2762,11 +2765,11 @@ exports[`no login enabled 1`] = `
   >
     Login has not been enabled
   </div>
-  <div
-    class="c4"
+  <p
+    class="c4 c5"
   >
     The ability to login has not been enabled. Please contact your system administrator for more information.
-  </div>
+  </p>
 </div>
 `;
 

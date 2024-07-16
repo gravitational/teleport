@@ -452,6 +452,7 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -1889,9 +1890,10 @@ exports[`loaded state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c40 {
@@ -1977,6 +1979,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -3453,9 +3456,10 @@ exports[`success state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 14px;
-  line-height: 24px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.014px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -3527,7 +3531,7 @@ exports[`success state 1`] = `
         <div
           class="c1"
         >
-          <div
+          <header
             class="c4"
           >
             <h2
@@ -3535,7 +3539,7 @@ exports[`success state 1`] = `
             >
               Resources Requested Successfully
             </h2>
-            <div
+            <p
               class="c6"
               color="text.slightlyMuted"
             >
@@ -3543,8 +3547,8 @@ exports[`success state 1`] = `
               4
                
               resources
-            </div>
-          </div>
+            </p>
+          </header>
           <div
             class="c7 c8"
           >
