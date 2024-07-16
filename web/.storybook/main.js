@@ -35,7 +35,7 @@ const stories = [
   '../packages/teleport/src/**/*.story.@(js|jsx|ts|tsx)',
   '../packages/teleterm/src/**/*.story.@(js|jsx|ts|tsx)',
   '../packages/design/src/**/*.story.@(js|jsx|ts|tsx)',
-  '../packages/shared/**/*.story.@(js|jsx|ts|tsx)',
+  '../packages/shared/@(components|hooks)/**/*.story.@(js|jsx|ts|tsx)',
 ];
 
 const tsconfigPath = path.join(__dirname, '../../tsconfig.json');
