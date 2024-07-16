@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build vnetdaemon
+// +build vnetdaemon
+
 package daemon
 
 // #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
@@ -28,6 +31,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -44,13 +48,14 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
-func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func RegisterAndCall(ctx context.Context, config Config) error {
 	bundlePath, err := bundlePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	log.DebugContext(ctx, "Registering (if needed) and calling daemon", "bundle_path", bundlePath)
 	initialStatus := daemonStatus(bundlePath)
+
 	// If the status is equal to "requires approval" before RegisterAndCall called register, it means
 	// that it's not the first time the user tries to start the daemon. In that case, macOS is not
 	// going to show the notification about a new login item. Instead, we just open the login items
@@ -74,7 +79,14 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		}
 	}
 
-	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
+	if err := startByCalling(ctx, bundlePath, config); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(ravicious): Implement monitoring the state of the daemon.
+	// Meanwhile, simply block until ctx is canceled.
+	<-ctx.Done()
+	return trace.Wrap(ctx.Err())
 }
 
 func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
@@ -206,4 +218,64 @@ func bundlePath() (string, error) {
 	}
 
 	return strings.TrimSuffix(dir, appBundleSuffix), nil
+}
+
+func startByCalling(ctx context.Context, bundlePath string, config Config) error {
+	// C.StartVnet might hang if the daemon cannot be successfully spawned.
+	const daemonStartTimeout = 20 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, daemonStartTimeout,
+		errors.New("could not connect to the VNet daemon within the timeout"))
+	defer cancel()
+
+	defer C.InvalidateDaemonClient()
+
+	errC := make(chan error, 1)
+
+	go func() {
+		var pinner runtime.Pinner
+		defer pinner.Unpin()
+
+		req := C.StartVnetRequest{
+			bundle_path: C.CString(bundlePath),
+			vnet_config: &C.VnetConfig{
+				socket_path: C.CString(config.SocketPath),
+				ipv6_prefix: C.CString(config.IPv6Prefix),
+				dns_addr:    C.CString(config.DNSAddr),
+				home_path:   C.CString(config.HomePath),
+			},
+		}
+		defer func() {
+			C.free(unsafe.Pointer(req.bundle_path))
+			C.free(unsafe.Pointer(req.vnet_config.socket_path))
+			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
+			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
+			C.free(unsafe.Pointer(req.vnet_config.home_path))
+		}()
+		// Structs passed directly as arguments to cgo functions are automatically pinned.
+		// However, structs within structs have to be pinned by hand.
+		pinner.Pin(req.vnet_config)
+
+		var res C.StartVnetResult
+		defer func() {
+			C.free(unsafe.Pointer(res.error_domain))
+			C.free(unsafe.Pointer(res.error_description))
+		}()
+
+		// This call gets unblocked when C.InvalidateDaemonClient is called when startByCalling exits.
+		C.StartVnet(&req, &res)
+
+		if !res.ok {
+			errC <- trace.Errorf("could not start VNet daemon: %v (%v)", C.GoString(res.error_description), C.GoString(res.error_domain))
+			return
+		}
+
+		errC <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(context.Cause(ctx))
+	case err := <-errC:
+		return trace.Wrap(err, "connecting to the VNet daemon")
+	}
 }
