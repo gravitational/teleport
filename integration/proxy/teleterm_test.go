@@ -563,7 +563,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway, wantKubeconfigPath string) {
 	t.Helper()
 
-	cmds, err := daemonService.GetGatewayCLICommand(gw)
+	cmds, err := daemonService.GetGatewayCLICommand(context.Background(), gw)
 	require.NoError(t, err)
 	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Exec.Env)
 	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Preview.Env)
