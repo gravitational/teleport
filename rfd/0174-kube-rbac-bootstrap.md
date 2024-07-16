@@ -185,6 +185,30 @@ message KubeProvisionSpec {
   // role_bindings contains definitions for RoleBinding Kubernetes resources to provision.
   repeated RoleBinding role_bindings = 4;
 }
+
+// KubeProvisionService is a service that provides methods to manage KubeProvisions.
+service KubeProvisionService {
+  // CreateKubeProvision creates a new KubeProvision.
+  rpc CreateKubeProvision(CreateKubeProvisionRequest) returns (KubeProvision);
+  
+  // GetKubeProvision gets a KubeProvision by name.
+  rpc GetKubeProvision(GetKubeProvisionRequest) returns (KubeProvision);
+  
+  // ListKubeProvisions returns a list of KubeProvisions. It supports pagination.
+  rpc ListKubeProvisions(ListKubeProvisionsRequest) returns (ListKubeProvisionsResponse);
+  
+  // UpdateKubeProvision updates an existing KubeProvision.
+  rpc UpdateKubeProvision(UpdateKubeProvisionRequest) returns (KubeProvision);
+  
+  // UpsertKubeProvision upserts a KubeProvision.
+  rpc UpsertKubeProvision(UpsertKubeProvisionRequest) returns (KubeProvision);
+  
+  // DeleteKubeProvision deletes a KubeProvision.
+  rpc DeleteKubeProvision(DeleteKubeProvisionRequest) returns (google.protobuf.Empty);
+  
+  // DeleteAllKubeProvisions removes all KubeProvisions.
+  rpc DeleteAllKubeProvisions(DeleteAllKubeProvisionsRequest) returns (google.protobuf.Empty);
+}
 ```
 
 Every five minutes we will run a reconciliation loop that will compare the current state on Kubernetes clusters under
