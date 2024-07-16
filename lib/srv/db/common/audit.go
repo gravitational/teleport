@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -88,6 +89,8 @@ type AuditConfig struct {
 	Database types.Database
 	// Component is the component in use.
 	Component string
+	// Clock used to control time.
+	Clock clockwork.Clock
 }
 
 // Check validates the config.
@@ -103,6 +106,9 @@ func (c *AuditConfig) Check() error {
 	}
 	if c.Component == "" {
 		c.Component = "db:audit"
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -140,6 +146,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			Success: true,
 		},
 	}
+	event.SetTime(session.StartTime)
 
 	// If the database session wasn't started successfully, emit
 	// a failure event with error details.
@@ -156,14 +163,20 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 
 // OnSessionEnd emits an audit event when database session ends.
 func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
-	a.EmitEvent(ctx, &events.DatabaseSessionEnd{
+	event := &events.DatabaseSessionEnd{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionEndEvent,
 			libevents.DatabaseSessionEndCode),
 		UserMetadata:     MakeUserMetadata(session),
 		SessionMetadata:  MakeSessionMetadata(session),
 		DatabaseMetadata: MakeDatabaseMetadata(session),
-	})
+		StartTime:        session.StartTime,
+	}
+	endTime := a.cfg.Clock.Now()
+	event.SetTime(endTime)
+	event.EndTime = endTime
+
+	a.EmitEvent(ctx, event)
 }
 
 // OnQuery emits an audit event when a database query is executed.
