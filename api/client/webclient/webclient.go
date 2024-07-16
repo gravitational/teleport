@@ -446,6 +446,8 @@ type SAMLSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
+	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
+	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.
