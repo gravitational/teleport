@@ -2,9 +2,6 @@
 title: Discover GitLab Access Patterns with Teleport Policy
 description: Describes how to syncronize GitLab access patterns using Teleport Policy and Access Graph.
 ---
-Teleport Policy streamlines and centralizes access management across your entire infrastructure, allowing you to view
-access relationships within seconds. You can see unified, up-to-date relationships and policies between all users, groups,
-and computing resources.
 
 With Teleport Policy's Access Graph, you gain insights into access patterns within your GitLab account. By scanning all
 permissions, users, groups, and projects, it provides a visual representation to help enhance the permission model within
@@ -14,7 +11,7 @@ your GitLab environment. This functionality enables you to answer queries such a
 - Which users have write permissions to projects?
 
 Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
-available to Teleport Enterprise customers.
+available to Teleport Enterprise and Teleport Cloud customers.
 
 After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
 under the Permission Management section.
@@ -53,8 +50,9 @@ graphical representation thereof.
 - For self-hosted clusters, a running Access Graph node v1.21.4 or later.
 Check [Access Graph page](../teleport-policy/getting-started-policy.mdx) for details on
 how to set up Access Graph.
-- The node running the Access Graph service must be reachable
+- For self-hosted clusters, the node running the Access Graph service must be reachable
 from Teleport Auth Service.
+- A GitLab instance running GitLab v9.0 or later.
 
 ## Step 1/3. Create GitLab token
 
@@ -63,7 +61,8 @@ To set up the GitLab integration, you'll need to create a GitLab token with the 
 - `read_api`
 
 Navigate to your GitLab instance, access the User Settings, and select the Access Tokens option.
-Create a new token with the `read_api` scope and copy the generated token.
+Create a new token with the `read_api` scope and copy the generated token. For more information, refer to the
+[GitLab documentation](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html).
 
 The importer will use this token to fetch the necessary resources from your GitLab instance.
 
@@ -101,6 +100,38 @@ The graph representation will show the relationships between users, groups, and 
 
 Users can have permissions to access a Group or Project. When a user has access to a Group, they inherit permissions
 to all projects and subprojects within that group.
+
+You can view the permissions granted to users, groups, and projects by clicking on the respective nodes in the graph.
+
+For example, to view the permissions granted to a user, click on the user node and select `View Access` from the context menu.
+This will display the permissions granted to the user and the resources they have access to.
+
+You can also run queries to fetch specific information from the Access Graph, such as:
+
+### Fetch All Projects Accessible to a User
+
+The following query fetches all projects accessible to a user <Var name="user" />:
+
+```sql
+SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='GITLAB'
+```
+
+Additionally, you filter projects by the user's access level, `owner`, `maintainer`, `developer`, `guest`, or `reporter`
+by running the following query:
+
+```sql
+SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='GITLAB' AND action='owner'
+```
+
+Change the `action` parameter to `maintainer`, `developer`, `guest`, or `reporter` to fetch the respective projects.
+
+### Fetch All Users with Write Access to a Project
+
+The following query fetches all users with read/write access to a project named <Var name="project" />:
+
+```sql
+SELECT * FROM access_path WHERE "resource" = '<Var name="project" />' AND source='GITLAB'
+```
 
 ## Troubleshooting
 
