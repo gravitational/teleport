@@ -217,36 +217,6 @@ func currentSchedule() string {
 	)
 }
 
-// TestMissingInstaller verifies that the upgrader refuses to run without an explicitly
-// configured installer.
-func TestMissingInstaller(t *testing.T) {
-	// tc1 covers the case of installer file being empty (or containing only comments)
-	tc1 := testCase{
-		dir: t.TempDir(),
-		cfg: map[string]string{
-			"installer": "",
-		},
-	}
-
-	out, err := tc1.Run()
-	require.NoError(t, err)
-	require.False(t, out.success)
-	require.Contains(t, out.stderr, "missing required config")
-
-	// tc2 covers the case of installer file being completely missing
-	tc2 := testCase{
-		dir: t.TempDir(),
-		exclude: []string{
-			"installer",
-		},
-	}
-
-	out, err = tc2.Run()
-	require.NoError(t, err)
-	require.False(t, out.success)
-	require.Contains(t, out.stderr, "missing required config")
-}
-
 // TestMissingEndpoint verifies that he upgrader refuses to run without a valid endpoint
 // configured.
 func TestMissingEndpoint(t *testing.T) {

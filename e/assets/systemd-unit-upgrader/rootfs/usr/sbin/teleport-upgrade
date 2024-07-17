@@ -599,6 +599,41 @@ ensure_version_lock() {
     esac
 }
 
+# installer identifies the package manager to be used.
+installer() {
+    if [[ ! -f "/etc/os-release" ]]; then
+        echo "none"
+        return 0
+    fi
+
+    source "/etc/os-release"
+    case "${ID}" in
+        "debian" | "ubuntu" | "kali" | "linuxmint" | "pop" | "raspian" | "neon" | "zorin" | "parrot" | "elementary")
+            echo "apt"
+            ;;
+        "centos" | "rhel" | "amzn")
+            echo "yum"
+            ;;
+        "sles")
+            echo "zypper"
+            ;;
+        *)
+            echo "none"
+            ;;
+    esac
+}
+
+# Until https://github.com/gravitational/teleport/issues/41789 is resolved,
+# installer_kind needs to be verified and corrected in cases when the wrong
+# package is installed.
+if [[ "${installer_kind}" != "nop" ]] && ! command -v ${installer_kind} &> /dev/null; then
+    log_warn "configured installer '${installer_kind}' is unavailable. attempting to identify installer from /etc/os-release"
+    installer_kind="$(installer)"
+    if [[ "${installer_kind}" != "none" ]]; then
+        log_info "installer config has been reconfigured to '${installer_kind}'"
+    fi
+fi
+
 # the teleport package should be version locked at all times.
 ensure_version_lock || true
 
@@ -649,7 +684,7 @@ restart_mode="$(get_conf restart-mode reload)"
 if [[ "$force_run" == "yes" ]]; then
     if ! do_upgrade; then
         log_warn "upgrade attempt failed for $package_name=$target_version."
-        exit 1 
+        exit 1
     fi
     exit 0
 fi
