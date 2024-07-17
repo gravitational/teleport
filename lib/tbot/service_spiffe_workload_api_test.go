@@ -35,6 +35,8 @@ func ptr[T any](v T) *T {
 }
 
 func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
+	// This test is more for overall behaviour. Use the _field test for
+	// each individual field.
 	ctx := context.Background()
 	log := utils.NewSlogLoggerForTests()
 	tests := []struct {
@@ -124,7 +126,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					},
 				},
 			},
-			want: []config.SVIDRequest{},
+			want: nil,
 		},
 		{
 			name: "no matching rules with attestation",
@@ -268,6 +270,156 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := filterSVIDRequests(ctx, log, tt.in, tt.att)
 			assert.Empty(t, gocmp.Diff(tt.want, got))
+		})
+	}
+}
+
+func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+	tests := []struct {
+		field       string
+		matching    workloadattest.Attestation
+		nonMatching workloadattest.Attestation
+		rule        config.SVIDRequestRule
+	}{
+		{
+			field: "unix.pid",
+			rule: config.SVIDRequestRule{
+				Unix: config.SVIDRequestRuleUnix{
+					PID: ptr(1000),
+				},
+			},
+			matching: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					PID:      1000,
+				},
+			},
+			nonMatching: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					PID:      200,
+				},
+			},
+		},
+		{
+			field: "unix.uid",
+			rule: config.SVIDRequestRule{
+				Unix: config.SVIDRequestRuleUnix{
+					UID: ptr(1000),
+				},
+			},
+			matching: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					UID:      1000,
+				},
+			},
+			nonMatching: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					UID:      200,
+				},
+			},
+		},
+		{
+			field: "unix.gid",
+			rule: config.SVIDRequestRule{
+				Unix: config.SVIDRequestRuleUnix{
+					GID: ptr(1000),
+				},
+			},
+			matching: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					GID:      1000,
+				},
+			},
+			nonMatching: workloadattest.Attestation{
+				Unix: workloadattest.UnixAttestation{
+					Attested: true,
+					GID:      200,
+				},
+			},
+		},
+		{
+			field: "unix.namespace",
+			rule: config.SVIDRequestRule{
+				Kubernetes: config.SVIDRequestRuleKubernetes{
+					Namespace: "foo",
+				},
+			},
+			matching: workloadattest.Attestation{
+				Kubernetes: workloadattest.KubernetesAttestation{
+					Attested:  true,
+					Namespace: "foo",
+				},
+			},
+			nonMatching: workloadattest.Attestation{
+				Kubernetes: workloadattest.KubernetesAttestation{
+					Attested:  true,
+					Namespace: "bar",
+				},
+			},
+		},
+		{
+			field: "kubernetes.service_account",
+			rule: config.SVIDRequestRule{
+				Kubernetes: config.SVIDRequestRuleKubernetes{
+					ServiceAccount: "foo",
+				},
+			},
+			matching: workloadattest.Attestation{
+				Kubernetes: workloadattest.KubernetesAttestation{
+					Attested:       true,
+					ServiceAccount: "foo",
+				},
+			},
+			nonMatching: workloadattest.Attestation{
+				Kubernetes: workloadattest.KubernetesAttestation{
+					Attested:       true,
+					ServiceAccount: "bar",
+				},
+			},
+		},
+		{
+			field: "kubernetes.pod_name",
+			rule: config.SVIDRequestRule{
+				Kubernetes: config.SVIDRequestRuleKubernetes{
+					PodName: "foo",
+				},
+			},
+			matching: workloadattest.Attestation{
+				Kubernetes: workloadattest.KubernetesAttestation{
+					Attested: true,
+					PodName:  "foo",
+				},
+			},
+			nonMatching: workloadattest.Attestation{
+				Kubernetes: workloadattest.KubernetesAttestation{
+					Attested: true,
+					PodName:  "bar",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.field, func(t *testing.T) {
+			rules := []config.SVIDRequestWithRules{
+				{
+					SVIDRequest: config.SVIDRequest{
+						Path: "/foo",
+					},
+					Rules: []config.SVIDRequestRule{tt.rule},
+				},
+			}
+			t.Run("matching", func(t *testing.T) {
+				assert.Len(t, filterSVIDRequests(ctx, log, rules, tt.matching), 1)
+			})
+			t.Run("non-matching", func(t *testing.T) {
+				assert.Empty(t, filterSVIDRequests(ctx, log, rules, tt.nonMatching))
+			})
 		})
 	}
 }

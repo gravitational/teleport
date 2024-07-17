@@ -79,10 +79,6 @@ type SVIDRequestRuleKubernetes struct {
 	// be issued this SVID.
 	// If unspecified, the pod name is not checked.
 	PodName string `yaml:"pod_name,omitempty"`
-	// ContainerName is the Kubernetes container name that a workload must be
-	// running in to be issued this SVID.
-	// If unspecified, the container name is not checked.
-	ContainerName string `yaml:"container_name,omitempty"`
 }
 
 // SVIDRequestRule is an individual workload attestation rule. All values

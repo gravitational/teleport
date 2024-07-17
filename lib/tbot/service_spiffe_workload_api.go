@@ -427,6 +427,11 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 
 // filterSVIDRequests filters the SVID requests based on the workload
 // attestation.
+//
+// TODO(noah): In a future PR, we need to totally refactor this to a more
+// flexible rules engine otherwise this is going to get absurdly large as
+// we add more types. Ideally, something that would be compatible with a
+// predicate language would be great.
 func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
@@ -450,33 +455,91 @@ func filterSVIDRequests(
 		match := false
 		for _, rule := range req.Rules {
 			log := log.With("rule", rule)
+			logMismatch := func(field string, want any, got any) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", field,
+					"want", want,
+					"got", got,
+				)
+			}
+			logNotAttested := func(requiredAttestor string) {
+				log.DebugContext(
+					ctx,
+					"Workload did not complete attestation required for this rule",
+					"required_attestor", requiredAttestor,
+				)
+			}
 			log.DebugContext(
 				ctx,
 				"Evaluating rule against workload attestation",
 			)
-			if rule.Unix.UID != nil && (!att.Unix.Attested || *rule.Unix.UID != att.Unix.UID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.uid",
-				)
-				continue
+			if rule.Unix.UID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.UID != att.Unix.UID {
+					logMismatch("unix.uid", *rule.Unix.UID, att.Unix.UID)
+					continue
+				}
+				// Rule field matched!
 			}
-			if rule.Unix.PID != nil && (!att.Unix.Attested || *rule.Unix.PID != att.Unix.PID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.pid",
-				)
-				continue
+			if rule.Unix.PID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.PID != att.Unix.PID {
+					logMismatch("unix.pid", *rule.Unix.PID, att.Unix.PID)
+					continue
+				}
+				// Rule field matched!
 			}
-			if rule.Unix.GID != nil && (!att.Unix.Attested || *rule.Unix.GID != att.Unix.GID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.gid",
-				)
-				continue
+			if rule.Unix.GID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.GID != att.Unix.GID {
+					logMismatch("unix.gid", *rule.Unix.GID, att.Unix.GID)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.Namespace != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.Namespace != att.Kubernetes.Namespace {
+					logMismatch("kubernetes.namespace", rule.Kubernetes.Namespace, att.Kubernetes.Namespace)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.PodName != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.PodName != att.Kubernetes.PodName {
+					logMismatch("kubernetes.pod_name", rule.Kubernetes.PodName, att.Kubernetes.PodName)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.ServiceAccount != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.ServiceAccount != att.Kubernetes.ServiceAccount {
+					logMismatch("kubernetes.service_account", rule.Kubernetes.ServiceAccount, att.Kubernetes.ServiceAccount)
+					continue
+				}
+				// Rule field matched!
 			}
 
 			log.DebugContext(
