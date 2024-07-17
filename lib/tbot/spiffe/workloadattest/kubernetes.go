@@ -325,7 +325,7 @@ func (f roundTripperFn) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func (c *kubeletClient) httpClient(ctx context.Context) (url.URL, *http.Client, error) {
+func (c *kubeletClient) httpClient() (url.URL, *http.Client, error) {
 	host := os.Getenv(nodeNameEnv)
 
 	if c.cfg.ReadOnlyPort != 0 {
@@ -337,20 +337,24 @@ func (c *kubeletClient) httpClient(ctx context.Context) (url.URL, *http.Client, 
 
 	port := cmp.Or(c.cfg.SecurePort, 10250)
 
-	certPool := x509.NewCertPool()
-	caPEM, err := os.ReadFile(defaultCAPath) // TODO: make configurable, only bother if not skip veirfy
-	if err != nil {
-		return url.URL{}, nil, trace.Wrap(err, "reading CA file %q", defaultCAPath)
-	}
-	if !certPool.AppendCertsFromPEM(caPEM) {
-		return url.URL{}, nil, trace.BadParameter("failed to append CA cert from %q", defaultCAPath)
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{},
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs:            certPool,
-			InsecureSkipVerify: true, // TODO: Setting to false breaks on my docker desktop??
-		},
+	switch {
+	case c.cfg.InsecureSkipVerify:
+		transport.TLSClientConfig.InsecureSkipVerify = true
+	default:
+		caPath := cmp.Or(c.cfg.CAPath, defaultCAPath)
+		certPool := x509.NewCertPool()
+		caPEM, err := os.ReadFile(caPath)
+		if err != nil {
+			return url.URL{}, nil, trace.Wrap(err, "reading CA file %q", caPath)
+		}
+		if !certPool.AppendCertsFromPEM(caPEM) {
+			return url.URL{}, nil, trace.BadParameter("failed to append CA cert from %q", caPath)
+		}
+		transport.TLSClientConfig.RootCAs = certPool
 	}
 
 	client := &http.Client{
@@ -381,8 +385,7 @@ func (c *kubeletClient) httpClient(ctx context.Context) (url.URL, *http.Client, 
 }
 
 func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
-
-	reqUrl, client, err := c.httpClient(ctx)
+	reqUrl, client, err := c.httpClient()
 	if err != nil {
 		return nil, trace.Wrap(err, "creating HTTP client")
 	}
@@ -392,8 +395,6 @@ func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "creating request")
 	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	res, err := client.Do(req)
 	if err != nil {
