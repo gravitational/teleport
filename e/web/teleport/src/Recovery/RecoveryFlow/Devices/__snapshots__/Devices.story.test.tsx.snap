@@ -169,9 +169,9 @@ exports[`render device list 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
 }
 
 .c6 {
@@ -320,11 +320,11 @@ exports[`render device list 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c5"
       >
         Device Successfully Enrolled
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -680,9 +680,9 @@ exports[`render device removal dialog 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 28px;
-  line-height: 32px;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
   margin-bottom: 8px;
 }
 
@@ -693,7 +693,6 @@ exports[`render device removal dialog 1`] = `
   font-weight: 300;
   font-size: 16px;
   line-height: 32px;
-  margin-bottom: 40px;
 }
 
 .c9 {
@@ -781,11 +780,11 @@ exports[`render device removal dialog 1`] = `
         class="c4 c5 c6"
         width="400px"
       >
-        <div
+        <h2
           class="c7"
         >
           Remove Device
-        </div>
+        </h2>
         <div
           class="c8"
         >
@@ -948,9 +947,9 @@ exports[`render failed state for device list 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
 }
 
 .c6 {
@@ -984,11 +983,11 @@ exports[`render failed state for device list 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c5"
       >
         Device Successfully Enrolled
-      </div>
+      </h2>
     </div>
   </div>
   <div

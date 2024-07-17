@@ -12,6 +12,7 @@ import {
   Text,
   ButtonSecondary,
   ButtonBorder,
+  H1,
 } from 'design';
 import { ArrowBack, ListMagnifyingGlass, ArrowForward } from 'design/Icon';
 import {
@@ -204,7 +205,7 @@ export function ViewEditAccessList() {
     FeatureTitle = (
       <Box>
         <Flex alignItems="center" mr={3} gap={1}>
-          <Text fontSize={5}>{accessList.title}</Text>
+          <H1>{accessList.title}</H1>
           {accessList.isOkta && <OktaBadge />}
           <ButtonPencil
             title={

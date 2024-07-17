@@ -88,26 +88,6 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c7 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -157,16 +137,34 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   margin-bottom: 0;
 }
 
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+  padding-top: 24px;
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 <form
   class="c0 c1"
   width="650px"
 >
-  <div
+  <h2
     class="c2"
-    color="text.main"
   >
     Multi-Factor Device Recovery
-  </div>
+  </h2>
   <div
     class="c3"
   >
@@ -310,26 +308,6 @@ exports[`render correct form for clicking forgot password 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c7 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -379,16 +357,34 @@ exports[`render correct form for clicking forgot password 1`] = `
   margin-bottom: 0;
 }
 
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+  padding-top: 24px;
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 <form
   class="c0 c1"
   width="650px"
 >
-  <div
+  <h2
     class="c2"
-    color="text.main"
   >
     Password Recovery
-  </div>
+  </h2>
   <div
     class="c3"
   >

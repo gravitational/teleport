@@ -28,12 +28,27 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   border-bottom-left-radius: 4px;
 }
 
+.c21 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c18 {
+  display: block;
+  outline: none;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -41,10 +56,10 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
-  font-weight: 600;
+  line-height: 24px;
+  margin-bottom: 4px;
 }
 
 .c10 {
@@ -72,21 +87,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin-bottom: 16px;
 }
 
-.c21 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c18 {
-  display: block;
-  outline: none;
-  margin-top: 16px;
-  margin-bottom: 16px;
-}
-
 .c1 {
   display: flex;
 }
@@ -110,7 +110,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -189,11 +188,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
     <div
       class="c0 c1 c3"
     >
-      <div
+      <h1
         class="c4 c5"
       >
         Select Integration Type
-      </div>
+      </h1>
     </div>
     <div
       class="c0 c6"
@@ -204,12 +203,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
         <div
           class="c8"
         >
-          <div
+          <h2
             class="c9"
-            font-weight="bold"
           >
             No-Code Integrations
-          </div>
+          </h2>
           <div
             class="c10"
           >
@@ -350,12 +348,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
       <div
         class="c0 c7"
       >
-        <div
+        <h2
           class="c9"
-          font-weight="bold"
         >
           Self-Hosted Plugins
-        </div>
+        </h2>
         <div
           class="c20"
         >
@@ -426,12 +423,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
         <div
           class="c8"
         >
-          <div
+          <h2
             class="c9"
-            font-weight="bold"
           >
             Machine ID
-          </div>
+          </h2>
           <div
             class="c10"
           >
@@ -1155,12 +1151,27 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   border-bottom-left-radius: 4px;
 }
 
+.c23 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c20 {
+  display: block;
+  outline: none;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -1168,10 +1179,10 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
-  font-weight: 600;
+  line-height: 24px;
+  margin-bottom: 4px;
 }
 
 .c10 {
@@ -1199,21 +1210,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin-bottom: 16px;
 }
 
-.c23 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c20 {
-  display: block;
-  outline: none;
-  margin-top: 16px;
-  margin-bottom: 16px;
-}
-
 .c1 {
   display: flex;
 }
@@ -1237,7 +1233,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1336,11 +1331,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
     <div
       class="c0 c1 c3"
     >
-      <div
+      <h1
         class="c4 c5"
       >
         Select Integration Type
-      </div>
+      </h1>
     </div>
     <div
       class="c0 c6"
@@ -1351,12 +1346,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
         <div
           class="c8"
         >
-          <div
+          <h2
             class="c9"
-            font-weight="bold"
           >
             No-Code Integrations
-          </div>
+          </h2>
           <div
             class="c10"
           >
@@ -1503,12 +1497,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
       <div
         class="c0 c7"
       >
-        <div
+        <h2
           class="c9"
-          font-weight="bold"
         >
           Self-Hosted Plugins
-        </div>
+        </h2>
         <div
           class="c22"
         >
@@ -1579,12 +1572,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
         <div
           class="c8"
         >
-          <div
+          <h2
             class="c9"
-            font-weight="bold"
           >
             Machine ID
-          </div>
+          </h2>
           <div
             class="c10"
           >
@@ -2308,12 +2300,27 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   border-bottom-left-radius: 4px;
 }
 
+.c23 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c19 {
+  display: block;
+  outline: none;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -2321,10 +2328,10 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
-  font-weight: 600;
+  line-height: 24px;
+  margin-bottom: 4px;
 }
 
 .c10 {
@@ -2352,21 +2359,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin-bottom: 16px;
 }
 
-.c23 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c19 {
-  display: block;
-  outline: none;
-  margin-top: 16px;
-  margin-bottom: 16px;
-}
-
 .c1 {
   display: flex;
 }
@@ -2390,7 +2382,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2489,11 +2480,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
     <div
       class="c0 c1 c3"
     >
-      <div
+      <h1
         class="c4 c5"
       >
         Select Integration Type
-      </div>
+      </h1>
     </div>
     <div
       class="c0 c6"
@@ -2504,12 +2495,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
         <div
           class="c8"
         >
-          <div
+          <h2
             class="c9"
-            font-weight="bold"
           >
             No-Code Integrations
-          </div>
+          </h2>
           <div
             class="c10"
           >
@@ -2870,12 +2860,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
       <div
         class="c0 c7"
       >
-        <div
+        <h2
           class="c9"
-          font-weight="bold"
         >
           Self-Hosted Plugins
-        </div>
+        </h2>
         <div
           class="c22"
         >
@@ -2946,12 +2935,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
         <div
           class="c8"
         >
-          <div
+          <h2
             class="c9"
-            font-weight="bold"
           >
             Machine ID
-          </div>
+          </h2>
           <div
             class="c10"
           >

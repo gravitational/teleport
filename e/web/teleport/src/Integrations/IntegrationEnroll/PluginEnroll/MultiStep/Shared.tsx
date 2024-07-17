@@ -1,8 +1,6 @@
 import React from 'react';
-import { Text } from 'design';
+import { H1 } from 'design';
 
 export const Header = ({ header }: { header: string }) => (
-  <Text fontSize={7} mb={2}>
-    {header}
-  </Text>
+  <H1 mb={2}>{header}</H1>
 );

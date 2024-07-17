@@ -5,6 +5,8 @@ import { InfoFilled } from 'design/Icon/Icons/InfoFilled';
 
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
+import { H2 } from 'design';
+
 import {
   GraphType,
   ReportGraphConfig,
@@ -88,11 +90,6 @@ const GraphDetails = styled.div`
   gap: ${p => p.theme.space[1]}px;
 `;
 
-const GraphTitle = styled.div`
-  font-size: 18px;
-  font-weight: 500;
-`;
-
 const GraphDescription = styled.div`
   font-size: 14px;
 `;
@@ -125,7 +122,7 @@ export function ReportContent(props: ReportContentProps) {
       <GraphContainer key={index}>
         <GraphHeader>
           <GraphDetails>
-            <GraphTitle>{graphData.title}</GraphTitle>
+            <H2>{graphData.title}</H2>
             <GraphDescription>{graphData.description}</GraphDescription>
           </GraphDetails>
 

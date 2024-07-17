@@ -6,15 +6,17 @@ import {
   Box,
   Alert,
   Flex,
-  Text,
   ButtonSecondary,
   ButtonIcon,
   ButtonPrimary,
+  H1,
 } from 'design';
 import { Cross } from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 import { FeatureBox } from 'teleport/components/Layout';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
+
+import { H2 } from 'design';
 
 import {
   accessManagementService,
@@ -163,9 +165,7 @@ export function ReviewAccessList({
             >
               <Cross size="medium" color="text.main" />
             </ButtonIcon>
-            <Text bold fontSize={5}>
-              Reviewing Access List: {accessList.title}
-            </Text>
+            <H1>Reviewing Access List: {accessList.title}</H1>
           </Flex>
           <Box mt={1} mb={3}>
             <Navigation currentStep={reviewStep} views={views} />
@@ -174,9 +174,7 @@ export function ReviewAccessList({
             <Box mb={4} width="500px">
               {isOwner ? (
                 <>
-                  <Text fontSize={4} mb={3}>
-                    Membership Requirements (Read Only)
-                  </Text>
+                  <H2 mb={3}>Membership Requirements (Read Only)</H2>
                   <RoleAndTraitLabels
                     roles={editedMembershipRequires.roles}
                     traits={editedMembershipRequires.traitLabels.map(

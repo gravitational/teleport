@@ -12,6 +12,7 @@ import {
   Flex,
   ButtonSecondary,
   Image,
+  H2,
 } from 'design';
 import { Notification as IconNotification } from 'design/Icon';
 
@@ -104,9 +105,9 @@ export function ExternalAuditStorage() {
         `}
       >
         <Image width="120px" height="120px" src={celebratePamPng} />
-        <Text mt={3} mb={2} typography="h4" bold>
+        <H2 mt={3} mb={2}>
           External Audit Storage Successfully Added
-        </Text>
+        </H2>
         <Text mb={3}>
           Audit data will now be stored in your infrastructure.
         </Text>

@@ -3,6 +3,8 @@ import { Flex, Text, Box } from 'design';
 import { UserIdBadge, CircleCheck, NotificationsActive } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
+import { H2 } from 'design';
+
 import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import {
@@ -50,9 +52,9 @@ export function Specs({
         <Flex width="40%" mr={4} alignItems="flex-start">
           <CircleCheck />
           <Box>
-            <Text ml={1} fontSize={4} mb={2}>
+            <H2 ml={1} mb={2}>
               Eligibility
-            </Text>
+            </H2>
 
             {/* Owners section */}
             <Box mb={3} ml={1}>
@@ -96,9 +98,9 @@ export function Specs({
         <Flex width="40%" mr={4} alignItems="flex-start">
           <UserIdBadge mt="2px" />
           <Box>
-            <Text ml={1} fontSize={4} mb={2}>
+            <H2 ml={1} mb={2}>
               Permissions Granted
-            </Text>
+            </H2>
 
             {/* Owners grant section */}
             <Box mb={3} ml={1}>
@@ -144,9 +146,9 @@ export function Specs({
         <Box width="20%">
           <Flex mb={2} alignItems="center" mt="-4px">
             <NotificationsActive />
-            <Text ml={1} fontSize={4} mr={1}>
+            <H2 ml={1} mr={1}>
               Audit
-            </Text>
+            </H2>
             <ButtonPencil
               title={editBtnTitle}
               onClick={() => setShowEditAudit(true)}

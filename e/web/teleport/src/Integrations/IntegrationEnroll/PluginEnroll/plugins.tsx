@@ -31,6 +31,8 @@ import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
+import { H2 } from 'design';
+
 import cfg from 'e-teleport/config';
 
 import { SetUpScim } from './MultiStep/Okta/SetUpScim';
@@ -269,9 +271,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             The Okta integration can sync users, applications, and groups with
             your Teleport instance and set up an SSO integration.
           </Text>
-          <Text mt={3} fontSize={4}>
-            Included with Teleport:
-          </Text>
+          <H2 mt={3}>Included with Teleport:</H2>
           <StyledUl>
             <li>
               <strong>App Synchronization</strong>: Routinely synchronizes Okta
@@ -290,9 +290,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Okta users the default role of <em>requester</em>
             </li>
           </StyledUl>
-          <Text mt={3} fontSize={4}>
-            Included with Teleport Identity:
-          </Text>
+          <H2 mt={3}>Included with Teleport Identity:</H2>
           <StyledUl>
             <li>
               <strong>User Synchronization</strong>: Routinely synchronizes
@@ -1473,9 +1471,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           ID directory and provides an SSO connector to sign into Teleport via
           Entra ID.
         </Text>
-        <Text mt={3} fontSize={4}>
-          Included with Teleport Identity:
-        </Text>
+        <H2 mt={3}>Included with Teleport Identity:</H2>
         <StyledUl>
           <li>
             <strong>Directory synchronization</strong>: Routinely synchronizes
@@ -1486,9 +1482,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             Entra ID directory users access to the Teleport cluster.
           </li>
         </StyledUl>
-        <Text mt={3} fontSize={4}>
-          Included with Teleport Policy:
-        </Text>
+        <H2 mt={3}>Included with Teleport Policy:</H2>
         <StyledUl>
           <li>
             <strong>Access Graph integration</strong>: analyze your Entra ID

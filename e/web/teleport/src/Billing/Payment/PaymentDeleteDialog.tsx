@@ -10,9 +10,7 @@ import { useStripe } from '@stripe/react-stripe-js';
 
 import { Danger } from 'design/Alert';
 
-import Text from 'design/Text';
-
-import { useTheme } from 'styled-components';
+import { H2 } from 'design/Text';
 
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { ExistingPaymentProps } from 'e-teleport/Billing/types';
@@ -24,7 +22,6 @@ export const PaymentDeleteDialog = ({
   card: { brand, last4, id },
   reload,
 }: ExistingPaymentProps) => {
-  const theme = useTheme();
   const ctx = useTeleport();
   const stripe = useStripe();
   const [networkState, setNetworkState] = useState<NetworkState>({});
@@ -46,9 +43,7 @@ export const PaymentDeleteDialog = ({
   return (
     <Dialog open={open}>
       <DialogHeader>
-        <Text typography="h3" color={theme.colors.text.main}>
-          Are you sure you want to delete this payment method?
-        </Text>
+        <H2>Are you sure you want to delete this payment method?</H2>
       </DialogHeader>
       <DialogContent>
         <p>

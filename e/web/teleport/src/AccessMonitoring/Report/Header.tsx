@@ -6,6 +6,8 @@ import { Refresh } from 'design/Icon';
 
 import { useHistory, useParams } from 'react-router';
 
+import { H1 } from 'design';
+
 import cfg from 'e-teleport/config';
 import { Days, Timeframe } from 'e-teleport/AccessMonitoring/Timeframe';
 
@@ -21,10 +23,6 @@ const Container = styled.header`
   display: flex;
   align-items: center;
   justify-content: space-between;
-`;
-
-const Title = styled.div`
-  font-size: 24px;
 `;
 
 const Controls = styled.div<{ disabled?: boolean }>`
@@ -67,7 +65,7 @@ export function Header(props: HeaderProps) {
 
   return (
     <Container>
-      <Title>{props.title}</Title>
+      <H1>{props.title}</H1>
 
       <Controls disabled={props.disabled}>
         {props.lastUpdated && (

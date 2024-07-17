@@ -4,7 +4,7 @@ import Dialog, {
   DialogHeader,
 } from 'design/Dialog';
 
-import { ButtonPrimary, ButtonSecondary, Input, Text } from 'design';
+import { ButtonPrimary, ButtonSecondary, H2, Input, Text } from 'design';
 import React, { useState } from 'react';
 import { useStripe } from '@stripe/react-stripe-js';
 
@@ -69,9 +69,7 @@ export const CancelAccountDialog = ({
   return (
     <Dialog open={open}>
       <DialogHeader>
-        <Text typography="h3" color={theme.colors.text.main}>
-          Close Teleport Account
-        </Text>
+        <H2 color={theme.colors.text.main}>Close Teleport Account</H2>
       </DialogHeader>
       <DialogContent maxWidth="636px">
         {dialogText}

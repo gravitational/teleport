@@ -252,21 +252,6 @@ exports[`loaded state 1`] = `
   margin-left: -3px;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-}
-
 .c19 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -338,6 +323,21 @@ exports[`loaded state 1`] = `
   background: #00BFA6;
   color: #000000;
   width: 10px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .c1 {

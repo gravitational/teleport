@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flex, Text } from 'design';
+import { Flex, H1, Text } from 'design';
 import { AuthProviderType } from 'shared/services';
 import Card from 'design/Card';
 import { State as ResourceState } from 'teleport/components/useResources';
@@ -12,6 +12,8 @@ import {
   LockedFeatureContainer,
 } from 'teleport/AuthConnectors/styles/LockedFeatureContainer.styles';
 
+import { H2 } from 'design';
+
 import getSsoIconE from '../getSsoIconE';
 
 export default function EmptyList({ onCreate, showLockedFeature }: Props) {
@@ -22,9 +24,7 @@ export default function EmptyList({ onCreate, showLockedFeature }: Props) {
       textAlign="center"
       style={{ boxShadow: 'none' }}
     >
-      <Text typography="h3" textAlign="center">
-        Select a service provider below
-      </Text>
+      <H1 textAlign="center">Select a service provider below</H1>
       <Flex flexWrap="wrap" justifyContent="center" mt={4} minWidth="224px">
         {renderItem('github', onCreate, false, showLockedFeature)}
         <LockedFeatureContainer>
@@ -65,9 +65,7 @@ function renderItem(
         />
       </Flex>
 
-      <Text typography="body2" mt={4} fontSize={4} color="text.primary" bold>
-        {desc}
-      </Text>
+      <H2 mt={4}>{desc}</H2>
       {info && (
         <Text mt={2} color="text.primary">
           {info}

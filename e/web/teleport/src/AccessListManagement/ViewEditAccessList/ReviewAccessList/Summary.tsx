@@ -1,7 +1,9 @@
 import React from 'react';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-import { Box, Text, LabelInput } from 'design';
+import { Box, LabelInput } from 'design';
 import { pluralize } from 'shared/utils/text';
+
+import { H2 } from 'design';
 
 import { AccessListMember } from 'e-teleport/services/accessmanagement';
 import {
@@ -44,9 +46,7 @@ export function Summary({
     <>
       <Box mb={5}>
         {isOwner ? (
-          <Text fontSize={4} mb={2}>
-            Membership Requirements (Read Only)
-          </Text>
+          <H2 mb={2}>Membership Requirements (Read Only)</H2>
         ) : (
           <EditButton
             title="Membership Requirements"
@@ -116,9 +116,7 @@ export function ReviewAudit({
 
   return (
     <Box>
-      <Text fontSize={4} mb={2}>
-        Summary
-      </Text>
+      <H2 mb={2}>Summary</H2>
       <List>
         <li>
           {getMemberApprovedMsg({

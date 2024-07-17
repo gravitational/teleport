@@ -108,42 +108,6 @@ exports[`render correct form to add TOTP device 1`] = `
   background-color: #222C59;
 }
 
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin-bottom: 4px;
-  color: #FFFFFF;
-}
-
-.c24 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-}
-
 .c17 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -198,6 +162,42 @@ exports[`render correct form to add TOTP device 1`] = `
   outline: none;
   width: 168px;
   height: 168px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin-bottom: 4px;
+  color: #FFFFFF;
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
 }
 
 .c4 {
@@ -290,11 +290,11 @@ exports[`render correct form to add TOTP device 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c6"
       >
         Enroll New MFA Method
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -517,9 +517,9 @@ exports[`render correct form to add Webauthn device 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
 }
 
 .c7 {
@@ -622,11 +622,11 @@ exports[`render correct form to add Webauthn device 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c6"
       >
         Enroll New MFA Method
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -923,9 +923,9 @@ exports[`render correct form to add with multi option 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
 }
 
 .c7 {
@@ -1028,11 +1028,11 @@ exports[`render correct form to add with multi option 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c6"
       >
         Enroll New MFA Method
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -1365,9 +1365,9 @@ exports[`render failed state for form to add with multi option 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
 }
 
 .c8 {
@@ -1470,11 +1470,11 @@ exports[`render failed state for form to add with multi option 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c6"
       >
         Enroll New MFA Method
-      </div>
+      </h2>
     </div>
   </div>
   <div

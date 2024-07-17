@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Image, Text } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H2, Image } from 'design';
 import pamSuccess from 'design/assets/images/icons/success.png';
 
 import cfg from 'e-teleport/config';
@@ -15,9 +15,7 @@ export function PluginEnrollSuccess(props: State) {
   return (
     <Flex flexDirection="column" alignItems="center" mt="6">
       <Image src={pamSuccess} maxWidth="120px" />
-      <Text typography="h4" fontWeight="bold" my="2">
-        {plugin.name} is integrated successfully
-      </Text>
+      <H2 my="2">{plugin.name} is integrated successfully</H2>
       <Box maxWidth="500px" textAlign="center">
         {plugin.cloudHostable && plugin.NextSteps && (
           <plugin.NextSteps successData={oauthSuccessData} />

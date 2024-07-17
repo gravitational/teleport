@@ -1,6 +1,6 @@
 import React from 'react';
 import { generatePath } from 'react-router';
-import { Flex, Text, Image, ButtonPrimary, ButtonSecondary } from 'design';
+import { Flex, Text, Image, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
@@ -31,9 +31,9 @@ export function Finished() {
       `}
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
-      <Text mt={3} mb={2} typography="h4" bold>
+      <H2 mt={3} mb={2}>
         SAML Application Successfully {statusText}.
-      </Text>
+      </H2>
       {!isUpdateFlow && (
         <>
           <Text mb={3}>

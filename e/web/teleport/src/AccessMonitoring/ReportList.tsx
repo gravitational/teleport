@@ -9,6 +9,8 @@ import { ShimmerBox } from 'design/ShimmerBox';
 
 import { Alert } from 'design';
 
+import { H1, H2 } from 'design';
+
 import { getReports } from 'e-teleport/AccessMonitoring/service';
 
 import cfg from 'e-teleport/config';
@@ -61,14 +63,10 @@ const Item = styled.div<{ disabled?: boolean }>`
   pointer-events: none;
 `;
 
-const Name = styled.h4`
-  padding: 0;
-  margin: 0;
-  font-size: 18px;
+const Name = styled(H2)`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 25px;
 `;
 
 const Description = styled.div`
@@ -116,11 +114,11 @@ export function ReportList() {
 
   return (
     <Container>
-      <h3>Built-in Reports</h3>
+      <H1 my={3}>Built-in Reports</H1>
 
       <List>{items}</List>
 
-      <h3>Coming Soon</h3>
+      <H1 my={3}>Coming Soon</H1>
 
       <List>
         <Item disabled>

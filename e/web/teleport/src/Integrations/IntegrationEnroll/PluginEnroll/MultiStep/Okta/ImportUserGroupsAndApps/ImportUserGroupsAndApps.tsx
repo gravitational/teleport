@@ -21,6 +21,8 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { ApiError } from 'teleport/services/api/parseError';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
+import { H2 } from 'design';
+
 import { pluginsService } from 'e-teleport/services/plugins';
 import {
   PluginConfigOktaApp,
@@ -283,9 +285,9 @@ export function ImportUserGroupsAndApps() {
             </Box>
             <Flex mb={1} mt={4} flexDirection="column" gap={4} width="100%">
               <StyledBox>
-                <Text fontSize={4} mb={1}>
+                <H2 mb={1}>
                   Step 1: Set Default List Owner(s) for Access Lists
-                </Text>
+                </H2>
                 <Text>
                   List Owners are responsible for periodically reviewing
                   membership to each Access List. You must assign at least 1
@@ -331,10 +333,10 @@ export function ImportUserGroupsAndApps() {
               {/* User groups */}
               <StyledBox>
                 <Flex justifyContent="space-between" alignItems="center" mb={2}>
-                  <Text fontSize={4} mb={1}>
+                  <H2 mb={1}>
                     Step 2: Import User Groups with Direct Assignments as Access
                     Lists
-                  </Text>
+                  </H2>
                   <Toggle
                     isToggled={importAllUserGroups}
                     onToggle={() =>
@@ -391,9 +393,9 @@ export function ImportUserGroupsAndApps() {
               {/* Apps */}
               <StyledBox>
                 <Flex justifyContent="space-between" alignItems="center">
-                  <Text fontSize={4} mb={1}>
+                  <H2 mb={1}>
                     Step 3: Import Apps with Direct Assignments as Access Lists
-                  </Text>
+                  </H2>
                   <Toggle
                     isToggled={importAllApps}
                     onToggle={() =>

@@ -117,12 +117,29 @@ exports[`renders loaded linux 1`] = `
   justify-content: center;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c29 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -157,23 +174,6 @@ exports[`renders loaded linux 1`] = `
   margin-bottom: 16px;
 }
 
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c29 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c1 {
   display: flex;
 }
@@ -185,7 +185,6 @@ exports[`renders loaded linux 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -510,11 +509,11 @@ exports[`renders loaded linux 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -1166,12 +1165,29 @@ exports[`renders loaded macOS 1`] = `
   justify-content: center;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c29 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -1206,23 +1222,6 @@ exports[`renders loaded macOS 1`] = `
   margin-bottom: 16px;
 }
 
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c29 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c1 {
   display: flex;
 }
@@ -1234,7 +1233,6 @@ exports[`renders loaded macOS 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1559,11 +1557,11 @@ exports[`renders loaded macOS 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -2122,12 +2120,21 @@ exports[`renders loaded windows 1`] = `
   color: #FFFFFF;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -2166,21 +2173,12 @@ exports[`renders loaded windows 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
   margin: 0;
   color: #FFFFFF;
   text-align: center;
-}
-
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
 }
 
 .c1 {
@@ -2205,12 +2203,11 @@ exports[`renders loaded windows 1`] = `
   align-items: flex-start;
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 16px;
 }
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2540,11 +2537,11 @@ exports[`renders loaded windows 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -3107,12 +3104,29 @@ exports[`renders when generating license 1`] = `
   justify-content: center;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c29 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -3147,23 +3161,6 @@ exports[`renders when generating license 1`] = `
   margin-bottom: 16px;
 }
 
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c29 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c1 {
   display: flex;
 }
@@ -3175,7 +3172,6 @@ exports[`renders when generating license 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -3500,11 +3496,11 @@ exports[`renders when generating license 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -4179,12 +4175,29 @@ exports[`renders when license failed 1`] = `
   justify-content: center;
 }
 
+.c10 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c30 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -4219,23 +4232,6 @@ exports[`renders when license failed 1`] = `
   margin-bottom: 16px;
 }
 
-.c10 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c30 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c1 {
   display: flex;
 }
@@ -4247,7 +4243,6 @@ exports[`renders when license failed 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -4572,11 +4567,11 @@ exports[`renders when license failed 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -5234,12 +5229,29 @@ exports[`renders when license generated 1`] = `
   justify-content: center;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c29 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -5274,23 +5286,6 @@ exports[`renders when license generated 1`] = `
   margin-bottom: 16px;
 }
 
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c29 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c1 {
   display: flex;
 }
@@ -5302,7 +5297,6 @@ exports[`renders when license generated 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -5627,11 +5621,11 @@ exports[`renders when license generated 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -6251,12 +6245,21 @@ exports[`renders when releases are loading 1`] = `
   cursor: auto;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -6291,15 +6294,6 @@ exports[`renders when releases are loading 1`] = `
   margin-bottom: 16px;
 }
 
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -6311,7 +6305,6 @@ exports[`renders when releases are loading 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -6344,11 +6337,11 @@ exports[`renders when releases are loading 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"
@@ -6538,12 +6531,21 @@ exports[`renders when releases failed 1`] = `
   cursor: auto;
 }
 
+.c9 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -6578,15 +6580,6 @@ exports[`renders when releases failed 1`] = `
   margin-bottom: 16px;
 }
 
-.c9 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -6598,7 +6591,6 @@ exports[`renders when releases failed 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -6631,11 +6623,11 @@ exports[`renders when releases failed 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Downloads
-    </div>
+    </h1>
   </div>
   <div
     class="c6"

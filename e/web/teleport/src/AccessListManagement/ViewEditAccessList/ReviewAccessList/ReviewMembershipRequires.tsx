@@ -1,6 +1,8 @@
 import React from 'react';
 import { Option } from 'shared/components/Select';
-import { Box, Text } from 'design';
+import { Box } from 'design';
+
+import { H2 } from 'design';
 
 import { AccessListRequires } from 'e-teleport/services/accessmanagement';
 
@@ -23,9 +25,7 @@ export function ReviewMembershipRequires({
 }: Props) {
   return (
     <>
-      <Text fontSize={4} mb={3}>
-        Membership Requirements
-      </Text>
+      <H2 mb={3}>Membership Requirements</H2>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         loadOptions={fetchRoleOptions}
         isDisabled={false}

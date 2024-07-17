@@ -13,6 +13,8 @@ import userService, { User } from 'teleport/services/user';
 
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
+import { H2 } from 'design';
+
 import { FormDataField } from './types';
 
 type UserOption = Option<User>;
@@ -64,9 +66,7 @@ export function FormMixin({ attempt }) {
         data-testid="auth-connector-name"
       />
 
-      <Text fontSize={4} mb={1}>
-        Set default owner(s) for imported Access Lists
-      </Text>
+      <H2 mb={1}>Set default owner(s) for imported Access Lists</H2>
       <Text>
         List Owners are responsible for periodically reviewing membership to
         each Access List. You must assign at least 1 default owner to your

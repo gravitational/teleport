@@ -15,6 +15,8 @@ import { type ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
+import { H2 } from 'design';
+
 import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
@@ -105,9 +107,9 @@ export function AttributeMapping({
 
   return (
     <>
-      <Text fontSize="18px" typography="subtitle1" mb={2} mt={8}>
+      <H2 mb={2} mt={8}>
         Attribute mapping (optional)
-      </Text>
+      </H2>
       {subHeading()}
       <Box>
         {spConfig.attributeMapping.length > 0 && (

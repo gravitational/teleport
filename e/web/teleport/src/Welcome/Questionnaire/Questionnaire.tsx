@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ButtonPrimary, Indicator, Text } from 'design';
+import { ButtonPrimary, Indicator } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
@@ -13,6 +13,8 @@ import {
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
+import { H2 } from 'design';
 
 import {
   MarketingParamData,
@@ -157,8 +159,7 @@ export const Questionnaire = ({
         <Indicator />
       ) : (
         <>
-          <Text typography="h2" mb={4}></Text>
-          Tell us about yourself
+          <H2 mb={4}>Tell us about yourself</H2>
           <Validation>
             {({ validator }) => (
               <>

@@ -164,24 +164,6 @@ exports[`failed 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 24px;
-}
-
 .c12 {
   color: #FFFFFF;
   display: block;
@@ -189,6 +171,22 @@ exports[`failed 1`] = `
   width: 100%;
   margin-bottom: 4px;
   margin-bottom: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
 }
 
 .c5 {
@@ -274,12 +272,11 @@ exports[`failed 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Request Access
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -473,24 +470,6 @@ exports[`loaded with custom prompt 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 24px;
-}
-
 .c11 {
   color: #FFFFFF;
   display: block;
@@ -498,6 +477,22 @@ exports[`loaded with custom prompt 1`] = `
   width: 100%;
   margin-bottom: 4px;
   margin-bottom: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
 }
 
 .c5 {
@@ -583,12 +578,11 @@ exports[`loaded with custom prompt 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Request Access
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -776,24 +770,6 @@ exports[`loaded without custom prompt 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 24px;
-}
-
 .c11 {
   color: #FFFFFF;
   display: block;
@@ -801,6 +777,22 @@ exports[`loaded without custom prompt 1`] = `
   width: 100%;
   margin-bottom: 4px;
   margin-bottom: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
 }
 
 .c5 {
@@ -886,12 +878,11 @@ exports[`loaded without custom prompt 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Request Access
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"

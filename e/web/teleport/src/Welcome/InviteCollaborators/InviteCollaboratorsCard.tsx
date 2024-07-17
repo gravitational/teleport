@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { useTheme } from 'styled-components';
 
-import { ButtonPrimary, Text, Flex, ButtonSecondary, Box } from 'design';
+import { ButtonPrimary, Text, Flex, ButtonSecondary, Box, H2 } from 'design';
 import { PaperPlane, UserAdd } from 'design/Icon';
 
 import { Option } from 'shared/components/Select';
@@ -27,8 +26,6 @@ export function InviteCollaboratorsCard({
 }: {
   onSubmit: () => void;
 }) {
-  const theme = useTheme();
-
   const [users] = useState<Set<string>>(() => new Set());
   const [recipientsValue, setRecipientsValue] = useState<Option[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<RoleOption[]>([]);
@@ -73,9 +70,7 @@ export function InviteCollaboratorsCard({
               <UserAdd />
             </Flex>
             <Box>
-              <Text typography="h3" color={theme.colors.text.main}>
-                Invite Users
-              </Text>
+              <H2>Invite Users</H2>
               <Text color="text.slightlyMuted">Collaborate with your team</Text>
             </Box>
           </Flex>

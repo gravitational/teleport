@@ -125,33 +125,6 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c10 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -207,6 +180,33 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c11 {
@@ -393,11 +393,11 @@ exports[`render failed state form for authenticating with multi option 1`] = `
          of 
         3
       </div>
-      <div
+      <h2
         class="c5"
       >
         Password Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -626,33 +626,6 @@ exports[`render failed state form for authenticating with password 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c10 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -702,6 +675,33 @@ exports[`render failed state form for authenticating with password 1`] = `
   margin-bottom: 0;
 }
 
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 <form
   class="c0 c1"
   width="512px"
@@ -721,11 +721,11 @@ exports[`render failed state form for authenticating with password 1`] = `
          of 
         4
       </div>
-      <div
+      <h2
         class="c5"
       >
         Multi-Factor Device Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -917,33 +917,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c10 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -999,6 +972,33 @@ exports[`render failed state form for authenticating with totp 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c11 {
@@ -1185,11 +1185,11 @@ exports[`render failed state form for authenticating with totp 1`] = `
          of 
         3
       </div>
-      <div
+      <h2
         class="c5"
       >
         Password Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -1444,33 +1444,6 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c10 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -1526,6 +1499,33 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c11 {
@@ -1712,11 +1712,11 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
          of 
         3
       </div>
-      <div
+      <h2
         class="c5"
       >
         Password Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -1928,33 +1928,6 @@ exports[`render form for authenticating with multi option 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c9 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -2010,6 +1983,33 @@ exports[`render form for authenticating with multi option 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
@@ -2196,11 +2196,11 @@ exports[`render form for authenticating with multi option 1`] = `
          of 
         3
       </div>
-      <div
+      <h2
         class="c5"
       >
         Password Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -2397,33 +2397,6 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c9 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -2473,6 +2446,33 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   margin-bottom: 0;
 }
 
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 <form
   class="c0 c1"
   width="512px"
@@ -2492,11 +2492,11 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
          of 
         4
       </div>
-      <div
+      <h2
         class="c5"
       >
         Multi-Factor Device Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -2656,33 +2656,6 @@ exports[`render form for authenticating with totp 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c9 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -2738,6 +2711,33 @@ exports[`render form for authenticating with totp 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
@@ -2924,11 +2924,11 @@ exports[`render form for authenticating with totp 1`] = `
          of 
         3
       </div>
-      <div
+      <h2
         class="c5"
       >
         Password Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div
@@ -3151,33 +3151,6 @@ exports[`render form for authenticating with webauthn 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  margin-bottom: 16px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c9 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -3233,6 +3206,33 @@ exports[`render form for authenticating with webauthn 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c10 {
@@ -3419,11 +3419,11 @@ exports[`render form for authenticating with webauthn 1`] = `
          of 
         3
       </div>
-      <div
+      <h2
         class="c5"
       >
         Password Recovery
-      </div>
+      </h2>
     </div>
   </div>
   <div

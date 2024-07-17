@@ -8,6 +8,7 @@ import {
   Link as ExternalLink,
   Text,
   Indicator,
+  H2,
 } from 'design';
 import * as Icons from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -140,9 +141,7 @@ export function IntegrationPick() {
 
         {plugins.selfHosted.length > 0 && (
           <Flex flexDirection="column">
-            <Text fontWeight="bold" typography="h4">
-              Self-Hosted Plugins
-            </Text>
+            <H2 mb={1}>Self-Hosted Plugins</H2>
             <Text mb={3} typography="body1">
               There is a wide variety of plugins that you can integrate with.
               See below for a sampling, or check out the documented list at{' '}

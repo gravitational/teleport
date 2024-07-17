@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonIcon, ButtonPrimary, Card, Flex, Text } from 'design';
+import { Box, ButtonIcon, ButtonPrimary, Card, Flex, H2, Text } from 'design';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 
@@ -74,9 +74,7 @@ export function RecoveryCodes({
     <PrintWrapper>
       <Flex mx="auto" flexDirection="column" gap={3} width="750px">
         <Card flex={4} className="no-print-border" p={4}>
-          <Text typography="h4" mb={4} color="text.main">
-            {title}
-          </Text>
+          <H2 mb={4}>{title}</H2>
           <Flex flexDirection="column" gap={3}>
             <Box>
               <Text>

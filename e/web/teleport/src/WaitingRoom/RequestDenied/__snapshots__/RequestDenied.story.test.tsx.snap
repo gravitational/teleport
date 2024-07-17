@@ -98,11 +98,9 @@ exports[`loaded with denied reason 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c11 {
@@ -195,12 +193,11 @@ exports[`loaded with denied reason 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Access Request Denied
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -309,11 +306,9 @@ exports[`loaded without denied reason 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
@@ -406,12 +401,11 @@ exports[`loaded without denied reason 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Access Request Denied
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"

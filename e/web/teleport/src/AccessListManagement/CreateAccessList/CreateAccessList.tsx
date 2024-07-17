@@ -8,7 +8,7 @@ import {
   ButtonSecondary,
   Flex,
   Indicator,
-  Text,
+  H1,
 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -357,7 +357,7 @@ export function CreateAccessList() {
               color="text.main"
               to={cfg.getAccessListManagementRoute()}
             />
-            <Text fontSize="22px">Create a New Access List</Text>
+            <H1>Create a New Access List</H1>
           </Flex>
         </FeatureHeaderTitle>
       </FeatureHeader>

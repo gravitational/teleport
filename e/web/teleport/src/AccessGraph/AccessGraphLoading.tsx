@@ -1,3 +1,4 @@
+import { Text } from 'design';
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
@@ -60,11 +61,6 @@ const Content = styled.div`
   opacity: 0.4;
 `;
 
-const LoadingText = styled.div`
-  font-size: 18px;
-  color: ${p => p.theme.colors.text.main};
-`;
-
 export function AccessGraphLoading() {
   return (
     <Container aria-busy="true">
@@ -73,7 +69,7 @@ export function AccessGraphLoading() {
         <Nodes />
       </Content>
 
-      <LoadingText>Launching Access Graph…</LoadingText>
+      <Text typography="h2">Launching Access Graph…</Text>
     </Container>
   );
 }

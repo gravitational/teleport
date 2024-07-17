@@ -105,12 +105,21 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   background-color: #222C59;
 }
 
+.c16 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -161,15 +170,6 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin-bottom: 8px;
 }
 
-.c16 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -199,7 +199,6 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -232,11 +231,11 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Trusted Devices
-    </div>
+    </h1>
   </div>
   <div
     class="c0 c6"
@@ -475,12 +474,21 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   background-color: #222C59;
 }
 
+.c16 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -531,15 +539,6 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   margin-bottom: 8px;
 }
 
-.c16 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -569,7 +568,6 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -602,11 +600,11 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Trusted Devices
-    </div>
+    </h1>
   </div>
   <div
     class="c0 c6"
@@ -854,12 +852,21 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   justify-content: center;
 }
 
+.c27 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -895,15 +902,6 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   font-weight: 500;
 }
 
-.c27 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -921,7 +919,6 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1114,11 +1111,11 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Trusted Devices
-    </div>
+    </h1>
   </div>
   <div
     class="c0 c6"
@@ -1518,12 +1515,21 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   justify-content: center;
 }
 
+.c33 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -1576,15 +1582,6 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   font-weight: 500;
 }
 
-.c33 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -1614,7 +1611,6 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1807,11 +1803,11 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Trusted Devices
-    </div>
+    </h1>
   </div>
   <div
     class="c0 c6"
@@ -2173,12 +2169,21 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   justify-content: center;
 }
 
+.c27 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -2214,15 +2219,6 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   font-weight: 500;
 }
 
-.c27 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c1 {
   display: flex;
 }
@@ -2240,7 +2236,6 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2433,11 +2428,11 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   <div
     class="c0 c1 c3"
   >
-    <div
+    <h1
       class="c4 c5"
     >
       Trusted Devices
-    </div>
+    </h1>
   </div>
   <div
     class="c0 c6"

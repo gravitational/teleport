@@ -565,7 +565,7 @@ function NoResults({ query }: { query: string }) {
   if (query) {
     return (
       <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-        <TextIcon typography="h3">
+        <TextIcon typography="h1">
           <Magnifier />
           No resources were found for&nbsp;
           <Text
@@ -585,7 +585,7 @@ function NoResults({ query }: { query: string }) {
   }
   return (
     <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-      <Text typography="h3">No requestable resources were found.</Text>
+      <Text typography="h1">No requestable resources were found.</Text>
     </Box>
   );
 }

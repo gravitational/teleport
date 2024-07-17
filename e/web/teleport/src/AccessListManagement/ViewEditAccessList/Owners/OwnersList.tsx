@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Flex, Text, ButtonText } from 'design';
+import { Flex, ButtonText } from 'design';
 import Table from 'design/DataTable';
 import { Wrench, Add } from 'design/Icon';
+
+import { H2 } from 'design';
 
 import {
   AccessList,
@@ -37,9 +39,9 @@ export function OwnersList({
       <Flex justifyContent="space-between" mb={2}>
         <Flex mb={2} alignItems="center">
           <Wrench />
-          <Text ml={1} mr={2} fontSize={4}>
+          <H2 ml={1} mr={2}>
             Owners
-          </Text>
+          </H2>
         </Flex>
         <ButtonText
           title={canEditOwners ? '' : genericNoAccessMsg}

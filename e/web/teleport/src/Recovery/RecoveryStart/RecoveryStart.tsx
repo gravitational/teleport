@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Text, ButtonPrimary, CardSuccess, Box } from 'design';
+import { Card, Text, ButtonPrimary, CardSuccess, Box, H2 } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -58,9 +58,9 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
       <Validation>
         {({ validator }) => (
           <>
-            <Text typography="h3" pt={4} textAlign="center" color="text.main">
+            <H2 pt={4} textAlign="center">
               {title}
-            </Text>
+            </H2>
             <Box p={4}>
               {attempt.status === 'failed' && (
                 <Danger width="100%">{attempt.statusText}</Danger>

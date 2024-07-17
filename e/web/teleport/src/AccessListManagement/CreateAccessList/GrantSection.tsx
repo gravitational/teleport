@@ -1,6 +1,8 @@
 import React from 'react';
-import { Box, Text } from 'design';
+import { Box } from 'design';
 import { Option } from 'shared/components/Select';
+
+import { H2 } from 'design';
 
 import { TraitLabel, TraitsCreator } from '../Traits';
 
@@ -30,9 +32,7 @@ export const GrantSection = ({
 }: Props) => {
   return (
     <>
-      <Text fontSize="18px" mb={2}>
-        {title}
-      </Text>
+      <H2 mb={2}>{title}</H2>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         loadOptions={fetchRoleOptions}
         isDisabled={isDisabled}

@@ -1,7 +1,15 @@
 import React, { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-import { ButtonPrimary, ButtonSecondary, Box, Flex, Text, Alert } from 'design';
+import {
+  ButtonPrimary,
+  ButtonSecondary,
+  Box,
+  Flex,
+  Text,
+  Alert,
+  H1,
+} from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import Validation, { Validator } from 'shared/components/Validation';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -9,6 +17,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
 import { getErrMessage } from 'shared/utils/errorType';
+
+import { H2 } from 'design';
 
 import cfg from 'e-teleport/config';
 import { pluginsService, getCTAForPlugin } from 'e-teleport/services/plugins';
@@ -115,13 +125,7 @@ export function SubmittablePluginForm({
 
   return (
     <Box mt={CustomTitle ? 0 : 3} style={{ position: 'relative' }}>
-      {CustomTitle ? (
-        <>{CustomTitle}</>
-      ) : (
-        <Text my={1} fontSize={4} bold>
-          {plugin.fullName}
-        </Text>
-      )}
+      {CustomTitle ? <>{CustomTitle}</> : <H1 my={2}>{plugin.fullName}</H1>}
       {plugin.Description && <plugin.Description />}
       <Box style={wrapperStyle}>
         {plugin.permissions?.length && (
@@ -159,16 +163,12 @@ export function SubmittablePluginForm({
         )}
         {plugin.Setup && (
           <>
-            <Text fontSize={4} bold>
-              Set up the integration
-            </Text>
+            <H2>Set up the integration</H2>
             <plugin.Setup />
           </>
         )}
         <Box mt={4}>
-          <Text mb={2} fontSize={4} bold>
-            Configure and connect
-          </Text>
+          <H2 mb={2}>Configure and connect</H2>
           {attempt.status === 'failed' && (
             <Alert kind="danger" children={attempt.statusText} mb={3} mt={3} />
           )}

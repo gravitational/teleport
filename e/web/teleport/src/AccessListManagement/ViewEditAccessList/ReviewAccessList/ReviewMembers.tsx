@@ -1,6 +1,8 @@
 import React from 'react';
-import { Box, Text } from 'design';
+import { Box } from 'design';
 import { pluralize } from 'shared/utils/text';
+
+import { H2 } from 'design';
 
 import {
   AccessListGrant,
@@ -37,9 +39,7 @@ export function ReviewMembers({
 
   return (
     <>
-      <Text fontSize={4} mb={3}>
-        Members
-      </Text>
+      <H2 mb={3}>Members</H2>
       {isOkta && <DeleteMemberWarning isReviewing={true} />}
       <AccessListMemberTable
         members={editedMembers}
@@ -49,7 +49,7 @@ export function ReviewMembers({
         isReviewing={true}
       />
       <Box mt={5} mb={-8}>
-        <Text fontSize={4}>Changes</Text>
+        <H2>Changes</H2>
         <List>
           <li>
             {numMembersDeleted} {pluralize(numMembersDeleted, 'member')} revoked

@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Text, Flex, ButtonSecondary, Box } from 'design';
+import { ButtonPrimary, Text, Flex, ButtonSecondary, Box, H2 } from 'design';
 import * as Alerts from 'design/Alert';
 import Dialog, {
   DialogContent,
@@ -169,9 +169,7 @@ export default function EmailPasswordResetDialog({
             <UserAdd />
           </Flex>
           <Box>
-            <Text typography="h3" color="text.main">
-              Reset User Credentials
-            </Text>
+            <H2>Reset User Credentials</H2>
             <Text color="text.slightlyMuted">
               Send <UserStyle>{username}</UserStyle> a new cluster invitation to
               reset their credentials.

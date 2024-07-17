@@ -10,6 +10,8 @@ import { ClientSidePager } from 'design/DataTable/Pager';
 import { getPagerPosition } from 'design/DataTable/Table';
 import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useClientSidePager';
 
+import { H2 } from 'design';
+
 import {
   AccessList,
   AccessListMember,
@@ -46,9 +48,9 @@ export function MembersList({
         <Flex justifyContent="space-between" mb={2}>
           <Flex alignItems="center">
             <UsersTriple />
-            <Text ml={1} mr={2} fontSize={4}>
+            <H2 ml={1} mr={2}>
               Members
-            </Text>
+            </H2>
           </Flex>
           <ButtonText
             title={canEditMembers ? '' : genericNoAccessMsg}

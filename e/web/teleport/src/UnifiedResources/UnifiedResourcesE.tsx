@@ -22,7 +22,7 @@ import { Prompt } from 'react-router';
 import { pluralize } from 'shared/utils/text';
 import { Link } from 'react-router-dom';
 import { AddCircle } from 'design/Icon';
-import { Box, ButtonPrimary, ButtonText, Flex, Text } from 'design';
+import { Box, ButtonPrimary, ButtonText, Flex, H2 } from 'design';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUser } from 'teleport/User/UserContext';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -209,10 +209,10 @@ export function UnifiedResourcesE() {
               isResourceRequest={true} // only resource requests happen from this page
               Header={() => (
                 <Box mb={3}>
-                  <Text typography="h4" color="text.main" bold>
+                  <H2>
                     New Access Request: {numAddedResources}{' '}
                     {pluralize(numAddedResources, 'Resource')} Selected
-                  </Text>
+                  </H2>
                 </Box>
               )}
               SuccessComponent={SuccessActionComponent}

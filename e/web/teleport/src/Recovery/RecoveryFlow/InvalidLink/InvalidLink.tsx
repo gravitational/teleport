@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Text } from 'design';
+import { Card, H1, Text } from 'design';
 
 export default function InvalidLink() {
   return (
@@ -11,15 +11,9 @@ export default function InvalidLink() {
       mt={6}
       mx="auto"
     >
-      <Text
-        typography="h1"
-        textAlign="center"
-        fontSize={8}
-        color="text.main"
-        mb={3}
-      >
+      <H1 textAlign="center" mb={3}>
         Invalid Recovery Link
-      </Text>
+      </H1>
       <Text typography="paragraph" mb="2" textAlign="center">
         This recovery link is invalid or has expired.
       </Text>

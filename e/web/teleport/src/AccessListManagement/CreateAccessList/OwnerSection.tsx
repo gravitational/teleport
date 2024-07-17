@@ -4,6 +4,8 @@ import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
+import { H2 } from 'design';
+
 import { HybridUserOption, UserOption } from '../Shared/Shared';
 import {
   TraitLabel,
@@ -42,9 +44,7 @@ export const OwnersSection = ({
   return (
     <>
       <Flex alignItems="center" mb={2}>
-        <Text fontSize="18px" mr={2}>
-          List Owners
-        </Text>
+        <H2 mr={2}>List Owners</H2>
         <ToolTipInfo
           children={
             <>

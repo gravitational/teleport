@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, Flex, ButtonText } from 'design';
+import { Flex, ButtonText, H2 } from 'design';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { Trash } from 'design/Icon';
 import useTeleport from 'teleport/useTeleport';
@@ -28,9 +28,9 @@ export const EditorHeader = ({
   return (
     <>
       <Flex alignItems="center" mb={3} justifyContent="space-between" flex="1">
-        <Text typography="h4" fontWeight={400}>
+        <H2>
           {isCreating ? 'Create a New Notification Rule' : rule?.metadata?.name}
-        </Text>
+        </H2>
         {requiresEnrollingPlugins && (
           <ButtonText onClick={onCancel}>Cancel</ButtonText>
         )}

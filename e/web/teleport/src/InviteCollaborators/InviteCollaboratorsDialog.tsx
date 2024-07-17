@@ -9,6 +9,7 @@ import {
   Alert,
   Box,
   Indicator,
+  H2,
 } from 'design';
 import Dialog, {
   DialogContent,
@@ -135,9 +136,7 @@ function InviteCollaboratorsDialogInner({
                 <UserAdd />
               </Flex>
               <Box>
-                <Text typography="h3" color="text.main">
-                  Invite Users
-                </Text>
+                <H2>Invite Users</H2>
                 <Text color="text.slightlyMuted">
                   Collaborate with your team on{' '}
                   <ClusterName>{clusterId}</ClusterName>.

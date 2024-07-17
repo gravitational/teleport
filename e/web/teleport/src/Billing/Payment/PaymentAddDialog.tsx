@@ -4,7 +4,7 @@ import Dialog, {
   DialogHeader,
 } from 'design/Dialog';
 
-import { ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { ButtonPrimary, ButtonSecondary, H2, Text } from 'design';
 import React, { useState } from 'react';
 import { useElements, useStripe } from '@stripe/react-stripe-js';
 import { useTheme } from 'styled-components';
@@ -119,9 +119,7 @@ export const PaymentAddDialog = ({
   return (
     <Dialog open={open}>
       <DialogHeader>
-        <Text typography="h3" color={theme.colors.text.main}>
-          {title}
-        </Text>
+        <H2>{title}</H2>
       </DialogHeader>
       <DialogContent width="400px">
         <Text mb={3} color={theme.colors.text.slightlyMuted}>

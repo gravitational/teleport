@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, H1, Text } from 'design';
 
 import cfg from 'e-teleport/config';
 
@@ -40,9 +40,7 @@ export function EmptyState() {
   return (
     <Box mt={4}>
       <Box mb={3}>
-        <Text typography="h5" mb={3} fontSize={7}>
-          What are Access Lists?
-        </Text>
+        <H1 mb={3}>What are Access Lists?</H1>
         <Text css={{ maxWidth: '1204px' }}>
           <b>Access Lists</b> enable users to gain long-term access to select
           resources within Teleport. List Owners can manage membership and

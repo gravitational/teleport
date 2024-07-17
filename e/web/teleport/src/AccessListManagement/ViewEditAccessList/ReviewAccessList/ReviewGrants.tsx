@@ -1,6 +1,8 @@
 import React from 'react';
 import { Option } from 'shared/components/Select';
-import { Box, Text } from 'design';
+import { Box } from 'design';
+
+import { H2 } from 'design';
 
 import { AccessListGrant } from 'e-teleport/services/accessmanagement';
 
@@ -23,9 +25,7 @@ export function ReviewGrants({
 }: Props) {
   return (
     <>
-      <Text fontSize={4} mb={3}>
-        Permissions Granted to List Members
-      </Text>
+      <H2 mb={3}>Permissions Granted to List Members</H2>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         loadOptions={fetchRoleOptions}
         isDisabled={false}

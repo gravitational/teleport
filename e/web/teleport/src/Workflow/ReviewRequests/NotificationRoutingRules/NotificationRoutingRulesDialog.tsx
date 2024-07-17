@@ -168,9 +168,7 @@ export const NotificationRoutingRulesDialog = ({
                   <Cross size="medium" />
                 </ButtonIcon>
               </HoverTooltip>
-              <Text typography="h3" fontWeight={400}>
-                Notification Rules
-              </Text>
+              <Text typography="h1">Notification Rules</Text>
             </Flex>
             {fetchPluginsAttempt.status === 'success' && (
               <HoverTooltip
