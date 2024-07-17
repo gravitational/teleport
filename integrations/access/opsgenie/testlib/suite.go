@@ -37,8 +37,7 @@ const (
 	ResponderName1             = "Responder 1"
 	ResponderName2             = "Responder 2"
 	ResponderName3             = "Responder 3"
-	NotifyScheduleNameOne      = "Teleport Notifications One"
-	NotifyScheduleNameTwo      = "Teleport Notifications Two"
+	NotifyScheduleName         = "Teleport Notifications"
 	NotifyScheduleAnnotation   = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	ApprovalScheduleName       = "Teleport Approval"
 	ApprovalScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
@@ -77,13 +76,13 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 
 	// This service should be notified for every access request.
 	s.ogNotifyResponder = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: NotifyScheduleNameOne,
+		Name: NotifyScheduleName,
 	})
 
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
 		NotifyScheduleAnnotation,
-		[]string{NotifyScheduleNameOne, NotifyScheduleNameTwo},
+		[]string{NotifyScheduleName},
 	)
 
 	// Responder 1 and 2 are on-call and should be automatically approved.
@@ -174,6 +173,12 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
+		NotifyScheduleAnnotation,
+		[]string{},
+	)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
 		NotifyTeamAnnotation,
 		[]string{NotifyTeamName},
 	)
@@ -193,6 +198,19 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 	require.NoError(t, err, "no new alerts stored")
 
 	assert.Equal(t, alert.ID, pluginData.AlertID)
+
+	// Reset annotations
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyScheduleAnnotation,
+		[]string{NotifyScheduleName},
+	)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyTeamAnnotation,
+		[]string{},
+	)
 }
 
 // TestApproval tests that when a request is approved, its corresponding alert
