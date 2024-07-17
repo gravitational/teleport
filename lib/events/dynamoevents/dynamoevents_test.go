@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strconv"
@@ -65,7 +67,6 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
 
 	log, err := New(context.Background(), Config{
-		Region:             "us-east-1",
 		Tablename:          fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:              fakeClock,
 		UIDGenerator:       utils.NewFakeUID(),
@@ -588,4 +589,26 @@ func randStringAlpha(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func TestCustomEndpoint(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("AWS_ACCESS_KEY", "llama")
+	t.Setenv("AWS_SECRET_KEY", "alpaca")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	b, err := New(ctx, Config{
+		Tablename:    "teleport-test",
+		UIDGenerator: utils.NewFakeUID(),
+		Endpoint:     srv.URL,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, b)
+	require.Contains(t, err.Error(), fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
 }
