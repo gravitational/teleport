@@ -1679,7 +1679,7 @@
     },
     {
       "source": "/auto-discovery/kubernetes-applications/reference/",
-      "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
+      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-applications/",
       "permanent": true
     },
     {
