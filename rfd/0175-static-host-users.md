@@ -189,10 +189,9 @@ in allow/deny rules like any other resource.
 
 We want to minimize the ability of Teleport users to mess with existing host users
 via `static_host_user`s. To that end, all host users created from `static_host_user`s
-will be in the `teleport-created` group (similar to the `teleport-system` group, which
-we currently use to mark users that Teleport should clean up). Teleport will not
-delete users not in `teleport-created`, and new users will not override existing users
-that are not in `teleport-created`.
+will be in the `teleport-static` group (similar to the `teleport-system` group, which
+we currently use to mark users that Teleport should clean up). New users will not override
+existing users that are not in `teleport-static`.
 
 ### Backward compatibility
 
