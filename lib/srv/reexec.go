@@ -657,20 +657,17 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Unlock OS thread (if locked by PAM) so that goroutines below inherit
-	// thread-state related to PAM, e.g. pam_namespace. See lib/pam/pam.go
-	// for details on why we lock the OS thread on init.
-	runtime.UnlockOSThread()
-
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
 		n, fn, err := uds.ReadWithFDs(parentConn, buf, fbuf)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
-				return errorWriter, teleport.RemoteCommandSuccess, nil
+				// parent connection closed, process should exit.
+				return errorWriter, teleport.RemoteCommandFailure, nil
 			}
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			slog.With("error", err).ErrorContext(ctx, "Error reading networking request from parent.")
+			continue
 		}
 
 		if fn == 0 {
@@ -685,23 +682,43 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			continue
 		}
 
-		go handleNetworkingRequest(ctx, controlConn, buf[:n])
+		var req networking.Request
+		if err := json.Unmarshal(buf[:n], &req); err != nil {
+			slog.With("error", err).ErrorContext(ctx, "Error parsing networking request.")
+			continue
+		}
+
+		// Some PAM modules (e.g. pam_namespace) do not behave properly in multithreaded contexts.
+		// Therefore we favor handling requests on the main PAM thread for requests that are expected
+		// to be impacted (unix socket listeners).
+		switch req.Operation {
+		case networking.NetworkingOperationDial, networking.NetworkingOperationListen:
+			switch req.Network {
+			case "tcp":
+				// There are currently no known issues with tcp listen/dial in a multithreaded PAM context.
+				go handleNetworkingRequest(ctx, controlConn, req)
+			default:
+				// Note: we don't currently support non-tcp network forwarding, so this branch is not
+				// currently reached. If in the future we add unix socket forwarding similar to OpenSSH's
+				// direct-streamlocal@openssh.com extension, we should revisit this multithreading limitation
+				// to prevent performance degradation.
+				handleNetworkingRequest(ctx, controlConn, req)
+			}
+		case networking.NetworkingOperationListenAgent, networking.NetworkingOperationListenX11:
+			// Agent and X11 forwarding requests should only occur once per networking process instance, so
+			// handling them in the main thread should have negligible performance impact.
+			handleNetworkingRequest(ctx, controlConn, req)
+		}
 	}
 }
 
-func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, payload []byte) {
+func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networking.Request) {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	go func() {
 		defer cancel()
 		_, _ = conn.Read(make([]byte, 1))
 	}()
-
-	var req networking.Request
-	if err := json.Unmarshal(payload, &req); err != nil {
-		slog.With("error", err).ErrorContext(ctx, "Error parsing networking request.")
-		return
-	}
 
 	log := slog.With("request", req)
 	log.Debug("Handling networking request")
@@ -775,12 +792,6 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, trace.Wrap(err)
 		}
 		defer listener.Close()
-
-		// Setup the user's local xauth file to interface with the local x11 listener.
-		// We Lock the OS thread before running the xauth commands in order to inherit
-		// any thread-state related to PAM.
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 
 		removeCmd := x11.NewXAuthCommand(ctx, "")
 		if err := removeCmd.RemoveEntries(display); err != nil {
