@@ -9,7 +9,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
-	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -31,23 +30,6 @@ func TestGetErrorDetailsRaw(t *testing.T) {
 	code, msg = getErrorDetails(err)
 	require.Equal(t, types.PluginStatusCode_OTHER_ERROR, code)
 	require.Equal(t, "failed to fetch foo: something bad happened", msg)
-}
-
-func TestGetErrorDetailsOData(t *testing.T) {
-	t.Parallel()
-
-	oDataErr := odataerrors.NewODataError()
-	mainErr := odataerrors.NewMainError()
-	errCode := "Request_ResourceNotFound"
-	mainErr.SetCode(&errCode)
-	message := "Resource 'a716e6e4-0aca-474a-8ae1-d46ae1de209e' does not exist or one of its queried reference-property objects are not present."
-	mainErr.SetMessage(&message)
-	oDataErr.SetErrorEscaped(mainErr)
-
-	err := trace.Wrap(oDataErr, "failed to fetch foo")
-	code, msg := getErrorDetails(err)
-	require.Equal(t, types.PluginStatusCode_OTHER_ERROR, code)
-	require.Equal(t, "failed to fetch foo: ResourceNotFound: Resource 'a716e6e4-0aca-474a-8ae1-d46ae1de209e' does not exist or one of its queried reference-property objects are not present.", msg)
 }
 
 func TestGetErrorDetailsAzIdentity(t *testing.T) {

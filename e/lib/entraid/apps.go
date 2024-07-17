@@ -12,23 +12,23 @@ import (
 	"path"
 
 	"github.com/gravitational/trace"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	samltypes "github.com/russellhaering/gosaml2/types"
 
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
-func entraAppToProto(ctx context.Context, app models.Applicationable, ssoSettings *types.PluginEntraIDAppSSOSettings, tenantID string, signingCerts []string) (*accessgraphv1alpha.EntraApplication, error) {
-	id := app.GetId()
+func entraAppToProto(ctx context.Context, app *msgraph.Application, ssoSettings *types.PluginEntraIDAppSSOSettings, tenantID string, signingCerts []string) (*accessgraphv1alpha.EntraApplication, error) {
+	id := app.ID
 	if id == nil {
 		return nil, trace.BadParameter("expected ID to be present")
 	}
-	appID := app.GetAppId()
+	appID := app.AppID
 	if appID == nil {
 		return nil, trace.BadParameter("expected app ID to be present")
 	}
-	displayName := app.GetDisplayName()
+	displayName := app.DisplayName
 	if displayName == nil {
 		return nil, trace.BadParameter("expected display name to be present")
 	}

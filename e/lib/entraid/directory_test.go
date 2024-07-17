@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -20,22 +19,23 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 type fakeGraphClient struct {
-	users        []models.Userable
-	groups       []models.Groupable
-	groupMembers map[string][]models.DirectoryObjectable
+	users        []*msgraph.User
+	groups       []*msgraph.Group
+	groupMembers map[string][]msgraph.GroupMember
 }
 
 func newFakeGraphClient() *fakeGraphClient {
 	return &fakeGraphClient{
-		groupMembers: make(map[string][]models.DirectoryObjectable),
+		groupMembers: make(map[string][]msgraph.GroupMember),
 	}
 }
 
-func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(models.DirectoryObjectable) bool) error {
+func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(msgraph.GroupMember) bool) error {
 	for _, m := range c.groupMembers[groupID] {
 		if !f(m) {
 			return nil
@@ -44,7 +44,7 @@ func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID strin
 	return nil
 }
 
-func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(models.Groupable) bool) error {
+func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Group) bool) error {
 	for _, g := range c.groups {
 		if !f(g) {
 			return nil
@@ -53,7 +53,7 @@ func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(models.Group
 	return nil
 }
 
-func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(models.Userable) bool) error {
+func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User) bool) error {
 	for _, u := range c.users {
 		if !f(u) {
 			return nil
@@ -62,7 +62,7 @@ func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(models.Userab
 	return nil
 }
 
-func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(models.Applicationable) bool) error {
+func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(*msgraph.Application) bool) error {
 	panic("not implemented")
 }
 
@@ -92,34 +92,34 @@ func TestEntraIDService(t *testing.T) {
 	// Alice does not exist in Teleport, but exists in Entra
 	aliceID := uuid.NewString()
 	aliceUPN := "alice@example.com"
-	aliceEntra := models.NewUser()
-	aliceEntra.SetId(&aliceID)
-	aliceEntra.SetUserPrincipalName(&aliceUPN)
+	aliceEntra := &msgraph.User{}
+	aliceEntra.ID = &aliceID
+	aliceEntra.UserPrincipalName = &aliceUPN
 	aliceSAMAccountName := "alice-on-prem"
-	aliceEntra.SetOnPremisesSamAccountName(&aliceSAMAccountName)
+	aliceEntra.OnPremisesSAMAccountName = &aliceSAMAccountName
 	graphClient.users = append(graphClient.users, aliceEntra)
 
 	// Team A does not exist in Teleport, but exists in entra. Alice is a member
 	teamAID := uuid.NewString()
-	teamAEntra := models.NewGroup()
-	teamAEntra.SetId(&teamAID)
-	teamAEntra.SetDisplayName(to.Ptr("Team A"))
+	teamAEntra := &msgraph.Group{}
+	teamAEntra.ID = &teamAID
+	teamAEntra.DisplayName = to.Ptr("Team A")
 	graphClient.groups = append(graphClient.groups, teamAEntra)
-	graphClient.groupMembers[teamAID] = []models.DirectoryObjectable{aliceEntra}
+	graphClient.groupMembers[teamAID] = []msgraph.GroupMember{aliceEntra}
 
 	// Team A contains an unconvertable member.
 	// It should be gracefully ignored.
-	deviceID := uuid.NewString()
-	device := models.NewDevice()
-	device.SetId(&deviceID)
-	graphClient.groupMembers[teamAID] = append(graphClient.groupMembers[teamAID], device)
+	subgroup := &msgraph.Group{}
+	subgroupID := "foo"
+	subgroup.ID = &subgroupID
+	graphClient.groupMembers[teamAID] = append(graphClient.groupMembers[teamAID], subgroup)
 
 	// Bob exists in both Entra and Teleport, should stay unchanged
 	bobID := uuid.NewString()
 	bobUPN := "bob@example.com"
-	bobEntra := models.NewUser()
-	bobEntra.SetId(&bobID)
-	bobEntra.SetUserPrincipalName(&bobUPN)
+	bobEntra := &msgraph.User{}
+	bobEntra.ID = &bobID
+	bobEntra.UserPrincipalName = &bobUPN
 	graphClient.users = append(graphClient.users, bobEntra)
 
 	bobTeleport, err := convertUser(bobEntra, tenantID, ssoConnectorID)
@@ -130,9 +130,9 @@ func TestEntraIDService(t *testing.T) {
 	// Carol exists in both, but was recently unassigned from Team C in Entra
 	carolID := uuid.NewString()
 	carolUPN := "carol@example.com"
-	carolEntra := models.NewUser()
-	carolEntra.SetId(&carolID)
-	carolEntra.SetUserPrincipalName(&carolUPN)
+	carolEntra := &msgraph.User{}
+	carolEntra.ID = &carolID
+	carolEntra.UserPrincipalName = &carolUPN
 	graphClient.users = append(graphClient.users, carolEntra)
 
 	carolTeleport, err := convertUser(carolEntra, tenantID, ssoConnectorID)
@@ -142,9 +142,9 @@ func TestEntraIDService(t *testing.T) {
 
 	// Team C exists in both, but members have changed in Entra (Carol was removed)
 	teamCID := uuid.NewString()
-	teamCEntra := models.NewGroup()
-	teamCEntra.SetId(&teamCID)
-	teamCEntra.SetDisplayName(to.Ptr("Team C"))
+	teamCEntra := &msgraph.Group{}
+	teamCEntra.ID = &teamCID
+	teamCEntra.DisplayName = to.Ptr("Team C")
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
 	teamCTeleport, err := convertGroup(teamCEntra, tenantID, defaultOwners)
@@ -158,9 +158,9 @@ func TestEntraIDService(t *testing.T) {
 	// Dave exists in Teleport, but was removed from Entra
 	daveID := uuid.NewString()
 	daveUPN := "dave@example.com"
-	daveEntra := models.NewUser()
-	daveEntra.SetId(&daveID)
-	daveEntra.SetUserPrincipalName(&daveUPN)
+	daveEntra := &msgraph.User{}
+	daveEntra.ID = &daveID
+	daveEntra.UserPrincipalName = &daveUPN
 
 	daveTeleport, err := convertUser(daveEntra, tenantID, ssoConnectorID)
 	require.NoError(t, err)
@@ -170,9 +170,9 @@ func TestEntraIDService(t *testing.T) {
 	// Eve has a local account in Teleport, should not get overwritten by her imported Entra account
 	eveID := uuid.NewString()
 	eveUPN := "eve@example.com"
-	eveEntra := models.NewUser()
-	eveEntra.SetId(&eveID)
-	eveEntra.SetUserPrincipalName(&eveUPN)
+	eveEntra := &msgraph.User{}
+	eveEntra.ID = &eveID
+	eveEntra.UserPrincipalName = &eveUPN
 	graphClient.users = append(graphClient.users, eveEntra)
 
 	eveTeleport, err := types.NewUser(eveUPN)

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -18,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -136,8 +136,8 @@ func listTeleportAccessLists(ctx context.Context, svc accessListAccessPoint) (ma
 
 func listEntraAccessLists(ctx context.Context, graphClient graphClient, tenantID string, defaultOwners []accesslist.Owner) (map[string]*accesslist.AccessList, error) {
 	result := map[string]*accesslist.AccessList{}
-	err := graphClient.IterateGroups(ctx, func(u models.Groupable) bool {
-		al, err := convertGroup(u, tenantID, defaultOwners)
+	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
+		al, err := convertGroup(g, tenantID, defaultOwners)
 		if err == nil {
 			result[al.GetName()] = al
 		} else {
@@ -184,12 +184,12 @@ func listEntraAccessListMembers(ctx context.Context, graphClient graphClient, en
 		if !ok {
 			return nil, trace.BadParameter("access list %v missing Entra ID unique ID label", al.GetName())
 		}
-		err := graphClient.IterateGroupMembers(ctx, id, func(member models.DirectoryObjectable) bool {
+		err := graphClient.IterateGroupMembers(ctx, id, func(member msgraph.GroupMember) bool {
 			alm, err := convertGroupMember(ctx, member, al, entraUsersByID)
 			if err != nil {
 				var id string
-				if member.GetId() != nil {
-					id = *member.GetId()
+				if member.GetID() != nil {
+					id = *member.GetID()
 				}
 				slog.WarnContext(ctx, "error while converting group member", "member", id, "error", err)
 				return false
@@ -208,15 +208,15 @@ func listEntraAccessListMembers(ctx context.Context, graphClient graphClient, en
 	return result, nil
 }
 
-func convertGroup(in models.Groupable, tenantID string, defaultOwners []accesslist.Owner) (*accesslist.AccessList, error) {
-	if in.GetDisplayName() == nil {
+func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist.Owner) (*accesslist.AccessList, error) {
+	if in.DisplayName == nil {
 		return nil, trace.BadParameter("expected Entra ID group to have a non-empty display name")
 	}
-	displayName := *in.GetDisplayName()
-	if in.GetId() == nil {
+	displayName := *in.DisplayName
+	if in.ID == nil {
 		return nil, trace.BadParameter("expected Entra ID group to have a non-empty ID")
 	}
-	id := *in.GetId()
+	id := *in.ID
 
 	out, err := accesslist.NewAccessList(
 		header.Metadata{
@@ -247,14 +247,14 @@ func convertGroup(in models.Groupable, tenantID string, defaultOwners []accessli
 // convertGroupMember converts an Entra group member to an AccessListMember.
 // Error is returned on unexpected conditions, indicating programmer error (e.g. validation of AccessListMember fails).
 // On non fatal errors, e.g. an unsupported member type, a warning is logged and (nil, nil) is returned.
-func convertGroupMember(ctx context.Context, in models.DirectoryObjectable, al *accesslist.AccessList, entraUsersByID map[entraUniqueID]types.User) (*accesslist.AccessListMember, error) {
-	if in.GetId() == nil {
+func convertGroupMember(ctx context.Context, in msgraph.GroupMember, al *accesslist.AccessList, entraUsersByID map[entraUniqueID]types.User) (*accesslist.AccessListMember, error) {
+	if in.GetID() == nil {
 		return nil, trace.BadParameter("expected Entra ID user to have a non-empty unique ID")
 	}
-	id := *in.GetId()
+	id := *in.GetID()
 
 	switch in.(type) {
-	case models.Userable:
+	case *msgraph.User:
 		teleportUser, ok := entraUsersByID[entraUniqueID(id)]
 		if !ok {
 			slog.WarnContext(ctx, "no teleport user found for Entra unique ID", "id", id)
@@ -277,7 +277,7 @@ func convertGroupMember(ctx context.Context, in models.DirectoryObjectable, al *
 		alm.SetOrigin(types.OriginEntraID)
 		return alm, nil
 
-	case models.Groupable:
+	case *msgraph.Group:
 		slog.WarnContext(ctx, "entra groups as members of groups are not supported yet", "member", id)
 		return nil, nil
 

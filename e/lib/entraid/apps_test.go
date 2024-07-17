@@ -10,12 +10,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 func TestEntraAppToProto(t *testing.T) {
@@ -30,11 +30,11 @@ func TestEntraAppToProto(t *testing.T) {
 		FederatedSsoV2: federatedSSOV2,
 	}
 
-	createEntraApp := func() models.Applicationable {
-		entraApp := models.NewApplication()
-		entraApp.SetId(&id)
-		entraApp.SetAppId(&appID)
-		entraApp.SetDisplayName(&displayName)
+	createEntraApp := func() *msgraph.Application {
+		entraApp := &msgraph.Application{}
+		entraApp.ID = &id
+		entraApp.AppID = &appID
+		entraApp.DisplayName = &displayName
 		return entraApp
 	}
 
@@ -59,7 +59,7 @@ func TestEntraAppToProto(t *testing.T) {
 
 	t.Run("without ID", func(t *testing.T) {
 		entraApp := createEntraApp()
-		entraApp.SetId(nil)
+		entraApp.ID = nil
 		_, err := entraAppToProto(ctx, entraApp, ssoSettings, tenantID, certs)
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
@@ -67,7 +67,7 @@ func TestEntraAppToProto(t *testing.T) {
 
 	t.Run("without app ID", func(t *testing.T) {
 		entraApp := createEntraApp()
-		entraApp.SetAppId(nil)
+		entraApp.AppID = nil
 		_, err := entraAppToProto(ctx, entraApp, ssoSettings, tenantID, certs)
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
@@ -75,7 +75,7 @@ func TestEntraAppToProto(t *testing.T) {
 
 	t.Run("without display name", func(t *testing.T) {
 		entraApp := createEntraApp()
-		entraApp.SetDisplayName(nil)
+		entraApp.DisplayName = nil
 		_, err := entraAppToProto(ctx, entraApp, ssoSettings, tenantID, certs)
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))

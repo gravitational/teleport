@@ -5,8 +5,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
-	auth "github.com/microsoft/kiota-authentication-azure-go"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -17,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -163,24 +162,15 @@ func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, st
 }
 
 // constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
-func constructGraphClient(tenantID string, clientID string, getAssertion func(context.Context) (string, error)) (*msgraphsdk.GraphServiceClient, error) {
-	// msGraphAPIScope is the OAuth scope for the Microsoft Graph API.
-	const msGraphAPIScope = "https://graph.microsoft.com/.default"
-
+func constructGraphClient(tenantID string, clientID string, getAssertion func(context.Context) (string, error)) (*msgraph.Client, error) {
 	credential, err := azidentity.NewClientAssertionCredential(tenantID, clientID, getAssertion, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	authProvider, err := auth.NewAzureIdentityAuthenticationProviderWithScopes(credential, []string{msGraphAPIScope})
-	if err != nil {
-		return nil, err
-	}
+	graphClient, err := msgraph.NewClient(msgraph.Config{
+		TokenProvider: credential,
+	})
 
-	adapter, err := msgraphsdk.NewGraphRequestAdapter(authProvider)
-	if err != nil {
-		return nil, err
-	}
-
-	return msgraphsdk.NewGraphServiceClient(adapter), nil
+	return graphClient, trace.Wrap(err)
 }

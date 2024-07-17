@@ -7,7 +7,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
-	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -30,27 +29,6 @@ func getErrorDetails(err error) (types.PluginStatusCode, string) {
 }
 
 func getEntraErrorDetails(err error) (types.PluginStatusCode, string) {
-	var oDataErr *odataerrors.ODataError
-	if errors.As(err, &oDataErr) {
-		var messages []string
-		if mainErr := oDataErr.GetErrorEscaped(); mainErr != nil {
-			if mainErr.GetCode() != nil {
-				messages = append(messages, strings.TrimPrefix(*mainErr.GetCode(), "Request_"))
-			}
-		}
-		mainErr := oDataErr.GetErrorEscaped()
-		if mainErr != nil && mainErr.GetMessage() != nil {
-			messages = append(messages, *mainErr.GetMessage())
-		}
-
-		// Fall back on generic error
-		if len(messages) == 0 {
-			messages = []string{oDataErr.Error()}
-		}
-
-		return types.PluginStatusCode_OTHER_ERROR, strings.Join(messages, ": ")
-	}
-
 	var azIdentityErr *azidentity.AuthenticationFailedError
 	if errors.As(err, &azIdentityErr) {
 		messages := []string{"Authentication to Azure failed"}

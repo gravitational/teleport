@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -106,7 +106,7 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]typ
 
 func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID string, ssoConnectorID string) (map[string]types.User, error) {
 	result := map[string]types.User{}
-	err := graphClient.IterateUsers(ctx, func(u models.Userable) bool {
+	err := graphClient.IterateUsers(ctx, func(u *msgraph.User) bool {
 		user, err := convertUser(u, tenantID, ssoConnectorID)
 		if err == nil {
 			result[user.GetName()] = user
@@ -119,22 +119,22 @@ func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID strin
 	return result, trace.Wrap(err)
 }
 
-func convertUser(in models.Userable, tenantID string, ssoConnectorID string) (types.User, error) {
-	upn := in.GetUserPrincipalName()
+func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string) (types.User, error) {
+	upn := in.UserPrincipalName
 	if upn == nil {
 		return nil, trace.BadParameter("expected Entra ID user to have a UPN")
 	}
 
-	username := in.GetMail()
+	username := in.Mail
 	if username == nil {
 		username = upn
 	}
 
-	samAccountName := in.GetOnPremisesSamAccountName()
+	samAccountName := in.OnPremisesSAMAccountName
 
 	out, err := types.NewUser(*username)
 	labels := map[string]string{
-		types.EntraUniqueIDLabel: *in.GetId(),
+		types.EntraUniqueIDLabel: *in.ID,
 		types.EntraTenantIDLabel: tenantID,
 		types.EntraUPNLabel:      *upn,
 	}

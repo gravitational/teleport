@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 type userAccessPoint interface {
@@ -54,8 +54,8 @@ type DirectoryReconciler struct {
 
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
 type DirectoryReconcilerConfig struct {
-	// GraphClient is the instantiated Microsoft Graph SDK client.
-	GraphClient *msgraphsdk.GraphServiceClient
+	// GraphClient is the instantiated Microsoft Graph API client.
+	GraphClient *msgraph.Client
 	// UserSvc is the service used to read and modify Teleport users.
 	UserSvc userAccessPoint
 	// AccessListSvc is the service used to read and modify Teleport access lists.
@@ -100,7 +100,7 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 	}
 
 	return &DirectoryReconciler{
-		graphClient:   &graphClientWrapper{client: cfg.GraphClient},
+		graphClient:   cfg.GraphClient,
 		userSvc:       cfg.UserSvc,
 		accessListSvc: cfg.AccessListSvc,
 		defaultOwners: cfg.DefaultOwners,

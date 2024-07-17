@@ -8,14 +8,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -25,8 +24,7 @@ type AccessGraphConfig struct {
 	ConnectionConfig servicecfg.AccessGraphConfig
 	Credentials      accessgraph.ClientCredentialsGetter
 	SyncSettings     *types.PluginEntraIDAccessGraphSettings
-	// GraphClient is the instantiated Microsoft Graph SDK client.
-	GraphClient *msgraphsdk.GraphServiceClient
+	GraphClient      *msgraph.Client
 
 	TenantID string
 }
@@ -86,7 +84,7 @@ func NewAccessGraphSynchronizer(cfg AccessGraphConfig) (*AccessGraphSynchronizer
 		connectionConfig: cfg.ConnectionConfig,
 		credentials:      cfg.Credentials,
 		ssoCache:         ssoCache,
-		graphClient:      &graphClientWrapper{client: cfg.GraphClient},
+		graphClient:      cfg.GraphClient,
 		httpClient:       &http.Client{},
 		tenantID:         cfg.TenantID,
 	}, nil
@@ -177,41 +175,33 @@ func (s *AccessGraphSynchronizer) synchronizeOnce(ctx context.Context, currentTA
 }
 
 func (s *AccessGraphSynchronizer) fetchApps(ctx context.Context) ([]*accessgraphv1alpha.EntraApplication, error) {
-	var entraApps []models.Applicationable
-	err := s.graphClient.IterateApplications(ctx, func(app models.Applicationable) bool {
-		entraApps = append(entraApps, app)
-		return true
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var results []*accessgraphv1alpha.EntraApplication
-	for _, entraApp := range entraApps {
-		appID := entraApp.GetAppId()
+	err := s.graphClient.IterateApplications(ctx, func(graphApp *msgraph.Application) bool {
+		appID := graphApp.AppID
 		if appID == nil {
 			s.log.ErrorContext(ctx, "expected app ID to be present")
-			continue
+			return true
 		}
 
 		ssoSettings, ok := s.ssoCache[*appID]
 		if !ok || ssoSettings == nil {
 			s.log.DebugContext(ctx, "entra app does not exist in SSO settings cache, skipping", "app_id", *appID)
-			continue
+			return true
 		}
 
-		app, err := s.convertApp(ctx, entraApp, ssoSettings)
+		app, err := s.convertApp(ctx, graphApp, ssoSettings)
 		if err != nil {
 			s.log.ErrorContext(ctx, "failed to convert entra app to proto", "app_id", *appID)
 		}
 		results = append(results, app)
-	}
+		return true
+	})
 
-	return results, nil
+	return results, trace.Wrap(err)
 }
 
-func (s *AccessGraphSynchronizer) convertApp(ctx context.Context, app models.Applicationable, ssoSettings *types.PluginEntraIDAppSSOSettings) (*accessgraphv1alpha.EntraApplication, error) {
-	appID := app.GetAppId()
+func (s *AccessGraphSynchronizer) convertApp(ctx context.Context, app *msgraph.Application, ssoSettings *types.PluginEntraIDAppSSOSettings) (*accessgraphv1alpha.EntraApplication, error) {
+	appID := app.AppID
 	if appID == nil {
 		return nil, trace.BadParameter("expected app ID to be present")
 	}
