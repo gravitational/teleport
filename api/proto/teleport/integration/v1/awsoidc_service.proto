@@ -165,6 +165,9 @@ message ListDatabasesRequest {
   // NextToken is the token to be used to fetch the next page.
   // If empty, the first page is fetched.
   string next_token = 5;
+  // VPCID filters databases to only include those deployed in the VPC.
+  // If empty, no filtering is done.
+  string vpc_id = 6;
 }
 
 // ListDatabasesResponse contains a page of AWS Databases.
