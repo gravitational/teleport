@@ -47,7 +47,14 @@ import type { ResourceAction } from 'teleport/Discover/SelectResource/types';
 type Props = {
   resource: UnifiedResource;
   setResourceAction?: (resourceAction: ResourceAction) => void;
+  /**
+   * resourceIndex is used to set resource item index to delete.
+   * Index is set inside ClusterResources.
+   */
   resourceIndex?: number;
+  /**
+   * setDeletedItem set's resourceIndex for DeleteUnifiedResourceItem
+   * */
   setDeletedItem?: (deleteItem: DeleteUnifiedResourceItem) => void;
 };
 
