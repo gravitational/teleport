@@ -4,16 +4,14 @@ exports[`support Cloud 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -50,7 +48,7 @@ exports[`support Cloud 1`] = `
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -58,16 +56,16 @@ exports[`support Cloud 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -75,19 +73,19 @@ exports[`support Cloud 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c1 {
@@ -109,6 +107,9 @@ exports[`support Cloud 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -438,16 +439,14 @@ exports[`support Enterprise 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -484,7 +483,7 @@ exports[`support Enterprise 1`] = `
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -492,16 +491,16 @@ exports[`support Enterprise 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -509,19 +508,19 @@ exports[`support Enterprise 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c1 {
@@ -543,6 +542,9 @@ exports[`support Enterprise 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -881,16 +883,14 @@ exports[`support Enterprise with CTA 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -967,7 +967,7 @@ exports[`support Enterprise with CTA 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -979,7 +979,7 @@ exports[`support Enterprise with CTA 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -992,7 +992,7 @@ exports[`support Enterprise with CTA 1`] = `
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1000,16 +1000,16 @@ exports[`support Enterprise with CTA 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -1017,19 +1017,19 @@ exports[`support Enterprise with CTA 1`] = `
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c1 {
@@ -1051,6 +1051,9 @@ exports[`support Enterprise with CTA 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -1420,16 +1423,14 @@ exports[`support OSS 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -1466,7 +1467,7 @@ exports[`support OSS 1`] = `
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1474,16 +1475,16 @@ exports[`support OSS 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -1491,19 +1492,19 @@ exports[`support OSS 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c1 {
@@ -1525,6 +1526,9 @@ exports[`support OSS 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {
@@ -1855,16 +1859,14 @@ exports[`support OSSWithCTA 1`] = `
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding-bottom: 40px;
-  padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .c5 {
@@ -1941,7 +1943,7 @@ exports[`support OSSWithCTA 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -1953,7 +1955,7 @@ exports[`support OSSWithCTA 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1966,7 +1968,7 @@ exports[`support OSSWithCTA 1`] = `
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -1974,16 +1976,16 @@ exports[`support OSSWithCTA 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-left: 8px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
-  margin: 0px;
   margin-bottom: 24px;
   font-weight: 600;
 }
@@ -1991,19 +1993,19 @@ exports[`support OSSWithCTA 1`] = `
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c1 {
@@ -2025,6 +2027,9 @@ exports[`support OSSWithCTA 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-top: 24px;
 }
 
 .c2::after {

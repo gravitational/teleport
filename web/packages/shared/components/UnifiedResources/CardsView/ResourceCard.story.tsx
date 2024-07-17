@@ -106,7 +106,14 @@ export const Cards: Story = {
         {[
           ...apps.map(resource =>
             makeUnifiedResourceViewItemApp(resource, {
-              ActionButton: <ResourceActionButton resource={resource} />,
+              ActionButton: (
+                <ResourceActionButton
+                  resource={resource}
+                  setResourceSpec={() =>
+                    alert('Sets resource spec and opens update dialog')
+                  }
+                />
+              ),
             })
           ),
           ...databases.map(resource =>

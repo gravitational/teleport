@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Text, Box, Flex } from 'design';
+import { Text, Box, Flex, Mark } from 'design';
 
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
@@ -28,7 +28,6 @@ import {
   ActionButtons,
   HeaderSubtitle,
   LabelsCreater,
-  Mark,
   Header,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';

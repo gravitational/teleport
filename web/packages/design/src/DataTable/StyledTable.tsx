@@ -75,13 +75,13 @@ export const StyledTable = styled.table<BorderRadiusProps>`
     border-top: ${props => props.theme.borders[2]}
       ${props => props.theme.colors.spotBackground[0]};
 
-    :hover {
+    &:hover {
       border-top: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
       background-color: ${props => props.theme.colors.levels.surface};
 
       // We use a pseudo element for the shadow with position: absolute in order to prevent
       // the shadow from increasing the size of the layout and causing scrollbar flicker.
-      :after {
+      &:after {
         box-shadow: ${props => props.theme.boxShadow[3]};
         content: '';
         position: absolute;

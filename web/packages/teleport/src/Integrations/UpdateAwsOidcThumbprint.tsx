@@ -18,13 +18,19 @@
 
 import { useState } from 'react';
 import styled from 'styled-components';
-import { Text, Link as ExternalLink, Flex, Box, ButtonPrimary } from 'design';
+import {
+  Text,
+  Link as ExternalLink,
+  Flex,
+  Box,
+  ButtonPrimary,
+  Mark,
+} from 'design';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import * as Icons from 'design/Icon';
 
-import { Mark } from 'teleport/Discover/Shared';
 import {
   Integration,
   integrationService,
