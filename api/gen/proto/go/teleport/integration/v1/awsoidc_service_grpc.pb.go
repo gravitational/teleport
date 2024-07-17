@@ -37,6 +37,7 @@ const (
 	AWSOIDCService_CreateEICE_FullMethodName            = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
 	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
 	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
+	AWSOIDCService_ListSubnets_FullMethodName           = "/teleport.integration.v1.AWSOIDCService/ListSubnets"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
 	AWSOIDCService_DeployService_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/DeployService"
 	AWSOIDCService_EnrollEKSClusters_FullMethodName     = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
@@ -66,6 +67,10 @@ type AWSOIDCServiceClient interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
 	ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error)
+	// ListSubnets returns a list of AWS VPC subnets.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
+	ListSubnets(ctx context.Context, in *ListSubnetsRequest, opts ...grpc.CallOption) (*ListSubnetsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
@@ -121,6 +126,15 @@ func (c *aWSOIDCServiceClient) ListDatabases(ctx context.Context, in *ListDataba
 func (c *aWSOIDCServiceClient) ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error) {
 	out := new(ListSecurityGroupsResponse)
 	err := c.cc.Invoke(ctx, AWSOIDCService_ListSecurityGroups_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aWSOIDCServiceClient) ListSubnets(ctx context.Context, in *ListSubnetsRequest, opts ...grpc.CallOption) (*ListSubnetsResponse, error) {
+	out := new(ListSubnetsResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListSubnets_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +208,10 @@ type AWSOIDCServiceServer interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
 	ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error)
+	// ListSubnets returns a list of AWS VPC subnets.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
+	ListSubnets(context.Context, *ListSubnetsRequest) (*ListSubnetsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
@@ -227,6 +245,9 @@ func (UnimplementedAWSOIDCServiceServer) ListDatabases(context.Context, *ListDat
 }
 func (UnimplementedAWSOIDCServiceServer) ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListSecurityGroups not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) ListSubnets(context.Context, *ListSubnetsRequest) (*ListSubnetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSubnets not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployDatabaseService not implemented")
@@ -324,6 +345,24 @@ func _AWSOIDCService_ListSecurityGroups_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AWSOIDCServiceServer).ListSecurityGroups(ctx, req.(*ListSecurityGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AWSOIDCService_ListSubnets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSubnetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListSubnets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListSubnets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListSubnets(ctx, req.(*ListSubnetsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -440,6 +479,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListSecurityGroups",
 			Handler:    _AWSOIDCService_ListSecurityGroups_Handler,
+		},
+		{
+			MethodName: "ListSubnets",
+			Handler:    _AWSOIDCService_ListSubnets_Handler,
 		},
 		{
 			MethodName: "DeployDatabaseService",
