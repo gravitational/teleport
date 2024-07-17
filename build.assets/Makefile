@@ -591,6 +591,33 @@ release: $(BUILDBOX_TARGET)
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
+
+.PHONY: release-ng-amd64 release-ng-arm64 release-ng-386 release-ng-arm
+release-ng-amd64:
+	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes
+release-ng-arm64:
+	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes
+release-ng-386:
+	$(MAKE) release-ng ARCH=386
+release-ng-arm:
+	$(MAKE) release-ng ARCH=arm
+
+.PHONY: release-ng
+release-ng: webassets buildbox-ng
+	docker run --rm --interactive $(shell test -t 0 && echo --tty) \
+		--volume $(shell pwd)/..:/home/teleport \
+		--workdir /home/teleport \
+		--user $(shell id -u):$(shell id -g) \
+		$(BUILDBOX_NG) \
+		make -e release-unix-preserving-webassets \
+			ADDFLAGS="$(ADDFLAGS)" \
+			OS="$(OS)" \
+			ARCH="$(ARCH)" \
+			RUNTIME="$(GOLANG_VERSION)" \
+			FIDO2="$(FIDO2)" \
+			PIV="$(PIV)" \
+			REPRODUCIBLE=yes
+
 #
 # Create a Teleport FIPS package using the build container.
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
