@@ -167,7 +167,7 @@ func TestIterateUsers_Empty(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /users", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
 		assert.NoError(t, err, "expected to get $top parameter")
 		w.Write([]byte(`{"value": []}`))
@@ -198,7 +198,7 @@ func TestIterateUsers(t *testing.T) {
 	var sourceUsers []json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(usersPayload), &sourceUsers))
 	mux := http.NewServeMux()
-	mux.Handle("GET /users", paginatedHandler(t, sourceUsers))
+	mux.Handle("/users", paginatedHandler(t, sourceUsers))
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(func() { srv.Close() })
@@ -275,7 +275,7 @@ func TestRetry(t *testing.T) {
 	t.Parallel()
 
 	appID := uuid.NewString()
-	route := "POST /applications/" + appID + "/federatedIdentityCredentials"
+	route := "/applications/" + appID + "/federatedIdentityCredentials"
 	name := "foo"
 	fic := &FederatedIdentityCredential{Name: &name}
 	objPayload, err := json.Marshal(fic)

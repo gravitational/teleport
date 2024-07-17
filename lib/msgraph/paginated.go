@@ -38,6 +38,7 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 			return false
 		}
 		for _, item := range page {
+			item := item
 			if !f(&item) {
 				return false
 			}
