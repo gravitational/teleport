@@ -670,10 +670,6 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 		return trace.Wrap(err)
 	}
 
-	if len(lists) == 0 {
-		return nil
-	}
-
 	// Iterate through fetched lists, to check if the request was
 	// an update, which is allowed.
 	for _, list := range lists {
@@ -682,7 +678,9 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 		}
 	}
 
-	if int32(len(lists)) < f.GetEntitlement(entitlements.AccessLists).Limit {
+	// Note the +1 to account for the AccessList that were trying to create
+	accessListEntitlement := f.GetEntitlement(entitlements.AccessLists)
+	if accessListEntitlement.WithinLimit(len(lists) + 1) {
 		return nil
 	}
 
