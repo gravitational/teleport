@@ -5,29 +5,24 @@ exports[`active sessions CTA 1`] = `
   box-sizing: border-box;
 }
 
-.c8 {
-  box-sizing: border-box;
-  width: 340px;
-}
-
-.c29 {
+.c28 {
   box-sizing: border-box;
   width: 80px;
   text-align: center;
 }
 
-.c19 {
+.c18 {
   box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c21 {
+.c20 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c9 {
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -61,8 +56,8 @@ exports[`active sessions CTA 1`] = `
   height: 36px;
 }
 
-.c9:focus-visible,
-.teleport-button__force-focus-visible .c9 {
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -70,22 +65,22 @@ exports[`active sessions CTA 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c9:hover,
-.teleport-button__force-hover .c9 {
+.c8:hover,
+.teleport-button__force-hover .c8 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c9:active,
-.teleport-button__force-active .c9 {
+.c8:active,
+.teleport-button__force-active .c8 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c9:disabled {
+.c8:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -93,7 +88,7 @@ exports[`active sessions CTA 1`] = `
   cursor: auto;
 }
 
-.c30 {
+.c29 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -123,8 +118,8 @@ exports[`active sessions CTA 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c30:focus-visible,
-.teleport-button__force-focus-visible .c30 {
+.c29:focus-visible,
+.teleport-button__force-focus-visible .c29 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -132,22 +127,22 @@ exports[`active sessions CTA 1`] = `
   outline: none;
 }
 
-.c30:hover,
-.teleport-button__force-hover .c30 {
+.c29:hover,
+.teleport-button__force-hover .c29 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c30:active,
-.teleport-button__force-active .c30 {
+.c29:active,
+.teleport-button__force-active .c29 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c30:disabled {
+.c29:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -155,7 +150,7 @@ exports[`active sessions CTA 1`] = `
   cursor: auto;
 }
 
-.c23 {
+.c22 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -177,21 +172,21 @@ exports[`active sessions CTA 1`] = `
   margin-right: 0;
 }
 
-.c23:disabled {
+.c22:disabled {
   color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c23:not(:disabled):hover,
-.c23:not(:disabled):focus {
+.c22:not(:disabled):hover,
+.c22:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c23:not(:disabled):active {
+.c22:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c25 {
+.c24 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -212,27 +207,27 @@ exports[`active sessions CTA 1`] = `
   margin-left: 0;
 }
 
-.c25:disabled {
+.c24:disabled {
   color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c25:not(:disabled):hover,
-.c25:not(:disabled):focus {
+.c24:not(:disabled):hover,
+.c24:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c25:not(:disabled):active {
+.c24:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c11 {
+.c10 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c28 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -240,7 +235,7 @@ exports[`active sessions CTA 1`] = `
   margin-right: 16px;
 }
 
-.c31 {
+.c30 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -252,12 +247,12 @@ exports[`active sessions CTA 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
-.c22 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -278,12 +273,12 @@ exports[`active sessions CTA 1`] = `
   justify-content: space-between;
 }
 
-.c10 {
+.c9 {
   display: flex;
   align-items: center;
 }
 
-.c20 {
+.c19 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -291,7 +286,6 @@ exports[`active sessions CTA 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -319,14 +313,14 @@ exports[`active sessions CTA 1`] = `
   padding-bottom: 24px;
 }
 
-.c12 {
+.c11 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 10px;
 }
 
-.c26 {
+.c25 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -334,39 +328,39 @@ exports[`active sessions CTA 1`] = `
   width: 100%;
 }
 
-.c26>thead>tr>th,
-.c26>tbody>tr>th,
-.c26>tfoot>tr>th,
-.c26>thead>tr>td,
-.c26>tbody>tr>td,
-.c26>tfoot>tr>td {
+.c25>thead>tr>th,
+.c25>tbody>tr>th,
+.c25>tfoot>tr>th,
+.c25>thead>tr>td,
+.c25>tbody>tr>td,
+.c25>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c26>thead>tr>th:first-child,
-.c26>tbody>tr>th:first-child,
-.c26>tfoot>tr>th:first-child,
-.c26>thead>tr>td:first-child,
-.c26>tbody>tr>td:first-child,
-.c26>tfoot>tr>td:first-child {
+.c25>thead>tr>th:first-child,
+.c25>tbody>tr>th:first-child,
+.c25>tfoot>tr>th:first-child,
+.c25>thead>tr>td:first-child,
+.c25>tbody>tr>td:first-child,
+.c25>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c26>thead>tr>th:last-child,
-.c26>tbody>tr>th:last-child,
-.c26>tfoot>tr>th:last-child,
-.c26>thead>tr>td:last-child,
-.c26>tbody>tr>td:last-child,
-.c26>tfoot>tr>td:last-child {
+.c25>thead>tr>th:last-child,
+.c25>tbody>tr>th:last-child,
+.c25>tfoot>tr>th:last-child,
+.c25>thead>tr>td:last-child,
+.c25>tbody>tr>td:last-child,
+.c25>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c26>tbody>tr>td {
+.c25>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c26>thead>tr>th {
+.c25>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -378,11 +372,11 @@ exports[`active sessions CTA 1`] = `
   white-space: nowrap;
 }
 
-.c26>thead>tr>th svg {
+.c25>thead>tr>th svg {
   height: 12px;
 }
 
-.c26>tbody>tr>td {
+.c25>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -390,18 +384,18 @@ exports[`active sessions CTA 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c26 tbody tr {
+.c25 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c26 tbody tr:hover {
+.c25 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c26 tbody tr:hover:after {
+.c25 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -412,11 +406,11 @@ exports[`active sessions CTA 1`] = `
   height: 100%;
 }
 
-.c26 tbody tr:hover +tr {
+.c25 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c13 {
+.c12 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -426,15 +420,15 @@ exports[`active sessions CTA 1`] = `
   margin-top: 4px;
 }
 
-.c24 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c24 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c18 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -444,7 +438,7 @@ exports[`active sessions CTA 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c17 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -455,7 +449,7 @@ exports[`active sessions CTA 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c15 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -465,13 +459,13 @@ exports[`active sessions CTA 1`] = `
   max-width: 725px;
 }
 
-.c14 {
+.c13 {
   border-radius: 200px;
   width: 100%;
   height: 40px;
 }
 
-.c16 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -486,7 +480,7 @@ exports[`active sessions CTA 1`] = `
   padding-left: 24px;
 }
 
-.c27 tbody>tr>td {
+.c26 tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -507,17 +501,16 @@ exports[`active sessions CTA 1`] = `
   <div
     class="c0 c3 c4 c5"
   >
-    <div
+    <h1
       class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
     <div
-      class="c8"
-      width="340px"
+      class="c0"
     >
       <a
-        class="c9"
+        class="c8"
         fill="filled"
         height="36px"
         href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
@@ -527,10 +520,10 @@ exports[`active sessions CTA 1`] = `
         width="100%"
       >
         <div
-          class="c0 c10"
+          class="c0 c9"
         >
           <span
-            class="c11 c12"
+            class="c10 c11"
             data-testid="locked-icon"
           >
             <svg
@@ -552,37 +545,37 @@ exports[`active sessions CTA 1`] = `
     </div>
   </div>
   <nav
-    class="c13"
+    class="c12"
   >
     <div
-      class="c14"
+      class="c13"
     >
       <div
-        class="c15"
+        class="c14"
       >
         <input
-          class="c16"
+          class="c15"
           placeholder="Search..."
           value=""
         />
         <div
-          class="c17"
+          class="c16"
         >
           <div
-            class="c18"
+            class="c17"
           />
         </div>
       </div>
     </div>
     <div
-      class="c19 c20"
+      class="c18 c19"
       width="100%"
     >
       <div
-        class="c21 c1"
+        class="c20 c1"
       >
         <div
-          class="c22"
+          class="c21"
           font-weight="500"
           style="white-space: nowrap; letter-spacing: 0.15px;"
         >
@@ -605,12 +598,12 @@ exports[`active sessions CTA 1`] = `
         class="c0 c1"
       >
         <button
-          class="c23 c24"
+          class="c22 c23"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c11 icon icon-circlearrowleft"
+            class="c10 icon icon-circlearrowleft"
           >
             <svg
               fill="currentColor"
@@ -630,12 +623,12 @@ exports[`active sessions CTA 1`] = `
           </span>
         </button>
         <button
-          class="c25 c24"
+          class="c24 c23"
           disabled=""
           title="Next page"
         >
           <span
-            class="c11 icon icon-circlearrowright"
+            class="c10 icon icon-circlearrowright"
           >
             <svg
               fill="currentColor"
@@ -655,7 +648,7 @@ exports[`active sessions CTA 1`] = `
     </div>
   </nav>
   <table
-    class="c26 c27"
+    class="c25 c26"
   >
     <thead>
       <tr>
@@ -665,7 +658,7 @@ exports[`active sessions CTA 1`] = `
           >
             Type
             <span
-              class="c11 icon icon-chevronsvertical"
+              class="c10 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -690,7 +683,7 @@ exports[`active sessions CTA 1`] = `
           >
             Name
             <span
-              class="c11 icon icon-chevronsvertical"
+              class="c10 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -730,7 +723,7 @@ exports[`active sessions CTA 1`] = `
           >
             Duration
             <span
-              class="c11 icon icon-chevronup"
+              class="c10 icon icon-chevronup"
               title="sort items asc"
             >
               <svg
@@ -757,7 +750,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-kubernetes"
+            class="c27 icon icon-kubernetes"
           >
             <svg
               fill="currentColor"
@@ -796,7 +789,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-cli"
+            class="c27 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -832,16 +825,16 @@ exports[`active sessions CTA 1`] = `
           height="26px"
         >
           <div
-            class="c29"
+            class="c28"
             width="80px"
           >
             <button
-              class="c30"
+              class="c29"
               fill="border"
             >
               Join
               <span
-                class="c31 icon icon-chevrondown"
+                class="c30 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -864,7 +857,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-cli"
+            class="c27 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -900,16 +893,16 @@ exports[`active sessions CTA 1`] = `
           height="26px"
         >
           <div
-            class="c29"
+            class="c28"
             width="80px"
           >
             <button
-              class="c30"
+              class="c29"
               fill="border"
             >
               Join
               <span
-                class="c31 icon icon-chevrondown"
+                class="c30 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -932,7 +925,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-cli"
+            class="c27 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -968,16 +961,16 @@ exports[`active sessions CTA 1`] = `
           height="26px"
         >
           <div
-            class="c29"
+            class="c28"
             width="80px"
           >
             <button
-              class="c30"
+              class="c29"
               fill="border"
             >
               Join
               <span
-                class="c31 icon icon-chevrondown"
+                class="c30 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1000,7 +993,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-desktop"
+            class="c27 icon icon-desktop"
           >
             <svg
               fill="currentColor"
@@ -1039,7 +1032,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-database"
+            class="c27 icon icon-database"
           >
             <svg
               fill="currentColor"
@@ -1078,7 +1071,7 @@ exports[`active sessions CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c28 icon icon-application"
+            class="c27 icon icon-application"
           >
             <svg
               fill="currentColor"
@@ -1123,17 +1116,17 @@ exports[`active sessions CTA 1`] = `
     </tbody>
   </table>
   <nav
-    class="c13"
+    class="c12"
   >
     <div
-      class="c19 c20"
+      class="c18 c19"
       width="100%"
     >
       <div
-        class="c21 c1"
+        class="c20 c1"
       >
         <div
-          class="c22"
+          class="c21"
           font-weight="500"
           style="white-space: nowrap; letter-spacing: 0.15px;"
         >
@@ -1156,12 +1149,12 @@ exports[`active sessions CTA 1`] = `
         class="c0 c1"
       >
         <button
-          class="c23 c24"
+          class="c22 c23"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c11 icon icon-circlearrowleft"
+            class="c10 icon icon-circlearrowleft"
           >
             <svg
               fill="currentColor"
@@ -1181,12 +1174,12 @@ exports[`active sessions CTA 1`] = `
           </span>
         </button>
         <button
-          class="c25 c24"
+          class="c24 c23"
           disabled=""
           title="Next page"
         >
           <span
-            class="c11 icon icon-circlearrowright"
+            class="c10 icon icon-circlearrowright"
           >
             <svg
               fill="currentColor"
@@ -1389,8 +1382,8 @@ exports[`loaded 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -1423,7 +1416,6 @@ exports[`loaded 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1632,11 +1624,11 @@ exports[`loaded 1`] = `
   <div
     class="c0 c3 c4 c5"
   >
-    <div
+    <h1
       class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
   </div>
   <nav
     class="c8"
@@ -2476,8 +2468,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -2510,7 +2502,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2719,11 +2710,11 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   <div
     class="c0 c3 c4 c5"
   >
-    <div
+    <h1
       class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
   </div>
   <nav
     class="c8"

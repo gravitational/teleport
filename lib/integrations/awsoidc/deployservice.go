@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -557,6 +558,22 @@ func upsertCluster(ctx context.Context, clt DeployServiceClient, clusterName str
 			ClusterName:       aws.String(clusterName),
 			CapacityProviders: requiredCapacityProviders,
 			Tags:              resourceCreationTags.ToECSTags(),
+		}, func(o *ecs.Options) {
+			o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
+				so.MaxAttempts = 10
+				so.MaxBackoff = time.Minute
+				// Retry if an error is a missing ECS service-linked role.
+				// This is a retryable error because the ECS service-linked role
+				// will be created automatically when the caller has
+				// iam:CreateServiceLinkedRole permission (we should).
+				// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using-service-linked-roles.html#create-slr
+				so.Retryables = append(so.Retryables, retry.IsErrorRetryableFunc(func(err error) aws.Ternary {
+					if err != nil && strings.Contains(err.Error(), "verify that the ECS service linked role exists") {
+						return aws.TrueTernary
+					}
+					return aws.FalseTernary
+				}))
+			})
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

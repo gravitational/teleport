@@ -140,11 +140,9 @@ exports[`another session active 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
@@ -230,12 +228,11 @@ exports[`another session active 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Another Session Is Active
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -1038,11 +1035,9 @@ exports[`connection error 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
@@ -1128,12 +1123,11 @@ exports[`connection error 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Disconnected
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -1599,11 +1593,9 @@ exports[`fetch error 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
@@ -1689,12 +1681,11 @@ exports[`fetch error 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Disconnected
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -2863,11 +2854,9 @@ exports[`unintended disconnect 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
@@ -2953,12 +2942,11 @@ exports[`unintended disconnect 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Disconnected
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -3134,11 +3122,9 @@ exports[`webauthn prompt 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
   text-align: center;
 }
 
@@ -3233,12 +3219,11 @@ exports[`webauthn prompt 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Multi-factor authentication
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"

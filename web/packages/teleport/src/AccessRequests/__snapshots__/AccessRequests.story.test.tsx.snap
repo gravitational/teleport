@@ -114,12 +114,26 @@ exports[`locked 1`] = `
   background-color: #222C59;
 }
 
+.c17 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: text.secondary;
+}
+
+.c22 {
+  display: block;
+  outline: none;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -127,9 +141,10 @@ exports[`locked 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
+  margin-bottom: 4px;
 }
 
 .c16 {
@@ -155,20 +170,6 @@ exports[`locked 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   margin-top: 4px;
-}
-
-.c17 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: text.secondary;
-}
-
-.c22 {
-  display: block;
-  outline: none;
 }
 
 .c1 {
@@ -200,7 +201,6 @@ exports[`locked 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -277,11 +277,11 @@ exports[`locked 1`] = `
   <div
     class="c0 c3 c4"
   >
-    <div
+    <h1
       class="c5 c6"
     >
       Just In Time Access Requests
-    </div>
+    </h1>
     <div
       class="c0"
     >
@@ -328,11 +328,11 @@ exports[`locked 1`] = `
       class="c14"
       width="100%"
     >
-      <div
+      <h2
         class="c15"
       >
         Access Requests Flow
-      </div>
+      </h2>
       <div
         class="c16"
       >

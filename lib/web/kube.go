@@ -211,7 +211,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	// Start sending ping frames through websocket to the client.
 	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.log, p.Close)
 
-	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
 		return trace.Wrap(err, "failed getting user private key from the session")
 	}

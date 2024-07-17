@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Text, Box } from 'design';
+import { Box, H2 } from 'design';
 
 export default function CardEmpty(props) {
   const { title, children, ...styles } = props;
@@ -33,7 +33,7 @@ export default function CardEmpty(props) {
       style={{ borderRadius: '6px' }}
       {...styles}
     >
-      <Text typography="h4">{title}</Text>
+      <H2>{title}</H2>
       {children}
     </Box>
   );
