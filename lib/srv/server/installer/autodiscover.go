@@ -235,18 +235,18 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	ani.Logger.InfoContext(ctx, "Configuration written at /etc/teleport.yaml")
 
 	ani.Logger.InfoContext(ctx, "Enabling and starting teleport.service")
-	if err := ani.enabelAndRestartTeleportService(ctx); err != nil {
+	if err := ani.enableAndRestartTeleportService(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-// enabelAndRestartTeleportService will enable and (res)start the teleport.service.
-// This function must be idempotent because we can call it either in one of the following scenarios:
+// enableAndRestartTeleportService will enable and (re)start the teleport.service.
+// This function must be idempotent because we can call it in either one of the following scenarios:
 // - teleport was just installed and teleport.service is inactive
 // - teleport was already installed but the service is failing
-func (ani *AutoDiscoverNodeInstaller) enabelAndRestartTeleportService(ctx context.Context) error {
+func (ani *AutoDiscoverNodeInstaller) enableAndRestartTeleportService(ctx context.Context) error {
 	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", "teleport")
 	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
 	if err != nil {
@@ -337,7 +337,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
+	f, err := utils.OpenFileNoUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
