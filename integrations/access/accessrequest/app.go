@@ -154,8 +154,11 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if len(acceptedWatchKinds) == 0 {
-		return errors.New("no acceptedWatchKinds returned")
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
 	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
 	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
 		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
