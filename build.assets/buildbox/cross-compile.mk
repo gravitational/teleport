@@ -33,15 +33,14 @@ export PATH := $(THIRDPARTY_HOST_PREFIX)/$(CROSSTOOLNG_TARGET)/bin:$(PATH)
 
 CROSS_VARS = C_INCLUDE_PATH LIBRARY_PATH PKG_CONFIG_PATH CC CXX LD PATH
 
-.PHONY: diag-cross-vars
-diag-cross-vars:
-	@echo C_INCLUDE_PATH - $${C_INCLUDE_PATH}
-	@echo LIBRARY_PATH - $${LIBRARY_PATH}
-	@echo PKG_CONFIG_PATH - $${PKG_CONFIG_PATH}
-	@echo CC - $${CC}
-	@echo CXX - $${CXX}
-	@echo LD - $${LD}
-	@echo PATH - $${PATH}
+# arm64 has linking issues using the binutils linker when building the
+# Enterprise Teleport binary ("relocation truncated to fit: R_AARCH64_CALL26
+# against symbol") that is resolved by using the gold linker. Ensure that
+# is used for arm64 builds
+ifeq ($(ARCH),arm64)
+export CTNG_LD_IS := gold
+CROSS_VARS += CTNG_LD_IS
+endif
 
 # sh-cross-vars prints the cross-compiling variables in a form that can be
 # sourced by the shell, allowing you to set them in an outer shell for
