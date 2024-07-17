@@ -520,9 +520,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slo
 	}
 	if p.Addr.String() != "" {
 		log = log.With(
-			slog.Group("workload",
-				slog.String("addr", p.Addr.String()),
-			),
+			slog.String("remote_addr", p.Addr.String()),
 		)
 	}
 

@@ -50,9 +50,6 @@ type KubernetesAttestation struct {
 	Namespace string
 	// ServiceAccount is the service account of the pod.
 	ServiceAccount string
-	// ContainerName is the individual container that the PID resolved to within
-	// the pod.
-	ContainerName string
 	// PodName is the name of the pod.
 	PodName string
 	// PodUID is the UID of the pod.
@@ -75,7 +72,6 @@ func (a KubernetesAttestation) LogValue() slog.Value {
 		values = append(values,
 			slog.String("namespace", a.Namespace),
 			slog.String("service_account", a.ServiceAccount),
-			slog.String("container_name", a.ContainerName),
 			slog.String("pod_name", a.PodName),
 			slog.String("pod_uid", a.PodUID),
 			slog.Attr{
@@ -111,16 +107,18 @@ type KubernetesAttestorConfig struct {
 //  4. Convert the pod information to a KubernetesAttestation.
 type KubernetesAttestor struct {
 	kubeletClient *kubeletClient
+	log           *slog.Logger
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
-func NewKubernetesAttestor(cfg KubernetesAttestorConfig) (*KubernetesAttestor, error) {
+func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) (*KubernetesAttestor, error) {
 	kubeletClient, err := newKubeletClient(cfg.Kubelet)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &KubernetesAttestor{
 		kubeletClient: kubeletClient,
+		log:           log,
 	}, nil
 }
 
@@ -131,40 +129,18 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAtt
 	if err != nil {
 		return KubernetesAttestation{}, trace.Wrap(err, "determining pod and container ID")
 	}
+	a.log.DebugContext(ctx, "Found pod and container ID", "pod_id", podID, "container_id", containerID)
 
 	pod, err := a.getPodForID(ctx, podID)
 	if err != nil {
 		return KubernetesAttestation{}, trace.Wrap(err, "finding pod by ID")
 	}
-
-	var container *v1.ContainerStatus
-	for _, c := range pod.Status.ContainerStatuses {
-		cURL, err := url.Parse(c.ContainerID)
-		if err != nil {
-			panic("ohno")
-		}
-		if cURL.Host == containerID {
-			container = &c
-			break
-		}
-	}
-	if container == nil {
-		for _, c := range pod.Status.InitContainerStatuses {
-			if c.ContainerID == containerID {
-				container = &c
-				break
-			}
-		}
-	}
-	if container == nil {
-		return KubernetesAttestation{}, trace.BadParameter("container %q not found in pod %q", containerID, pod.Name)
-	}
+	a.log.DebugContext(ctx, "Found pod", "pod_name", pod.Name)
 
 	return KubernetesAttestation{
 		Attested:       true,
 		Namespace:      pod.Namespace,
 		ServiceAccount: pod.Spec.ServiceAccountName,
-		ContainerName:  container.Name,
 		PodName:        pod.Name,
 		PodUID:         string(pod.UID),
 		Labels:         pod.Labels,
@@ -271,11 +247,7 @@ func mountpointSourceToContainerAndPodID(source string) (podID string, container
 
 // getPodForID retrieves the pod information for the provided pod ID.
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/server/server.go#L371
-//
-// Internally, this may retry a few times if not found. This accounts for any
-// potential raciness.
 func (a *KubernetesAttestor) getPodForID(ctx context.Context, podID string) (*v1.Pod, error) {
-	// TODO: Retry w/ short backoff if not found.
 	pods, err := a.kubeletClient.ListAllPods(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "listing all pods")

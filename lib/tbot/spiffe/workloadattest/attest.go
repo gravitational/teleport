@@ -68,7 +68,7 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	}
 	if cfg.Kubernetes.Enabled {
 		var err error
-		att.kubernetes, err = NewKubernetesAttestor(cfg.Kubernetes)
+		att.kubernetes, err = NewKubernetesAttestor(cfg.Kubernetes, log)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating kubernetes attestor")
 		}
@@ -77,6 +77,7 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 }
 
 func (a *Attestor) Attest(ctx context.Context, pid int) (Attestation, error) {
+	a.log.DebugContext(ctx, "Beginning workload attestation", "pid", pid)
 	att := Attestation{}
 	var err error
 
