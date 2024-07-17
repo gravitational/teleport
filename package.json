@@ -24,7 +24,8 @@
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "yarn prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "node web/packages/design/src/Icon/script/script.js & yarn prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
-    "nop": "exit 0"
+    "nop": "exit 0",
+    "postinstall": "patch-package"
   },
   "private": true,
   "resolutions": {
@@ -56,6 +57,7 @@
     "jsdom-testing-mocks": "^1.13.0",
     "msw": "^0.47.4",
     "msw-storybook-addon": "^1.8.0",
+    "patch-package": "^8.0.0",
     "prettier": "^3.3.2",
     "typescript": "^5.5.2",
     "vite": "^5.3.2"
