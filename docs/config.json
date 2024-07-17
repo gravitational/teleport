@@ -340,7 +340,7 @@
               "slug": "/access-controls/guides/passwordless/"
             },
             {
-              "title": "WebAuthn",
+              "title": "IdP Hardening with WebAuthn",
               "slug": "/access-controls/guides/webauthn/"
             },
             {

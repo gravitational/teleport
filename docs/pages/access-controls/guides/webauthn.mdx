@@ -16,6 +16,8 @@ these alone may not be sufficient to protect against sophisticated attacks targe
 Attackers are constantly evolving their techniques, and traditional security measures may have limitations 
 or vulnerabilities that can be exploited.
 
+![IdP threat vector tree](../../../img/access-controls/idp-graph.png)
+
 To enhance your defense against IdP compromises, we recommend implementing the following comprehensive security measures.
 
 ## Set up cluster-wide WebAuthn
@@ -25,9 +27,9 @@ enables public-key cryptography for web authentication. Teleport supports WebAut
 for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters. 
 It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric authenticators like Touch ID and Windows Hello.
 
-## Prerequisites
+### Prerequisites
 
-- A running Teleport cluster version 16 or above. If you want to get started with Teleport, 
+- A running Teleport cluster or Teleport Cloud, version 16 or later. If you want to get started with Teleport, 
 [sign up](https://goteleport.com/signup) for a free trial.
 
 - The `tctl` admin tool and `tsh` client tool.
@@ -262,7 +264,7 @@ databases, Kubernetes clusters, and first MFA device enrollment. The latter help
   ensure that it is not required for roles that you will impersonate using Machine ID.
 </Admonition>
 
-## Prerequisites
+### Prerequisites
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
@@ -442,15 +444,14 @@ In the following sections, we'll dive deeper into each of these recommendations,
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
 
-  We recommend using [Machine ID](../../machine-id/getting-started.mdx) to
-  issue certificates for automated workflows, which uses role impersonation
-  that is not subject to MFA checks.
+  We recommend using Machine ID to issue certificates for automated workflows, 
+  which uses role impersonation that is not subject to MFA checks.
 
   Certificates produced with `tctl auth sign` directly on an Auth Service instance using the super-admin 
   role are not subject to MFA checks to support legacy self-hosted setups.
 </Notice>
 
-## Prerequisites
+### Prerequisites
 
 - (!docs/pages/includes/tctl.mdx!)
 - [WebAuthn configured](#set-up-cluster-wide-WebAuthn) on this cluster
@@ -504,12 +505,13 @@ Update the `cluster_auth_preference` definition to include the following content
 
   ### Step 2/2. Save and exit the file
   
-  The comand `tctl` will update the remote definition:
+  The command `tctl` will update the remote definition:
 
   ```text
   cluster auth preference has been updated
   ```
 
+## Next steps
 For additional cluster hardening measures, see:
 
 - [Passwordless Authentication](./passwordless.mdx): Provides passwordless and usernameless authentication.
