@@ -161,8 +161,6 @@ func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, contai
 		)
 	}
 
-	// TODO: Test based on the whole mountfiles
-
 	// Find the cgroup or cgroupv2 mount
 	// TODO(noah): Is it possible for there to be multiple cgroup mounts?
 	// If so, how should we handle.
@@ -284,16 +282,25 @@ type KubeletClientConfig struct {
 	SecurePort int `yaml:"secure_port"`
 
 	// TokenPath is the path to the token file used to authenticate with the
-	// Kubelet API. Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+	// Kubelet API when using the secure port.
+	// Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token`.
 	TokenPath string `yaml:"token_path"`
+	// CAPath is the path to the CA file used to verify the certificate
+	// presented by Kubelet when using the secure port.
+	// Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`.
+	CAPath string `yaml:"ca_path"`
+	// InsecureSkipVerify is used to skip verification of the Kubelet's
+	// certificate when using the secure port. If set, CAPath will be ignored.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// Anonymous is used to indicate that no authentication should be used
+	// when connecting to the secure Kubelet API. If set, TokenPath will be
+	// ignored.
+	Anonymous bool `yaml:"anonymous"`
 }
 
 func (c KubeletClientConfig) CheckAndSetDefaults() error {
 	if c.ReadOnlyPort != 0 && c.SecurePort != 0 {
 		return trace.BadParameter("readOnlyPort and securePort are mutually exclusive")
-	}
-	if c.TokenPath == "" {
-		c.TokenPath = defaultServiceAccountTokenPath
 	}
 	return nil
 }
@@ -312,45 +319,80 @@ func newKubeletClient(cfg KubeletClientConfig) (*kubeletClient, error) {
 	}, nil
 }
 
-func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
+type roundTripperFn func(req *http.Request) (*http.Response, error)
+
+func (f roundTripperFn) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func (c *kubeletClient) httpClient(ctx context.Context) (url.URL, *http.Client, error) {
 	host := os.Getenv(nodeNameEnv)
+
+	if c.cfg.ReadOnlyPort != 0 {
+		return url.URL{
+			Scheme: "http",
+			Host:   net.JoinHostPort(host, strconv.Itoa(c.cfg.ReadOnlyPort)),
+		}, &http.Client{}, nil
+	}
+
 	port := cmp.Or(c.cfg.SecurePort, 10250)
 
 	certPool := x509.NewCertPool()
 	caPEM, err := os.ReadFile(defaultCAPath) // TODO: make configurable, only bother if not skip veirfy
 	if err != nil {
-		return nil, trace.Wrap(err, "reading CA file %q", defaultCAPath)
+		return url.URL{}, nil, trace.Wrap(err, "reading CA file %q", defaultCAPath)
 	}
 	if !certPool.AppendCertsFromPEM(caPEM) {
-		return nil, trace.BadParameter("failed to append CA cert from %q", defaultCAPath)
+		return url.URL{}, nil, trace.BadParameter("failed to append CA cert from %q", defaultCAPath)
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:            certPool,
+			InsecureSkipVerify: true, // TODO: Setting to false breaks on my docker desktop??
+		},
 	}
 
 	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:            certPool,
-				InsecureSkipVerify: true, // TODO: Setting to false breaks on my docker desktop??
-			},
-		},
-	}
-	reqUrl := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
-		Path:   "/pods",
-	}
-	token, err := os.ReadFile(cmp.Or(c.cfg.TokenPath, defaultServiceAccountTokenPath))
-	if err != nil {
-		return nil, trace.Wrap(err, "reading token file")
+		Transport: transport,
 	}
 
-	// TODO: Support for read only port...
+	switch {
+	case c.cfg.Anonymous:
+	// Nothing to do
+	case c.cfg.TokenPath != "":
+		fallthrough
+	default:
+		tokenPath := cmp.Or(c.cfg.TokenPath, defaultServiceAccountTokenPath)
+		token, err := os.ReadFile(tokenPath)
+		if err != nil {
+			return url.URL{}, nil, trace.Wrap(err, "reading token file %q", tokenPath)
+		}
+		client.Transport = roundTripperFn(func(req *http.Request) (*http.Response, error) {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+			return transport.RoundTrip(req)
+		})
+	}
+
+	return url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}, client, nil
+}
+
+func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
+
+	reqUrl, client, err := c.httpClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating HTTP client")
+	}
+	reqUrl.Path = "/pods"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating request")
 	}
 
-	// TODO: Only include token if using secure port!
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	res, err := client.Do(req)
