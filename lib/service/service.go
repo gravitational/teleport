@@ -1860,6 +1860,7 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = localLog
 		}
 	}
+
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
 	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
@@ -1911,6 +1912,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                 b,
+			VersionStorage:          process.storage,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,
