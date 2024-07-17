@@ -3,6 +3,7 @@ package athena
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -52,12 +53,17 @@ type Config struct {
 	ReportResults string
 	// AWSConfig is the AWS configuration.
 	AWSConfig aws.Config
+	// Log logs messages.
+	Log *slog.Logger
 }
 
 // CheckAndSetDefaults checks and sets defaults.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.Log == nil {
+		c.Log = slog.Default()
 	}
 	if c.Database == "" {
 		return trace.BadParameter("missing Database")
@@ -285,13 +291,15 @@ func (a *Athena) waitForSuccess(ctx context.Context, queryID string) (*athena.Ge
 			if queryStatus.AthenaError == nil || queryStatus.AthenaError.ErrorMessage == nil {
 				return nil, trace.Errorf("athena query failed. Invalid response")
 			}
+
+			a.cfg.Log.WarnContext(ctx, "error running Athena query", "error", aws.ToString(queryStatus.AthenaError.ErrorMessage))
 			switch aws.ToInt32(resp.QueryExecution.Status.AthenaError.ErrorCategory) {
 			case athenaUserErrorCategory:
 				// Return BadParameter error and format the error message to the user.
-				return nil, trace.BadParameter("field to run user query: %v", aws.ToString(queryStatus.AthenaError.ErrorMessage))
+				return nil, trace.BadParameter("field to run user query: code %d", aws.ToInt32(queryStatus.AthenaError.ErrorType))
 			default:
 				// Return Internal error and hide the error information from the user.
-				return nil, trace.Errorf("failed to run query: %v", aws.ToString(queryStatus.AthenaError.ErrorMessage))
+				return nil, trace.Errorf("failed to run query")
 			}
 		case athenaTypes.QueryExecutionStateQueued, athenaTypes.QueryExecutionStateRunning:
 			continue
