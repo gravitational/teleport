@@ -444,9 +444,8 @@ In the following sections, we'll dive deeper into each of these recommendations,
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
 
-  We recommend using [Machine ID](../../machine-id/getting-started.mdx) to
-  issue certificates for automated workflows, which uses role impersonation
-  that is not subject to MFA checks.
+  We recommend using Machine ID to issue certificates for automated workflows, 
+  which uses role impersonation that is not subject to MFA checks.
 
   Certificates produced with `tctl auth sign` directly on an Auth Service instance using the super-admin 
   role are not subject to MFA checks to support legacy self-hosted setups.
