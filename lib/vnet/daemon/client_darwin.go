@@ -60,18 +60,18 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 	// that it's not the first time the user tries to start the daemon. In that case, macOS is not
 	// going to show the notification about a new login item. Instead, we just open the login items
 	// ourselves to direct the user towards enabling the login item.
-	if initialStatus == serviceStatusRequiresApproval {
+	if initialStatus == ServiceStatusRequiresApproval {
 		C.OpenSystemSettingsLoginItems()
 	}
 
-	if initialStatus != serviceStatusEnabled {
+	if initialStatus != ServiceStatusEnabled {
 		status, err := register(ctx, bundlePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Once registered for the first time, the status is likely going to be serviceStatusRequiresApproval.
-		if status != serviceStatusEnabled {
+		if status != ServiceStatusEnabled {
 			fmt.Println("To start VNet, please enable the background item for tsh.app in the Login Items section of System Settings.\nWaiting for the background item to be enabled…")
 			if err := waitForEnablement(ctx, bundlePath); err != nil {
 				return trace.Wrap(err, "waiting for the login item to get enabled")
@@ -89,7 +89,7 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 	return trace.Wrap(ctx.Err())
 }
 
-func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
+func register(ctx context.Context, bundlePath string) (ServiceStatus, error) {
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
@@ -101,7 +101,7 @@ func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
 	C.RegisterDaemon(cBundlePath, &result)
 
 	if !result.ok {
-		status := serviceStatus(result.service_status)
+		status := ServiceStatus(result.service_status)
 		// Docs for [registerAndReturnError][1] don't seem to cover a situation in which the user adds
 		// the launch daemon for the first time. In that case, that method returns "Operation not
 		// permitted" error (Code=1, Domain=SMAppServiceErrorDomain). That error doesn't seem to exist
@@ -112,7 +112,7 @@ func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
 		//
 		// [1]: https://developer.apple.com/documentation/servicemanagement/smappservice/register()?language=objc
 		// [2]: https://developer.apple.com/documentation/servicemanagement/service-management-errors?language=objc
-		if status == serviceStatusRequiresApproval {
+		if status == ServiceStatusRequiresApproval {
 			log.DebugContext(ctx, "Daemon successfully added, but it requires approval",
 				"ignored_error", C.GoString(result.error_description))
 			return status, nil
@@ -122,7 +122,7 @@ func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
 		return -1, trace.Errorf("registering daemon failed, %s", C.GoString(result.error_description))
 	}
 
-	return serviceStatus(result.service_status), nil
+	return ServiceStatus(result.service_status), nil
 }
 
 const waitingForEnablementTimeout = time.Minute
@@ -144,11 +144,11 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 			return context.Cause(ctx)
 		case <-ticker.C:
 			switch status := daemonStatus(bundlePath); status {
-			case serviceStatusEnabled:
+			case ServiceStatusEnabled:
 				return nil
-			case serviceStatusRequiresApproval:
+			case ServiceStatusRequiresApproval:
 				// Continue waiting for the user to approve the login item.
-			case serviceStatusNotRegistered, serviceStatusNotFound:
+			case ServiceStatusNotRegistered, ServiceStatusNotFound:
 				// Something happened to the service since we started waiting, abort.
 				return trace.Errorf("encountered unexpected service status %q", status)
 			default:
@@ -158,32 +158,42 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 	}
 }
 
-func daemonStatus(bundlePath string) serviceStatus {
+// DaemonStatus returns the status of the background item responsible for launching the daemon.
+func DaemonStatus() (ServiceStatus, error) {
+	bundlePath, err := bundlePath()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return daemonStatus(bundlePath), nil
+}
+
+func daemonStatus(bundlePath string) ServiceStatus {
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
-	return serviceStatus(C.DaemonStatus(cBundlePath))
+	return ServiceStatus(C.DaemonStatus(cBundlePath))
 }
 
-type serviceStatus int
-
 // https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
+type ServiceStatus int
+
 const (
-	serviceStatusNotRegistered    serviceStatus = 0
-	serviceStatusEnabled          serviceStatus = 1
-	serviceStatusRequiresApproval serviceStatus = 2
-	serviceStatusNotFound         serviceStatus = 3
+	ServiceStatusNotRegistered    ServiceStatus = 0
+	ServiceStatusEnabled          ServiceStatus = 1
+	ServiceStatusRequiresApproval ServiceStatus = 2
+	ServiceStatusNotFound         ServiceStatus = 3
 )
 
-func (s serviceStatus) String() string {
+func (s ServiceStatus) String() string {
 	switch s {
-	case serviceStatusNotRegistered:
+	case ServiceStatusNotRegistered:
 		return "not registered"
-	case serviceStatusEnabled:
+	case ServiceStatusEnabled:
 		return "enabled"
-	case serviceStatusRequiresApproval:
+	case ServiceStatusRequiresApproval:
 		return "requires approval"
-	case serviceStatusNotFound:
+	case ServiceStatusNotFound:
 		return "not found"
 	default:
 		return strconv.Itoa(int(s))
@@ -213,8 +223,9 @@ func bundlePath() (string, error) {
 
 	const appBundleSuffix = "/Contents/MacOS"
 	if !strings.HasSuffix(dir, appBundleSuffix) {
+		exeName := filepath.Base(exe)
 		log.DebugContext(context.Background(), "Current executable is likely outside of app bundle", "exe", absExe)
-		return "", trace.NotFound("the current executable is not in an app bundle")
+		return "", trace.NotFound("%s is not in an app bundle", exeName)
 	}
 
 	return strings.TrimSuffix(dir, appBundleSuffix), nil

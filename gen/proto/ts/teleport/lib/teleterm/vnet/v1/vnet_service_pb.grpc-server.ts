@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
+import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { ListDNSZonesResponse } from "./vnet_service_pb";
 import { ListDNSZonesRequest } from "./vnet_service_pb";
 import { StopResponse } from "./vnet_service_pb";
@@ -59,6 +61,13 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
      */
     listDNSZones: grpc.handleUnaryCall<ListDNSZonesRequest, ListDNSZonesResponse>;
+    /**
+     * GetBackgroundItemStatus returns the status of the background item responsible for launching
+     * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+     *
+     * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
+     */
+    getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -101,5 +110,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => ListDNSZonesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListDNSZonesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListDNSZonesRequest.toBinary(value))
+    },
+    getBackgroundItemStatus: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus",
+        originalName: "GetBackgroundItemStatus",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetBackgroundItemStatusResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetBackgroundItemStatusRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
     }
 };
