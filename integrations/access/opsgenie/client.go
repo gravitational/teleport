@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -49,7 +50,11 @@ const (
 
 	ResolveAlertRequestRetryInterval = time.Second * 10
 	ResolveAlertRequestRetryTimeout  = time.Minute * 2
+
+	UUIDRegexPattern = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 )
+
+var uuidRegex = regexp.MustCompile(UUIDRegexPattern)
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
 	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
@@ -219,20 +224,26 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 	}
 	responders := make([]Responder, 0, len(schedules)+len(teams))
 	for _, s := range schedules {
-		responders = append(responders, Responder{
-			Type: ResponderTypeSchedule,
-			ID:   s,
-			Name: s,
-		})
+		responders = append(responders, createResponder(ResponderTypeSchedule, s))
 	}
 	for _, t := range teams {
-		responders = append(responders, Responder{
-			Type: ResponderTypeTeam,
-			ID:   t,
-			Name: t,
-		})
+		responders = append(responders, createResponder(ResponderTypeTeam, t))
 	}
 	return responders
+}
+
+// Check if the responder is a UUID. If it is, then it is an ID; otherwise, it is a name.
+func createResponder(responderType string, value string) Responder {
+	if uuidRegex.MatchString(value) {
+		return Responder{
+			Type: responderType,
+			ID:   value,
+		}
+	}
+	return Responder{
+		Type: responderType,
+		Name: value,
+	}
 }
 
 // PostReviewNote posts a note once a new request review appears.
