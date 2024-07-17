@@ -261,8 +261,8 @@ export function AccessLists() {
     MainContent = (
       <>
         <EmptyState />
-        {cfg.oss.entitlements.accessLists.limit !== 0 && (
-          <FeatureLimitBlurb limit={cfg.oss.entitlements.accessLists.limit} />
+        {cfg.oss.entitlements.AccessLists.limit !== 0 && (
+          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
         )}
       </>
     );
@@ -293,8 +293,8 @@ export function AccessLists() {
               ))
             : 'No Access Lists Found'}
         </AccessListContainer>
-        {cfg.oss.entitlements.accessLists.limit !== 0 && (
-          <FeatureLimitBlurb limit={cfg.oss.entitlements.accessLists.limit} />
+        {cfg.oss.entitlements.AccessLists.limit !== 0 && (
+          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
         )}
       </>
     );

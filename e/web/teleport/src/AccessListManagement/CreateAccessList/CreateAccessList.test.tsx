@@ -19,7 +19,7 @@ import {
 } from './CreateAccessList';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
-const defaultAccessListentitlement = cfg.entitlements.accessLists;
+const defaultAccessListentitlement = cfg.entitlements.AccessLists;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
@@ -43,11 +43,11 @@ describe('upsell links', () => {
     jest.resetAllMocks();
 
     cfg.isEnterprise = defaultIsEnterpriseFlag;
-    cfg.entitlements.accessLists = defaultAccessListentitlement;
+    cfg.entitlements.AccessLists = defaultAccessListentitlement;
   });
 
   test('no access should not render cta', async () => {
-    ecfg.oss.entitlements.accessLists = {
+    ecfg.oss.entitlements.AccessLists = {
       // access denied via ACL
       enabled: true,
       limit: 0,
@@ -66,7 +66,7 @@ describe('upsell links', () => {
   });
 
   test('unlimited & enabled entitlement renders no cta', async () => {
-    ecfg.oss.entitlements.accessLists = {
+    ecfg.oss.entitlements.AccessLists = {
       enabled: true,
       limit: 0,
     };
@@ -79,7 +79,7 @@ describe('upsell links', () => {
   });
 
   test('limited entitlement renders cta', async () => {
-    ecfg.oss.entitlements.accessLists = {
+    ecfg.oss.entitlements.AccessLists = {
       enabled: true,
       limit: 1,
     };

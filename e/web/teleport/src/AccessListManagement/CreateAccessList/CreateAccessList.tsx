@@ -108,8 +108,8 @@ export function CreateAccessList() {
 
   useEffect(() => {
     if (
-      cfg.oss.entitlements.accessLists.enabled &&
-      cfg.oss.entitlements.accessLists.limit === 0
+      cfg.oss.entitlements.AccessLists.enabled &&
+      cfg.oss.entitlements.AccessLists.limit === 0
     ) {
       fetchUsersAndRoles();
       return;
@@ -121,7 +121,7 @@ export function CreateAccessList() {
       .then(resp => {
         if (
           resp.length &&
-          resp.length >= cfg.oss.entitlements.accessLists.limit
+          resp.length >= cfg.oss.entitlements.AccessLists.limit
         ) {
           setFeatureLimitReached(true);
           setInitAttempt({ status: 'success' });

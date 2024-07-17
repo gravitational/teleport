@@ -10,7 +10,7 @@ import { CreateAccessList } from './CreateAccessList';
 const { worker, rest } = window.msw;
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
-const defaultAccessListEntitlement = cfg.oss.entitlements.accessLists;
+const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
 
 export default {
   title: 'Teleport/AccessLists/Create',
@@ -23,7 +23,7 @@ export default {
         // Clean up
         return () => {
           cfg.oss.isEnterprise = defaultIsEnterprise;
-          cfg.oss.entitlements.accessLists = defaultAccessListEntitlement;
+          cfg.oss.entitlements.AccessLists = defaultAccessListEntitlement;
         };
       }, []);
       return <Story />;
@@ -61,7 +61,7 @@ export const NoAccess = () => {
 };
 
 export const LoadedUnlimited = () => {
-  cfg.oss.entitlements.accessLists = { enabled: true, limit: 0 };
+  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
 
   worker.use(
     rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
@@ -82,7 +82,7 @@ export const LoadedUnlimited = () => {
 };
 
 export const LoadedLimitedReachedLimit = () => {
-  cfg.oss.entitlements.accessLists = { enabled: true, limit: 1 };
+  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 1 };
 
   worker.use(
     rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {

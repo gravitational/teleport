@@ -12,7 +12,7 @@ import { AccessLists } from './AccessLists';
 const { worker, rest } = window.msw;
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
-const defaultAccessListEntitlement = cfg.oss.entitlements.accessLists;
+const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
 
 export default {
   title: 'Teleport/AccessLists/List',
@@ -25,7 +25,7 @@ export default {
         // Clean up
         return () => {
           cfg.oss.isEnterprise = defaultIsEnterprise;
-          cfg.oss.entitlements.accessLists = defaultAccessListEntitlement;
+          cfg.oss.entitlements.AccessLists = defaultAccessListEntitlement;
         };
       }, []);
       return <Story />;
@@ -60,7 +60,7 @@ export const NoAccess = () => {
 };
 
 export const EmptyUnlimitedAccess = () => {
-  cfg.oss.entitlements.accessLists = {
+  cfg.oss.entitlements.AccessLists = {
     enabled: true,
     limit: 0,
   };
@@ -78,7 +78,7 @@ export const EmptyUnlimitedAccess = () => {
 };
 
 export const EmptyLimitedAccessCta = () => {
-  cfg.oss.entitlements.accessLists = { enabled: true, limit: 4 };
+  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 4 };
 
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
@@ -93,7 +93,7 @@ export const EmptyLimitedAccessCta = () => {
 };
 
 export const ListUnlimited = () => {
-  cfg.oss.entitlements.accessLists = { enabled: true, limit: 0 };
+  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
 
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
@@ -108,7 +108,7 @@ export const ListUnlimited = () => {
 };
 
 export const ListLimitedAccessCta = () => {
-  cfg.oss.entitlements.accessLists = { enabled: true, limit: 45 };
+  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 45 };
 
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
