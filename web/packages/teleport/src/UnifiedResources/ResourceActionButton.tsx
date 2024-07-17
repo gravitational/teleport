@@ -185,6 +185,8 @@ const AppLaunch = ({
     samlAppSsoUrl,
     samlAppPreset,
   } = app;
+  const ctx = useTeleport();
+  const userSamlIdPPerm = ctx.storeUser.getSamlIdPServiceProviderAccess();
   if (awsConsole) {
     return (
       <AwsLaunchButton
@@ -214,7 +216,15 @@ const AppLaunch = ({
       </ButtonBorder>
     );
   }
+
   function handleSamlMenuButtonClick(action: 'edit' | 'delete') {
+    // check user permissions for each action.
+    if (action === 'edit' && !userSamlIdPPerm.edit) {
+      return;
+    }
+    if (action === 'delete' && !userSamlIdPPerm.remove) {
+      return;
+    }
     setResourceAction({
       action: action,
       resourceSpec: {
@@ -231,8 +241,12 @@ const AppLaunch = ({
       setDeletedItem({ backendDeleted: false, index: resourceIndex });
     }
   }
+
+  const showSamlActionMenu =
+    setResourceAction && (userSamlIdPPerm.edit || userSamlIdPPerm.remove);
+
   if (samlApp) {
-    if (setResourceAction) {
+    if (showSamlActionMenu) {
       return (
         <ButtonWithMenu
           text="Log In"
@@ -245,10 +259,16 @@ const AppLaunch = ({
           forwardedAs="a"
           title="Log in to SAML application"
         >
-          <MenuItem onClick={() => handleSamlMenuButtonClick('edit')}>
+          <MenuItem
+            onClick={() => handleSamlMenuButtonClick('edit')}
+            disabled={!userSamlIdPPerm.edit} // disable props does not disable onClick
+          >
             Edit
           </MenuItem>
-          <MenuItem onClick={() => handleSamlMenuButtonClick('delete')}>
+          <MenuItem
+            onClick={() => handleSamlMenuButtonClick('delete')}
+            disabled={!userSamlIdPPerm.remove} // disable props does not disable onClick
+          >
             Delete
           </MenuItem>
         </ButtonWithMenu>
