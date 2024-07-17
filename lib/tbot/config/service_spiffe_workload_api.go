@@ -151,8 +151,11 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 	}
 	for i, svid := range s.SVIDs {
 		if err := svid.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validiting svid[%d]", i)
+			return trace.Wrap(err, "validating svid[%d]", i)
 		}
+	}
+	if err := s.Attestor.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating attestor")
 	}
 	return nil
 }

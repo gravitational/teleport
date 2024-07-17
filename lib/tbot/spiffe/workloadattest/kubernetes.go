@@ -91,6 +91,13 @@ type KubernetesAttestorConfig struct {
 	Kubelet KubeletClientConfig `yaml:"kubelet"`
 }
 
+func (c *KubernetesAttestorConfig) CheckAndSetDefaults() error {
+	if !c.Enabled {
+		return nil
+	}
+	return trace.Wrap(c.Kubelet.CheckAndSetDefaults(), "validating kubelet")
+}
+
 // KubernetesAttestor attests a workload to a Kubernetes pod.
 //
 // It requires:
@@ -113,15 +120,12 @@ type KubernetesAttestor struct {
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
-func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) (*KubernetesAttestor, error) {
-	kubeletClient, err := newKubeletClient(cfg.Kubelet)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *KubernetesAttestor {
+	kubeletClient := newKubeletClient(cfg.Kubelet)
 	return &KubernetesAttestor{
 		kubeletClient: kubeletClient,
 		log:           log,
-	}, nil
+	}
 }
 
 // Attest resolves the Kubernetes pod information from the
@@ -266,6 +270,7 @@ const (
 	nodeNameEnv                    = "TELEPORT_NODE_NAME"
 	defaultServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	defaultCAPath                  = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultSecurePort              = 10250
 )
 
 // KubeletClientConfig holds the configuration for the Kubelet client
@@ -289,9 +294,13 @@ type KubeletClientConfig struct {
 	// presented by Kubelet when using the secure port.
 	// Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`.
 	CAPath string `yaml:"ca_path"`
-	// InsecureSkipVerify is used to skip verification of the Kubelet's
-	// certificate when using the secure port. If set, CAPath will be ignored.
-	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// SkipVerify is used to skip verification of the Kubelet's certificate when
+	// using the secure port. If set, CAPath will be ignored.
+	//
+	// This is useful in scenarios where Kubelet has not been configured with a
+	// valid certificate signed by the cluster CA. This is more common than
+	// you'd think.
+	SkipVerify bool `yaml:"skip_verify"`
 	// Anonymous is used to indicate that no authentication should be used
 	// when connecting to the secure Kubelet API. If set, TokenPath will be
 	// ignored.
@@ -310,13 +319,10 @@ type kubeletClient struct {
 	cfg KubeletClientConfig
 }
 
-func newKubeletClient(cfg KubeletClientConfig) (*kubeletClient, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+func newKubeletClient(cfg KubeletClientConfig) *kubeletClient {
 	return &kubeletClient{
 		cfg: cfg,
-	}, nil
+	}
 }
 
 type roundTripperFn func(req *http.Request) (*http.Response, error)
@@ -335,14 +341,14 @@ func (c *kubeletClient) httpClient() (url.URL, *http.Client, error) {
 		}, &http.Client{}, nil
 	}
 
-	port := cmp.Or(c.cfg.SecurePort, 10250)
+	port := cmp.Or(c.cfg.SecurePort, defaultSecurePort)
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{},
 	}
 
 	switch {
-	case c.cfg.InsecureSkipVerify:
+	case c.cfg.SkipVerify:
 		transport.TLSClientConfig.InsecureSkipVerify = true
 	default:
 		caPath := cmp.Or(c.cfg.CAPath, defaultCAPath)

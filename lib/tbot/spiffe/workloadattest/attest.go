@@ -60,6 +60,10 @@ type Config struct {
 	Kubernetes KubernetesAttestorConfig `yaml:"kubernetes"`
 }
 
+func (c *Config) CheckAndSetDefaults() error {
+	return trace.Wrap(c.Kubernetes.CheckAndSetDefaults(), "validating kubernetes")
+}
+
 // NewAttestor returns an Attestor from the given config.
 func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	att := &Attestor{
@@ -67,11 +71,7 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 		unix: &UnixAttestor{},
 	}
 	if cfg.Kubernetes.Enabled {
-		var err error
-		att.kubernetes, err = NewKubernetesAttestor(cfg.Kubernetes, log)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating kubernetes attestor")
-		}
+		att.kubernetes = NewKubernetesAttestor(cfg.Kubernetes, log)
 	}
 	return att, nil
 }
