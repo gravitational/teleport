@@ -60,3 +60,13 @@ produced by Machine ID from being used to connect to resources.
 As a work-around, ensure that per-session MFA is enforced on individual roles
 rather than enforced globally, and that it is not enforced for roles that you
 will impersonate using Machine ID.
+
+## Can Machine ID be used with Device Trust?
+
+We do not currently support Machine ID and Device Trust. Requiring Device
+Trust cluster-wide or for roles impersonated by Machine ID will prevent
+credentials produced by Machine ID from being used to connect to resources.
+
+As a work-around, configure Device Trust enforcement on a role-by-role basis
+and ensure that it is not required for roles that you will impersonate using
+Machine ID.
