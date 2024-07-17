@@ -227,8 +227,9 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
           href={samlAppSsoUrl}
           rel="noreferrer"
           textTransform="none"
+          title="Log in to SAML application"
         >
-          Login
+          Log In
         </ButtonBorder>
       );
     }
