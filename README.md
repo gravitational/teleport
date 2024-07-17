@@ -290,6 +290,19 @@ DEBUG=1 ./build/teleport start -d
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
+### Pre-Commit Hooks
+
+This project supports git pre-commit hooks. To manage these hooks we use `lefthook`. For download instructions and other documentation view the [lefthook README](https://github.com/evilmartians/lefthook)
+
+Once downloaded and setup you can run the following command to setup your git hooks.
+```shell
+lefthook install
+```
+
+The pre-commit hooks used in this project are:
+* [git-leaks](https://github.com/gitleaks/gitleaks): Prevent accidental credential leaks
+
+
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:

@@ -1,0 +1,4 @@
+pre-commit:
+  commands:
+    secret-scan:
+      run: make check-gitleaks
