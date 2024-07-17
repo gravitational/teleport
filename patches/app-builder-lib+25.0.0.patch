@@ -1,0 +1,12 @@
+diff --git a/node_modules/app-builder-lib/out/util/yarn.js b/node_modules/app-builder-lib/out/util/yarn.js
+index d4a95ba..a2ab75b 100644
+--- a/node_modules/app-builder-lib/out/util/yarn.js
++++ b/node_modules/app-builder-lib/out/util/yarn.js
+@@ -169,6 +169,7 @@ async function rebuild(config, appDir, options) {
+         debug: builder_util_1.log.isDebugEnabled,
+         projectRootPath: await (0, search_module_1.getProjectRootPath)(appDir),
+         mode: config.nativeRebuilder || "sequential",
++        disablePreGypCopy: true
+     };
+     if (buildFromSource) {
+         rebuildOptions.prebuildTagPrefix = "totally-not-a-real-prefix-to-force-rebuild";
