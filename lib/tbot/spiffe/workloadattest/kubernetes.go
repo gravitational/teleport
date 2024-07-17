@@ -108,6 +108,8 @@ type KubernetesAttestorConfig struct {
 type KubernetesAttestor struct {
 	kubeletClient *kubeletClient
 	log           *slog.Logger
+	// rootPath specifies the location of `/`. This allows overriding for tests.
+	rootPath string
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
@@ -151,7 +153,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAtt
 // PID.
 func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, containerID string, err error) {
 	info, err := mount.ParseMountInfo(
-		path.Join("/proc", strconv.Itoa(pid), "mountinfo"),
+		path.Join(a.rootPath, "/proc", strconv.Itoa(pid), "mountinfo"),
 	)
 	if err != nil {
 		return "", "", trace.Wrap(

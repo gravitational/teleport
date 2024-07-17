@@ -19,34 +19,53 @@
 package workloadattest
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func Test_mountpointSourceToContainerAndPodID(t *testing.T) {
+func TestKubernetesAttestor_getContainerAndPodID(t *testing.T) {
+	log := utils.NewSlogLoggerForTests()
 	tests := []struct {
 		name            string
-		source          string
 		wantPodID       string
 		wantContainerID string
 	}{
 		{
-			name:            "k3s-ubuntu-v1.28.6+k3s2",
-			source:          "/../../kubepods-besteffort-podfecd2321_17b5_49b9_9f75_8c5be777fbfb.slice/cri-containerd-397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64.scope",
-			wantPodID:       "fecd2321-17b5-49b9-9f75-8c5be777fbfb",
-			wantContainerID: "397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64",
+			name:            "k8s-real-docker-desktop",
+			wantPodID:       "941f292f-a62d-48ab-b9a8-eec84d87b928",
+			wantContainerID: "3f79e718744418736d0f6b9958e08d44e969c6577068c33de1cc400d35aacec8",
 		},
 		{
-			name:            "orbstack-v1.6.4",
-			source:          "/../../pod36827f77-691f-45aa-a470-0989cf3749c4/64dd9bf5199ff782835247cb072e4842dc3d0135ef02f6498cb6bb6f37a320d2",
+			name:            "k8s-real-orbstack",
 			wantPodID:       "36827f77-691f-45aa-a470-0989cf3749c4",
 			wantContainerID: "64dd9bf5199ff782835247cb072e4842dc3d0135ef02f6498cb6bb6f37a320d2",
+		},
+		{
+			name:            "k8s-real-k3s-ubuntu-v1.28.6+k3s2",
+			wantPodID:       "fecd2321-17b5-49b9-9f75-8c5be777fbfb",
+			wantContainerID: "397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotPodID, gotContainerID, err := mountpointSourceToContainerAndPodID(tt.source)
+			tempDir := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "proc", "1234"), 0755))
+			require.NoError(t, utils.CopyFile(
+				filepath.Join("testdata", "mountfile", tt.name),
+				filepath.Join(tempDir, "proc", "1234", "mountinfo"),
+				0755),
+			)
+			attestor := &KubernetesAttestor{
+				rootPath: tempDir,
+				log:      log,
+			}
+			gotPodID, gotContainerID, err := attestor.getContainerAndPodID(1234)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantPodID, gotPodID)
 			assert.Equal(t, tt.wantContainerID, gotContainerID)
