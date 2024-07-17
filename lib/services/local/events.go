@@ -215,6 +215,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretPrivateKeyParser()
 		case types.KindAccessGraphSecretAuthorizedKey:
 			parser = newAccessGraphSecretAuthorizedKeyParser()
+		case types.KindAccessGraphSettings:
+			parser = newAccessGraphSettingsParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2348,4 +2350,38 @@ func baseTwoKeys(key []byte) (string, string, error) {
 		return "", "", trace.NotFound("failed parsing %v", string(key))
 	}
 	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
+}
+
+func newAccessGraphSettingsParser() *accessGraphSettingsParser {
+	return &accessGraphSettingsParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix)),
+	}
+}
+
+type accessGraphSettingsParser struct {
+	baseParser
+}
+
+func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAccessGraphSettings, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAccessGraphSettings)
+		return h, nil
+	case types.OpPut:
+		settings, err := services.UnmarshalAccessGraphSettings(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(settings), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
