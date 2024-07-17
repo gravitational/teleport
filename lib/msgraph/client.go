@@ -66,6 +66,7 @@ func defaultHTTPClient() (*http.Client, error) {
 
 	return &http.Client{
 		Transport: transport,
+		Timeout:   apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
