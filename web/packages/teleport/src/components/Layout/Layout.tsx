@@ -17,7 +17,7 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Text } from 'design';
+import { Flex, H1 } from 'design';
 import { alignItems, space } from 'design/system';
 
 /**
@@ -25,7 +25,6 @@ import { alignItems, space } from 'design/system';
  */
 const FeatureHeader = styled(Flex)`
   flex-shrink: 0;
-  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -41,14 +40,9 @@ const FeatureHeader = styled(Flex)`
 /**
  * Header Title
  */
-const FeatureHeaderTitle = styled(Text)`
+const FeatureHeaderTitle = styled(H1)`
   white-space: nowrap;
 `;
-
-FeatureHeaderTitle.defaultProps = {
-  ...Text.defaultProps,
-  typography: 'h3',
-};
 
 /**
  * Feature Box (container)
@@ -90,7 +84,7 @@ const AppHorizontalSplit = styled.div`
   width: 100%;
 `;
 
-const TabItem = styled.button`
+const TabItem = styled.button<{ active?: boolean }>`
   color: ${props => props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: inline-flex;

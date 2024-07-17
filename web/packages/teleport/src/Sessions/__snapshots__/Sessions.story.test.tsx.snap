@@ -252,8 +252,8 @@ exports[`active sessions CTA 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -291,7 +291,6 @@ exports[`active sessions CTA 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -507,11 +506,11 @@ exports[`active sessions CTA 1`] = `
   <div
     class="c0 c3 c4 c5"
   >
-    <div
+    <h1
       class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
     <div
       class="c8"
       width="340px"
@@ -1389,8 +1388,8 @@ exports[`loaded 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -1423,7 +1422,6 @@ exports[`loaded 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1632,11 +1630,11 @@ exports[`loaded 1`] = `
   <div
     class="c0 c3 c4 c5"
   >
-    <div
+    <h1
       class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
   </div>
   <nav
     class="c8"
@@ -2476,8 +2474,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -2510,7 +2508,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2719,11 +2716,11 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   <div
     class="c0 c3 c4 c5"
   >
-    <div
+    <h1
       class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
   </div>
   <nav
     class="c8"

@@ -51,41 +51,6 @@ exports[`kube connect dialogue local 1`] = `
   width: 100%;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  margin-top: 4px;
-  margin-bottom: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -135,26 +100,6 @@ exports[`kube connect dialogue local 1`] = `
 .c20 {
   box-sizing: border-box;
   margin-top: 24px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c21 {
-  display: flex;
-  justify-content: space-between;
 }
 
 .c17 {
@@ -281,6 +226,59 @@ exports[`kube connect dialogue local 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+}
+
+.c14 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c21 {
+  display: flex;
+  justify-content: space-between;
+}
+
 .c9 {
   margin-bottom: 32px;
   flex: 1;
@@ -308,12 +306,11 @@ exports[`kube connect dialogue local 1`] = `
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
-            connect to kubernetes cluster
-          </div>
+            Connect to Kubernetes Cluster
+          </h2>
         </div>
         <div
           class="c7 c8 c9"
@@ -555,41 +552,6 @@ exports[`kube connect dialogue local with requestId 1`] = `
   width: 100%;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  margin-top: 4px;
-  margin-bottom: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -645,26 +607,6 @@ exports[`kube connect dialogue local with requestId 1`] = `
 .c21 {
   box-sizing: border-box;
   margin-top: 24px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c22 {
-  display: flex;
-  justify-content: space-between;
 }
 
 .c17 {
@@ -791,6 +733,59 @@ exports[`kube connect dialogue local with requestId 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+}
+
+.c14 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c22 {
+  display: flex;
+  justify-content: space-between;
+}
+
 .c9 {
   margin-bottom: 32px;
   flex: 1;
@@ -818,12 +813,11 @@ exports[`kube connect dialogue local with requestId 1`] = `
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
-            connect to kubernetes cluster
-          </div>
+            Connect to Kubernetes Cluster
+          </h2>
         </div>
         <div
           class="c7 c8 c9"
@@ -1101,41 +1095,6 @@ exports[`kube connect dialogue sso 1`] = `
   width: 100%;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  margin-top: 4px;
-  margin-bottom: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 600;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -1185,26 +1144,6 @@ exports[`kube connect dialogue sso 1`] = `
 .c20 {
   box-sizing: border-box;
   margin-top: 24px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c21 {
-  display: flex;
-  justify-content: space-between;
 }
 
 .c17 {
@@ -1331,6 +1270,59 @@ exports[`kube connect dialogue sso 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+}
+
+.c14 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c21 {
+  display: flex;
+  justify-content: space-between;
+}
+
 .c9 {
   margin-bottom: 32px;
   flex: 1;
@@ -1358,12 +1350,11 @@ exports[`kube connect dialogue sso 1`] = `
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
-            connect to kubernetes cluster
-          </div>
+            Connect to Kubernetes Cluster
+          </h2>
         </div>
         <div
           class="c7 c8 c9"

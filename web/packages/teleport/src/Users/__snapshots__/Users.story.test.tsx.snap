@@ -227,26 +227,6 @@ exports[`success state 1`] = `
   margin-left: 8px;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin-right: 4px;
-  font-weight: 500;
-}
-
 .c23 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -260,6 +240,26 @@ exports[`success state 1`] = `
   color: #FFFFFF;
   font-weight: 400;
   margin-right: 4px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c16 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 4px;
+  font-weight: 500;
 }
 
 .c1 {
@@ -279,7 +279,6 @@ exports[`success state 1`] = `
 
 .c3 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -473,11 +472,11 @@ exports[`success state 1`] = `
     <div
       class="c0 c1 c3"
     >
-      <div
+      <h1
         class="c4 c5"
       >
         Users
-      </div>
+      </h1>
       <button
         class="c6"
         fill="border"
