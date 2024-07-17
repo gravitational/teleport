@@ -10,19 +10,10 @@ SSO grants across your services.
 
 <Notice type="note">
 SSO grant analysis is currently only supported in situations where Entra ID acts as the identity provider,
-and AWS accounts are set-up as relying parties using AWS IAM role federation.
+and AWS accounts are set up as relying parties using AWS IAM role federation.
 
 Support for additional relying parties will be added in the future.
 </Notice>
-
-Utilizing the Access Graph to analyze Entra ID policies necessitates the setup of the Access Graph service,
-and an integration with your Azure account.
-
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is
-available to Teleport Enterprise customers.
-
-After logging in to the Teleport UI, go to the Management tab. If enabled,
-Access Graph options can be found under the Permission Management section.
 
 ## How it works
 
@@ -43,12 +34,16 @@ These resources are then visualized using the graph representation detailed in t
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v15.4.2/v16.0.0 or later.
-- For self-hosted clusters, an updated `license.pem` with Teleport Identity and Teleport Policy enabled.
+- Teleport Identity and Teleport Policy enabled for your account.
+  - For self-hosted clusters, ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
 - For self-hosted clusters, a running Access Graph node v1.21.3 or later.
 Check the [Teleport Policy page](../teleport-policy/getting-started-policy.mdx) for details on
 how to set up Access Graph.
 - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 - Your user must have privileged administrator permissions in the Azure account
+
+To verify that Access Graph is set up correctly for your cluster, sign in to the Teleport Web UI and navigate to the Management tab.
+If enabled, the Access Graph menu item will appear in the Permission Management section.
 
 ## Step 1/3. Start Integration onboarding
 
