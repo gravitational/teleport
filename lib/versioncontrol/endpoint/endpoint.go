@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 
 	versionlib "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -89,7 +90,7 @@ func exportEndpoint(configDir, versionEndpoint string) (string, error) {
 
 	// Do not overwrite if an endpoint value is already configured.
 	if len(b) != 0 {
-		return string(b), nil
+		return strings.TrimSuffix(string(b), "\n"), nil
 	}
 
 	_, err = endpointFile.Write([]byte(versionEndpoint))
