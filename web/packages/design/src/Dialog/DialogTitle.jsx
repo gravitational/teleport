@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import Text from './../Text';
+import { H2 } from 'design';
 
 export default function DialogTitle(props) {
-  return <Text typography="h3" color="text.main" caps {...props} />;
+  return <H2 {...props} />;
 }

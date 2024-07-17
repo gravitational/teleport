@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -81,7 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/player"
+	libplayer "github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -487,6 +488,10 @@ type Config struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -797,6 +802,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.PIVSlot = profile.PIVSlot
+	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -845,6 +851,7 @@ func (c *Config) Profile() *profile.Profile {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 		PIVSlot:                       c.PIVSlot,
+		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 	}
 }
 
@@ -2146,7 +2153,7 @@ const (
 	keyDown  = 66
 )
 
-func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer, skipIdleTime bool) error {
+func playSession(ctx context.Context, sessionID string, speed float64, streamer libplayer.Streamer, skipIdleTime bool) error {
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2169,7 +2176,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 	term.Clear() // clear screen between runs:
 	term.SetCursorPos(1, 1)
 
-	player, err := player.New(&player.Config{
+	player, err := libplayer.New(&libplayer.Config{
 		SessionID:    *sid,
 		Streamer:     streamer,
 		SkipIdleTime: skipIdleTime,
@@ -2225,9 +2232,9 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
 			return trace.BadParameter(message)
-		case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
-			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
-				" To play app or database sessions, specify --format=json or --format=yaml.")
+		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
+			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
+				" To play app sessions, specify --format=json or --format=yaml.")
 		case *apievents.Resize:
 			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
 				continue
@@ -2242,6 +2249,12 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				term.SetWindowTitle(evt.Time.Format(time.Stamp))
 			}
 			lastTime = evt.Time
+		case *apievents.DatabaseSessionStart:
+			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
+				return trace.NotImplemented("Interactive database session replay is only supported for " +
+					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
+					" To play other database sessions, specify --format=json or --format=yaml.")
+			}
 		default:
 			continue
 		}
@@ -3982,6 +3995,10 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 	}
 	proxyVersion := semver.New(pr.ServerVersion)
 
+	if protocol == constants.SAML && pr.Auth.SAML != nil {
+		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+	}
+
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
 		SSHLogin:                      sshLogin,
@@ -3995,6 +4012,38 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
 	}, nil)
 	return response, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {
+	user, err := clt.AuthClient.GetUser(ctx, profile.Username, false)
+	if err != nil {
+		return "", trace.WrapWithMessage(err, "Failed to retrieve user details for user %s, SAML single logout will be skipped.", profile.Username)
+	}
+
+	var SAMLSingleLogoutURL string
+	if len(user.GetSAMLIdentities()) > 0 {
+		SAMLSingleLogoutURL = user.GetSAMLIdentities()[0].SAMLSingleLogoutURL
+	}
+
+	return SAMLSingleLogoutURL, nil
+}
+
+// SAMLSingleLogout initiates SAML SLO (single logout) by opening the IdP's SLO URL in the user's browser.
+func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogoutURL string) error {
+	parsed, err := url.Parse(SAMLSingleLogoutURL)
+	if err != nil {
+		return trace.Wrap(err, "Failed to parse SAML single logout URL.")
+	}
+	relayState := parsed.Query().Get("RelayState")
+	_, connectorName, _ := strings.Cut(relayState, ",")
+
+	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	// If no browser was opened.
+	if err != nil || tc.Browser == teleport.BrowserNone {
+		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
+	}
+
+	return nil
 }
 
 // ConnectToRootCluster activates the provided key and connects to the

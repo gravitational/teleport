@@ -18,9 +18,11 @@
 
 import PropTypes from 'prop-types';
 
-import { ResponsiveValue } from 'styled-system';
+import { WebTarget } from 'styled-components';
+import { Property } from 'csstype';
 
 import { SharedStyles, Theme } from 'design/theme/themes/types';
+import { shouldForwardProp } from 'design/ThemeProvider';
 
 export interface TypographyProps {
   caps?: boolean;
@@ -28,7 +30,7 @@ export interface TypographyProps {
   italic?: boolean;
   mono?: boolean;
   breakAll?: boolean;
-  typography?: ResponsiveValue<keyof SharedStyles['typography']>;
+  typography?: keyof SharedStyles['typography'];
 }
 
 interface TypographyPropsWithTheme extends TypographyProps {
@@ -46,7 +48,29 @@ function getTypography(props: TypographyPropsWithTheme) {
   };
 }
 
-function caps(props: TypographyProps) {
+const typographyProps: Required<{ [k in keyof TypographyProps]: boolean }> = {
+  caps: true,
+  bold: true,
+  italic: true,
+  mono: true,
+  breakAll: true,
+  typography: true,
+};
+
+/**
+ * Determines whether a property with a given name should be forwarded down as
+ * an attribute to an underlying HTML tag. To be used along with styled-components
+ */
+export function shouldForwardTypographyProp(
+  propName: string,
+  target: WebTarget
+) {
+  return !typographyProps[propName] && shouldForwardProp(propName, target);
+}
+
+function caps(props: TypographyProps): {
+  textTransform: Property.TextTransform;
+} {
   return props.caps ? { textTransform: 'uppercase' } : null;
 }
 
@@ -54,7 +78,7 @@ function mono(props: TypographyPropsWithTheme) {
   return props.mono ? { fontFamily: props.theme.fonts.mono } : null;
 }
 
-function breakAll(props: TypographyProps) {
+function breakAll(props: TypographyProps): { wordBreak: Property.WordBreak } {
   return props.breakAll ? { wordBreak: 'break-all' } : null;
 }
 

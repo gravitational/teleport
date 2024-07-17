@@ -39,6 +39,7 @@ type Cache interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 }
 
 // ReadOnlyCache abstracts over the required methods of [readonly.Cache].
@@ -46,6 +47,7 @@ type ReadOnlyCache interface {
 	GetReadOnlyAuthPreference(context.Context) (readonly.AuthPreference, error)
 	GetReadOnlyClusterNetworkingConfig(ctx context.Context) (readonly.ClusterNetworkingConfig, error)
 	GetReadOnlySessionRecordingConfig(ctx context.Context) (readonly.SessionRecordingConfig, error)
+	GetReadOnlyAccessGraphSettings(context.Context) (readonly.AccessGraphSettings, error)
 }
 
 // Backend is used by the [Service] to mutate cluster config resources.

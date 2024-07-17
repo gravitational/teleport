@@ -18,9 +18,11 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonLink, ButtonPrimary, Text, Card } from 'design';
+import { Box, ButtonLink, ButtonPrimary, Text, Card, H1 } from 'design';
 
 import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import { H2 } from 'design';
 
 import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
 
@@ -86,9 +88,9 @@ export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
 function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary1">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         First Step
-      </Text>
+      </H1>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -121,9 +123,9 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
 function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary2">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         Second Step
-      </Text>
+      </H1>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -182,9 +184,9 @@ function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
 function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-secondary1">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         Some Other Flow Title
-      </Text>
+      </H1>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -219,9 +221,9 @@ function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
 function FinalStep({ prev, refCallback }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-final">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         Done Step
-      </Text>
+      </H1>
       <Text mb={3}>
         Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
         dolore eu fugiat nulla pariatur.
@@ -252,9 +254,7 @@ function Body1({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body1">
-      <Text typography="h2" mb={3}>
-        Step 1
-      </Text>
+      <H2 mb={3}>Step 1</H2>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -292,9 +292,7 @@ function Body2({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body2">
-      <Text typography="h2" mb={3}>
-        Step 2
-      </Text>
+      <H2 mb={3}>Step 2</H2>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim

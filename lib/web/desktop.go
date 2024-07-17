@@ -163,7 +163,7 @@ func (h *Handler) createDesktopConnection(
 	})
 
 	// Parse the private key of the user from the session context.
-	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -257,19 +257,16 @@ func createUserCertsRequest(
 	username,
 	siteName string,
 ) (*proto.UserCertsRequest, error) {
-	key := &client.Key{
-		PrivateKey: pk,
-		Cert:       sctx.cfg.Session.GetPub(),
-		TLSCert:    sctx.cfg.Session.GetTLSCert(),
-	}
-
-	tlsCert, err := key.TeleportTLSCertificate()
+	tlsCert, err := sctx.GetX509Certificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	certsReq := proto.UserCertsRequest{
-		PublicKey:      key.MarshalSSHPublicKey(),
+		// TODO(nklaassen): This is the user's TLS key marshaled to SSH
+		// authorized key format, and we're requesting SSH and TLS certs.
+		// Update this to only request a TLS cert once UserCertsRequest supports it.
+		PublicKey:      pk.MarshalSSHPublicKey(),
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,

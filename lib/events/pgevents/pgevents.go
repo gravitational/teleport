@@ -571,6 +571,5 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	sessionEndTypes := []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}
-	return l.searchEvents(ctx, req.From, req.To, sessionEndTypes, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+	return l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
 }

@@ -238,7 +238,7 @@ const ClusterFilter = styled.input(
     border: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

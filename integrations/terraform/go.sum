@@ -1753,8 +1753,8 @@ github.com/mdlayher/netlink v1.7.2 h1:/UtM3ofJap7Vl4QWCPDGXY8d3GIY2UGSDbK+QWmY8/
 github.com/mdlayher/netlink v1.7.2/go.mod h1:xraEF7uJbxLhc5fpHL4cPe221LI2bdttWlU+ZGLfQSw=
 github.com/mdlayher/socket v0.5.1 h1:VZaqt6RkGkt2OE9l3GcC6nZkqD3xKeQLyfleW/uBcos=
 github.com/mdlayher/socket v0.5.1/go.mod h1:TjPLHI1UgwEv5J1B5q0zTZq12A/6H7nKmtTanQE37IQ=
-github.com/microsoft/kiota-abstractions-go v1.6.0 h1:qbGBNMU0/o5myKbikCBXJFohVCFrrpx2cO15Rta2WyA=
-github.com/microsoft/kiota-abstractions-go v1.6.0/go.mod h1:7YH20ZbRWXGfHSSvdHkdztzgCB9mRdtFx13+hrYIEpo=
+github.com/microsoft/kiota-abstractions-go v1.6.1 h1:NXK50S3BwJn9Wj6bO0YFuAig7y2WVgdQ/ie1ktMl2J4=
+github.com/microsoft/kiota-abstractions-go v1.6.1/go.mod h1:FI1I2OHg0E7bK5t8DPnw+9C/CHVyLP6XeqDBT+95pTE=
 github.com/microsoft/kiota-authentication-azure-go v1.0.2 h1:tClGeyFZJ+4Bakf8u0euPM4wqy4ethycdOgx3jyH3pI=
 github.com/microsoft/kiota-authentication-azure-go v1.0.2/go.mod h1:aTcti0bUJEcq7kBfQG4Sr4ElvRNuaalXcFEu4iEyQ6M=
 github.com/microsoft/kiota-http-go v1.3.1 h1:S+ZDxE7Pc/Z06hbfqpFHkoq5xiC8/7d12iNovcgl+7o=
@@ -1767,8 +1767,8 @@ github.com/microsoft/kiota-serialization-multipart-go v1.0.0 h1:3O5sb5Zj+moLBiJy
 github.com/microsoft/kiota-serialization-multipart-go v1.0.0/go.mod h1:yauLeBTpANk4L03XD985akNysG24SnRJGaveZf+p4so=
 github.com/microsoft/kiota-serialization-text-go v1.0.0 h1:XOaRhAXy+g8ZVpcq7x7a0jlETWnWrEum0RhmbYrTFnA=
 github.com/microsoft/kiota-serialization-text-go v1.0.0/go.mod h1:sM1/C6ecnQ7IquQOGUrUldaO5wj+9+v7G2W3sQ3fy6M=
-github.com/microsoftgraph/msgraph-sdk-go v1.45.0 h1:PRE3nsGDlASfoM1h6QNCBXmU34LTiReg5LMBjRKOL3k=
-github.com/microsoftgraph/msgraph-sdk-go v1.45.0/go.mod h1:MSMgjuMPKAsIz8XfH5l+e781fkWjUxc1XXhb2eoSdc0=
+github.com/microsoftgraph/msgraph-sdk-go v1.46.0 h1:5AT0FZkPFTiLZ9nZym1TLUFlcHFVhAAvqNb9B52Xvn0=
+github.com/microsoftgraph/msgraph-sdk-go v1.46.0/go.mod h1:Rf2aiCdmTvY325XfhxnUiRIuIyj66SYdszaovW091S0=
 github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0 h1:NB7c/n4Knj+TLaLfjsahhSqoUqoN/CtyNB0XIe/nJnM=
 github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0/go.mod h1:M3w/5IFJ1u/DpwOyjsjNSVEA43y1rLOeX58suyfBhGk=
 github.com/miekg/dns v1.0.14/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
@@ -2024,8 +2024,8 @@ github.com/spf13/cobra v1.8.1/go.mod h1:wHxEcudfqmLYa8iTfL+OuZPbBZkmvliBWKIezN3k
 github.com/spf13/pflag v1.0.2/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=
 github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
-github.com/std-uritemplate/std-uritemplate/go v0.0.55 h1:muSH037g97K7U2f94G9LUuE8tZlJsoSSrPsO9V281WY=
-github.com/std-uritemplate/std-uritemplate/go v0.0.55/go.mod h1:rG/bqh/ThY4xE5de7Rap3vaDkYUT76B0GPJ0loYeTTc=
+github.com/std-uritemplate/std-uritemplate/go v0.0.57 h1:GHGjptrsmazP4IVDlUprssiEf9ESVkbjx15xQXXzvq4=
+github.com/std-uritemplate/std-uritemplate/go v0.0.57/go.mod h1:rG/bqh/ThY4xE5de7Rap3vaDkYUT76B0GPJ0loYeTTc=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=

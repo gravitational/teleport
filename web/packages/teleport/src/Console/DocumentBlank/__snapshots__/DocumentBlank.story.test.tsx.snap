@@ -57,7 +57,7 @@ exports[`render DocumentBlank 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c6:active,
@@ -69,7 +69,7 @@ exports[`render DocumentBlank 1`] = `
 
 .c6:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -79,8 +79,8 @@ exports[`render DocumentBlank 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 40px;
   margin-top: 72px;
+  margin-bottom: 40px;
 }
 
 .c1 {

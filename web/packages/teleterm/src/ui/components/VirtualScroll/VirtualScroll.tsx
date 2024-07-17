@@ -64,11 +64,11 @@ const TotalHeight = styled.div<{ height: number }>`
   height: ${props => props.height + 'px'};
 `;
 
-const Offset = styled.div.attrs((props: { moveBy: number }) => ({
+const Offset = styled.div.attrs<{ moveBy: number }>(props => ({
   style: {
     transform: `translateY(${props.moveBy + 'px'})`,
   },
-}))<{ moveBy: number }>``;
+}))``;
 
 const Scrollable = styled.div`
   height: 100%;
