@@ -23,6 +23,7 @@ package daemon
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
+// #include "protocol_darwin.h"
 import "C"
 
 import (
@@ -318,8 +319,8 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	}
 }
 
-// vnetErrorDomain maps to VNEErrorDomain from Objective-C.
-const vnetErrorDomain = "com.Gravitational.Vnet.ErrorDomain"
+// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
+var vnetErrorDomain = C.GoString(C.VNEErrorDomain)
 
 // errorCode maps to VNEErrorCode from Objective-C.
 type errorCode int

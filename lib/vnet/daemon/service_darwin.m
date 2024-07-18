@@ -89,7 +89,7 @@
     // In such scenarios, we want to return an error so that the client can wait for the daemon
     // to exit and retry the call.
     if (_gotConfig) {
-      NSError *error = [[NSError alloc] initWithDomain:VNEErrorDomain
+      NSError *error = [[NSError alloc] initWithDomain:@(VNEErrorDomain)
                                                   code:VNEAlreadyRunningError
                                               userInfo:nil];
       completion(error);
