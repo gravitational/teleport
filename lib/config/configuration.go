@@ -23,6 +23,7 @@
 package config
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"io"
@@ -798,7 +799,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 			return trace.Wrap(err, "failed to init the log file shared writer")
 		}
 		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
-		if err := sharedWriter.RunWatcherReopen(); err != nil {
+		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
