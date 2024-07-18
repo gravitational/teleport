@@ -637,7 +637,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
-	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
+	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil && authnChal.AuthConnectorChallenge == nil {
 		// TODO(Joerger): CreateAuthenticateChallenge should return
 		// this error directly instead of an empty challenge, without
 		// regressing https://github.com/gravitational/teleport/issues/36482.

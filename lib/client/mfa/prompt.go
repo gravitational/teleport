@@ -52,6 +52,8 @@ type PromptConfig struct {
 	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
+	// SSOLoginFunc performs SSO auth flow with the given auth connector details.
+	SSOLoginFunc func(ctx context.Context, connectorName string, connectorType string) (*proto.MFAAuthenticateResponse, error)
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.
@@ -73,16 +75,18 @@ func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 type RunOpts struct {
 	PromptTOTP     bool
 	PromptWebauthn bool
+	PromptSSO      bool
 }
 
 // GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
 func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
 	promptTOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
+	promptSSO := chal.AuthConnectorChallenge != nil && c.SSOLoginFunc != nil
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !promptTOTP && !c.WebauthnSupported:
+	case !promptTOTP && !c.WebauthnSupported && !promptSSO:
 		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
@@ -93,6 +97,7 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 	switch {
 	case promptTOTP && c.PreferOTP:
 		promptWebauthn = false
+		promptSSO = false
 	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
 		// Prefer Webauthn if an specific attachment was requested.
 		promptTOTP = false
@@ -101,7 +106,11 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 		promptTOTP = false
 	}
 
-	return RunOpts{promptTOTP, promptWebauthn}, nil
+	return RunOpts{
+		PromptTOTP:     promptTOTP,
+		PromptWebauthn: promptWebauthn,
+		PromptSSO:      promptSSO,
+	}, nil
 }
 
 func (c PromptConfig) GetWebauthnOrigin() string {

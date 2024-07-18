@@ -59,7 +59,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// No prompt to run, no-op.
-	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn && !runOpts.PromptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
@@ -105,12 +105,23 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
 			}()
 		}
+
+		// Fire SSO goroutine.
+		if runOpts.PromptSSO {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				resp, err := c.cfg.SSOLoginFunc(ctx, chal.AuthConnectorChallenge.GetID(), chal.AuthConnectorChallenge.GetType())
+				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
+			}()
+		}
 	}
 
 	return HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
-func (c *CLIPrompt) promptTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+func (c *CLIPrompt) promptTOTP(ctx context.Context, _ *proto.MFAAuthenticateChallenge, quiet bool) (*proto.MFAAuthenticateResponse, error) {
 	var msg string
 	if !quiet {
 		msg = fmt.Sprintf("Enter an OTP code from a %sdevice", c.promptDevicePrefix())
