@@ -25,7 +25,7 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import {
   PtyCommand,
   PtyProcessCreationStatus,
-  SshOptions,
+  PtyOptions,
   TshKubeLoginCommand,
 } from '../types';
 
@@ -36,7 +36,7 @@ import {
 
 export async function buildPtyOptions(
   settings: RuntimeSettings,
-  sshOptions: SshOptions,
+  options: PtyOptions,
   cmd: PtyCommand
 ): Promise<{
   processOptions: PtyProcessOptions;
@@ -68,7 +68,7 @@ export async function buildPtyOptions(
       return {
         processOptions: getPtyProcessOptions(
           settings,
-          sshOptions,
+          options,
           cmd,
           combinedEnv
         ),
@@ -79,7 +79,7 @@ export async function buildPtyOptions(
 
 export function getPtyProcessOptions(
   settings: RuntimeSettings,
-  sshOptions: SshOptions,
+  options: PtyOptions,
   cmd: PtyCommand,
   env: typeof process.env
 ): PtyProcessOptions {
@@ -104,6 +104,7 @@ export function getPtyProcessOptions(
         cwd: cmd.cwd,
         env: { ...env, ...cmd.env },
         initMessage: cmd.initMessage,
+        useConpty: options.terminal.useConpty,
       };
     }
 
@@ -129,6 +130,7 @@ export function getPtyProcessOptions(
         path: settings.defaultShell,
         args: isWindows ? powershellCommandArgs : bashCommandArgs,
         env: { ...env, KUBECONFIG: getKubeConfigFilePath(cmd, settings) },
+        useConpty: options.terminal.useConpty,
       };
     }
 
@@ -140,7 +142,7 @@ export function getPtyProcessOptions(
       const args = [
         `--proxy=${cmd.rootClusterId}`,
         'ssh',
-        ...(sshOptions.noResume ? ['--no-resume'] : []),
+        ...(options.ssh.noResume ? ['--no-resume'] : []),
         '--forward-agent',
         loginHost,
       ];
@@ -149,6 +151,7 @@ export function getPtyProcessOptions(
         path: settings.tshd.binaryPath,
         args,
         env,
+        useConpty: options.terminal.useConpty,
       };
     }
 
@@ -159,6 +162,7 @@ export function getPtyProcessOptions(
         path: cmd.path,
         args: cmd.args,
         env: { ...env, ...cmd.env },
+        useConpty: options.terminal.useConpty,
       };
     }
 

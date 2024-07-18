@@ -20,6 +20,7 @@ import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import {
   PtyProcessCreationStatus,
   PtyServiceClient,
+  WindowsPty,
 } from 'teleterm/services/pty';
 
 export class MockPtyProcess implements IPtyProcess {
@@ -64,10 +65,12 @@ export class MockPtyServiceClient implements PtyServiceClient {
   createPtyProcess(): Promise<{
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
+    windowsPty: WindowsPty;
   }> {
     return Promise.resolve({
       process: new MockPtyProcess(),
       creationStatus: PtyProcessCreationStatus.Ok,
+      windowsPty: undefined,
     });
   }
 }
