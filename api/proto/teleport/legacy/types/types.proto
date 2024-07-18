@@ -2012,6 +2012,15 @@ message AuthPreferenceSpecV2 {
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
   // The current default value is "legacy". This field is not yet fully supported.
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
+
+  // MFAConnectorName is the name of an SSO connector to use for MFA verification.
+  // If this value is not set, the first connector in the backend with AllowAsMFAMethod
+  // set to YES or ONLY will be used, starting with ConnectorName.
+  string MFAConnectorName = 21 [(gogoproto.jsontag) = "mfa_connector_name,omitempty"];
+
+  // MFAConnectorType is the type of SSO connector to use for MFA verification, if any.
+  // Defaults to the auth Type set above.
+  string MFAConnectorType = 22 [(gogoproto.jsontag) = "mfa_connector_type,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -4433,6 +4442,10 @@ message OIDCConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+
+  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
+  // method or not.
+  AllowAsMFAMethod AllowAsMFAMethod = 19 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4525,6 +4538,16 @@ message OIDCAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // CreatePrivilegedToken is an option to create a privileged token instead of creating
+  // a user session. Privileged tokens can be used in place of standard MFA verification for
+  // privileged actions. This action is only allowed if the auth connector is allowed
+  // to be used as an MFA method and if the user is pre-authenticated (not first time login).
+  bool CreatePrivilegedToken = 20 [(gogoproto.jsontag) = "create_privileged_token,omitempty"];
+
+  // Username is an optional username that this auth request is meant for. Required to
+  // create a privileged token.
+  string Username = 21 [(gogoproto.jsontag) = "username,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4605,6 +4628,9 @@ message SAMLConnectorSpecV2 {
   SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
+  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
+  // method or not.
+  AllowAsMFAMethod AllowAsMFAMethod = 17 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -4671,6 +4697,16 @@ message SAMLAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // CreatePrivilegedToken is an option to create a privileged token instead of creating
+  // a user session. Privileged tokens can be used in place of standard MFA verification for
+  // privileged actions. This action is only allowed if the auth connector is allowed
+  // to be used as an MFA method and if the user is pre-authenticated (not first time login).
+  bool CreatePrivilegedToken = 19 [(gogoproto.jsontag) = "create_privileged_token,omitempty"];
+
+  // Username is an optional username that this auth request is meant for. Required to
+  // create a privileged token.
+  string Username = 20 [(gogoproto.jsontag) = "username,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4750,6 +4786,9 @@ message GithubConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
+  // method or not.
+  AllowAsMFAMethod AllowAsMFAMethod = 10 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -4800,6 +4839,14 @@ message GithubAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing
   // a DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+  // CreatePrivilegedToken is an option to create a privileged token instead of creating
+  // a user session. Privileged tokens can be used in place of standard MFA verification for
+  // privileged actions. This action is only allowed if the auth connector is allowed
+  // to be used as an MFA method and if the user is pre-authenticated (not first time login).
+  bool CreatePrivilegedToken = 19 [(gogoproto.jsontag) = "create_privileged_token,omitempty"];
+  // Username is an optional username that this auth request is meant for. Required to
+  // create a privileged token.
+  string Username = 20 [(gogoproto.jsontag) = "username,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -4996,6 +5043,20 @@ message TeamRolesMapping {
   string Team = 2 [(gogoproto.jsontag) = "team"];
   // Roles is a list of allowed logins for this org/team.
   repeated string Roles = 3 [(gogoproto.jsontag) = "roles,omitempty"];
+}
+
+// AllowAsMFAMethod represents whether an Authentication can be used as an
+// MFA method or not.
+enum AllowAsMFAMethod {
+  ALLOW_AS_MFA_METHOD_UNSPECIFIED = 0;
+  // NO this auth connector cannot be used as an MFA method.
+  ALLOW_AS_MFA_METHOD_NO = 1;
+  // YES this auth connector can be used as an MFA method.
+  ALLOW_AS_MFA_METHOD_YES = 2;
+  // ONLY means this auth connector can only be used as an MFA method, and not
+  // as a primary authentication mechanism. In order for this MFA method to work,
+  // it must be configured for the users from the primary authentication method.
+  ALLOW_AS_MFA_METHOD_ONLY = 3;
 }
 
 // TrustedClusterV2 represents a Trusted Cluster.

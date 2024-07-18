@@ -1211,6 +1211,18 @@ message MFAAuthenticateChallenge {
   // communications, in case of streaming RPCs. It may also return empty
   // challenges for all other fields.
   MFARequired MFARequired = 4;
+  // AuthConnectorChallenge is an auth connector challenge. If set, the client
+  // will attempt to craete an auth request with this connector to aquire a
+  // privileged token as a substitue for local MFA.
+  AuthConnectorChallenge AuthConnectorChallenge = 5;
+}
+
+// AuthConnectorChallenge contains auth connector details for authentication.
+message AuthConnectorChallenge {
+  // Type is the auth connector type.
+  string Type = 1;
+  // ID is the auth connector ID.
+  string ID = 2;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1220,6 +1232,8 @@ message MFAAuthenticateResponse {
     // Removed: U2FResponse U2F = 1;
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
+    // TokenID is a privileged token ID used as a substitute for local MFA.
+    string TokenID = 4;
   }
 }
 
