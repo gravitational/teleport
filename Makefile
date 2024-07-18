@@ -252,19 +252,29 @@ export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
 
+# If we're building inside the cross-compiling buildbox, include the
+# cross compilation definitions so we select the correct compilers and
+# libraries.
+ifeq ($(BUILDBOX_MODE),cross)
+include build.assets/buildbox/cross-compile.mk
+endif
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-# True if $ARCH == amd64 || $ARCH == arm64
 ifeq ("$(ARCH)","arm64")
-	ifeq (,$(IS_NATIVE_BUILD))
-		CGOFLAG += CC=aarch64-linux-gnu-gcc
-	endif
+ifneq ($(BUILDBOX_MODE),cross)
+ifeq (,$(IS_NATIVE_BUILD))
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+endif
 else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
+ifneq ($(BUILDBOX_MODE),cross)
 ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
+endif
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
