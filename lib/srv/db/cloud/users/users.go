@@ -20,11 +20,11 @@ package users
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -42,10 +42,12 @@ type Config struct {
 	// Interval is the interval between user updates. Interval is also used as
 	// the minimum password expiration duration.
 	Interval time.Duration
-	// Log is the logrus field logger.
-	Log logrus.FieldLogger
+	// Log is slog logger.
+	Log *slog.Logger
 	// UpdateMeta is used to update database metadata.
 	UpdateMeta func(context.Context, types.Database) error
+	// ClusterName is the name of the Teleport cluster (for tagging purpose).
+	ClusterName string
 }
 
 // CheckAndSetDefaults validates the config and set defaults.
@@ -76,7 +78,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Interval = 15 * time.Minute
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "clouduser")
+		c.Log = slog.With(teleport.ComponentKey, "clouduser")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
 	}
 	return nil
 }
@@ -200,7 +205,7 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 			delete(u.usersByID, userID)
 
 			if err := user.Teardown(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user.GetID())
+				u.cfg.Log.ErrorContext(ctx, "Failed to tear down user.", "user", user.GetID(), "error", err)
 			}
 		}
 	}
@@ -228,7 +233,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		// whatever meta database already has.
 		if updateMeta && database.Origin() != types.OriginCloud {
 			if err := u.cfg.UpdateMeta(ctx, database); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to update metadata for %q.", database)
+				u.cfg.Log.ErrorContext(ctx, "Failed to update metadata.", "database", database, "error", err)
 			}
 		}
 
@@ -236,9 +241,9 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		fetchedUsers, err := fetcher.FetchDatabaseUsers(ctx, database)
 		if err != nil {
 			if trace.IsAccessDenied(err) { // Permission errors are expected.
-				u.cfg.Log.WithError(err).Debugf("No permissions to fetch users for %q.", database)
+				u.cfg.Log.DebugContext(ctx, "No permissions to fetch users.", "database", database, "error", err)
 			} else {
-				u.cfg.Log.WithError(err).Errorf("Failed to fetch users for database %v.", database)
+				u.cfg.Log.ErrorContext(ctx, "Failed to fetch users.", "database", database, "error", err)
 			}
 			continue
 		}
@@ -247,7 +252,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		var users []User
 		for _, fetchedUser := range fetchedUsers {
 			if user, err := u.setupUser(ctx, fetchedUser); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to setup user %s for database %v.", fetchedUser.GetID(), database)
+				u.cfg.Log.ErrorContext(ctx, "Failed to setup user.", "user", fetchedUser.GetID(), "database", database, "error", err)
 			} else {
 				users = append(users, user)
 			}
@@ -256,7 +261,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		// Rotate passwords.
 		for _, user := range users {
 			if err = user.RotatePassword(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %s", user.GetID())
+				u.cfg.Log.ErrorContext(ctx, "Failed to rotate password.", "user", user.GetID(), "error", err)
 			}
 		}
 
