@@ -681,6 +681,14 @@
                 "cloud",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze Entra ID policies",
+              "slug": "/access-controls/access-graph/entra-id/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
