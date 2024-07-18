@@ -57,7 +57,7 @@ func NewFileSharedWriter(logFileName string, flag int, mode fs.FileMode) (*FileS
 	}
 	logFile, err := os.OpenFile(logFileName, flag, mode)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to create the log file")
+		return nil, trace.ConvertSystemError(err)
 	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -86,7 +86,7 @@ func (s *FileSharedWriter) Write(b []byte) (int, error) {
 
 // Reopen closes the file and opens it again using APPEND mode.
 func (s *FileSharedWriter) Reopen() error {
-	// If opening the file is locked we should not acquire a lock and blocking write.
+	// If opening the file is locked we should not acquire a lock and block write.
 	file, err := os.OpenFile(s.logFileName, s.fileFlag, s.fileMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,7 +94,9 @@ func (s *FileSharedWriter) Reopen() error {
 
 	s.lock.Lock()
 	if s.closed {
-		return trace.NewAggregate(ErrFileSharedWriterClosed, file.Close())
+		s.lock.Unlock()
+		_ = file.Close()
+		return trace.Wrap(ErrFileSharedWriterClosed)
 	}
 	oldLogFile := s.file
 	s.file = file
@@ -108,7 +110,7 @@ func (s *FileSharedWriter) RunWatcherReopen() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.closed {
-		return ErrFileSharedWriterClosed
+		return trace.Wrap(ErrFileSharedWriterClosed)
 	}
 
 	return s.runWatcherFunc(s.Reopen)
@@ -127,7 +129,7 @@ func (s *FileSharedWriter) runWatcherFunc(action func() error) error {
 				if s.logFileName == event.Name && (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) {
 					slog.DebugContext(context.Background(), "Log file was moved/removed", "file", event.Name)
 					if err := action(); err != nil {
-						slog.ErrorContext(context.Background(), "Failed to take action", "error", err, "file", event.Name)
+						slog.ErrorContext(context.Background(), "Failed to reopen file", "error", err, "file", event.Name)
 						continue
 					}
 				}
@@ -154,7 +156,7 @@ func (s *FileSharedWriter) Close() error {
 	defer s.lock.Unlock()
 
 	if s.closed {
-		return ErrFileSharedWriterClosed
+		return trace.Wrap(ErrFileSharedWriterClosed)
 	}
 	s.closed = true
 
