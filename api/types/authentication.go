@@ -96,6 +96,15 @@ type AuthPreference interface {
 	// this value is empty, we fall back to the first connector in the backend.
 	SetConnectorName(string)
 
+	// GetConnectorName gets the name of the auth connector to use for MFA. If
+	// this value is empty, we fall back to the first connector in the backend
+	// that can be used for MFA, starting with ConnectorName if set.
+	GetMFAConnectorName() string
+	// GetConnectorName gets the type of the auth connector to use for MFA. If
+	// this value is empty, we fall back to the first connector in the backend
+	// that can be used for MFA, starting with ConnectorName if set.
+	GetMFAConnectorType() string
+
 	// GetU2F gets the U2F configuration settings.
 	GetU2F() (*U2F, error)
 	// SetU2F sets the U2F configuration settings.
@@ -370,6 +379,25 @@ func (c *AuthPreferenceV2) GetConnectorName() string {
 // this value is empty, we fall back to the first connector in the backend.
 func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 	c.Spec.ConnectorName = cn
+}
+
+// GetConnectorName gets the name of the auth connector to use for MFA. If
+// this value is empty, we fall back to the first connector in the backend
+// that can be used for MFA, starting with ConnectorName if set.
+func (c *AuthPreferenceV2) GetMFAConnectorName() string {
+	if c.Spec.MFAConnectorName != "" {
+		return c.Spec.MFAConnectorName
+	}
+	return c.Spec.ConnectorName
+}
+
+// GetMFAConnectorType gets the type of auth connector to use for MFA. If
+// this value is empty, we fall back to the general auth type.
+func (c *AuthPreferenceV2) GetMFAConnectorType() string {
+	if c.Spec.MFAConnectorType != "" {
+		return c.Spec.MFAConnectorType
+	}
+	return c.Spec.Type
 }
 
 // GetU2F gets the U2F configuration settings.
