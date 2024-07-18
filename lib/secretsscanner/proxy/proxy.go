@@ -69,6 +69,7 @@ type Service struct {
 	log *slog.Logger
 }
 
+// ReportSecrets proxies the ReportSecrets method from the proxy to the Auth's secret service.
 func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
 	ctx, cancel := context.WithCancel(client.Context())
 	defer cancel()
