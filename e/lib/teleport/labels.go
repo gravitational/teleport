@@ -33,4 +33,7 @@ const (
 
 	// EntraMemberOfGroupTrait is the trait that an access list imported from Entra ID assigns to its members.
 	EntraMemberOfGroupTrait = "entra/member-of-group"
+
+	// OktaAppHiddenLabel is the label that indicates that an Okta app is hidden from user Okta portal.
+	OktaAppHiddenLabel = types.TeleportInternalLabelPrefix + "okta-app-hidden"
 )

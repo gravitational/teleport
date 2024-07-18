@@ -108,6 +108,9 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 	labels[types.OktaAppNameLabel] = oktaApplication.Label
 	labels[eteleport.OktaOrgURLLabel] = s.orgURL
 	labels[eteleport.OktaAppIDLabel] = oktaApplication.Id
+	if isHiddenApp(oktaApplication) {
+		labels[eteleport.OktaAppHiddenLabel] = "true"
+	}
 
 	// Create an app for each app link. This is required because there can be multiple
 	// app links per Okta application.
@@ -201,13 +204,11 @@ func isAppValid(app *okta.Application) error {
 	if app.Label == oktaAdminConsole {
 		return trace.BadParameter("application %s is the Okta admin console", app.Id)
 	}
-
-	// Make sure the app isn't hidden.
-	if app.Visibility != nil && app.Visibility.Hide != nil && app.Visibility.Hide.Web != nil && *app.Visibility.Hide.Web {
-		return trace.BadParameter("application %s is hidden from the web", appIdentifier)
-	}
-
 	return nil
+}
+
+func isHiddenApp(app *okta.Application) bool {
+	return app.Visibility != nil && app.Visibility.Hide != nil && app.Visibility.Hide.Web != nil && *app.Visibility.Hide.Web
 }
 
 // base36Encode will take input and encode in in base36. In this case,

@@ -134,6 +134,7 @@ func (d *dummyOktaApp) IsApplicationInstance() bool {
 }
 
 func TestOktaAppToApplications(t *testing.T) {
+	trueBool := true
 	tests := []struct {
 		name             string
 		oktaApp          *okta.Application
@@ -304,6 +305,44 @@ func TestOktaAppToApplications(t *testing.T) {
 				require.ErrorIs(t, err, trace.BadParameter("app links is empty in okta application object app-id (app label)"))
 			},
 		},
+		{
+			name: "hidden app",
+			oktaApp: &okta.Application{
+				Id:     "app-id",
+				Status: "ACTIVE",
+				Label:  "app label",
+				Links: map[string]interface{}{
+					"appLinks": []interface{}{
+						map[string]interface{}{
+							"name": "applink-name",
+							"href": "https://www.link.com",
+						},
+					},
+				},
+				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &trueBool}},
+			},
+			errAssertionFunc: require.NoError,
+			expected: []*types.AppV3{
+				newApp(t,
+					types.Metadata{
+						Name:        "33fv66f9ju37a6",
+						Description: "app label",
+						Labels: map[string]string{
+							types.OriginLabel:             types.OriginOkta,
+							types.OktaAppNameLabel:        "app label",
+							types.OktaAppDescriptionLabel: "applink-name",
+							eteleport.OktaOrgURLLabel:     testOrgURL,
+							eteleport.OktaAppIDLabel:      "app-id",
+							eteleport.OktaAppHiddenLabel:  "true",
+						},
+					},
+					types.AppSpecV3{
+						URI:        "https://www.link.com",
+						PublicAddr: fmt.Sprintf("33fv66f9ju37a6.%s", testClusterName),
+					},
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -365,9 +404,7 @@ func TestIsAppValid(t *testing.T) {
 				Status:     oktaActive,
 				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &trueBool}},
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("application app-id (app label) is hidden from the web"))
-			},
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "only visibility present",
