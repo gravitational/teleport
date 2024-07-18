@@ -277,6 +277,10 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_PREFERENCE_UPDATE]: Icons.Info,
   [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
