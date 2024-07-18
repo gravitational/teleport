@@ -24,11 +24,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/accessgraph"
 	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
 	"github.com/gravitational/teleport/lib/secretsscanner/scan"
@@ -44,7 +46,7 @@ type scanCommand struct {
 }
 
 func newScanCommand(app *kingpin.Application) scanCommand {
-	scan := app.Command("scan", "Scan secrets in the local machine and reports findings to Teleport.")
+	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport")
 	cmd := scanCommand{
 		keys: newScanKeysCommand(scan),
 	}
@@ -59,9 +61,22 @@ type scanKeysCommand struct {
 }
 
 func newScanKeysCommand(parent *kingpin.CmdClause) *scanKeysCommand {
-	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan SSH Private Keys in the local machine and reports findings to Teleport.")}
-	c.Flag("dirs", "Directory to scan for SSH Private Keys").Default("/").StringsVar(&c.dirs)
+	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport")}
+	c.Flag("dirs", "Directories to scan.").Default(defaultDirValues()).StringsVar(&c.dirs)
 	return c
+}
+
+func defaultDirValues() string {
+	switch runtime.GOOS {
+	case constants.LinuxOS:
+		return "/home/"
+	case constants.DarwinOS:
+		return "/Users/"
+	case constants.WindowsOS:
+		return "C:\\Users\\"
+	default:
+		return "/"
+	}
 }
 
 func (c *scanKeysCommand) run(cf *CLIConf) error {
@@ -97,7 +112,9 @@ func (c *scanKeysCommand) run(cf *CLIConf) error {
 			Log:         slog.Default(),
 		})
 
-	if err := authenticateAndReportPrivateKeys(ctx, client, privateKeys); err != nil {
+	if err := authenticateAndReportPrivateKeys(ctx, client, privateKeys); trace.IsNotImplemented(err) {
+		return handleUnimplementedError(ctx, err, *cf)
+	} else if err != nil {
 		return trace.Wrap(err, "failed to report private keys")
 	}
 
@@ -127,17 +144,13 @@ func printPrivateKeys(privateKeys []scan.SSHPrivateKey) {
 // It creates a client to the secrets scanner service, runs the device authentication ceremony, and reports the private keys.
 // It returns an error if the client cannot be created or if the private keys cannot be reported.
 func authenticateAndReportPrivateKeys(ctx context.Context, client secretsscannerclient.Client, privateKeys []scan.SSHPrivateKey) error {
-	const notImplementedMsg = "Teleport version does not support secrets scanning. Please upgrade Teleport to the latest version."
+	const notImplementedMsg = "This ver"
 	stream, err := client.ReportSecrets(ctx)
-	if trace.IsNotImplemented(err) {
-		return trace.NotImplemented(notImplementedMsg)
-	} else if err != nil {
+	if err != nil {
 		return trace.Wrap(err, "failed to create client")
 	}
 
-	if err := runAssertionCeremony(ctx, stream); trace.IsNotImplemented(err) {
-		return trace.NotImplemented(notImplementedMsg)
-	} else if err != nil {
+	if err := runAssertionCeremony(ctx, stream); err != nil {
 		return trace.Wrap(err, "failed to run assertion ceremony")
 	}
 
