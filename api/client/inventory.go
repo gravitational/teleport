@@ -339,6 +339,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_AgentMetadata{
 					AgentMetadata: &msg,
 				}
+			case proto.UpstreamInventoryGoodbye:
+				oneOf.Msg = &proto.UpstreamInventoryOneOf_Goodbye{
+					Goodbye: &msg,
+				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
@@ -478,6 +482,8 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 			msg = *oneOf.GetPong()
 		case oneOf.GetAgentMetadata() != nil:
 			msg = *oneOf.GetAgentMetadata()
+		case oneOf.GetGoodbye() != nil:
+			msg = *oneOf.GetGoodbye()
 		default:
 			// TODO: log unknown message variants once we have a better story around
 			// logging in api/* packages.
@@ -514,7 +520,7 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 					UpdateLabels: &msg,
 				}
 			default:
-				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
+				sendMsg.errC <- trace.BadParameter("cannot send unexpected downstream msg type: %T", msg)
 				continue
 			}
 			err := stream.Send(&oneOf)
