@@ -670,6 +670,13 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 		return trace.Wrap(err)
 	}
 
+	// We are *always* allowed to create at least one AccessLists in order to
+	// demonstrate the functionality.
+	// TODO(tcsc): replace with a default OSS entitlement of 1
+	if len(lists) == 0 {
+		return nil
+	}
+
 	// Iterate through fetched lists, to check if the request was
 	// an update, which is allowed.
 	for _, list := range lists {
@@ -678,9 +685,8 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 		}
 	}
 
-	// Note the +1 to account for the AccessList that were trying to create
 	accessListEntitlement := f.GetEntitlement(entitlements.AccessLists)
-	if accessListEntitlement.WithinLimit(len(lists) + 1) {
+	if accessListEntitlement.UnderLimit(len(lists)) {
 		return nil
 	}
 

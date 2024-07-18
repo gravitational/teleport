@@ -101,12 +101,13 @@ type EntitlementInfo struct {
 	Limit int32
 }
 
-// WithinLimit tests that a given entitlement is within its prescribed limit
-// based on the supplied use count. The actual definition of a "use" depends on
-// the entitlement in question. A disabled entitlement is always out of its
-// limit.
-func (e EntitlementInfo) WithinLimit(count int) bool {
-	return e.Enabled && (e.Limit == 0 || count <= int(e.Limit))
+// UnderLimit tests that a given entitlement is under its prescribed limit
+// based on the supplied use count. A return value of `true` indicates that
+// there is still at least *some* capacity left in the entitlement. The actual
+// definition of a "use" depends on the entitlement in question.
+// A disabled entitlement is always out of its limit.
+func (e EntitlementInfo) UnderLimit(count int) bool {
+	return e.Enabled && (e.Limit == 0 || count < int(e.Limit))
 }
 
 // ToProto converts Features into proto.Features

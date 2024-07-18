@@ -190,13 +190,22 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 			expectedACLCount: 4,
 		},
 		{
-			name:             "disabled",
+			name:             "can-create-one-access-list-when-disabled",
 			igsEnabled:       false,
 			entitlement:      modules.EntitlementInfo{Enabled: false},
 			existingACLCount: 0,
 			aclSelector:      createNew,
+			expectErrorFn:    require.NoError,
+			expectedACLCount: 1,
+		},
+		{
+			name:             "cant-create-a-second-access-list-when-disabled",
+			igsEnabled:       false,
+			entitlement:      modules.EntitlementInfo{Enabled: false},
+			existingACLCount: 1,
+			aclSelector:      createNew,
 			expectErrorFn:    requireAccessDenied,
-			expectedACLCount: 0,
+			expectedACLCount: 1,
 		},
 		{
 			name:             "disabled-allows-update",
@@ -332,6 +341,7 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 
 					// EXPECT that the error state will match the expectation in the
 					// test case
+
 					tc.expectErrorFn(t, err)
 
 					// ALSO EXPECT that the number of AccessLists stored by the service

@@ -232,7 +232,7 @@ func TestFeatures_GetEntitlement(t *testing.T) {
 	require.Equal(t, modules.EntitlementInfo{}, actual)
 }
 
-func TestEntitlementInfo_WithinLimits(t *testing.T) {
+func TestEntitlementInfo_UnderLimit(t *testing.T) {
 	testCases := []struct {
 		name   string
 		count  int
@@ -252,10 +252,10 @@ func TestEntitlementInfo_WithinLimits(t *testing.T) {
 			assert: require.True,
 		},
 		{
-			name:   "at limits returns true",
+			name:   "at limits returns false",
 			count:  10000,
 			uut:    modules.EntitlementInfo{Enabled: true, Limit: 10000},
-			assert: require.True,
+			assert: require.False,
 		},
 		{
 			name:   "above limits returns false",
@@ -279,7 +279,7 @@ func TestEntitlementInfo_WithinLimits(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.assert(t, tc.uut.WithinLimit(tc.count))
+			tc.assert(t, tc.uut.UnderLimit(tc.count))
 		})
 	}
 }
