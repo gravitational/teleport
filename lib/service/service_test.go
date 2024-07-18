@@ -1293,7 +1293,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGRPC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	insecureGRPC, err := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	require.NoError(t, err)
 	t.Cleanup(insecureGRPC.GracefulStop)
 
 	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{

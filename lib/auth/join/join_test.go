@@ -18,7 +18,6 @@ package join
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"testing"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -273,49 +271,4 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 	})
 	require.NoError(t, err, "could not create bot token")
 	return token
-}
-
-func TestVerifyALPNUpgradedConn(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestTLSServer(t)
-	proxy, err := auth.NewServerIdentity(srv.Auth(), "test-proxy", types.RoleProxy)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name       string
-		serverCert []byte
-		clock      clockwork.Clock
-		checkError require.ErrorAssertionFunc
-	}{
-		{
-			name:       "proxy verified",
-			serverCert: proxy.TLSCertBytes,
-			clock:      srv.Clock(),
-			checkError: require.NoError,
-		},
-		{
-			name:       "proxy expired",
-			serverCert: proxy.TLSCertBytes,
-			clock:      clockwork.NewFakeClockAt(srv.Clock().Now().Add(defaults.CATTL + time.Hour)),
-			checkError: require.Error,
-		},
-		{
-			name:       "not proxy",
-			serverCert: []byte(fixtures.TLSCACertPEM),
-			clock:      srv.Clock(),
-			checkError: require.Error,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			serverCert, err := utils.ReadCertificates(test.serverCert)
-			require.NoError(t, err)
-
-			test.checkError(t, verifyALPNUpgradedConn(test.clock)(tls.ConnectionState{
-				PeerCertificates: serverCert,
-			}))
-		})
-	}
 }
