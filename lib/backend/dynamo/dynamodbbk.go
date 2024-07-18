@@ -42,12 +42,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
 
 func init() {
@@ -254,6 +257,8 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 				MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 			},
 		}),
+		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
 	if cfg.AccessKey != "" || cfg.SecretKey != "" {
@@ -275,6 +280,9 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
 	}
+
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
+
 
 	b := &Backend{
 		Entry:   l,
