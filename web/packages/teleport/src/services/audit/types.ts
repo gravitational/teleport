@@ -265,6 +265,10 @@ export const eventCodes = {
   SECURITY_REPORT_RUN: 'SRE002I',
   EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
+  DISCOVERY_CONFIG_CREATE: 'DC001I',
+  DISCOVERY_CONFIG_UPDATE: 'DC002I',
+  DISCOVERY_CONFIG_DELETE: 'DC003I',
+  DISCOVERY_CONFIG_DELETE_ALL: 'DC004I',
 } as const;
 
 /**
@@ -1475,6 +1479,21 @@ export type RawEvents = {
     {
       updated_by: string;
     }
+  >;
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_DELETE_ALL
   >;
 };
 

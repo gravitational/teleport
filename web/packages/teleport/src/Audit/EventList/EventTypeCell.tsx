@@ -247,6 +247,10 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: Icons.Database,
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
