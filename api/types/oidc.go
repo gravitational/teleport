@@ -108,6 +108,8 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetAllowAsMFAMethod returns the connector's MFA settings.
+	GetAllowAsMFAMethod() AllowAsMFAMethod
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -494,6 +496,11 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 		return nil
 	}
 	return o.Spec.ClientRedirectSettings
+}
+
+// GetAllowAsMFAMethod returns the connector's MFA settings.
+func (o *OIDCConnectorV3) GetAllowAsMFAMethod() AllowAsMFAMethod {
+	return o.Spec.AllowAsMFAMethod
 }
 
 // Check returns nil if all parameters are great, err otherwise

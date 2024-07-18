@@ -6547,6 +6547,11 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
 	}
 
+	challenge.AuthConnectorChallenge, err = a.getAuthConnectorChallenge(ctx, apref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6566,6 +6571,99 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	}
 
 	return challenge, nil
+}
+
+func (a *Server) getAuthConnectorChallenge(ctx context.Context, apref types.AuthPreference) (*proto.AuthConnectorChallenge, error) {
+	switch apref.GetMFAConnectorType() {
+	case constants.OIDC:
+		if apref.GetMFAConnectorName() != "" {
+			oidcConnector, err := a.GetOIDCConnector(ctx, apref.GetMFAConnectorName(), false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			switch oidcConnector.GetAllowAsMFAMethod() {
+			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+				return &proto.AuthConnectorChallenge{
+					Type: constants.OIDC,
+					ID:   oidcConnector.GetName(),
+				}, nil
+			}
+		}
+
+		oidcConnectors, err := a.GetOIDCConnectors(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, oidcConnector := range oidcConnectors {
+			switch oidcConnector.GetAllowAsMFAMethod() {
+			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+				return &proto.AuthConnectorChallenge{
+					Type: constants.OIDC,
+					ID:   oidcConnector.GetName(),
+				}, nil
+			}
+		}
+	case constants.SAML:
+		if apref.GetMFAConnectorName() != "" {
+			samlConnector, err := a.GetSAMLConnector(ctx, apref.GetMFAConnectorName(), false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			switch samlConnector.GetAllowAsMFAMethod() {
+			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+				return &proto.AuthConnectorChallenge{
+					Type: constants.SAML,
+					ID:   samlConnector.GetName(),
+				}, nil
+			}
+		} else {
+			samlConnectors, err := a.GetSAMLConnectors(ctx, false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, samlConnector := range samlConnectors {
+				switch samlConnector.GetAllowAsMFAMethod() {
+				case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+					return &proto.AuthConnectorChallenge{
+						Type: constants.SAML,
+						ID:   samlConnector.GetName(),
+					}, nil
+				}
+			}
+		}
+	case constants.Github:
+		if apref.GetMFAConnectorName() != "" {
+			githubConnector, err := a.GetGithubConnector(ctx, apref.GetMFAConnectorName(), false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			switch githubConnector.GetAllowAsMFAMethod() {
+			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+				return &proto.AuthConnectorChallenge{
+					Type: constants.Github,
+					ID:   githubConnector.GetName(),
+				}, nil
+			}
+		} else {
+			githubConnectors, err := a.GetGithubConnectors(ctx, false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, githubConnector := range githubConnectors {
+				switch githubConnector.GetAllowAsMFAMethod() {
+				case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+					return &proto.AuthConnectorChallenge{
+						Type: constants.Github,
+						ID:   githubConnector.GetName(),
+					}, nil
+				}
+			}
+		}
+	}
+	return nil, nil
 }
 
 type devicesByType struct {
