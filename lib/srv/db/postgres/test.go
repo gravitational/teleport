@@ -182,24 +182,24 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
-	s.log.Debug("Starting test Postgres server.", "address", s.listener.Addr())
-	defer s.log.Debug("Test Postgres server stopped.")
+	s.log.DebugContext(context.Background(), "Starting test Postgres server.", "address", s.listener.Addr())
+	defer s.log.DebugContext(context.Background(), "Test Postgres server stopped.")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			s.log.Error("Failed to accept connection.", "error", err)
+			s.log.ErrorContext(context.Background(), "Failed to accept connection.", "error", err)
 			continue
 		}
-		s.log.Debug("Accepted connection.")
+		s.log.DebugContext(context.Background(), "Accepted connection.")
 		go func() {
-			defer s.log.Debug("Connection done.")
+			defer s.log.DebugContext(context.Background(), "Connection done.")
 			defer conn.Close()
 			err = s.handleConnection(conn)
 			if err != nil {
-				s.log.Error("Failed to handle connection.", "debug_report", trace.DebugReport(err))
+				s.log.ErrorContext(context.Background(), "Failed to handle connection.", "debug_report", trace.DebugReport(err))
 			}
 		}()
 	}
@@ -215,7 +215,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debug("Received.", "message", fmt.Sprintf("%#v", startupMessage))
+	s.log.DebugContext(context.Background(), "Received.", "message", fmt.Sprintf("%#v", startupMessage))
 	switch msg := startupMessage.(type) {
 	case *pgproto3.StartupMessage:
 		return s.handleStartup(client, msg)
@@ -237,7 +237,7 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 	if _, ok := startupMessage.(*pgproto3.SSLRequest); !ok {
 		return nil, trace.BadParameter("expected *pgproto3.SSLRequest, got: %#v", startupMessage)
 	}
-	s.log.Debug("Received.", "message", fmt.Sprintf("%#v", startupMessage))
+	s.log.DebugContext(context.Background(), "Received.", "message", fmt.Sprintf("%#v", startupMessage))
 	// Reply with 'S' to indicate TLS support.
 	if _, err := conn.Write([]byte("S")); err != nil {
 		return nil, trace.Wrap(err)
@@ -298,7 +298,7 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 		switch msg := message.(type) {
 		case *pgproto3.Query:
 			if err := s.handleQuery(client, msg.String, pid); err != nil {
-				s.log.Error("Failed to handle query.", "error", err)
+				s.log.ErrorContext(context.Background(), "Failed to handle query.", "error", err)
 			}
 		// Following messages are for handling Postgres extended query
 		// protocol flow used by prepared statements.
@@ -312,19 +312,19 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 				switch procName {
 				case activateProcName:
 					if err := s.handleActivateUser(client); err != nil {
-						s.log.Error("Failed to handle user activation.", "error", err)
+						s.log.ErrorContext(context.Background(), "Failed to handle user activation.", "error", err)
 					}
 				case deleteProcName:
 					if err := s.handleDeactivateUser(client, true); err != nil {
-						s.log.Error("Failed to handle user deletion.", "error", err)
+						s.log.ErrorContext(context.Background(), "Failed to handle user deletion.", "error", err)
 					}
 				case deactivateProcName:
 					if err := s.handleDeactivateUser(client, false); err != nil {
-						s.log.Error("Failed to handle user deactivation.", "error", err)
+						s.log.ErrorContext(context.Background(), "Failed to handle user deactivation.", "error", err)
 					}
 				case updatePermissionsProcName:
 					if err := s.handleUpdatePermissions(client); err != nil {
-						s.log.Error("Failed to handle user permissions update.", "error", err)
+						s.log.ErrorContext(context.Background(), "Failed to handle user permissions update.", "error", err)
 					}
 				}
 
@@ -334,21 +334,21 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 			switch msg.Query {
 			case schemaInfoQuery:
 				if err := s.handleSchemaInfo(client); err != nil {
-					s.log.Error("Failed to handle schema info query.", "error", err)
+					s.log.ErrorContext(context.Background(), "Failed to handle schema info query.", "error", err)
 				}
 			default:
-				s.log.Warn("Ignoring PARSE message", "query", msg.Query)
+				s.log.WarnContext(context.Background(), "Ignoring PARSE message", "query", msg.Query)
 			}
 		case *pgproto3.Bind:
 		case *pgproto3.Describe:
 		case *pgproto3.Sync:
 			if err := s.handleSync(client); err != nil {
-				s.log.Error("Failed to handle sync.", "error", err)
+				s.log.ErrorContext(context.Background(), "Failed to handle sync.", "error", err)
 			}
 		case *pgproto3.Execute:
 			// Execute executes prepared statement.
 			if err := s.handleQuery(client, "", pid); err != nil {
-				s.log.Error("Failed to handle query.", "error", err)
+				s.log.ErrorContext(context.Background(), "Failed to handle query.", "error", err)
 			}
 		case *pgproto3.Terminate:
 			return nil
@@ -413,7 +413,7 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 		&pgproto3.ReadyForQuery{},
 	}
 	for _, message := range messages {
-		s.log.Debug("Sending.", "message", fmt.Sprintf("%#v", message))
+		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		err := client.Send(message)
 		if err != nil {
 			return trace.Wrap(err)
@@ -427,7 +427,7 @@ func (s *TestServer) handleQueryWithError(client *pgproto3.Backend) error {
 		&pgproto3.ErrorResponse{Severity: "ERROR", Code: "42703", Message: "error"},
 		&pgproto3.ReadyForQuery{},
 	} {
-		s.log.Debug("Sending.", "message", fmt.Sprintf("%#v", message))
+		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		err := client.Send(message)
 		if err != nil {
 			return trace.Wrap(err)
@@ -457,7 +457,7 @@ func (s *TestServer) handleCreateStoredProcedure(query string, pid uint32) error
 		}
 	}
 
-	s.log.Debug("Created stored procedure.", "procedure", procName)
+	s.log.DebugContext(context.Background(), "Created stored procedure.", "procedure", procName)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.storedProcedures[procName] = &storedProcedure{query: query, argsCount: argsCount}
@@ -470,12 +470,12 @@ func (s *TestServer) hasProcedure(pid uint32, schema, procName string, argsCount
 
 	storedProcedure, ok := s.storedProcedures[storedProcedureName(pid, schema, procName)]
 	if !ok {
-		s.log.Error("Procedure not found", "procedure", procName, "schema", schema)
+		s.log.ErrorContext(context.Background(), "Procedure not found", "procedure", procName, "schema", schema)
 		return false
 	}
 
 	if argsCount != storedProcedure.argsCount {
-		s.log.Error("Wrong number of arguments for procedure call", "procedure", procName, "expected_args", storedProcedure.argsCount, "args_provided", argsCount)
+		s.log.ErrorContext(context.Background(), "Wrong number of arguments for procedure call", "procedure", procName, "expected_args", storedProcedure.argsCount, "args_provided", argsCount)
 		return false
 	}
 
@@ -570,7 +570,7 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-	s.log.Debug("Responding to query", "query", query, "repeat", repeats, "length", len(mm.payload))
+	s.log.DebugContext(context.Background(), "Responding to query", "query", query, "repeat", repeats, "length", len(mm.payload))
 
 	// preamble
 	err = client.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("dummy")}}})
@@ -595,7 +595,7 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-	s.log.Debug("Finished handling query", "query", query)
+	s.log.DebugContext(context.Background(), "Finished handling query", "query", query)
 
 	return nil
 }
@@ -660,7 +660,7 @@ func (s *TestServer) handleActivateUser(client *pgproto3.Backend) error {
 		return trace.Wrap(err)
 	}
 	// Mark the user as active.
-	s.log.Debug("Activated user.", "user", name, "roles", roles)
+	s.log.DebugContext(context.Background(), "Activated user.", "user", name, "roles", roles)
 	s.userEventsCh <- UserEvent{Name: name, Roles: roles, Active: true}
 	s.allowedUsers.Store(name, struct{}{})
 	return nil
@@ -733,7 +733,7 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend, sendDeleteRe
 		return trace.Wrap(err)
 	}
 	// Mark the user as active.
-	s.log.Debug("Deactivated user.", "user", name)
+	s.log.DebugContext(context.Background(), "Deactivated user.", "user", name)
 	s.userEventsCh <- UserEvent{Name: name, Active: false}
 	s.allowedUsers.Delete(name)
 	return nil
@@ -799,7 +799,7 @@ func (s *TestServer) handleUpdatePermissions(client *pgproto3.Backend) error {
 		return trace.Wrap(err)
 	}
 	// Mark the user as active.
-	s.log.Debug("Updated permissions for user.", "user", name, "permissions", fmt.Sprintf("%#v", perms))
+	s.log.DebugContext(context.Background(), "Updated permissions for user.", "user", name, "permissions", fmt.Sprintf("%#v", perms))
 	s.userPermissionEventsCh <- UserPermissionEvent{Name: name, Permissions: perms}
 	return nil
 }
@@ -931,7 +931,7 @@ func (s *TestServer) receiveFrontendMessage(client *pgproto3.Backend) (pgproto3.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debug("Received.", "message", fmt.Sprintf("%#v", message))
+	s.log.DebugContext(context.Background(), "Received.", "message", fmt.Sprintf("%#v", message))
 	return message, nil
 }
 
@@ -977,7 +977,7 @@ func getJSONB[T any](formatCode int16, src []byte) (T, error) {
 
 func (s *TestServer) sendMessages(client *pgproto3.Backend, messages ...pgproto3.BackendMessage) error {
 	for _, message := range messages {
-		s.log.Debug("Sending.", "message", fmt.Sprintf("%#v", message))
+		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		err := client.Send(message)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1001,7 +1001,7 @@ func (s *TestServer) fakeLongRunningQuery(client *pgproto3.Backend, pid uint32) 
 		&pgproto3.ReadyForQuery{},
 	}
 	for _, message := range messages {
-		s.log.Debug("Sending.", "message", fmt.Sprintf("%#v", message))
+		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		err := client.Send(message)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1012,7 +1012,7 @@ func (s *TestServer) fakeLongRunningQuery(client *pgproto3.Backend, pid uint32) 
 
 func (s *TestServer) handleSync(client *pgproto3.Backend) error {
 	message := &pgproto3.ReadyForQuery{}
-	s.log.Debug("Sending.", "message", fmt.Sprintf("%#v", message))
+	s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 	err := client.Send(message)
 	if err != nil {
 		return trace.Wrap(err)
