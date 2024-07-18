@@ -1,7 +1,6 @@
 # Third-party libraries needed to build Teleport.
 
 mk_dir := $(dir $(lastword $(MAKEFILE_LIST)))
-include $(mk_dir)/buildbox-common.mk
 include $(mk_dir)/cross-compile.mk
 
 # We build these libraries ourself and statically link them into the Teleport
