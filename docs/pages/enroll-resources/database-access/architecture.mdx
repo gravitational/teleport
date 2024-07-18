@@ -11,21 +11,21 @@ databases.
 Let's take a look at a sample Teleport deployment that enables access to
 databases:
 
-![Teleport Database Access Diagram](../../img/database-access/architecture.svg)
+![Teleport Database Access Diagram](../../../img/database-access/architecture.svg)
 
 In it, we have the following Teleport components:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-- [Teleport Proxy Service](../architecture/proxy.mdx). A stateless service
+- [Teleport Proxy Service](../../architecture/proxy.mdx). A stateless service
   that performs a function of an authentication gateway, serves the Web UI, and
   accepts database (and other) client connections.
   
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
-- [Teleport Proxy Service](../architecture/proxy.mdx). A stateless service that performs
+- [Teleport Proxy Service](../../architecture/proxy.mdx). A stateless service that performs
   a function of an authentication gateway, serves the Web UI, and accepts
   database (and other) client connections. This service is accessible at your
   Teleport Cloud tenant URL, e.g., `mytenant.teleport.sh`.
@@ -34,7 +34,7 @@ In it, we have the following Teleport components:
 
 </Tabs>
 
-- [Teleport Auth Service](../architecture/authentication.mdx). Serves as
+- [Teleport Auth Service](../../architecture/authentication.mdx). Serves as
   cluster's certificate authority, handles user authentication/authorization
   and issues short-lived client certificates.
 - Teleport Database Service. The "brain" that connects to the databases,
@@ -59,7 +59,7 @@ Let's take a look at the typical flow that Teleport users go through to
 connect to a database.
 
 1. A user logs into the cluster with `tsh login` command and retrieves
-   a client certificate. See [Issuing User Certificates](../architecture/authentication.mdx)
+   a client certificate. See [Issuing User Certificates](../../architecture/authentication.mdx)
    for more details on how it works.
 1. The user picks the database they want to connect to from the list of available
    databases shown in `tsh db ls` command.
@@ -107,7 +107,7 @@ the Proxy Service.
 
 For configuring graphical clients, use the `tsh proxy db` command, which prints
 detailed information about the connection such as the host, port, and location
-of the secrets. See [GUI Clients](../connect-your-client/gui-clients.mdx) for details.
+of the secrets. See [GUI Clients](../../connect-your-client/gui-clients.mdx) for details.
 
 ### Proxy Service to the Database Service
 
@@ -162,6 +162,6 @@ These clouds are currently supported:
 Please refer to the [RFD #11](https://github.com/gravitational/teleport/blob/master/rfd/0011-database-access.md)
 for a more in-depth description of the feature scope and design.
 
-See [Core Concepts](../core-concepts.mdx) for general Teleport
+See [Core Concepts](../../core-concepts.mdx) for general Teleport
 architecture principles.
 

@@ -1583,7 +1583,7 @@
     },
     {
       "source": "/setup/admin/adding-nodes/",
-      "destination": "/agents/join-services-to-your-cluster/join-token/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
       "permanent": true
     },
     {
@@ -1648,7 +1648,7 @@
     },
     {
       "source": "/kubernetes-access/guides/cicd/",
-      "destination": "/machine-id/access-guides/kubernetes/",
+      "destination": "/enroll-resources/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {
@@ -1728,42 +1728,42 @@
     },
     {
       "source": "/application-access/guides/aws-console/",
-      "destination": "/application-access/cloud-apis/aws-console/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console/",
       "permanent": true
     },
     {
       "source": "/application-access/guides/azure/",
-      "destination": "/application-access/cloud-apis/azure/",
+      "destination": "/enroll-resources/application-access/cloud-apis/azure/",
       "permanent": true
     },
     {
       "source": "/database-access/guides/dynamodb/",
-      "destination": "/application-access/guides/dynamodb/",
+      "destination": "/enroll-resources/application-access/guides/dynamodb/",
       "permanent": true
     },
     {
       "source": "/kubernetes-access/guides/federation/",
-      "destination": "/kubernetes-access/manage-access/federation/",
+      "destination": "/enroll-resources/kubernetes-access/manage-access/federation/",
       "permanent": true
     },
     {
       "source": "/kubernetes-access/guides/dynamic-registration/",
-      "destination": "/kubernetes-access/register-clusters/dynamic-registration/",
+      "destination": "/enroll-resources/kubernetes-access/register-clusters/dynamic-registration/",
       "permanent": true
     },
     {
       "source": "/kubernetes-access/guides/multiple-clusters/",
-      "destination": "/kubernetes-access/getting-started/",
+      "destination": "/enroll-resources/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
       "source": "/kubernetes-access/guides/standalone-teleport/",
-      "destination": "/kubernetes-access/register-clusters/static-kubeconfig/",
+      "destination": "/enroll-resources/kubernetes-access/register-clusters/static-kubeconfig/",
       "permanent": true
     },
     {
       "source": "/kubernetes-access/guides/",
-      "destination": "/kubernetes-access/introduction/",
+      "destination": "/enroll-resources/kubernetes-access/introduction/",
       "permanent": true
     },
     {
@@ -1808,12 +1808,12 @@
     },
     {
       "source": "/server-access/",
-      "destination": "/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/introduction/",
       "permanent": true
     },
     {
       "source": "/machine-id/",
-      "destination": "/machine-id/introduction/",
+      "destination": "/enroll-resources/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -1843,27 +1843,27 @@
     },
     {
       "source": "/management/guides/joining-nodes-aws-ec2/",
-      "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/",
       "permanent": true
     },
     {
       "source": "/management/guides/joining-nodes-aws-iam/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
       "source": "/management/admin/adding-nodes/",
-      "destination": "/agents/join-services-to-your-cluster/join-token/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
       "permanent": true
     },
     {
       "source": "/management/guides/joining-nodes-azure/",
-      "destination": "/agents/join-services-to-your-cluster/azure/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/azure/",
       "permanent": true
     },
     {
       "source": "/management/guides/joining-services-kubernetes-serviceaccount/",
-      "destination": "/agents/join-services-to-your-cluster/kubernetes/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/kubernetes/",
       "permanent": true
     },
     {
@@ -1933,37 +1933,37 @@
     },
     {
       "source": "/management/join-services-to-your-cluster/",
-      "destination": "/agents/join-services-to-your-cluster/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/",
       "permanent": true
     },
     {
       "source": "/management/join-services-to-your-cluster/aws-ec2/",
-      "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/",
       "permanent": true
     },
     {
       "source": "/management/join-services-to-your-cluster/aws-iam/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
       "source": "/management/join-services-to-your-cluster/azure/",
-      "destination": "/agents/join-services-to-your-cluster/azure/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/azure/",
       "permanent": true
     },
     {
       "source": "/management/join-services-to-your-cluster/gcp/",
-      "destination": "/agents/join-services-to-your-cluster/gcp/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/gcp/",
       "permanent": true
     },
     {
       "source": "/management/join-services-to-your-cluster/join-token/",
-      "destination": "/agents/join-services-to-your-cluster/join-token/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
       "permanent": true
     },
     {
       "source": "/management/join-services-to-your-cluster/kubernetes/",
-      "destination": "/agents/join-services-to-your-cluster/kubernetes/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/kubernetes/",
       "permanent": true
     },
     {
@@ -1983,52 +1983,52 @@
     },
     {
       "source": "/machine-id/guides/",
-      "destination": "/machine-id/introduction/",
+      "destination": "/enroll-resources/machine-id/introduction/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/applications/",
-      "destination": "/machine-id/access-guides/applications/",
+      "destination": "/enroll-resources/machine-id/access-guides/applications/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/ansible/",
-      "destination": "/machine-id/access-guides/ansible/",
+      "destination": "/enroll-resources/machine-id/access-guides/ansible/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/databases/",
-      "destination": "/machine-id/access-guides/databases/",
+      "destination": "/enroll-resources/machine-id/access-guides/databases/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/kubernetes/",
-      "destination": "/machine-id/access-guides/kubernetes/",
+      "destination": "/enroll-resources/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/circleci/",
-      "destination": "/machine-id/deployment/circleci/",
+      "destination": "/enroll-resources/machine-id/deployment/circleci/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/jenkins/",
-      "destination": "/machine-id/deployment/jenkins/",
+      "destination": "/enroll-resources/machine-id/deployment/jenkins/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/deployment/gitlab/",
+      "destination": "/enroll-resources/machine-id/deployment/gitlab/",
       "permanent": true
     },
     {
       "source": "/database-access/rbac/configuring-auto-user-provisioning/",
-      "destination": "/database-access/auto-user-provisioning/",
+      "destination": "/enroll-resources/database-access/auto-user-provisioning/",
       "permanent": true
     },
     {
       "source": "/database-access/guides/rds-proxy/",
-      "destination": "/database-access/guides/",
+      "destination": "/enroll-resources/database-access/guides/",
       "permanent": true
     },
     {
@@ -2038,12 +2038,12 @@
     },
     {
       "source": "/machine-id/guides/github-actions/",
-      "destination": "/machine-id/deployment/github-actions/",
+      "destination": "/enroll-resources/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/spacelift/",
-      "destination": "/machine-id/deployment/spacelift/",
+      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
       "permanent": true
     },
     {

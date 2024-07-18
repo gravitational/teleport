@@ -7,7 +7,7 @@ EKS Auto-Discovery can automatically
 discover any EKS cluster and enroll it in Teleport if its tags match the
 configured labels.
 
-(!docs/pages/kubernetes-access/discovery/includes/step-description.mdx!)
+(!docs/pages/includes/kubernetes-discovery/step-description.mdx!)
 
 ## Prerequisites
 
@@ -246,7 +246,7 @@ $ tctl tokens add --type=discovery,kube
 
 ### Configure the Teleport Kubernetes and Discovery Services
 
-(!docs/pages/kubernetes-access/discovery/includes/discovery-group.mdx!)
+(!docs/pages/includes/kubernetes-discovery/discovery-group.mdx!)
 
 Enabling EKS Auto-Discovery requires that the `discovery_service.aws` section
 include at least one entry and that `discovery_service.aws.types` include `eks`.
@@ -295,4 +295,4 @@ automatically.
 
 ## Troubleshooting
 
-(!docs/pages/kubernetes-access/discovery/includes/troubleshooting.mdx!)
+(!docs/pages/includes/kubernetes-discovery/troubleshooting.mdx!)

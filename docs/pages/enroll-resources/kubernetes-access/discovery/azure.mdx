@@ -7,7 +7,7 @@ AKS Auto-Discovery can automatically
 discover any AKS cluster and enroll it in Teleport if its tags match the
 configured labels.
 
-(!docs/pages/kubernetes-access/discovery/includes/step-description.mdx!)
+(!docs/pages/includes/kubernetes-discovery/step-description.mdx!)
 
 ## Prerequisites
 
@@ -224,7 +224,7 @@ labels configured at `discovery_service.azure.tags` or a subset of them to make
 the Kubernetes Service listen to the dynamic resources created by the Discovery
 Service.
 
-(!docs/pages/kubernetes-access/discovery/includes/discovery-group.mdx!)
+(!docs/pages/includes/kubernetes-discovery/discovery-group.mdx!)
 
 ```yaml
 version: v3
@@ -261,4 +261,4 @@ specified in the Azure section will be added to the Teleport cluster automatical
 
 ## Troubleshooting
 
-(!docs/pages/kubernetes-access/discovery/includes/troubleshooting.mdx!)
+(!docs/pages/includes/kubernetes-discovery/troubleshooting.mdx!)

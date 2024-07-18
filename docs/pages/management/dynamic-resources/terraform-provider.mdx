@@ -31,13 +31,13 @@ and Machine ID](../../enroll-resources/machine-id/deployment/spacelift.mdx).
 Terraform needs a signed identity file from the Teleport cluster certificate
 authority to manage resources in the cluster.
 You can create a local Teleport user for this purpose or you can use the machine identity agent
-[(Machine ID)](../../machine-id/introduction.mdx) to generate credentials.
+[(Machine ID)](../../enroll-resources/machine-id/introduction.mdx) to generate credentials.
 
 If you intend to run Terraform from a CI/CD platform, Machine ID is often a better
 option for generating credentials. Machine ID can provision ephemeral short-lived
 certificates that are appropriate for CI/CD workflows instead of using manually-generated
 credentials that have a longer time-to-live (TTL) period. For more information about
-using Machine ID, see the [Machine ID Getting Started Guide](../../machine-id/getting-started.mdx).
+using Machine ID, see the [Machine ID Getting Started Guide](../../enroll-resources/machine-id/getting-started.mdx).
 
 To prepare credentials for a local Teleport user:
 

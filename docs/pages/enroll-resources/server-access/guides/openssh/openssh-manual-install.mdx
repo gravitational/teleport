@@ -12,17 +12,11 @@ Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
-- RBAC and resource filtering based on [dynamically updated labels](../../../management/admin/labels.mdx)
-<<<<<<<< HEAD:docs/pages/enroll-resources/server-access/guides/openssh/openssh-manual-install.mdx
+- RBAC and resource filtering based on [dynamically updated labels](../../../../management/admin/labels.mdx)
 - [Session recording without SSH connection termination](../recording-proxy-mode.mdx)
-- [Session sharing](../../../connect-your-client/tsh.mdx)
+- [Session sharing](../../../../connect-your-client/tsh.mdx)
 - [Advanced session recording](../bpf-session-recording.mdx)
 - [Restricting outbound network connections in SSH sessions](../restricted-session.mdx)
-========
-- [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
-- [Session sharing](../../../connect-your-client/tsh.mdx)
-- [Advanced session recording](../guides/bpf-session-recording.mdx)
->>>>>>>> e223dde982 ([v15] Condense docs sections into "Enroll Resources"):docs/pages/enroll-resources/server-access/openssh/openssh-manual-install.mdx
 
 Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
 
@@ -117,15 +111,6 @@ Create the node resource:
 $ tctl create openssh-node-resource.yaml
 ```
 
-<<<<<<<< HEAD:docs/pages/enroll-resources/server-access/guides/openssh/openssh-manual-install.mdx
-========
-<Admonition type="note">
-  This step can be done with Infrastructure-as-Code (IaC) tools (tctl,
-  Terraform, or Kubernetes Operator). This is described [in the OpenSSH server
-  IaC guide](../../../management/dynamic-resources/agentless-ssh-servers.mdx).
-</Admonition>
-
->>>>>>>> e223dde982 ([v15] Condense docs sections into "Enroll Resources"):docs/pages/enroll-resources/server-access/openssh/openssh-manual-install.mdx
 ## Step 2/5. Configure `sshd` to trust the Teleport CA
 
 Later in this guide, we will generate an SSH client configuration that will use
