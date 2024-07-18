@@ -19,7 +19,7 @@
 import React from 'react';
 
 import Box from 'design/Box';
-import Text from 'design/Text';
+import Text, { H2 } from 'design/Text';
 
 /**
  * Renders a header with an optional step counter that appears if there's more
@@ -41,7 +41,7 @@ export function StepHeader({
           Step {stepIndex + 1} of {flowLength}
         </Text>
       )}
-      <Text typography="h4">{title}</Text>
+      <H2>{title}</H2>
     </Box>
   );
 }

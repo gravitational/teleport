@@ -18,6 +18,7 @@
 
 const light = 300;
 const regular = 400;
+const medium = 500;
 const bold = 600;
 
 export const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34];
@@ -25,15 +26,23 @@ export const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34];
 export const fontWeights = { light, regular, bold };
 
 const typography = {
+  /**
+   * Don't use directly, prefer the `H1` component except for text that doesn't
+   * introduce document structure.
+   */
   h1: {
-    fontWeight: light,
-    fontSize: '34px',
-    lineHeight: '56px',
-  },
-  h2: {
-    fontWeight: light,
-    fontSize: '28px',
+    fontWeight: medium,
+    fontSize: '24px',
     lineHeight: '32px',
+  },
+  /**
+   * Don't use directly, prefer the `H2` component except for text that doesn't
+   * introduce document structure.
+   */
+  h2: {
+    fontWeight: medium,
+    fontSize: '18px',
+    lineHeight: '24px',
   },
   h3: {
     fontWeight: 300,
