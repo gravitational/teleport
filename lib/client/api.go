@@ -75,6 +75,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -4025,9 +4026,23 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		return nil, trace.Wrap(err)
 	}
 
-	pr, err := tc.Ping(ctx)
+	rdConfig, err := tc.SSORedirectorConfig(ctx, connectorID, connectorName, protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// ask the CA (via proxy) to sign our public key:
+	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
+		SSHLogin:         sshLogin,
+		RedirectorConfig: rdConfig,
+	}, nil)
+	return response, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) SSORedirectorConfig(ctx context.Context, connectorID, connectorName, protocol string) (sso.RedirectorConfig, error) {
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return sso.RedirectorConfig{}, trace.Wrap(err)
 	}
 	proxyVersion := semver.New(pr.ServerVersion)
 
@@ -4035,9 +4050,8 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
 	}
 
-	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:                      sshLogin,
+	return sso.RedirectorConfig{
+		ProxyAddr:                     tc.WebProxyAddr,
 		ConnectorID:                   connectorID,
 		ConnectorName:                 connectorName,
 		Protocol:                      protocol,
@@ -4046,8 +4060,16 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		Browser:                       tc.Browser,
 		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
 		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-	}, nil)
-	return response, trace.Wrap(err)
+	}, nil
+}
+
+// SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
+type SSOLoginConsoleRequestFn func(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error)
+
+// SSHLoginSSO contains SSH login parameters for SSO login.
+type SSHLoginSSO struct {
+	SSHLogin
+	sso.RedirectorConfig
 }
 
 func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {
@@ -4073,7 +4095,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)

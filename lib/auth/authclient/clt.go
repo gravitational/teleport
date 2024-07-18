@@ -1370,6 +1370,8 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
+	// Token is a privileged token.
+	Token string `jsson:"token"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility

@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -1841,13 +1842,13 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse request remote address.")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -1860,7 +1861,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 
 	}
 
@@ -1932,10 +1933,10 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			}
 		}
 		if errors.Is(err, auth.ErrGithubNoTeams) {
-			return client.LoginFailedUnauthorizedRedirectURL
+			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 
-		return client.LoginFailedBadCallbackRedirectURL
+		return sso.LoginFailedBadCallbackRedirectURL
 	}
 
 	// if we created web session, set session cookie and redirect to original url
@@ -1951,7 +1952,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
-			return client.LoginFailedRedirectURL
+			return sso.LoginFailedRedirectURL
 		}
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
@@ -1968,7 +1969,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
 		logger.Error("Not a web or console login request.")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -1983,7 +1984,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return redirectURL.String()
@@ -4542,7 +4543,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 	}
@@ -4556,7 +4557,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
 		if err != nil {
