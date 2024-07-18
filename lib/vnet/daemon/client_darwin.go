@@ -324,7 +324,7 @@ var (
 	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
 	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
 	// received a message to start after it was already running.
-	errorCodeAlreadyRunning = C.VNEAlreadyRunningError
+	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
 	errAlreadyRunning       = errors.New("VNet is already running")
 )
 

@@ -3,12 +3,13 @@
 
 #import <Foundation/Foundation.h>
 
+// VNEErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
 extern const char* const VNEErrorDomain;
 
 // VNEAlreadyRunningError indicates that the daemon already received a VNet config.
 // It won't accept a new one during its lifetime, instead it's expected to stop, after
 // which the client might spawn a new instance of the daemon.
-static const int VNEAlreadyRunningError = 1;
+extern const int VNEAlreadyRunningError;
 
 typedef struct VnetConfig {
   const char *socket_path;

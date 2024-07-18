@@ -18,3 +18,5 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
+
+const int VNEAlreadyRunningError = 1;
