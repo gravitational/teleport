@@ -20,6 +20,7 @@ package modules_test
 
 import (
 	"context"
+	"math"
 	"os"
 	"testing"
 
@@ -229,4 +230,56 @@ func TestFeatures_GetEntitlement(t *testing.T) {
 
 	actual = f.GetEntitlement(entitlements.UsageReporting)
 	require.Equal(t, modules.EntitlementInfo{}, actual)
+}
+
+func TestEntitlementInfo_UnderLimit(t *testing.T) {
+	testCases := []struct {
+		name   string
+		count  int
+		uut    modules.EntitlementInfo
+		assert require.BoolAssertionFunc
+	}{
+		{
+			name:   "disabled is always out of limit",
+			count:  10,
+			uut:    modules.EntitlementInfo{Enabled: false, Limit: 10000},
+			assert: require.False,
+		},
+		{
+			name:   "within limits returns true",
+			count:  10,
+			uut:    modules.EntitlementInfo{Enabled: true, Limit: 10000},
+			assert: require.True,
+		},
+		{
+			name:   "at limits returns false",
+			count:  10000,
+			uut:    modules.EntitlementInfo{Enabled: true, Limit: 10000},
+			assert: require.False,
+		},
+		{
+			name:   "above limits returns false",
+			count:  10001,
+			uut:    modules.EntitlementInfo{Enabled: true, Limit: 10000},
+			assert: require.False,
+		},
+		{
+			name:   "zero limit implies max",
+			count:  math.MaxInt64,
+			uut:    modules.EntitlementInfo{Enabled: true, Limit: 0},
+			assert: require.True,
+		},
+		{
+			name:   "handles above MaxInt32",
+			count:  math.MaxInt32 + 1,
+			uut:    modules.EntitlementInfo{Enabled: true, Limit: math.MaxInt32},
+			assert: require.False,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.assert(t, tc.uut.UnderLimit(tc.count))
+		})
+	}
 }

@@ -263,7 +263,7 @@
               "slug": "/access-controls/guides/passwordless/"
             },
             {
-              "title": "Second Factor - WebAuthn",
+              "title": "IdP Hardening with WebAuthn",
               "slug": "/access-controls/guides/webauthn/"
             },
             {
@@ -1679,7 +1679,7 @@
     },
     {
       "source": "/auto-discovery/kubernetes-applications/reference/",
-      "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
+      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-applications/",
       "permanent": true
     },
     {
