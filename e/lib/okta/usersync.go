@@ -619,7 +619,6 @@ func getOktaLocksForUser(ctx context.Context, user types.User, reasons []string,
 var lockableStatuses = map[string]struct{}{
 	userStatusSuspended:     {},
 	userStatusDeprovisioned: {},
-	userStatusLockedOut:     {},
 }
 
 // UserHasLockableStatus test if the supplied user is in an Okta state where
