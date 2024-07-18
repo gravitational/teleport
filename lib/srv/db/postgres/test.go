@@ -1145,6 +1145,11 @@ var callProcedureRe = regexp.MustCompile(`(?i)^call (?:(?P<Schema>\w+)\.)?(?P<Pr
 
 // processProcedureCall parses a query and returns the information about the
 // the procedure call.
+// Examples:
+// - create or replace procedure teleport_procedure(username varchar, inout state varchar default 'TP003')
+// - create or replace procedure pg_temp.teleport_procedure(username varchar, inout state varchar default 'TP003')
+// - create or replace procedure pg_temp.teleport_procedure()
+// - create or replace procedure pg_temp.teleport_procedure(permissions_ JSONB)
 func processProcedureCall(query string) (schema string, procName string, argsCount int, ok bool) {
 	procMatches := callProcedureRe.FindStringSubmatch(query)
 	if procMatches == nil {
