@@ -23,13 +23,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -50,11 +50,7 @@ const (
 
 	ResolveAlertRequestRetryInterval = time.Second * 10
 	ResolveAlertRequestRetryTimeout  = time.Minute * 2
-
-	UUIDRegexPattern = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 )
-
-var uuidRegex = regexp.MustCompile(UUIDRegexPattern)
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
 	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
@@ -234,7 +230,7 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 
 // Check if the responder is a UUID. If it is, then it is an ID; otherwise, it is a name.
 func createResponder(responderType string, value string) Responder {
-	if uuidRegex.MatchString(value) {
+	if _, err := uuid.Parse(value); err == nil {
 		return Responder{
 			Type: responderType,
 			ID:   value,
