@@ -3,7 +3,7 @@
 
 #import <Foundation/Foundation.h>
 
-static NSString *const VNEErrorDomain = @"com.Gravitational.Vnet.ErrorDomain";
+extern const char* const VNEErrorDomain;
 
 typedef enum VNEErrorCode {
   // VNEAlreadyRunningError indicates that the daemon already received a VNet config.
