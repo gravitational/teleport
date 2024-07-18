@@ -36,6 +36,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
 
@@ -277,10 +278,12 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 				Compatibility:     c.clusterClient.CertificateFormat,
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
-			ConnectorID: providerName,
-			Protocol:    providerType,
-			BindAddr:    c.clusterClient.BindAddr,
-			Browser:     c.clusterClient.Browser,
+			RedirectorConfig: sso.RedirectorConfig{
+				ConnectorID: providerName,
+				Protocol:    providerType,
+				BindAddr:    c.clusterClient.BindAddr,
+				Browser:     c.clusterClient.Browser,
+			},
 		}, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)

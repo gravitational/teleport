@@ -32,8 +32,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -44,7 +42,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -53,6 +50,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -240,33 +238,6 @@ type SSHLogin struct {
 	ExtraHeaders map[string]string
 }
 
-// SSHLoginSSO contains SSH login parameters for SSO login.
-type SSHLoginSSO struct {
-	SSHLogin
-	// ConnectorID is the OIDC or SAML connector ID to use
-	ConnectorID string
-	// ConnectorName is the display name of the connector.
-	ConnectorName string
-	// Protocol is an optional protocol selection
-	Protocol string
-	// BindAddr is an optional host:port address to bind
-	// to for SSO login flows
-	BindAddr string
-	// CallbackAddr is the optional base URL to give to the user when performing
-	// SSO redirect flows.
-	CallbackAddr string
-	// Browser can be used to pass the name of a browser to override the system
-	// default (not currently implemented), or set to 'none' to suppress
-	// browser opening entirely.
-	Browser string
-	// PrivateKeyPolicy is a key policy to follow during login.
-	PrivateKeyPolicy keys.PrivateKeyPolicy
-	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
-	// useful messages in the web UI if the proxy supports them.
-	// TODO(atburke): DELETE in v17.0.0
-	ProxySupportsKeyPolicyMessage bool
-}
-
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
 // login.
 type SSHLoginDirect struct {
@@ -390,7 +361,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*authclient.SSHLoginResponse, error) {
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, ssoFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
 	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
 		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
 			"the remote host. Make sure that you trust the provided callback host " +
@@ -405,47 +376,56 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 			return nil, trace.BadParameter("Login canceled.")
 		}
 	}
-	rd, err := NewRedirector(ctx, login, config)
+
+	if ssoFn == nil {
+		ssoFn = func(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
+			clt, _, err := initClient(login.SSHLogin.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", login.Protocol, "login", "console"), req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			var re SSOLoginConsoleResponse
+			err = json.Unmarshal(out.Bytes(), &re)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &re, nil
+		}
+	}
+
+	login.RedirectorConfig.InitiateSSOLoginFn = func(clientRedirectURL string) (redirectURL string, err error) {
+		req := SSOLoginConsoleReq{
+			RedirectURL:          clientRedirectURL,
+			PublicKey:            login.PubKey,
+			CertTTL:              login.TTL,
+			ConnectorID:          login.ConnectorID,
+			Compatibility:        login.Compatibility,
+			RouteToCluster:       login.RouteToCluster,
+			KubernetesCluster:    login.KubernetesCluster,
+			AttestationStatement: login.AttestationStatement,
+		}
+
+		resp, err := ssoFn(req)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return resp.RedirectURL, nil
+	}
+
+	rd, err := sso.NewRedirector(ctx, login.RedirectorConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := rd.Start(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rd.Close()
-
-	clickableURL := rd.ClickableURL()
-
-	// If a command was found to launch the browser, create and start it.
-	err = OpenURLInBrowser(login.Browser, clickableURL)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
-	}
-
-	// Print the URL to the screen, in case the command that launches the browser did not run.
-	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
-	if login.Browser == teleport.BrowserNone {
-		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
-	} else {
-		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
-	}
-
-	select {
-	case err := <-rd.ErrorC():
-		log.Debugf("Got an error: %v.", err)
-		return nil, trace.Wrap(err)
-	case response := <-rd.ResponseC():
-		log.Debugf("Got response from browser.")
-		return response, nil
-	case <-time.After(defaults.SSOCallbackTimeout):
-		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
-		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
-	case <-rd.Done():
-		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "canceled by user")
-	}
+	resp, err := rd.SSOLoginCeremony(ctx)
+	return resp, trace.Wrap(err)
 }
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
@@ -477,40 +457,6 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 	}
 
 	return &out, nil
-}
-
-// OpenURLInBrowser opens a URL in a web browser.
-func OpenURLInBrowser(browser string, URL string) error {
-	var execCmd *exec.Cmd
-	if browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.

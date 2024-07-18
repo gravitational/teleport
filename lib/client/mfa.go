@@ -21,11 +21,17 @@ package client
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 )
 
 // WebauthnLoginFunc matches the signature of [wancli.Login].
@@ -58,5 +64,75 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true
 	}
+
+	cfg.SSOLoginFunc = func(ctx context.Context, connectorID, connectorType string) (*proto.MFAAuthenticateResponse, error) {
+		rdConfig, err := tc.SSORedirectorConfig(ctx, connectorID, connectorID, connectorType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		rdConfig.InitiateSSOLoginFn = func(clientRedirectURL string) (redirectURL string, err error) {
+			err = tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
+				switch connectorType {
+				case constants.OIDC:
+					resp, err := clt.CreateOIDCAuthRequest(ctx, types.OIDCAuthRequest{
+						Username:              tc.Username,
+						ConnectorID:           connectorID,
+						Type:                  connectorType,
+						CheckUser:             true,
+						ClientRedirectURL:     clientRedirectURL,
+						CreatePrivilegedToken: true,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					redirectURL = resp.RedirectURL
+				case constants.SAML:
+					resp, err := clt.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+						Username:              tc.Username,
+						ConnectorID:           connectorID,
+						Type:                  connectorType,
+						ClientRedirectURL:     clientRedirectURL,
+						CreatePrivilegedToken: true,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					redirectURL = resp.RedirectURL
+				case constants.Github:
+					resp, err := clt.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+						Username:              tc.Username,
+						ConnectorID:           connectorID,
+						Type:                  connectorType,
+						ClientRedirectURL:     clientRedirectURL,
+						CreatePrivilegedToken: true,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					redirectURL = resp.RedirectURL
+				}
+				return nil
+			})
+			return redirectURL, trace.Wrap(err)
+		}
+
+		rd, err := sso.NewRedirector(ctx, rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := rd.SSOLoginCeremony(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_TokenID{
+				TokenID: resp.Token,
+			},
+		}, nil
+	}
+
 	return cfg
 }
