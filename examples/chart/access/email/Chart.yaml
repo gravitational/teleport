@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev.gzdunek.10"
+.version: &version "16.0.0-dev.gzdunek.11"
 
 apiVersion: v2
 name: teleport-plugin-email
