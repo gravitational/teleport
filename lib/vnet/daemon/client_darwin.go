@@ -94,7 +94,7 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
 		// just about to quit.
 		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
-		if err := sleep(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
+		if err := sleepOrDone(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -328,13 +328,12 @@ var (
 	errAlreadyRunning       = errors.New("VNet is already running")
 )
 
-func sleep(ctx context.Context, d time.Duration) error {
+func sleepOrDone(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
+	defer timer.Stop()
+
 	select {
 	case <-ctx.Done():
-		if !timer.Stop() {
-			<-timer.C
-		}
 		return trace.Wrap(ctx.Err())
 	case <-timer.C:
 		return nil
