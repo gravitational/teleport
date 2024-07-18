@@ -20,6 +20,8 @@ import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
+import type { IWindowsPty } from 'xterm';
+
 export enum PtyProcessCreationStatus {
   Ok = 'Ok',
   ResolveShellEnvTimeout = 'ResolveShellEnvTimeout',
@@ -37,8 +39,15 @@ export type PtyServiceClient = {
   createPtyProcess: (cmd: PtyCommand) => Promise<{
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
+    windowsPty: WindowsPty;
   }>;
 };
+
+/**
+ * Pty information for Windows.
+ * undefined for non-Windows OS.
+ */
+export type WindowsPty = IWindowsPty | undefined;
 
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
@@ -106,4 +115,14 @@ export type SshOptions = {
    * (by adding the `--no-resume` option).
    */
   noResume: boolean;
+};
+
+export type TerminalOptions = {
+  /** Whether to use the ConPTY system instead of winpty. */
+  useConpty: boolean;
+};
+
+export type PtyOptions = {
+  ssh: SshOptions;
+  terminal: TerminalOptions;
 };
