@@ -477,18 +477,9 @@ func buildCallQuery(sessionCtx *common.Session, procName string) (string, error)
 		schema = "pg_temp"
 	}
 
-	var procCall string
-	switch procName {
-	case activateProcName:
-		procCall = activateProcCall
-	case deactivateProcName:
-		procCall = deactivateProcCall
-	case deleteProcName:
-		procCall = deleteProcCall
-	case updatePermissionsProcName:
-		procCall = updatePermissionsProcCall
-	case removePermissionsProcName:
-		procCall = removePermissionsProcCall
+	procCall, ok := procsCall[procName]
+	if !ok {
+		return "", trace.BadParameter("procedure %q doesn't have a call statement", procName)
 	}
 
 	if schema != "" {
@@ -607,6 +598,15 @@ var (
 		activateProcName:   redshiftActivateProc,
 		deactivateProcName: redshiftDeactivateProc,
 		deleteProcName:     redshiftDeleteProc,
+	}
+
+	// procsCall maps procedures names to their call statements.
+	procsCall = map[string]string{
+		activateProcName:          activateProcCall,
+		deactivateProcName:        deactivateProcCall,
+		deleteProcName:            deleteProcCall,
+		updatePermissionsProcName: updatePermissionsProcCall,
+		removePermissionsProcName: removePermissionsProcCall,
 	}
 )
 
