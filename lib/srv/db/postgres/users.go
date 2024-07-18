@@ -446,11 +446,8 @@ func (e *Engine) createProcedures(ctx context.Context, sessionCtx *common.Sessio
 		}
 
 		logger := e.Log.With("procedure", procName)
-		err := withRetry(ctx, logger, func() error {
-			_, err := conn.Exec(ctx, proc)
-			return trace.Wrap(err)
-		})
-		if err != nil {
+
+		if _, err := conn.Exec(ctx, proc); err != nil {
 			logger.ErrorContext(ctx, "Failed to install procedure.")
 			return trace.Wrap(err)
 		}
