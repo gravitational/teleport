@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"encoding/base32"
 	"errors"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -2825,6 +2827,95 @@ func TestGenerateCerts(t *testing.T) {
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
 		require.Equal(t, identity.RouteToCluster, rc2.GetName())
+	})
+
+	t.Run("SplitKeys", func(t *testing.T) {
+		testUser2 := TestUser(user2.GetName())
+		testUser2.TTL = time.Hour
+		userClient2, err := srv.NewClient(testUser2)
+		require.NoError(t, err)
+
+		// All standard library key types implement this.
+		type equalPublicKey interface {
+			Equal(crypto.PublicKey) bool
+		}
+
+		sshCryptoPub, err := libsshutils.CryptoPublicKey(sshPubKey)
+		require.NoError(t, err)
+		sshEqualPub := sshCryptoPub.(equalPublicKey)
+
+		for _, tc := range []struct {
+			desc                   string
+			publicKey              []byte
+			sshPublicKey           []byte
+			tlsPublicKey           []byte
+			expectBadParameter     bool
+			tlsPrivateKey          []byte
+			expectSSHCertPublicKey equalPublicKey
+		}{
+			{
+				desc:                   "legacy",
+				publicKey:              sshPubKey,
+				tlsPrivateKey:          sshPrivKey,
+				expectSSHCertPublicKey: sshEqualPub,
+			},
+			{
+				desc:                   "split",
+				sshPublicKey:           sshPubKey,
+				tlsPublicKey:           tlsPubKey,
+				tlsPrivateKey:          tlsPrivKey,
+				expectSSHCertPublicKey: sshEqualPub,
+			},
+			{
+				desc:                   "only SSH",
+				sshPublicKey:           sshPubKey,
+				expectSSHCertPublicKey: sshEqualPub,
+			},
+			{
+				desc:          "only TLS",
+				tlsPublicKey:  tlsPubKey,
+				tlsPrivateKey: tlsPrivKey,
+			},
+			{
+				desc:               "no key",
+				expectBadParameter: true,
+			},
+		} {
+			t.Run(tc.desc, func(t *testing.T) {
+				t.Parallel()
+
+				certs, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+					PublicKey:    tc.publicKey,
+					SSHPublicKey: tc.sshPublicKey,
+					TLSPublicKey: tc.tlsPublicKey,
+					Username:     user2.GetName(),
+					Expires:      clock.Now().Add(100 * time.Hour).UTC(),
+				})
+
+				if tc.expectBadParameter {
+					var badParameterErr *trace.BadParameterError
+					require.ErrorAs(t, err, &badParameterErr)
+					return
+				}
+				require.NoError(t, err)
+
+				if tc.sshPublicKey != nil {
+					// Make sure the SSH cert public key matches up.
+					sshAuthorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(certs.SSH)
+					require.NoError(t, err)
+					sshCert := sshAuthorizedKey.(*ssh.Certificate)
+					sshCertCryptoPub := sshCert.Key.(ssh.CryptoPublicKey).CryptoPublicKey()
+					require.True(t, tc.expectSSHCertPublicKey.Equal(sshCertCryptoPub))
+				}
+
+				if tc.tlsPublicKey != nil {
+					// This makes sure that the TLS cert public key matches tc.tlsPrivateKey.
+					_, err = tls.X509KeyPair(certs.TLS, tc.tlsPrivateKey)
+					require.NoError(t, err)
+				}
+			})
+		}
+
 	})
 }
 
