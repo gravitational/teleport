@@ -512,6 +512,10 @@ func TestFetchUsers(t *testing.T) {
 		}, {
 			Id:      "00000003",
 			Profile: &okta.UserProfile{},
+		}, {
+			Id:      "00000004",
+			Profile: &okta.UserProfile{},
+			Status:  userStatusSuspended,
 		},
 	}
 

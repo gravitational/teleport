@@ -78,21 +78,17 @@ type LocksService interface {
 type ReconcilerAccessPoint interface {
 	LocksService
 
-	// CreateUserWithContext creates a user, only if the user entry does not exist
+	// CreateUser creates a user, only if the user entry does not exist
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
-
-	// GetUserWithContext returns a user by name.
+	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-
-	// GetUsersWithContext returns a list of users registered with the local
+	// GetUsers returns a list of users registered with the local
 	// cluster auth server.
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
-
 	// UpdateUser updates the backend record to match the supplied struct,
 	// returning the updated user.
 	UpdateUser(ctx context.Context, user types.User) (types.User, error)
-
-	// DeleteUser deletes the user with the given name
+	// DeleteUser deletes the user with the given name.
 	DeleteUser(ctx context.Context, user string) error
 }
 
@@ -107,6 +103,11 @@ func fetchOktaUsers(ctx context.Context, oktaClient OktaClient, convertUser user
 	err := oktaClient.iterateUsers(ctx, func(ou *okta.User) error {
 		log := log.WithField("okta_user_id", ou.Id)
 		log.Debug("Processing Okta user...")
+
+		if ou.Status == userStatusSuspended {
+			log.Debugf("User was suspended. Skipping.")
+			return nil
+		}
 
 		teleportUser, err := convertUser(ou)
 		if err != nil {
