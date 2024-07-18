@@ -24,6 +24,8 @@ export type JoinToken = {
   // the first 16 chars will be * and the rest of the token's chars will be visible
   // ex. ****************asdf1234
   safeName: string;
+  // bot_name is present on tokens with Bot in their join roles
+  bot_name?: string;
   isStatic: boolean;
   // the join method of the token
   method: string;
@@ -41,6 +43,10 @@ export type JoinToken = {
   internalResourceId?: string;
   // yaml content of the resource
   content: string;
+  allow?: AWSRules[];
+  gcp?: {
+    allow: GCPRules[];
+  };
 };
 
 // JoinRole defines built-in system roles and are roles associated with
@@ -50,6 +56,7 @@ export type JoinToken = {
 // - 'Db' is a role for a database proxy in the cluster
 // - 'Kube' is a role for a kube service
 // - 'Node' is a role for a node in the cluster
+// - 'Bot' for MachineID (when set, "spec.bot_name" must be set in the token)
 // - 'WindowsDesktop' is a role for a windows desktop service.
 // - 'Discovery' is a role for a discovery service.
 export type JoinRole =
@@ -57,6 +64,7 @@ export type JoinRole =
   | 'Node'
   | 'Db'
   | 'Kube'
+  | 'Bot'
   | 'WindowsDesktop'
   | 'Discovery';
 
@@ -82,6 +90,37 @@ export type JoinRule = {
   awsAccountId: string;
   // awsArn is used for the IAM join method.
   awsArn?: string;
+  regions?: string[];
+};
+
+export type AWSRules = {
+  aws_account: string; // naming kept consistent with backend spec
+  aws_arn?: string;
+};
+
+export type GCPRules = {
+  project_ids: string[];
+  locations: string[];
+  service_accounts: string[];
+};
+
+export type JoinTokenRulesObject = AWSRules | GCPRules;
+
+export type CreateJoinTokenRequest = {
+  name: string;
+  // roles is a list of join roles, since there can be more than
+  // one role associated with a token.
+  roles: JoinRole[];
+  // bot_name only needs to be specified if "Bot" is in the selected roles.
+  // otherwise, it is ignored
+  bot_name?: string;
+  join_method: JoinMethod;
+  // rules is a list of allow rules associated with the join token
+  // and the node using this token must match one of the rules.
+  allow?: JoinTokenRulesObject[];
+  gcp?: {
+    allow: GCPRules[];
+  };
 };
 
 export type JoinTokenRequest = {
