@@ -19,7 +19,7 @@ CROSSTOOLNG_TARGET = $(CROSSTOOLNG_TARGET_$(ARCH))
 CROSSTOOLNG_TARGET_amd64 = x86_64-unknown-linux-gnu
 CROSSTOOLNG_TARGET_arm64 = aarch64-unknown-linux-gnu
 CROSSTOOLNG_TARGET_386 = i686-unknown-linux-gnu
-CROSSTOOLNG_TARGET_arm = armv7-unknown-linux-gnueabi
+CROSSTOOLNG_TARGET_arm = arm-unknown-linux-gnueabihf
 
 # Define environment variables used by gcc, clang and make to find the
 # appropriate compiler and third party libraries.

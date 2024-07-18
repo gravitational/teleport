@@ -66,7 +66,7 @@ RUN curl --proto =https --tlsv1.2 -fsSL https://sh.rustup.rs | \
 		x86_64-unknown-linux-gnu \
 		aarch64-unknown-linux-gnu \
 		i686-unknown-linux-gnu \
-		armv7-unknown-linux-gnueabi \
+		arm-unknown-linux-gnueabihf \
 		wasm32-unknown-unknown
 
 ENV PATH=/opt/go/bin:${CARGO_HOME}/bin:${THIRDPARTY_DIR}/host/bin:${PATH}
