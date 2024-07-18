@@ -81,7 +81,7 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 	}
 
 	if err = startByCalling(ctx, bundlePath, config); err != nil {
-		if !errors.Is(err, ErrAlreadyRunning) {
+		if !errors.Is(err, errAlreadyRunning) {
 			return trace.Wrap(err)
 		}
 
@@ -299,8 +299,8 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 			errorDomain := C.GoString(res.error_domain)
 			errorCode := int(res.error_code)
 
-			if errorDomain == vnetErrorDomain && errorCode == int(errorCodeAlreadyRunning) {
-				errC <- trace.Wrap(ErrAlreadyRunning)
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeAlreadyRunning {
+				errC <- trace.Wrap(errAlreadyRunning)
 				return
 			}
 
@@ -319,17 +319,14 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	}
 }
 
-// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
-var vnetErrorDomain = C.GoString(C.VNEErrorDomain)
-
-// errorCode maps to VNEErrorCode from Objective-C.
-type errorCode int
-
-const (
-	errorCodeAlreadyRunning errorCode = 0
+var (
+	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
+	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
+	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
+	// received a message to start after it was already running.
+	errorCodeAlreadyRunning = C.VNEAlreadyRunningError
+	errAlreadyRunning       = errors.New("VNet is already running")
 )
-
-var ErrAlreadyRunning = errors.New("VNet is already running")
 
 func sleep(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)

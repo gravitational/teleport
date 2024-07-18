@@ -5,12 +5,10 @@
 
 extern const char* const VNEErrorDomain;
 
-typedef enum VNEErrorCode {
-  // VNEAlreadyRunningError indicates that the daemon already received a VNet config.
-  // It won't accept a new one during its lifetime, instead it's expected to stop, after
-  // which the client might spawn a new instance of the daemon.
-  VNEAlreadyRunningError,
-} VNEErrorCode;
+// VNEAlreadyRunningError indicates that the daemon already received a VNet config.
+// It won't accept a new one during its lifetime, instead it's expected to stop, after
+// which the client might spawn a new instance of the daemon.
+static const int VNEAlreadyRunningError = 1;
 
 typedef struct VnetConfig {
   const char *socket_path;
