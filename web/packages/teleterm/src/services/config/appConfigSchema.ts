@@ -22,6 +22,9 @@ import { Platform } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
+// When adding a new config property, add it to the docs too
+// (teleport-connect.mdx#configuration).
+
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
@@ -54,6 +57,12 @@ export const createAppConfigSchema = (platform: Platform) => {
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
+    'terminal.windowsUseConpty': z
+      .boolean()
+      .default(true)
+      .describe(
+        'Whether to use the ConPTY system instead of winpty. ConPTY requires Windows version 18309 and above.'
+      ),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
