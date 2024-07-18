@@ -182,7 +182,7 @@ func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsS
 		return trace.Wrap(err)
 	}
 
-	msg, err = in.Recv()
+	_, err = in.Recv()
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
