@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -425,6 +427,50 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	var (
+		integrationRoles = make(map[string]struct{})
+		integrations     []types.Integration
+		nextPage         string
+		err              error
+	)
+	// Ensure the passed role exists in an AWS Integration resource. If
+	// it doesn't an attacker could use the created script to give
+	// themselves the permissions that should be granted to an
+	// integration role instead.
+	for {
+		integrations, nextPage, err = h.cfg.AccessPoint.ListIntegrations(r.Context(), 0, nextPage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, integration := range integrations {
+			if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+				continue
+			}
+			spec := integration.GetAWSOIDCIntegrationSpec()
+			if spec == nil {
+				continue
+			}
+
+			parsedARN, err := arn.Parse(spec.RoleARN)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// strip 'role/' from the resource name so only the name of
+			// the role is added
+			arnRole := path.Base(parsedARN.Resource)
+			integrationRoles[arnRole] = struct{}{}
+		}
+
+		if nextPage == "" {
+			break
+		}
+	}
+
+	if _, ok := integrationRoles[role]; !ok {
+		return nil, trace.NotFound("role %q not found in existing AWS integration resources", role)
 	}
 
 	// The script must execute the following command:

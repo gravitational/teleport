@@ -304,6 +304,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// ListIntegrations returns a paginated list of all integration resources.
+	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.

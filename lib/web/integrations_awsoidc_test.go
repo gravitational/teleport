@@ -440,9 +440,26 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
+	isNotFoundErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsNotFound(err), "expected not found, got %v", err)
+	}
 
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+
+	integration1, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: "valid"}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123:role/myRole",
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateIntegration(ctx, integration1)
+	require.NoError(t, err)
+
+	integration2, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: "valid_with_symbols_in_role"}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123:role/Test+1=2,3.4@5-6_7",
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateIntegration(ctx, integration2)
+	require.NoError(t, err)
 
 	// Unauthenticated client for script downloading.
 	publicClt := env.proxies[0].newClient(t)
@@ -505,6 +522,14 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 				"role":      []string{"role"},
 			},
 			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "role does not belong to integration",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"malicious-role"},
+			},
+			errCheck: isNotFoundErrFn,
 		},
 	}
 
