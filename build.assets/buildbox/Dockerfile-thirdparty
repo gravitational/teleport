@@ -106,6 +106,9 @@ FROM compilers AS libs
 
 COPY cross-compile.mk thirdparty-libs.mk .
 
+ARG THIRDPARTY_DIR
+ENV PATH=${THIRDPARTY_DIR}/host/bin:${PATH}
+
 # Build and install third party C libraries for all architectures
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
 	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=amd64 && \

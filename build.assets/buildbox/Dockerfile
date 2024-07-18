@@ -78,6 +78,14 @@ ENV CARGO_HOME=/tmp/cargo
 ENV GOPATH=/tmp/go
 ENV GOCACHE=/tmp/go/cache
 
+# Set up env vars for rust to cross-compile binaries. I needs a linker for the
+# appropriate architecture, which is invoked via `cc`. These compilers are all
+# on the PATH.
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-unknown-linux-gnu-gcc
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-unknown-linux-gnu-gcc
+ENV CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER=i686-unknown-linux-gnu-gcc
+ENV CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-unknown-linux-gnueabihf-gcc
+
 # Add the writable cargo and go bin directories to the path so we will find
 # binaries build with `cargo install` and `go install` during a build.
 ENV PATH=${CARGO_HOME}/bin:${GOPATH}/bin:${PATH}

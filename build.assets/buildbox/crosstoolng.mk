@@ -48,6 +48,8 @@ $(CROSSTOOLNG_BUILDDIR):
 CROSSTOOLNG_DEFCONFIG = $(CROSSTOOLNG_BUILDDIR)/defconfig
 CROSSTOOLNG_CONFIG = $(CROSSTOOLNG_BUILDDIR)/.config
 
+CTNG = $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng -C $(CROSSTOOLNG_BUILDDIR)
+
 # Create a defconfig if it does not exist
 crosstoolng-configs/$(ARCH).defconfig:
 	touch $@
@@ -58,15 +60,15 @@ $(CROSSTOOLNG_DEFCONFIG): crosstoolng-configs/$(ARCH).defconfig | $(CROSSTOOLNG_
 
 # Create an expanded config from the defconfig
 $(CROSSTOOLNG_CONFIG): $(CROSSTOOLNG_DEFCONFIG)
-	cd $(CROSSTOOLNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng defconfig
+	$(CTNG) defconfig
 
 # Run `ct-ng menuconfig` on the arch-specific config from the defconfig in build.assets
 # and copy it back when finished with menuconfig
 .PHONY: crosstoolng-menuconfig
 crosstoolng-menuconfig: $(CROSSTOOLNG_CONFIG) | $(CROSSTOOLNG_BUILDDIR)
-	cd $(CROSSTOOLNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng menuconfig
-	cd $(CROSSTOOLNG_BUILDDIR) && $(THIRDPARTY_HOST_PREFIX)/bin/ct-ng savedefconfig
-	cp $(CROSSTOOLNG_BUILDDIR)/defconfig crosstoolng-configs/$(ARCH).defconfig
+	$(CTNG) menuconfig
+	$(CTNG) savedefconfig
+	cp $(CROSSTOOLNG_DEFCONFIG) crosstoolng-configs/$(ARCH).defconfig
 
 # Build the toolchain with the config in the defconfig for the architecture. We need to
 # clear out some env vars because ct-ng does not want them set. We export a couple of
@@ -75,7 +77,5 @@ crosstoolng-menuconfig: $(CROSSTOOLNG_CONFIG) | $(CROSSTOOLNG_BUILDDIR)
 .PHONY: crosstoolng-build
 crosstoolng-build: $(CROSSTOOLNG_CONFIG) | $(CROSSTOOLNG_BUILDDIR)
 	@mkdir -p $(THIRDPARTY_DLDIR)
-	cd $(CROSSTOOLNG_BUILDDIR) && \
-		THIRDPARTY_HOST_PREFIX=$(THIRDPARTY_HOST_PREFIX) \
-		THIRDPARTY_DLDIR=$(THIRDPARTY_DLDIR) \
-		$(THIRDPARTY_HOST_PREFIX)/bin/ct-ng build
+	THIRDPARTY_HOST_PREFIX=$(THIRDPARTY_HOST_PREFIX) THIRDPARTY_DLDIR=$(THIRDPARTY_DLDIR) $(CTNG) build
+	cd $(THIRDPARTY_HOST_PREFIX)/bin && ln -ns ../$$($(CTNG) -s show-tuple)/bin/* .

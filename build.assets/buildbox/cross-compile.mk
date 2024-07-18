@@ -29,9 +29,8 @@ export PKG_CONFIG_PATH = $(THIRDPARTY_PREFIX)/lib/pkgconfig
 export CC = $(CROSSTOOLNG_TARGET)-gcc
 export CXX = $(CROSSTOOLNG_TARGET)-g++
 export LD = $(CROSSTOOLNG_TARGET)-ld
-export PATH := $(THIRDPARTY_HOST_PREFIX)/$(CROSSTOOLNG_TARGET)/bin:$(PATH)
 
-CROSS_VARS = C_INCLUDE_PATH LIBRARY_PATH PKG_CONFIG_PATH CC CXX LD PATH
+CROSS_VARS = C_INCLUDE_PATH LIBRARY_PATH PKG_CONFIG_PATH CC CXX LD
 
 # arm64 has linking issues using the binutils linker when building the
 # Enterprise Teleport binary ("relocation truncated to fit: R_AARCH64_CALL26
