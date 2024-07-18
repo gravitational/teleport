@@ -27,10 +27,11 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	versionlib "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/versioncontrol"
-	"github.com/gravitational/trace"
 )
 
 const stableCloudPath = "v1/webapi/automaticupgrades/channel/stable/cloud"
