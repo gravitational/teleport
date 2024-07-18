@@ -22,6 +22,8 @@ export type PtyProcessOptions = {
   args: string[];
   cwd?: string;
   initMessage?: string;
+  /** Whether to use the ConPTY system on Windows. */
+  useConpty: boolean;
 };
 
 export type IPtyProcess = {

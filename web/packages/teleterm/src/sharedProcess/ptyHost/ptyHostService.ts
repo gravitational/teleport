@@ -43,6 +43,7 @@ export function createPtyHostService(): IPtyHost {
           ptyId,
           env: Struct.toJson(call.request.env!) as Record<string, string>,
           initMessage: ptyOptions.initMessage,
+          useConpty: ptyOptions.useConpty,
         });
         ptyProcesses.set(ptyId, ptyProcess);
       } catch (error) {

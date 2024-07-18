@@ -59,6 +59,12 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
    * It emits TermEventEnum.StartError on error. start itself always returns a fulfilled promise.
    */
   async start(cols: number, rows: number) {
+    if (process.platform === 'win32') {
+      this._logger.info(
+        this.options.useConpty ? 'ConPTY enabled' : 'ConPTY disabled'
+      );
+    }
+
     try {
       // which throws an error if the argument is not found in path.
       // TODO(ravicious): Remove the manual check for the existence of the executable after node-pty
@@ -76,8 +82,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
         // https://unix.stackexchange.com/questions/123858
         cwd: this.options.cwd || getDefaultCwd(this.options.env),
         env: this.options.env,
-        // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
-        useConpty: false,
+        useConpty: this.options.useConpty,
       });
     } catch (error) {
       this._logger.error(error);
