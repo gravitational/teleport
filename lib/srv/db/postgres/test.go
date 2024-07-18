@@ -570,7 +570,7 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-	s.log.Debug("Responding to query", query, "repeat", repeats, "length", len(mm.payload))
+	s.log.Debug("Responding to query", "query", query, "repeat", repeats, "length", len(mm.payload))
 
 	// preamble
 	err = client.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("dummy")}}})
