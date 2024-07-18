@@ -798,10 +798,8 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 			return trace.Wrap(err, "failed to init the log file shared writer")
 		}
 		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
-		if loggerConfig.WatchLogFile {
-			if err := sharedWriter.RunWatcherReopen(); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := sharedWriter.RunWatcherReopen(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

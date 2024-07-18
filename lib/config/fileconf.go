@@ -539,9 +539,6 @@ type Log struct {
 	Severity string `yaml:"severity,omitempty"`
 	// Format defines the logs output format and extra fields
 	Format LogFormat `yaml:"format,omitempty"`
-	// WatchLogFile is used to close and re-open the log file by filesystem notification
-	// to react on rename or remove event, might be used in log rotation.
-	WatchLogFile bool `yaml:"watch_log_file,omitempty"`
 }
 
 // LogFormat specifies the logs output format and extra fields

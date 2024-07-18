@@ -705,7 +705,7 @@ It is recommended to set resource requests/limits for each container based on th
 |----------|--------------------------------------------------|
 | `string` | `cluster.local` |
 
-`global.clusterDomain` sets the the domain suffix used by the Kubernetes DNS service.
+`global.clusterDomain` sets the the domain suffix used by the Kubernetes DNS service. 
 This is used to resolve service names in the cluster.
 
 `values.yaml` example:
@@ -1525,23 +1525,6 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
   ```yaml
   log:
     extraFields: ["timestamp", "level"]
-  ```
-
-### `log.watch_log_file`
-
-| Type   | Default value | `teleport.yaml` equivalent    |
-|--------|---------------|-------------------------------|
-| `bool` | `false`       | `teleport.log.watch_log_file` |
-
-`log.watch_log_file` enables/disables the file shared logger's watching functionality to reopen the log file
-if it is renamed or removed. Must be used in conjunction with the output set as a file path.
-
-`values.yaml` example:
-
-  ```yaml
-  log:
-    output: /var/log/teleport.log
-    watch_log_file: true
   ```
 
 ## `nodeSelector`

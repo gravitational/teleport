@@ -62,9 +62,6 @@ teleport:
   log:
     severity: {{ $logLevel }}
     output: {{ .Values.log.output }}
-    {{- if .Values.log.watch_log_file }}
-    watch_log_file: {{ .Values.log.watch_log_file }}
-    {{- end }}
     format:
       output: {{ .Values.log.format }}
       extra_fields: {{ .Values.log.extraFields | toJson }}

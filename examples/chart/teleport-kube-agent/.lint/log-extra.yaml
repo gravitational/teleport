@@ -5,5 +5,4 @@ log:
   format: json
   level: DEBUG
   output: /var/lib/teleport/test.log
-  watch_log_file: true
   extraFields: ["level", "timestamp", "component", "caller"]
