@@ -45,6 +45,8 @@ typedef struct StartVnetRequest {
 typedef struct StartVnetResult {
   bool ok;
   const char *error_domain;
+  // error_code is code taken from an NSError instance encountered during the call to StartVnet.
+  // If ok is false, error_code is greater than zero and identifies the reason behind the error.
   int error_code;
   const char *error_description;
 } StartVnetResult;
