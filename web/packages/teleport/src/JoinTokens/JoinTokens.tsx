@@ -30,6 +30,7 @@ import {
   MenuItem,
   ButtonWarning,
   ButtonSecondary,
+  Button,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { Warning } from 'design/Icon';
@@ -56,6 +57,8 @@ import { JoinToken } from 'teleport/services/joinToken';
 import { Resource, KindJoinToken } from 'teleport/services/resources';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 
+import { UpsertJoinTokenDialog } from './UpsertJoinTokenDialog';
+
 function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
   return {
     id: token.id,
@@ -67,6 +70,8 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
+  const [creatingToken, setCreatingToken] = useState(false);
+  const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
     useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
@@ -76,25 +81,17 @@ export const JoinTokens = () => {
     { join_token: '' } // we are only editing for now, so template can be empty
   );
 
-  async function handleSave(content: string): Promise<void> {
-    const token = await ctx.joinTokenService.upsertJoinToken({ content });
+  function updateTokenList(token: JoinToken): JoinToken[] {
     let items = [...joinTokensAttempt.data.items];
-    if (resources.status === 'creating') {
+    if (creatingToken) {
       items.push(token);
     } else {
-      let tokenExistsInPreviousList = false;
       const newItems = items.map(item => {
         if (item.id === token.id) {
-          tokenExistsInPreviousList = true;
           return token;
         }
         return item;
       });
-      // in the edge case that someone only edits the name of the token, it will return
-      // a "new" token via the upsert, and therefore should be treated as a new token
-      if (!tokenExistsInPreviousList) {
-        newItems.push(token);
-      }
       items = newItems;
     }
     setJoinTokensAttempt({
@@ -102,10 +99,19 @@ export const JoinTokens = () => {
       status: 'success',
       statusText: '',
     });
+    return items;
   }
 
-  const [deleteTokenAttempt, runDeleteTokenAttempt] = useAsync(
-    async (token: string) => {
+  async function handleSave(content: string): Promise<void> {
+    const token = await ctx.joinTokenService.upsertJoinTokenYAML(
+      { content },
+      resources.item.id
+    );
+    updateTokenList(token);
+  }
+
+  const [deleteTokenAttempt, runDeleteTokenAttempt, setDeleteTokenAttempt] =
+    useAsync(async (token: string) => {
       await ctx.joinTokenService.deleteJoinToken(token);
       setJoinTokensAttempt({
         status: 'success',
@@ -115,8 +121,9 @@ export const JoinTokens = () => {
         },
       });
       setTokenToDelete(null);
-    }
-  );
+      setEditingToken(null);
+      setCreatingToken(false);
+    });
 
   useEffect(() => {
     runJoinTokensAttempt();
@@ -132,94 +139,142 @@ export const JoinTokens = () => {
         alignItems="center"
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
+        {!creatingToken && !editingToken && (
+          <Button
+            intent="primary"
+            fill="border"
+            ml="auto"
+            width="240px"
+            onClick={() => setCreatingToken(true)}
+          >
+            Create new Token
+          </Button>
+        )}
       </FeatureHeader>
-      <Box>
-        {joinTokensAttempt.status === 'error' && (
-          <Alert kind="danger">{joinTokensAttempt.statusText}</Alert>
-        )}
-        {deleteTokenAttempt.status === 'error' && (
-          <Alert kind="danger">{deleteTokenAttempt.statusText}</Alert>
-        )}
-        {joinTokensAttempt.status === 'success' && (
-          <Table
-            isSearchable
-            data={joinTokensAttempt.data.items}
-            columns={[
-              {
-                key: 'id',
-                headerText: 'Name',
-                isSortable: false,
-                render: token => <NameCell token={token} />,
-              },
-              {
-                key: 'method',
-                headerText: 'Join Method',
-                isSortable: true,
-              },
-              {
-                key: 'roles',
-                headerText: 'Roles',
-                isSortable: false,
-                render: renderRolesCell,
-              },
-              // expiryText is non render and used for searching
-              {
-                key: 'expiryText',
-                isNonRender: true,
-              },
-              // expiry is used for sorting, but we display the expiryText value
-              {
-                key: 'expiry',
-                headerText: 'Expires in',
-                isSortable: true,
-                render: ({ expiry, expiryText, isStatic, method }) => {
-                  const now = new Date();
-                  const isLongLived =
-                    isAfter(expiry, addHours(now, 24)) && method === 'token';
-                  return (
-                    <Cell>
-                      <Flex alignItems="center" gap={2}>
-                        <Text>{expiryText}</Text>
-                        {(isLongLived || isStatic) && (
-                          <HoverTooltip tipContent="Long-lived and static tokens are insecure and will be deprecated. Use short-lived tokens or alternative join methods (gcp, iam) for long-lived access.">
-                            <Warning size="small" color="error.main" />
-                          </HoverTooltip>
-                        )}
-                      </Flex>
-                    </Cell>
-                  );
+      <Flex>
+        <Box
+          css={`
+            flex-grow: 1;
+          `}
+        >
+          {joinTokensAttempt.status === 'error' && (
+            <Alert kind="danger">{joinTokensAttempt.statusText}</Alert>
+          )}
+          {joinTokensAttempt.status === 'success' && (
+            <Table
+              isSearchable
+              data={joinTokensAttempt.data.items}
+              columns={[
+                {
+                  key: 'id',
+                  headerText: 'Name',
+                  isSortable: false,
+                  render: token => <NameCell token={token} />,
                 },
-              },
-              {
-                altKey: 'options-btn',
-                render: (token: JoinToken) => (
-                  <ActionCell
-                    token={token}
-                    onEdit={() => resources.edit(token.id)}
-                    onDelete={() => setTokenToDelete(token)}
-                  />
-                ),
-              },
-            ]}
-            emptyText="No active join tokens found"
-            pagination={{ pageSize: 30, pagerPosition: 'top' }}
-            customSearchMatchers={[searchMatcher]}
-            initialSort={{
-              key: 'expiry',
-              dir: 'ASC',
+                {
+                  key: 'method',
+                  headerText: 'Join Method',
+                  isSortable: true,
+                },
+                {
+                  key: 'roles',
+                  headerText: 'Roles',
+                  isSortable: false,
+                  render: renderRolesCell,
+                },
+                // expiryText is non render and used for searching
+                {
+                  key: 'expiryText',
+                  isNonRender: true,
+                },
+                // expiry is used for sorting, but we display the expiryText value
+                {
+                  key: 'expiry',
+                  headerText: 'Expires in',
+                  isSortable: true,
+                  render: ({ expiry, expiryText, isStatic, method }) => {
+                    const now = new Date();
+                    const isLongLived =
+                      isAfter(expiry, addHours(now, 24)) && method === 'token';
+                    return (
+                      <Cell>
+                        <Flex alignItems="center" gap={2}>
+                          <Text>{expiryText}</Text>
+                          {(isLongLived || isStatic) && (
+                            <HoverTooltip tipContent="Long-lived and static tokens are insecure and will be deprecated. Use short-lived tokens or alternative join methods (gcp, iam) for long-lived access.">
+                              <Warning size="small" color="error.main" />
+                            </HoverTooltip>
+                          )}
+                        </Flex>
+                      </Cell>
+                    );
+                  },
+                },
+                {
+                  altKey: 'options-btn',
+                  render: (token: JoinToken) => (
+                    <ActionCell
+                      token={token}
+                      onEdit={() => {
+                        // prefer editing in the standard form
+                        // if we support that join method
+                        if (
+                          token.method === 'iam' ||
+                          token.method === 'gcp' ||
+                          token.method === 'token'
+                        ) {
+                          setEditingToken(token);
+                          return;
+                        }
+                        // otherwise, edit in yaml editor
+                        setEditingToken(null); // close any editing token
+                        resources.edit(token.id);
+                      }}
+                      onDelete={() => setTokenToDelete(token)}
+                    />
+                  ),
+                },
+              ]}
+              emptyText="No active join tokens found"
+              pagination={{ pageSize: 30, pagerPosition: 'top' }}
+              customSearchMatchers={[searchMatcher]}
+              initialSort={{
+                key: 'expiry',
+                dir: 'ASC',
+              }}
+            />
+          )}
+          {joinTokensAttempt.status === 'processing' && (
+            <Flex justifyContent="center">
+              <Indicator />
+            </Flex>
+          )}
+        </Box>
+
+        {(creatingToken || !!editingToken) && (
+          <UpsertJoinTokenDialog
+            key={editingToken?.id} // empty key is fine for creating as the component doesn't need to remount.
+            editToken={editingToken}
+            editTokenWithYAML={resources.edit}
+            updateTokenList={updateTokenList}
+            onClose={() => {
+              setCreatingToken(false);
+              setEditingToken(null);
             }}
           />
         )}
-        {joinTokensAttempt.status === 'processing' && (
-          <Flex justifyContent="center">
-            <Indicator />
-          </Flex>
-        )}
-      </Box>
+      </Flex>
       {tokenToDelete && (
         <TokenDelete
           token={tokenToDelete}
-          onClose={() => setTokenToDelete(null)}
+          onClose={() => {
+            setDeleteTokenAttempt({
+              status: 'success',
+              statusText: '',
+              data: null,
+            });
+            setTokenToDelete(null);
+          }}
           onDelete={() => runDeleteTokenAttempt(tokenToDelete.id)}
           attempt={deleteTokenAttempt}
         />
