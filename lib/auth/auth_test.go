@@ -3494,7 +3494,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 		deviceType proto.DeviceType,
 		deviceUsage proto.DeviceUsage,
 	) (token string, testDev *TestDevice, registerSolved *proto.MFARegisterResponse) {
-		privilegeToken, err := authServer.createPrivilegeToken(ctx, u.username, tokenType)
+		privilegeToken, err := authServer.CreatePrivilegeToken(ctx, u.username, tokenType)
 		require.NoError(t, err, "createPrivilegeToken")
 		token = privilegeToken.GetName()
 

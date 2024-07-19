@@ -370,8 +370,8 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	return newToken, nil
 }
 
-// CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
-func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+// CreatePrivilegeTokenWithMFA implements AuthService.CreatePrivilegeTokenWithMFA.
+func (a *Server) CreatePrivilegeTokenWithMFA(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -403,11 +403,11 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.createPrivilegeToken(ctx, username, tokenKind)
+	token, err := a.CreatePrivilegeToken(ctx, username, tokenKind)
 	return token, trace.Wrap(err)
 }
 
-func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
+func (a *Server) CreatePrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
 	if tokenKind != authclient.UserTokenTypePrivilege && tokenKind != authclient.UserTokenTypePrivilegeException {
 		return nil, trace.BadParameter("invalid privilege token type")
 	}
