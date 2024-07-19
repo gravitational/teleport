@@ -122,7 +122,7 @@ impl Client {
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
-        START.call_once(||{
+        START.call_once(|| {
             // we register provider explicitly to avoid panics when both ring and aws_lc
             // features of rustls are enabled, which happens often in dependencies like tokio-tls
             // and reqwest
@@ -190,7 +190,7 @@ impl Client {
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
             .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend{}))) // required for rdpdr to work
+            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
             .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
@@ -213,13 +213,15 @@ impl Client {
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
         let mut network_client = crate::network_client::ReqwestNetworkClient::new();
-        let kerberos_config = params.kdc_addr.and_then(|kdc_addr| {
-            let kdc_url = Url::parse(&format!("tcp://{}", kdc_addr)).ok()?;
-            Some(KerberosConfig {
+        let kerberos_config = params
+            .kdc_addr
+            .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
+            .transpose()
+            .map_err(|e| ClientError::UrlError(e))?
+            .map(|kdc_url| KerberosConfig {
                 kdc_proxy_url: Some(kdc_url),
                 hostname: params.computer_name.clone(),
-            })
-        });
+            });
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
             &mut rdp_stream,
@@ -1408,13 +1410,16 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         enable_credssp: params.ad,
         credentials: Credentials::SmartCard {
             config: if params.ad {
-                Some(SmartCardIdentity {
-                    certificate: params.cert_der.clone(),
-                    reader_name: "Teleport".to_string(),
-                    container_name: "".to_string(),
-                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
-                    private_key: params.key_der.clone(),
-                }.into())
+                Some(
+                    SmartCardIdentity {
+                        certificate: params.cert_der.clone(),
+                        reader_name: "Teleport".to_string(),
+                        container_name: "".to_string(),
+                        csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                        private_key: params.key_der.clone(),
+                    }
+                    .into(),
+                )
             } else {
                 None
             },
@@ -1482,6 +1487,7 @@ pub enum ClientError {
     InternalError(String),
     UnknownAddress,
     InputEventError(InputEventError),
+    UrlError(url::ParseError),
     #[cfg(feature = "fips")]
     ErrorStack(ErrorStack),
     #[cfg(feature = "fips")]
@@ -1507,6 +1513,7 @@ impl Display for ClientError {
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::UrlError(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::ErrorStack(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]

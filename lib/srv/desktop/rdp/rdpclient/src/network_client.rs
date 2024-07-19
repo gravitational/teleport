@@ -19,9 +19,9 @@ use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr};
 use std::pin::Pin;
 
-use ironrdp_connector::{custom_err, ConnectorResult};
 use ironrdp_connector::sspi::generator::NetworkRequest;
 use ironrdp_connector::sspi::network_client::NetworkProtocol;
+use ironrdp_connector::{custom_err, ConnectorResult};
 use ironrdp_tokio::AsyncNetworkClient;
 use reqwest::Client;
 use sspi::{Error, ErrorKind};
@@ -40,12 +40,8 @@ impl AsyncNetworkClient for ReqwestNetworkClient {
     ) -> Pin<Box<dyn Future<Output = ConnectorResult<Vec<u8>>> + 'a>> {
         Box::pin(async move {
             match &request.protocol {
-                NetworkProtocol::Tcp => {
-                    self.send_tcp(&request.url, &request.data).await
-                }
-                NetworkProtocol::Udp => {
-                    self.send_udp(&request.url, &request.data).await
-                }
+                NetworkProtocol::Tcp => self.send_tcp(&request.url, &request.data).await,
+                NetworkProtocol::Udp => self.send_udp(&request.url, &request.data).await,
                 NetworkProtocol::Http | NetworkProtocol::Https => {
                     self.send_http(&request.url, &request.data).await
                 }
