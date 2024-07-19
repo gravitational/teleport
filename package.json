@@ -26,7 +26,6 @@
   },
   "private": true,
   "resolutions": {
-    "node-gyp": "^10.0.1",
     "react": "16.14.0",
     "**/d3-color": "^3.1.0",
     "**/minimist": "^1.2.8",
