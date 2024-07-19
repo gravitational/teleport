@@ -78,7 +78,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	}
 
 	if len(servers) == 0 {
-		return nil, trace.NotFound("failed to match applications for %s %s", identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName)
+		return nil, trace.NotFound("failed to match applications")
 	}
 
 	// Create a rewriting transport that will be used to forward requests.
