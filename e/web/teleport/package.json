@@ -4,31 +4,12 @@
   "description": "Enterprise version of Gravitational Teleport Web UI",
   "main": "index.js",
   "scripts": {
-    "start": "yarn build-wasm && vite",
-    "build": "yarn build-wasm && vite build",
-    "build-wasm": "yarn workspace @gravitational/teleport build-wasm"
+    "start": "pnpm build-wasm && vite",
+    "build": "pnpm build-wasm && vite build",
+    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm"
   },
   "author": "",
   "license": "UNLICENSED",
   "//": "when adding e-only depenedencies, do not update this file. Add them to the root package.json.",
-  "dependencies": {
-    "@gravitational/teleport": "^1.0.0"
-  },
-  "devDependencies": {
-    "@gravitational/build": "^1.0.0"
-  },
-  "private": true,
-  "workspaces": {
-    "packages": [
-      "../../../web/packages/build/**",
-      "../../../web/packages/design/**",
-      "../../../web/packages/shared/**",
-      "../../../web/packages/teleport/**",
-      "../../../web/packages/teleterm/**"
-    ]
-  },
-  "resolutions": {
-    "react": "^18.2.0",
-    "**/@types/react": "^18.2.39"
-  }
+  "private": true
 }

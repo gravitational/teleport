@@ -103,9 +103,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup yarn
+      - name: Setup pnpm
         run: |
-          corepack enable yarn
+          corepack enable pnpm 
 
       - name: Setup keychain
         env:

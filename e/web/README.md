@@ -48,11 +48,4 @@ $ make build-teleport-e
 
 ## Development
 
-If `https://example.com:3080/web` is the URL of your cluster UI then:
-
-to start your local Teleport development server
-
-```
-$ cd webapps
-$ yarn start-teleport-e --target=https://example.com:3080/web
-```
+Follow the instructions from the OSS `web/README.md`.
