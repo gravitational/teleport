@@ -628,17 +628,17 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 	// Apply any additional environment variables from PAM.
 	for _, kv := range pamEnvironment {
-		kvSplit := strings.SplitN(strings.TrimSpace(kv), "=", 2)
-		if len(kvSplit) != 2 {
+		key, value, ok := strings.Cut(strings.TrimSpace(kv), "=")
+		if !ok {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
 		}
-		if err := os.Setenv(kvSplit[0], kvSplit[1]); err != nil {
+		if err := os.Setenv(key, value); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 	}
 
 	// Ensure that the working directory is one that the local user has access to.
-	if err := unix.Chdir(homeDir); err != nil {
+	if err := os.Chdir(homeDir); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
 	}
 
@@ -666,7 +666,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 				// parent connection closed, process should exit.
 				return errorWriter, teleport.RemoteCommandFailure, nil
 			}
-			slog.With("error", err).ErrorContext(ctx, "Error reading networking request from parent.")
+			slog.ErrorContext(ctx, "Error reading networking request from parent.", "error", err)
 			continue
 		}
 
@@ -684,7 +684,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
-			slog.With("error", err).ErrorContext(ctx, "Error parsing networking request.")
+			slog.ErrorContext(ctx, "Error parsing networking request.", "error", err)
 			continue
 		}
 
@@ -705,8 +705,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 				handleNetworkingRequest(ctx, controlConn, req)
 			}
 		case networking.NetworkingOperationListenAgent, networking.NetworkingOperationListenX11:
-			// Agent and X11 forwarding requests should only occur once per networking process instance, so
-			// handling them in the main thread should have negligible performance impact.
+			// Agent and X11 forwarding requests should occur very rarely, so handling
+			// them in the main thread should have negligible performance impact.
 			handleNetworkingRequest(ctx, controlConn, req)
 		}
 	}
