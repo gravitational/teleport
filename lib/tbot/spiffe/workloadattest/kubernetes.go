@@ -131,7 +131,7 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 // Attest resolves the Kubernetes pod information from the
 // PID of the workload.
 func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAttestation, error) {
-	a.log.DebugContext(ctx, "Beginning Kubernetes workload attestation", "pid", pid)
+	a.log.DebugContext(ctx, "Starting Kubernetes workload attestation", "pid", pid)
 
 	podID, containerID, err := a.getContainerAndPodID(pid)
 	if err != nil {
@@ -153,7 +153,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAtt
 		PodUID:         string(pod.UID),
 		Labels:         pod.Labels,
 	}
-	a.log.DebugContext(ctx, "Completed Kubernetes workload attestation", "attestation", att)
+	a.log.DebugContext(ctx, "Finished Kubernetes workload attestation", "attestation", att)
 	return att, nil
 }
 

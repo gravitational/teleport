@@ -77,7 +77,9 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 }
 
 func (a *Attestor) Attest(ctx context.Context, pid int) (Attestation, error) {
-	a.log.DebugContext(ctx, "Beginning workload attestation", "pid", pid)
+	a.log.DebugContext(ctx, "Starting workload attestation", "pid", pid)
+	defer a.log.DebugContext(ctx, "Finished workload attestation complete", "pid", pid)
+
 	att := Attestation{}
 	var err error
 
