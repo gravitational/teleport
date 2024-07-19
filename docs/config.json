@@ -510,6 +510,14 @@
                 "cloud",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze Entra ID policies",
+              "slug": "/access-controls/access-graph/entra-id/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
@@ -2396,6 +2404,131 @@
       "source": "/server-access/troubleshooting-server/",
       "destination": "/enroll-resources/server-access/troubleshooting-server/",
       "permanent": true
+    },
+    {
+    	"source": "/database-access/guides/rds-proxy-postgres/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/rds-proxy-sqlserver/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/rds-proxy-mysql/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/ha/",
+    	"destination": "/enroll-resources/database-access/guides/ha/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/dynamic-registration/",
+    	"destination": "/enroll-resources/database-access/guides/dynamic-registration/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/aws-dynamodb/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/redis-aws/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/redis-aws/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/aws-cassandra-keyspaces/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/postgres-redshift/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/postgres-redshift/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/redshift-serverless/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/azure-redis/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/azure-postgres-mysql/",
+    	"destination": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/azure-postgres-mysql/",
+    	"destination": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/azure-sql-server-ad/",
+    	"destination": "/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/sql-server-ad/",
+    	"destination": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/mysql-cloudsql/",
+    	"destination": "/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/postgres-cloudsql/",
+    	"destination": "/enroll-resources/database-access/enroll-google-cloud-databases/postgres-cloudsql/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/mongodb-atlas/",
+    	"destination": "/enroll-resources/database-access/enroll-managed-databases/mongodb-atlas/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/cassandra-self-hosted/",
+    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/cassandra-self-hosted/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/cockroachdb-self-hosted/",
+    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/elastic/",
+    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/elastic/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/mongodb-self-hosted/",
+    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/redis/",
+    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/redis-cluster/",
+    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster/",
+    	"permanent": true
+    },
+    {
+    	"source": "/database-access/guides/snowflake/",
+    	"destination": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
+    	"permanent": true
     }
   ]
 }

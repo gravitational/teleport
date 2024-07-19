@@ -28,37 +28,6 @@ Add `@gravitational/build` to your package.json file.
   },
 ```
 
-Create `./src` directory and place `boot.js` file in it which is the default
-webpack entry point for Gravitational web applications.
-
-Then you can run
-
-```
-$ yarn g-build
-```
-
-## Custom webpack config
-
-If you want to use your own `webpack.config.js` file and override the defaults.
-
-For example, if this is your webpack config:
-
-```
-const defaultCfg = require('@gravitational/build/webpack/webpack.prod.config');
-
-defaultCfg.entry = {
-  app: ['./src/myentry.js'],
-},
-
-module.exports = defaultCfg;
-```
-
-Then you can use `--config` parameter.
-
-```
-$ yarn g-build --config webpack.config.js
-```
-
 ## Aliases
 
 To make it easier for us to migrate legacy code and work on refactoring,
