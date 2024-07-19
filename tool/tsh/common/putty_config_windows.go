@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -27,7 +28,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/puttyhosts"
 	"github.com/gravitational/teleport/lib/utils/registry"
@@ -86,11 +90,6 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		puttySessionName = fmt.Sprintf(`%v%%20(leaf:%v,proxy:%v)`, hostname, leafClusterName, proxyHostname)
 	}
 	registryKey := fmt.Sprintf(`%v\%v`, puttyRegistrySessionsKey, puttySessionName)
-
-	// if the port passed is 0, this means "use server default" so we override it to 3022
-	if port == 0 {
-		port = puttyDefaultSSHPort
-	}
 
 	sessionDwords := puttyRegistrySessionDwords{
 		Present:        puttyDwordPresent,
@@ -293,6 +292,21 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
+	// If the port was not specified, then attempt to look it up instead of
+	// assuming that the default port should be used.
+	if port == 0 {
+		port = puttyDefaultSSHPort
+		log.Debug("No port specified, attempting to resolve host to determine the correct port")
+		p, err := resolvePort(cf.Context, clusterClient.AuthClient, hostname)
+		switch {
+		case err != nil:
+			log.Warnf("Unable to resolve host, using default port: %v", err)
+		case p > 0:
+			log.Debugf("Using port %d found in resolved host", port)
+			port = p
+		}
+	}
+
 	// parse out proxy details
 	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
 	if err != nil {
@@ -356,4 +370,46 @@ func onPuttyConfig(cf *CLIConf) error {
 
 	fmt.Printf("Added PuTTY session for %v [proxy:%v]\n", userHostString, proxyHost)
 	return nil
+}
+
+// resolvePort attempts to resolve the defined port of a host matching
+// the provided identifier. An error is returned if no matches, or more
+// than a single match is found.
+func resolvePort(ctx context.Context, clt client.ListUnifiedResourcesClient, identifier string) (int, error) {
+	resources, _, err := client.GetUnifiedResourcePage(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		// We only want a single node, but, we set limit=2 so we can throw a
+		// helpful error when multiple match. In the happy path, where a single
+		// node matches, this does not degrade performance because even if
+		// limit=1 the UnifiedResource cache will still iterate to the end to
+		// determine if there is a NextKey to return.
+		Limit:          2,
+		Kinds:          []string{types.KindNode},
+		SearchKeywords: []string{identifier},
+
+		SortBy: types.SortBy{Field: types.ResourceKind},
+	})
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+
+	if len(resources) > 1 {
+		return -1, trace.BadParameter("found multiple SSH hosts matching %s", identifier)
+	}
+
+	node := resources[0].ResourceWithLabels.(*types.ServerV2)
+	if node == nil {
+		return -1, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
+	}
+
+	_, hostport, err := net.SplitHostPort(node.Spec.Addr)
+	if err != nil {
+		return -1, trace.Wrap(err, "parsing node address")
+	}
+
+	p, err := strconv.Atoi(hostport)
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+
+	return p, nil
 }
