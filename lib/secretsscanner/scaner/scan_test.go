@@ -42,8 +42,10 @@ var (
 
 func TestNewScanner(t *testing.T) {
 	tests := []struct {
-		name    string
-		keysGen func(t *testing.T, path string) []*accessgraphsecretsv1pb.PrivateKey
+		name         string
+		keysGen      func(t *testing.T, path string) []*accessgraphsecretsv1pb.PrivateKey
+		skipTestDir  bool
+		assertResult func(t *testing.T, got []*accessgraphsecretsv1pb.PrivateKey)
 	}{
 		{
 			name:    "encrypted keys",
@@ -61,13 +63,33 @@ func TestNewScanner(t *testing.T) {
 			name:    "invalid keys",
 			keysGen: writeInvalidKeys,
 		},
+		{
+			name:        "skip test dir keys",
+			keysGen:     writeUnEncryptedKeys,
+			skipTestDir: true,
+			assertResult: func(t *testing.T, got []*accessgraphsecretsv1pb.PrivateKey) {
+				require.Empty(t, got, "ScanPrivateKeys with skip test dir should return empty keys")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 
 			expect := tt.keysGen(t, dir)
-			s, err := New(Config{Dirs: []string{dir}})
+
+			var skipDirs []string
+			if tt.skipTestDir {
+				// skip the test directory.
+				skipDirs = []string{filepath.Join(dir, "*")}
+				// the expected keys should be nil since the test directory is skipped.
+				expect = nil
+			}
+
+			s, err := New(Config{
+				Dirs:     []string{dir},
+				SkipDirs: skipDirs,
+			})
 			require.NoError(t, err)
 
 			keys := s.ScanPrivateKeys(context.Background(), deviceID)
@@ -80,9 +102,12 @@ func TestNewScanner(t *testing.T) {
 			sortPrivateKeys(expect)
 			sortPrivateKeys(got)
 
+			if tt.assertResult != nil {
+				tt.assertResult(t, got)
+			}
+
 			diff := cmp.Diff(expect, got, protocmp.Transform())
 			require.Empty(t, diff, "ScanPrivateKeys keys mismatch (-got +want)")
-
 		})
 	}
 }
