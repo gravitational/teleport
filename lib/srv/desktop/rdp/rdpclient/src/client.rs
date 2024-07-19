@@ -217,7 +217,7 @@ impl Client {
             .kdc_addr
             .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
             .transpose()
-            .map_err(|e| ClientError::UrlError(e))?
+            .map_err(ClientError::UrlError)?
             .map(|kdc_url| KerberosConfig {
                 kdc_proxy_url: Some(kdc_url),
                 hostname: params.computer_name.clone(),
