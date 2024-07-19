@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package scan
+package scanner
 
 import (
 	"context"
@@ -57,13 +57,17 @@ func TestNewScanner(t *testing.T) {
 			name:    "encryptedKey without public key file",
 			keysGen: writeEncryptedKeyWithoutPubFile,
 		},
+		{
+			name:    "invalid keys",
+			keysGen: writeInvalidKeys,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 
 			expect := tt.keysGen(t, dir)
-			s, err := NewScanner(ScannerConfig{Dirs: []string{dir}})
+			s, err := New(Config{Dirs: []string{dir}})
 			require.NoError(t, err)
 
 			keys := s.ScanPrivateKeys(context.Background(), deviceID)
@@ -77,7 +81,7 @@ func TestNewScanner(t *testing.T) {
 			sortPrivateKeys(got)
 
 			diff := cmp.Diff(expect, got, protocmp.Transform())
-			require.Empty(t, diff, "unexpected keys")
+			require.Empty(t, diff, "ScanPrivateKeys keys mismatch (-got +want)")
 
 		})
 	}
@@ -94,11 +98,11 @@ func writeEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Priv
 	var expectedKeys []*accessgraphsecretsv1pb.PrivateKey
 	// Write encrypted keys to the directory.
 	for _, key := range cryptosshtestdata.PEMEncryptedKeys {
-		err := os.Mkdir(filepath.Join(dir, key.Name), os.ModePerm)
+		err := os.Mkdir(filepath.Join(dir, key.Name), 0o777)
 		require.NoError(t, err)
 
 		filePath := filepath.Join(dir, key.Name, key.Name)
-		err = os.WriteFile(filePath, key.PEMBytes, os.ModePerm)
+		err = os.WriteFile(filePath, key.PEMBytes, 0o666)
 		require.NoError(t, err)
 
 		s, err := ssh.ParsePrivateKeyWithPassphrase(key.PEMBytes, []byte(key.EncryptionKey))
@@ -107,7 +111,7 @@ func writeEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Priv
 		if !key.IncludesPublicKey {
 			pubFilePath := filePath + ".pub"
 			authorizedKeyBytes := ssh.MarshalAuthorizedKey(s.PublicKey())
-			require.NoError(t, os.WriteFile(pubFilePath, authorizedKeyBytes, os.ModePerm))
+			require.NoError(t, os.WriteFile(pubFilePath, authorizedKeyBytes, 0o666))
 		}
 
 		fingerprint := ssh.FingerprintSHA256(s.PublicKey())
@@ -138,11 +142,11 @@ func writeUnEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Pr
 	var expectedKeys []*accessgraphsecretsv1pb.PrivateKey
 
 	for name, key := range cryptosshtestdata.PEMBytes {
-		err := os.Mkdir(filepath.Join(dir, name), os.ModePerm)
+		err := os.Mkdir(filepath.Join(dir, name), 0o777)
 		require.NoError(t, err)
 
 		filePath := filepath.Join(dir, name, name)
-		err = os.WriteFile(filePath, key, os.ModePerm)
+		err = os.WriteFile(filePath, key, 0o666)
 		require.NoError(t, err)
 
 		s, err := ssh.ParsePrivateKey(key)
@@ -171,11 +175,11 @@ func writeEncryptedKeyWithoutPubFile(t *testing.T, dir string) []*accessgraphsec
 
 	// Write encrypted keys to the directory.
 	rawKey := cryptosshtestdata.PEMEncryptedKeys[0]
-	err := os.Mkdir(filepath.Join(dir, rawKey.Name), os.ModePerm)
+	err := os.Mkdir(filepath.Join(dir, rawKey.Name), 0o777)
 	require.NoError(t, err)
 
 	filePath := filepath.Join(dir, rawKey.Name, rawKey.Name)
-	err = os.WriteFile(filePath, rawKey.PEMBytes, os.ModePerm)
+	err = os.WriteFile(filePath, rawKey.PEMBytes, 0o666)
 	require.NoError(t, err)
 
 	key, err := accessgraph.NewPrivateKeyWithName(
@@ -189,4 +193,25 @@ func writeEncryptedKeyWithoutPubFile(t *testing.T, dir string) []*accessgraphsec
 	require.NoError(t, err)
 
 	return []*accessgraphsecretsv1pb.PrivateKey{key}
+}
+
+func writeInvalidKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.PrivateKey {
+	t.Helper()
+
+	// Write invalid keys to the directory.
+	err := os.WriteFile(filepath.Join(dir, "file-with-short-size"), []byte("invalid-key"), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(dir, "invalid-key-valid-headers"), []byte(
+		`-----BEGIN OPENSSH PRIVATE KEY-----\n
+trash\n
+-----END OPENSSH PRIVATE KEY-----\n`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(dir, "invalid-key-invalid-header"), []byte(
+		`abcefg-----BEGIN OPENSSH PRIVATE KEY-----\n
+-----END OPENSSH PRIVATE KEY-----\n`), 0o644)
+	require.NoError(t, err)
+
+	return nil
 }

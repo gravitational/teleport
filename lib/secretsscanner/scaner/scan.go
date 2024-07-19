@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package scan
+package scanner
 
 import (
 	"bytes"
@@ -25,6 +25,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -36,44 +37,60 @@ import (
 	"github.com/gravitational/teleport/api/types/accessgraph"
 )
 
-// ScannerConfig specifies parameters for the scanner.
-type ScannerConfig struct {
+// Config specifies parameters for the scanner.
+type Config struct {
+	// Dirs is a list of directories to scan.
 	Dirs []string
-	Log  *slog.Logger
+	// SkipDirs is a list of directories to skip.
+	// It supports glob patterns (e.g. "/etc/*/").
+	// Please refer to the [filepath.Match] documentation for more information.
+	SkipDirs []string
+	// Log is the logger.
+	Log *slog.Logger
 }
 
-// NewScanner creates a new scanner.
-func NewScanner(cfg ScannerConfig) (*Scanner, error) {
+// New creates a new scanner.
+func New(cfg Config) (*Scanner, error) {
 	if len(cfg.Dirs) == 0 {
 		return nil, trace.BadParameter("missing dirs")
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
+
+	// expand the glob patterns in the skipDirs list.
+	// we expand the glob patterns here to avoid expanding them for each file during the scan.
+	// only the directories matched by the glob patterns will be skipped.
+	skippedDirs, err := expandSkipDirs(cfg.SkipDirs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Scanner{
 		dirs:        cfg.Dirs,
 		log:         cfg.Log,
-		privateKeys: make(map[string]*accessgraphsecretsv1pb.PrivateKey),
+		skippedDirs: skippedDirs,
 	}, nil
 }
 
 // Scanner is a scanner that scans directories for secrets.
 type Scanner struct {
-	dirs []string
-	log  *slog.Logger
-	// privateKeys is a map of private keys found during the scan.
-	// The key is the path to the private key file and the value is the private key representation.
-	privateKeys map[string]*accessgraphsecretsv1pb.PrivateKey
+	dirs        []string
+	log         *slog.Logger
+	skippedDirs map[string]struct{}
 }
 
 // ScanPrivateKeys scans directories for SSH private keys.
 func (s *Scanner) ScanPrivateKeys(ctx context.Context, deviceID string) []SSHPrivateKey {
+	// privateKeys is a map of private keys found during the scan.
+	// The key is the path to the private key file and the value is the private key representation.
+	privateKeysMap := make(map[string]*accessgraphsecretsv1pb.PrivateKey)
 	for _, dir := range s.dirs {
-		s.findPrivateKeys(ctx, dir, deviceID)
+		s.findPrivateKeys(ctx, dir, deviceID, privateKeysMap)
 	}
 
-	keys := make([]SSHPrivateKey, 0, len(s.privateKeys))
-	for path, key := range s.privateKeys {
+	keys := make([]SSHPrivateKey, 0, len(privateKeysMap))
+	for path, key := range privateKeysMap {
 		keys = append(keys, SSHPrivateKey{
 			Path: path,
 			Key:  key,
@@ -92,17 +109,22 @@ type SSHPrivateKey struct {
 
 // findPrivateKeys walks through all files in a directory and its subdirectories
 // and checks if they are SSH private keys.
-func (s *Scanner) findPrivateKeys(ctx context.Context, root, deviceID string) {
-	logger := s.log.With("dir", root)
+func (s *Scanner) findPrivateKeys(ctx context.Context, root, deviceID string, privateKeysMap map[string]*accessgraphsecretsv1pb.PrivateKey) {
+	logger := s.log.With("root", root)
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(root, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			logger.DebugContext(ctx, "error walking directory", "path", path, "error", err)
+			return fs.SkipDir
 		}
 		if info.IsDir() {
+			if _, ok := s.skippedDirs[path]; ok {
+				logger.DebugContext(ctx, "skipping directory", "path", path)
+				return fs.SkipDir
+			}
 			return nil
 		}
-		switch fileData, isKey, err := readFileIfSSHPrivateKey(path); {
+		switch fileData, isKey, err := s.readFileIfSSHPrivateKey(ctx, path); {
 		case err != nil:
 			logger.DebugContext(ctx, "error reading file", "path", path, "error", err)
 		case isKey:
@@ -110,7 +132,7 @@ func (s *Scanner) findPrivateKeys(ctx context.Context, root, deviceID string) {
 			if err != nil {
 				logger.DebugContext(ctx, "error extracting private key", "path", path, "error", err)
 			} else {
-				s.privateKeys[path] = key
+				privateKeysMap[path] = key
 			}
 		}
 		return nil
@@ -132,15 +154,20 @@ var (
 )
 
 // readFileIfSSHPrivateKey checks if a file is an OpenSSH private key
-func readFileIfSSHPrivateKey(filePath string) ([]byte, bool, error) {
+func (s *Scanner) readFileIfSSHPrivateKey(ctx context.Context, filePath string) ([]byte, bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, false, err
 	}
-	defer file.Close()
+	defer func() {
+		if err = file.Close(); err != nil {
+			s.log.WarnContext(ctx, "failed to close file", "path", filePath, "error", err)
+		}
+	}()
 
-	// read the first 150 bytes of the file to check if it's an OpenSSH private key.
-	var buf [150]byte
+	// read the first bytes of the file to check if it's an OpenSSH private key.
+	// 40 bytes is the maximum length of the header of an OpenSSH private key.
+	var buf [40]byte
 	n, err := file.Read(buf[:])
 	if errors.Is(err, io.EOF) || n < len(buf) {
 		return nil, false, nil
@@ -183,7 +210,8 @@ func extractSSHKey(ctx context.Context, path, deviceID string, fileData []byte) 
 			mode = accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED
 			break
 		}
-		publicKey, mode = parsePublicKeyFromPublicPath(ctx, logger, path)
+		const pubKeyFileSuffix = ".pub"
+		publicKey, mode = tryParsingPublicKeyFromPublicFilePath(ctx, logger, path+pubKeyFileSuffix)
 	case err != nil:
 		return nil, trace.Wrap(err)
 	default:
@@ -206,41 +234,37 @@ func extractSSHKey(ctx context.Context, path, deviceID string, fileData []byte) 
 	return key, trace.Wrap(err)
 }
 
-// parsePublicKeyFromPublicPath tries to read the public key from the public key file if the private key is password protected.
+// tryParsingPublicKeyFromPublicFilePath tries to read the public key from the public key file if the private key is password protected.
 // If the public key file doesn't exist, it will return mode accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED
 // identifying that the private key is password protected and the public key could not be extracted.
-func parsePublicKeyFromPublicPath(ctx context.Context, logger *slog.Logger, path string) (publicKey ssh.PublicKey, mode accessgraphsecretsv1pb.PublicKeyMode) {
-	mode = accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED
-
-	pubPath := path + ".pub"
+func tryParsingPublicKeyFromPublicFilePath(ctx context.Context, logger *slog.Logger, pubPath string) (ssh.PublicKey, accessgraphsecretsv1pb.PublicKeyMode) {
 	logger = logger.With("public_key_file", pubPath)
 	logger.DebugContext(ctx, "PrivateKey is password protected. Fallback to public key file.")
 
-	switch pubData, err := os.ReadFile(pubPath); {
-	case err != nil:
+	pubData, err := os.ReadFile(pubPath)
+	if err != nil {
 		logger.DebugContext(ctx, "Unable to read public key file.", "err", err)
-		return nil, mode
-	default:
-		logger.DebugContext(ctx, "Trying to parse public key as authorized key data.")
-		if pub, _, _, _, err := ssh.ParseAuthorizedKey(pubData); err == nil {
-			publicKey = pub
-			mode = accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE
-			return publicKey, mode
-		} else {
-			logger.DebugContext(ctx, "Unable to parse ssh public key file.", "err", err)
-		}
-
-		logger.DebugContext(ctx, "Trying to parse public key directly.")
-		if pub, err := ssh.ParsePublicKey(pubData); err == nil {
-			publicKey = pub
-			mode = accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE
-			return publicKey, mode
-		} else {
-			logger.DebugContext(ctx, "Unable to parse ssh public key file.", "err", err)
-		}
-
-		return nil, mode
+		return nil, accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED
 	}
+
+	logger.DebugContext(ctx, "Trying to parse public key as authorized key data.")
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(pubData)
+	if err == nil {
+		return pub, accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE
+	}
+	logger.DebugContext(ctx, "Unable to parse ssh public key file.", "err", err)
+
+	logger.DebugContext(ctx, "Trying to parse public key directly.")
+
+	pub, err = ssh.ParsePublicKey(pubData)
+	if err == nil {
+		return pub, accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE
+	}
+
+	logger.DebugContext(ctx, "Unable to parse ssh public key file.", "err", err)
+
+	return nil, accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED
+
 }
 
 func privateKeyNameGen(path, deviceID, fingerprint string) string {
@@ -249,4 +273,20 @@ func privateKeyNameGen(path, deviceID, fingerprint string) string {
 	sha.Write([]byte(deviceID))
 	sha.Write([]byte(fingerprint))
 	return hex.EncodeToString(sha.Sum(nil))
+}
+
+// expandSkipDirs expands the glob patterns in the skipDirs list and returns a set of the
+// directories matched by the glob patterns to be skipped.
+func expandSkipDirs(skipDirs []string) (map[string]struct{}, error) {
+	skippedDirs := make(map[string]struct{})
+	for _, glob := range skipDirs {
+		matches, err := filepath.Glob(glob)
+		if err != nil {
+			return nil, trace.Wrap(err, "glob pattern %q is invalid", glob)
+		}
+		for _, match := range matches {
+			skippedDirs[match] = struct{}{}
+		}
+	}
+	return skippedDirs, nil
 }
