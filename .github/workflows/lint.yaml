@@ -27,12 +27,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run `go mod tidy`
-        run: rm go.sum api/go.sum && go mod tidy && (cd api && go mod tidy)
+      - name: Check for untidy go modules
+        shell: bash
+        run: |
+          find . -path ./e -prune -o -name go.mod -print | while read f; do 
+            echo "checking $f"
+            pushd $(dirname "$f") > /dev/null; 
+            go mod tidy;
+            popd > /dev/null;
+          done
 
-      - name: Check for no changes after `go mod tidy`
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
+          # We have to add the current directory as a safe directory or else git commands will not work as expected.
+          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
 
       - name: Set linter versions
         run: |
