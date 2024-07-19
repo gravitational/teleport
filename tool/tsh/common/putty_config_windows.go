@@ -42,7 +42,6 @@ const puttyRegistrySSHHostCAsKey = puttyRegistryKey + `\SshHostCAs`
 const puttyProtocol = `ssh`
 
 // ints
-const puttyDefaultSSHPort = 3022
 const puttyDefaultProxyPort = 0 // no need to set the proxy port as it's abstracted by `tsh proxy ssh`
 
 // dwords
@@ -86,12 +85,7 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		puttySessionName = fmt.Sprintf(`%v%%20(leaf:%v,proxy:%v)`, hostname, leafClusterName, proxyHostname)
 	}
 	registryKey := fmt.Sprintf(`%v\%v`, puttyRegistrySessionsKey, puttySessionName)
-
-	// if the port passed is 0, this means "use server default" so we override it to 3022
-	if port == 0 {
-		port = puttyDefaultSSHPort
-	}
-
+	
 	sessionDwords := puttyRegistrySessionDwords{
 		Present:        puttyDwordPresent,
 		PortNumber:     port,
