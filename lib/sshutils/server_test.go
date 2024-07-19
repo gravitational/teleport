@@ -206,6 +206,9 @@ func TestHostSignerFIPS(t *testing.T) {
 	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
+	_, ed25519Signer, err := cert.CreateEd25519Certificate("foo", ssh.HostCert)
+	require.NoError(t, err)
+
 	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
 		err := nch.Reject(ssh.Prohibited, "nothing to see here")
 		assert.NoError(t, err)
@@ -216,16 +219,28 @@ func TestHostSignerFIPS(t *testing.T) {
 		inFIPS   bool
 		assert   require.ErrorAssertionFunc
 	}{
-		// ECDSA when in FIPS mode should fail.
+		// Ed25519 when in FIPS mode should fail.
+		{
+			inSigner: ed25519Signer,
+			inFIPS:   true,
+			assert:   require.Error,
+		},
+		// ECDSA when in FIPS mode is okay.
 		{
 			inSigner: ellipticSigner,
 			inFIPS:   true,
-			assert:   require.Error,
+			assert:   require.NoError,
 		},
 		// RSA when in FIPS mode is okay.
 		{
 			inSigner: signer,
 			inFIPS:   true,
+			assert:   require.NoError,
+		},
+		// Ed25519 when in not FIPS mode should succeed.
+		{
+			inSigner: ed25519Signer,
+			inFIPS:   false,
 			assert:   require.NoError,
 		},
 		// ECDSA when in not FIPS mode should succeed.
