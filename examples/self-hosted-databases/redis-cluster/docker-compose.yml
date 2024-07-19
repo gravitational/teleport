@@ -1,0 +1,85 @@
+services:
+  redis-node-0:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    command: ["redis-server", "/opt/redis/redis.conf", "--tls-port", "17000"]
+    ports:
+      - '17000:17000'
+      - '17001:17001'
+      - '17002:17002'
+      - '17003:17003'
+      - '17004:17004'
+      - '17005:17005'
+
+  redis-node-1:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    command: ["redis-server", "/opt/redis/redis.conf", "--tls-port", "17001", "--port", "0"]
+    network_mode: "service:redis-node-0"
+
+  redis-node-2:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    command: ["redis-server", "/opt/redis/redis.conf", "--tls-port", "17002", "--port", "0"]
+    network_mode: "service:redis-node-0"
+
+  redis-node-3:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    command: ["redis-server", "/opt/redis/redis.conf", "--tls-port", "17003", "--port", "0"]
+    network_mode: "service:redis-node-0"
+
+  redis-node-4:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    command: ["redis-server", "/opt/redis/redis.conf", "--tls-port", "17004", "--port", "0"]
+    network_mode: "service:redis-node-0"
+
+  redis-node-5:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    command: ["redis-server", "/opt/redis/redis.conf", "--tls-port", "17005", "--port", "0"]
+    network_mode: "service:redis-node-0"
+
+  redis-cluster:
+    image: redis:7.0
+    volumes:
+      - "./:/opt/redis"
+    network_mode: "service:redis-node-0"
+    command:
+      - "redis-cli"
+      - "--cluster"
+      - "create"
+      - "127.0.0.1:17000"
+      - "127.0.0.1:17001"
+      - "127.0.0.1:17002"
+      - "127.0.0.1:17003"
+      - "127.0.0.1:17004"
+      - "127.0.0.1:17005"
+      - "--cluster-replicas"
+      - "1"
+      - "--cluster-yes"
+      - "--user"
+      - "alice"
+      - "--pass"
+      - "f7ca53a40f56ec7ff6a235d9136431c6104a1769eed13d18a2d68f388325f305"
+      - "--tls"
+      - "--cacert"
+      - "/opt/redis/node.cas"
+      - "--key"
+      - "/opt/redis/node.key"
+      - "--cert"
+      - "/opt/redis/node.crt"
+    depends_on:
+      - redis-node-0
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
