@@ -35,7 +35,7 @@ func ptr[T any](v T) *T {
 }
 
 func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
-	// This test is more for overall behaviour. Use the _field test for
+	// This test is more for overall behavior. Use the _field test for
 	// each individual field.
 	ctx := context.Background()
 	log := utils.NewSlogLoggerForTests()

@@ -170,10 +170,9 @@ func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, contai
 	}
 
 	// Find the cgroup or cgroupv2 mount
-	// TODO(noah): Is it possible for there to be multiple cgroup mounts?
-	// If so, how should we handle.
-	// I imagine with cgroup v1, we get one mount per controller, but all should
-	// be fairly equivelant.
+	// For cgroup v2, we expect a single mount. But for cgroup v1, there will
+	// be one mount per subsystem, but regardless, they will all contain the
+	// same container ID/pod ID.
 	var cgroupMount mount.MountInfo
 	for _, m := range info {
 		if m.FsType == "cgroup" || m.FsType == "cgroup2" {
@@ -194,9 +193,6 @@ func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, contai
 }
 
 var (
-	// TODO: This is a super naive implementation that may only work in my
-	// cluster. This needs revisiting before merging.
-
 	// A container ID is usually a 64 character hex string, so this regex just
 	// selects for that.
 	containerIDRegex = regexp.MustCompile(`(?P<containerID>[[:xdigit:]]{64})`)
@@ -209,8 +205,9 @@ var (
 
 // mountpointSourceToContainerAndPodID takes the source of the cgroup mountpoint
 // and extracts the container ID and pod ID from it.
-// TODO: This is a super naive implementation that may only work in my
-// cluster. This needs revisiting before merging.
+//
+// Note: this is a fairly naive implementation, we may need to make further
+// improvements to account for other distributions of Kubernetes.
 func mountpointSourceToContainerAndPodID(source string) (podID string, containerID string, err error) {
 	// From the mount, we need to extract the container ID and pod ID.
 	// Unfortunately this process can be a little fragile, as the format of
