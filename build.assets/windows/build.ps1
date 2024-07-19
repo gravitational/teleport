@@ -144,7 +144,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        corepack enable yarn
+        corepack enable pnpm
         Write-Host "::endgroup::"
     }
 }
@@ -435,9 +435,9 @@ function Build-Connect {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
-        yarn install --frozen-lockfile
-        yarn build-term
-        yarn package-term "-c.extraMetadata.version=$TeleportVersion"
+        pnpm install --frozen-lockfile
+        pnpm build-term
+        pnpm package-term "-c.extraMetadata.version=$TeleportVersion"
         $BinaryName = "Teleport Connect Setup-$TeleportVersion.exe"
         Invoke-SignBinary -UnsignedBinaryPath "$TeleportSourceDirectory\web\packages\teleterm\build\release\$BinaryName" `
             -SignedBinaryPath "$ArtifactDirectory\$BinaryName"

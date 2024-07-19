@@ -97,6 +97,11 @@ TARBINS = $(addprefix teleport/,$(BINS))
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
+# Check if pnpm is enabled before using it
+CHECK_PNPM := $(shell pnpm --version 2>/dev/null)
+# Check if Corepack is installed before using it
+CHECK_COREPACK := $(shell corepack --version 2>/dev/null)
+
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
@@ -352,7 +357,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
-$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
+$(BUILDDIR)/teleport: ensure-js-package-manager ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
@@ -680,16 +685,16 @@ release-windows: release-windows-unsigned
 # Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
 #
 # Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
-# should be defined for the `yarn package-term` command to succeed. CI sets
+# should be defined for the `pnpm package-term` command to succeed. CI sets
 # this appropriately depending on whether a push build is running, or a
 # proper release (a proper release needs the APP_PATH as that points to
 # the complete signed package). See web/packages/teleterm/README.md for
 # details.
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	yarn install --frozen-lockfile
-	yarn build-term
-	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	pnpm install --frozen-lockfile
+	pnpm build-term
+	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
 	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
@@ -1629,6 +1634,24 @@ ensure-webassets-e:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/teleport/index.html webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
+# Enables the pnpm package manager if building webassets is not skipped,
+# pnpm is not already enabled and Corepack is available.
+# We check if pnpm is enabled, as the user may not have permission to
+# enable it, but it may already be available.
+.PHONY: ensure-js-package-manager
+ensure-js-package-manager:
+ifneq ($(WEBASSETS_SKIP_BUILD),1)
+	@if [ -z "$(CHECK_PNPM)" ]; then \
+		if [ -n "$(CHECK_COREPACK)" ]; then \
+			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm...'; \
+			corepack enable pnpm; \
+		else \
+			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
+			exit 1; \
+		fi \
+	fi
+endif
+
 .PHONY: init-submodules-e
 init-submodules-e:
 	git submodule init e
@@ -1643,15 +1666,15 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else yarn install --ignore-scripts; fi
+	else pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
 docker-ui:
