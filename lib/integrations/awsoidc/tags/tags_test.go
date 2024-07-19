@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package awsoidc
+package tags
 
 import (
 	"testing"
@@ -31,7 +31,7 @@ import (
 func TestDefaultTags(t *testing.T) {
 	clusterName := "mycluster"
 	integrationName := "myawsaccount"
-	d := defaultResourceCreationTags(clusterName, integrationName)
+	d := DefaultResourceCreationTags(clusterName, integrationName)
 
 	expectedTags := AWSTags{
 		"teleport.dev/cluster":     "mycluster",
