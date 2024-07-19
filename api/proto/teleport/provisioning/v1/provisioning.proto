@@ -38,6 +38,7 @@ enum Status {
   STATUS_UNSPECIFIED = 0;
   STATUS_STALE = 1;
   STATUS_PROVISIONED = 2;
+  STATUS_DELETED = 3;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalState
