@@ -26,10 +26,10 @@ type ExternalAuditStorageConfiguration struct {
 	// Region is the AWS Region used.
 	Region string
 	// ClusterName is the Teleport cluster name.
-	// Used for reasource tagging.
+	// Used for resource tagging.
 	ClusterName string
 	// IntegrationName is the Teleport AWS OIDC Integration name.
-	// Used for reasource tagging.
+	// Used for resource tagging.
 	IntegrationName string
 	// Role is the AWS IAM Role associated with the OIDC integration.
 	Role string
