@@ -403,6 +403,9 @@ importers:
       '@grpc/grpc-js':
         specifier: 1.10.10
         version: 1.10.10
+      '@types/which':
+        specifier: ^3.0.4
+        version: 3.0.4
       node-forge:
         specifier: ^1.3.1
         version: 1.3.1
@@ -2760,6 +2763,9 @@ packages:
 
   '@types/whatwg-url@11.0.5':
     resolution: {integrity: sha512-coYR071JRaHa+xoEvvYqvnIHaVqaYrLPbsufM9BF63HkwI5Lgmy2QR8Q5K/lYDYo5AK82wOvSOS0UsLTpTG7uQ==}
+
+  '@types/which@3.0.4':
+    resolution: {integrity: sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w==}
 
   '@types/wicg-file-system-access@2023.10.5':
     resolution: {integrity: sha512-e9kZO9kCdLqT2h9Tw38oGv9UNzBBWaR1MzuAavxPcsV/7FJ3tWbU6RI3uB+yKIDPGLkGVbplS52ub0AcRLvrhA==}
@@ -11662,6 +11668,8 @@ snapshots:
   '@types/whatwg-url@11.0.5':
     dependencies:
       '@types/webidl-conversions': 7.0.1
+
+  '@types/which@3.0.4': {}
 
   '@types/wicg-file-system-access@2023.10.5': {}
 
