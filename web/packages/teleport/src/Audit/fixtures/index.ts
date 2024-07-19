@@ -3234,6 +3234,27 @@ export const events = [
     name: 'discovery-config',
     updated_by: 'joe',
   },
+  {
+    code: 'IG001I',
+    event: 'integration.create',
+    time: '2023-05-09T19:21:36.144Z',
+    name: 'integration',
+    updated_by: 'joe',
+  },
+  {
+    code: 'IG002I',
+    event: 'integration.update',
+    time: '2023-05-09T19:21:37.144Z',
+    name: 'integration',
+    updated_by: 'joe',
+  },
+  {
+    code: 'IG003I',
+    event: 'integration.delete',
+    time: '2023-05-09T19:21:38.144Z',
+    name: 'integration',
+    updated_by: 'joe',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
