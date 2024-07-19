@@ -958,7 +958,13 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
-	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
+	// If the integration is numbers only (eg aws account id)
+	// Eg 123456789012.proxy.example.com:443
+	// The public addr fails to parse with "first path segment in URL cannot contain colon"
+	// See https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
+	// Removing the port, if it is the default for HTTPS, ensures this will work for Cloud and most self-hosted deployments.
+	proxyPublicAddr := strings.TrimSuffix(h.PublicProxyAddr(), ":443")
+	publicAddr := libutils.DefaultAppPublicAddr(integrationName, proxyPublicAddr)
 
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr)
 	if err != nil {
