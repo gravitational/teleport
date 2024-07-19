@@ -35,8 +35,13 @@ services:
               pid: 100
               uid: 1000
               gid: 1234
+            kubernetes: {}
           - unix:
               pid: 100
+            kubernetes: {}
+    attestor:
+      kubernetes:
+        enabled: false
   - type: example
     message: llama
   - type: ssh-multiplexer
