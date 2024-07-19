@@ -17,6 +17,8 @@
 package daemon
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 )
 
@@ -47,3 +49,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+// CheckUnprivilegedProcessInterval denotes how often the admin process should check if the
+// unprivileged process has quit.
+const CheckUnprivilegedProcessInterval = time.Second
