@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev"
+.version: &version "17.0.0-dev.bernard.4"
 
 apiVersion: v2
 name: teleport-plugin-msteams
