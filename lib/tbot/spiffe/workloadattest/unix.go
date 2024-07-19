@@ -31,7 +31,7 @@ func (a UnixAttestation) LogValue() slog.Value {
 	if a.Attested {
 		values = append(values,
 			slog.Int("uid", a.UID),
-			slog.Int("pid", a.UID),
+			slog.Int("pid", a.PID),
 			slog.Int("gid", a.GID),
 		)
 	}
@@ -54,25 +54,51 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (UnixAttestation, er
 		return UnixAttestation{}, trace.Wrap(err, "getting process")
 	}
 
+	att := UnixAttestation{
+		Attested: true,
+		PID:      pid,
+	}
+	// On Linux:
+	// Real, effective, saved, and file system GIDs
+	// On Darwin:
+	// Effective, effective, saved GIDs
 	gids, err := p.Gids()
 	if err != nil {
 		return UnixAttestation{}, trace.Wrap(err, "getting gids")
 	}
+	// We generally want to select the effective GID.
+	switch len(gids) {
+	case 0:
+		// error as none returned
+		return UnixAttestation{}, trace.BadParameter("no gids returned")
+	case 1:
+		// Only one GID - this is unusual but let's take it.
+		att.GID = int(gids[0])
+	default:
+		// Take the index 1 entry as this is effective
+		att.GID = int(gids[1])
+	}
 
+	// On Linux:
+	// Real, effective, saved set, and file system UIDs
+	// On Darwin:
+	// Effective
 	uids, err := p.Uids()
 	if err != nil {
 		return UnixAttestation{}, trace.Wrap(err, "getting uids")
 	}
+	// We generally want to select the effective GID.
+	switch len(uids) {
+	case 0:
+		// error as none returned
+		return UnixAttestation{}, trace.BadParameter("no uids returned")
+	case 1:
+		// Only one UID, we expect this on Darwin to be the Effective UID
+		att.UID = int(uids[0])
+	default:
+		// Take the index 1 entry as this is Effective UID on Linux
+		att.UID = int(uids[1])
+	}
 
-	// TODO: Check lengths ???
-
-	// This attestor is a little special in that we pull
-	return UnixAttestation{
-		Attested: true,
-		PID:      pid,
-		// TODO
-		UID: int(uids[0]),
-		// TODO
-		GID: int(gids[0]),
-	}, nil
+	return att, nil
 }

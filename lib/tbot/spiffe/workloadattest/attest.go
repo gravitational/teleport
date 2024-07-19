@@ -68,7 +68,7 @@ func (c *Config) CheckAndSetDefaults() error {
 func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	att := &Attestor{
 		log:  log,
-		unix: &UnixAttestor{},
+		unix: NewUnixAttestor(),
 	}
 	if cfg.Kubernetes.Enabled {
 		att.kubernetes = NewKubernetesAttestor(cfg.Kubernetes, log)

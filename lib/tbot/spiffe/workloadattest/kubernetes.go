@@ -131,6 +131,8 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 // Attest resolves the Kubernetes pod information from the
 // PID of the workload.
 func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAttestation, error) {
+	a.log.DebugContext(ctx, "Beginning Kubernetes workload attestation", "pid", pid)
+
 	podID, containerID, err := a.getContainerAndPodID(pid)
 	if err != nil {
 		return KubernetesAttestation{}, trace.Wrap(err, "determining pod and container ID")
@@ -143,14 +145,16 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAtt
 	}
 	a.log.DebugContext(ctx, "Found pod", "pod_name", pod.Name)
 
-	return KubernetesAttestation{
+	att := KubernetesAttestation{
 		Attested:       true,
 		Namespace:      pod.Namespace,
 		ServiceAccount: pod.Spec.ServiceAccountName,
 		PodName:        pod.Name,
 		PodUID:         string(pod.UID),
 		Labels:         pod.Labels,
-	}, nil
+	}
+	a.log.DebugContext(ctx, "Completed Kubernetes workload attestation", "attestation", att)
+	return att, nil
 }
 
 // getContainerAndPodID retrieves the container ID and pod ID for the provided
@@ -211,8 +215,7 @@ func mountpointSourceToContainerAndPodID(source string) (podID string, container
 	// From the mount, we need to extract the container ID and pod ID.
 	// Unfortunately this process can be a little fragile, as the format of
 	// the mountpoint varies across Kubernetes implementations.
-	// The format of the mountpoint varies, but can look something like:
-	// /kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod30e5e887_5bea_42fb_a256_ec9d6a76efc7.slice/cri-containerd-22985f2d7e6472530eabf5ed449b0c84899f38f60e778cbee5c1642f1b24cda6.scope
+	// There's a collection of real world mountfiles in testdata/mountfile.
 
 	matches := containerIDRegex.FindStringSubmatch(source)
 	if len(matches) != 2 {
