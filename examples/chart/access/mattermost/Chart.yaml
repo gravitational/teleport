@@ -1,4 +1,4 @@
-.version: &version "16.1.0"
+.version: &version "16.1.0-dev-tross-putty.1"
 
 apiVersion: v2
 name: teleport-plugin-mattermost

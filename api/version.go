@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "16.1.0"
+const Version = "16.1.0-dev-tross-putty.1"
 
 var SemVersion = semver.New(Version)

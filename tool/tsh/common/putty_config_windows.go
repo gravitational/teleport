@@ -85,7 +85,7 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		puttySessionName = fmt.Sprintf(`%v%%20(leaf:%v,proxy:%v)`, hostname, leafClusterName, proxyHostname)
 	}
 	registryKey := fmt.Sprintf(`%v\%v`, puttyRegistrySessionsKey, puttySessionName)
-	
+
 	sessionDwords := puttyRegistrySessionDwords{
 		Present:        puttyDwordPresent,
 		PortNumber:     port,
