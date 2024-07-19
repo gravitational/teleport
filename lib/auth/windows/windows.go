@@ -318,7 +318,7 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	// Setting otherName SAN according to
 	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
 	//
-	// othernName SAN is needed to pass the UPN of the user, per
+	// otherName SAN is needed to pass the UPN of the user, per
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	ext := pkix.Extension{Id: SubjectAltNameExtensionOID}
 	var err error

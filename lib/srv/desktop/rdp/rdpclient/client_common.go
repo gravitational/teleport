@@ -34,8 +34,7 @@ import (
 type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
-	// Domain is the domain you're connecting to, "" for non-AD
-	Domain string
+
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 	CertTTL          time.Duration
@@ -74,6 +73,9 @@ type Config struct {
 
 	// KDCAddr is address of Key Distribution Center
 	KDCAddr string
+
+	// AD determines if the desktop is part of Active Domain
+	AD bool
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.

@@ -167,6 +167,7 @@ impl TeleportRdpdrBackend {
 }
 
 /// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TeleportRdpdrBackendError(pub String);
 

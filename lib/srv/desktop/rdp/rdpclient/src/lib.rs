@@ -91,13 +91,6 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
-    let domain = from_c_string(params.go_domain);
-    let domain = if domain.is_empty() {
-        None
-    } else {
-        Some(domain)
-    };
-
     let kdc = from_c_string(params.go_kdc_addr);
     let kdc = if kdc.is_empty() { None } else { Some(kdc) };
 
@@ -111,8 +104,8 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     match Client::run(
         cgo_handle,
         ConnectParams {
+            ad: params.ad,
             addr,
-            domain,
             computer_name,
             cert_der,
             key_der,
@@ -472,6 +465,7 @@ pub unsafe extern "C" fn client_write_screen_resize(
 
 #[repr(C)]
 pub struct CGOConnectParams {
+    ad: bool,
     go_addr: *const c_char,
     go_domain: *const c_char,
     go_kdc_addr: *const c_char,

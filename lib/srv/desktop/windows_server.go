@@ -867,14 +867,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		computerName = strings.Split(desktop.GetAddr(), ":")[0]
 	}
 
-	domain := ""
-	if !desktop.NonAD() {
-		domain = s.cfg.PKIDomain
-		if domain == "" {
-			domain = s.cfg.LDAPConfig.Domain
-		}
-	}
-
 	kdcAddr := s.cfg.KDCAddr
 	if kdcAddr == "" {
 		kdcAddr = strings.Split(s.cfg.LDAPConfig.Addr, ":")[0]
@@ -888,7 +880,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  addr.String(),
-		Domain:                domain,
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
 		Conn:                  tdpConn,
@@ -898,8 +889,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 		Width:                 width,
 		Height:                height,
+		AD:                    !desktop.NonAD(),
 	})
-	// before we check the error above, we grab the windows user so that
+	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
 	var windowsUser string
 	if rdpc != nil {

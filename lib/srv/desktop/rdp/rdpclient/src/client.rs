@@ -26,7 +26,7 @@ use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::credssp::KerberosConfig;
-use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize};
+use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize, SmartCardIdentity};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
@@ -48,21 +48,18 @@ use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
-use ironrdp_rdpsnd::Rdpsnd;
+use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
 use ironrdp_session::x224::{self, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
-use log::{debug, info};
-use picky::key::PrivateKey;
-use picky_asn1_x509::Certificate;
+use log::debug;
 use rand::{Rng, SeedableRng};
-use sspi::SmartCardIdentity;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Once};
 use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
@@ -78,6 +75,8 @@ use tokio_boring::HandshakeError;
 use url::Url;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
+static START: Once = Once::new();
 
 /// The "Microsoft::Windows::RDS::DisplayControl" DVC is opened
 /// by the server. Until it does so, we withhold the latest screen
@@ -123,6 +122,12 @@ impl Client {
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
+        START.call_once(||{
+            // we register provider explicitly to avoid panics when both ring and aws_lc
+            // features of rustls are enabled, which happens often in dependencies like tokio-tls
+            // and reqwest
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
         let server_addr = params.addr.clone();
         let server_socket_addr = server_addr
             .to_socket_addrs()?
@@ -185,7 +190,7 @@ impl Client {
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
             .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
+            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend{}))) // required for rdpdr to work
             .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
@@ -1400,32 +1405,22 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             height: params.screen_height,
         },
         enable_tls: true,
-        enable_credssp: params.domain.is_some(),
+        enable_credssp: params.ad,
         credentials: Credentials::SmartCard {
-            config: params.domain.clone().map(|domain| {
-                let certificate: Certificate =
-                    picky_asn1_der::from_bytes(&params.cert_der).unwrap();
-                SmartCardIdentity {
-                    certificate: certificate.clone(),
-                    username: certificate
-                        .tbs_certificate
-                        .subject
-                        .find_common_name()
-                        .map(|name| name.to_utf8_lossy().to_string())
-                        .unwrap_or("".to_string()),
-                    domain,
+            config: if params.ad {
+                Some(SmartCardIdentity {
+                    certificate: params.cert_der.clone(),
                     reader_name: "Teleport".to_string(),
-                    card_name: None,
                     container_name: "".to_string(),
                     csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
-                    pin: Vec::from(pin.clone()).into(),
-                    private_key_file_index: None,
-                    private_key: Some(PrivateKey::from_rsa_der(&params.key_der).unwrap().into()),
-                }
-            }),
+                    private_key: params.key_der.clone(),
+                }.into())
+            } else {
+                None
+            },
             pin,
         },
-        domain: params.domain.clone(),
+        domain: None,
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
         // This determines which Smart Card Redirection dialect we use per
         // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/568e22ee-c9ee-4e87-80c5-54795f667062.
@@ -1462,7 +1457,6 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
 #[derive(Debug)]
 pub struct ConnectParams {
     pub addr: String,
-    pub domain: Option<String>,
     pub kdc_addr: Option<String>,
     pub computer_name: Option<String>,
     pub cert_der: Vec<u8>,
@@ -1472,6 +1466,7 @@ pub struct ConnectParams {
     pub allow_clipboard: bool,
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
+    pub ad: bool,
 }
 
 #[derive(Debug)]

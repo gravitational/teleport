@@ -20,6 +20,8 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::pin::Pin;
 
 use ironrdp_connector::{custom_err, ConnectorResult};
+use ironrdp_connector::sspi::generator::NetworkRequest;
+use ironrdp_connector::sspi::network_client::NetworkProtocol;
 use ironrdp_tokio::AsyncNetworkClient;
 use reqwest::Client;
 use sspi::{Error, ErrorKind};
@@ -34,18 +36,17 @@ pub(crate) struct ReqwestNetworkClient {
 impl AsyncNetworkClient for ReqwestNetworkClient {
     fn send<'a>(
         &'a mut self,
-        request: &'a sspi::generator::NetworkRequest,
+        request: &'a NetworkRequest,
     ) -> Pin<Box<dyn Future<Output = ConnectorResult<Vec<u8>>> + 'a>> {
         Box::pin(async move {
             match &request.protocol {
-                sspi::network_client::NetworkProtocol::Tcp => {
+                NetworkProtocol::Tcp => {
                     self.send_tcp(&request.url, &request.data).await
                 }
-                sspi::network_client::NetworkProtocol::Udp => {
+                NetworkProtocol::Udp => {
                     self.send_udp(&request.url, &request.data).await
                 }
-                sspi::network_client::NetworkProtocol::Http
-                | sspi::network_client::NetworkProtocol::Https => {
+                NetworkProtocol::Http | NetworkProtocol::Https => {
                     self.send_http(&request.url, &request.data).await
                 }
             }
