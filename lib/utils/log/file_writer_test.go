@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -97,12 +98,12 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	logFileName := filepath.Join(logDir, "test.log")
 
 	// Initiate the first file shared writer and set it to output.
-	var firstWatcherTriggered bool
+	var firstWatcherTriggered atomic.Bool
 	firstLogWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	err = firstLogWriter.runWatcherFunc(context.Background(), func() error {
-		firstWatcherTriggered = true
+		firstWatcherTriggered.Store(true)
 		return nil
 	})
 	require.NoError(t, err, "failed to run reopen watcher")
@@ -126,8 +127,10 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	require.NoError(t, err, "failed to run reopen watcher")
 
 	// Overriding second file shared writer to free resources of the first one
-	// and trigger finalizing logic.
+	// and trigger finalizing logic. We have to run GC twice to ensure that
+	// it was executed for the firstLogWriter.
 	output = secondLogWriter
+	runtime.GC()
 	runtime.GC()
 
 	// Move the original file to a new location to simulate the logrotate operation.
@@ -141,7 +144,7 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	}
 
 	// Check that if we set new global file shared writer we close first one.
-	require.False(t, firstWatcherTriggered)
+	require.False(t, firstWatcherTriggered.Load())
 
 	// Check that we receive the error if we are going to try to run watcher
 	// again for closed one.
