@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -79,18 +80,39 @@ type TestCAConfig struct {
 // Keep this function in-sync with lib/auth/auth.go:newKeySet().
 // TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	// ECDSA signatures are ~10x faster than RSA.
-	keyPEM := fixtures.PEMBytes["ecdsa"]
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
 	if config.Type == types.DatabaseClientCA {
+		// Always use pre-generated RSA key for the db_client CA.
 		keyPEM = fixtures.PEMBytes["rsa-db-client"]
 	}
 	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
 		keyPEM = config.PrivateKeys[0]
 	}
-
-	key, err := keys.ParsePrivateKey(keyPEM)
-	if err != nil {
-		panic(err)
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this is not the db_client CA,
+		// generate an ECDSA key. Signatures are ~10x faster than RSA and
+		// generating a new key is actually faster than parsing a PEM fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM, err = keys.MarshalPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer, keyPEM)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	ca := &types.CertAuthorityV2{
