@@ -391,9 +391,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	defer caWatcher.Close()
 
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID:                    node.ID(),
-		Listener:              revTunListener,
-		ClientTLS:             s.proxyClient.TLSConfig(),
+		ID:       node.ID(),
+		Listener: revTunListener,
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &s.proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ClusterName:           s.server.ClusterName(),
 		GetHostSigners:        sshutils.StaticHostSigners(signer),
 		LocalAuthClient:       s.proxyClient,
@@ -468,6 +470,8 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	dns := []string{"localhost", "127.0.0.1"}
 	proxyIdentity, err := auth.LocalRegister(authID, s.server.Auth(), nil, dns, "", nil)
 	require.NoError(t, err)
+	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
+	require.NoError(t, err)
 
 	handlerConfig := Config{
 		ClusterFeatures:                 features,
@@ -488,12 +492,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 			return ctx, trace.Wrap(err)
 		}),
-		Router:                  router,
-		HealthCheckAppServer:    cfg.HealthCheckAppServer,
-		UI:                      cfg.uiConfig,
-		PresenceChecker:         cfg.presenceChecker,
-		GetProxyClientTLSConfig: proxyIdentity.TLSConfig,
-		IntegrationAppHandler:   &mockIntegrationAppHandler{},
+		Router:               router,
+		HealthCheckAppServer: cfg.HealthCheckAppServer,
+		UI:                   cfg.uiConfig,
+		PresenceChecker:      cfg.presenceChecker,
+		GetProxyClientCertificate: func() (*tls.Certificate, error) {
+			return &proxyClientCert, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -7994,9 +8000,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(proxyNodeWatcher.Close)
 
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID:                    node.ID(),
-		Listener:              revTunListener,
-		ClientTLS:             authClient.TLSConfig(),
+		ID:       node.ID(),
+		Listener: revTunListener,
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &authClient.TLSConfig().Certificates[0], nil
+		},
 		ClusterName:           authServer.ClusterName(),
 		GetHostSigners:        sshutils.StaticHostSigners(hostSigners...),
 		LocalAuthClient:       client,
@@ -8162,6 +8170,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	dns := []string{"localhost", "127.0.0.1"}
 	proxyIdentity, err := auth.LocalRegister(authID, authServer.Auth(), nil, dns, "", nil)
 	require.NoError(t, err)
+	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
+	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -8183,8 +8193,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
-		GetProxyClientTLSConfig:        proxyIdentity.TLSConfig,
-		IntegrationAppHandler:          &mockIntegrationAppHandler{},
+		GetProxyClientCertificate: func() (*tls.Certificate, error) {
+			return &proxyClientCert, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -8913,8 +8925,15 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			ConnTLSConfig: tlsConfig,
-			Clock:         clockwork.NewRealClock(),
+
+			GetConnTLSCertificate: func() (*tls.Certificate, error) {
+				return &tlsConfig.Certificates[0], nil
+			},
+			GetConnTLSRoots: func() (*x509.CertPool, error) {
+				return tlsConfig.RootCAs, nil
+			},
+
+			Clock: clockwork.NewRealClock(),
 			ClusterFeatures: func() authproto.Features {
 				return authproto.Features{
 					Entitlements: map[string]*authproto.EntitlementInfo{
@@ -8923,7 +8942,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 				}
 			},
 		},
-		TLS:           tlsConfig,
+		TLS:           tlsConfig.Clone(),
 		AccessPoint:   client,
 		DynamicLabels: nil,
 		LimiterConfig: limiter.Config{
