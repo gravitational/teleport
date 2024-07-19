@@ -32,9 +32,11 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	eastypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -50,9 +52,13 @@ type BootstrapInfraParams struct {
 	Athena BootstrapAthenaClient
 	Glue   BootstrapGlueClient
 	S3     BootstrapS3Client
+	STS    BootstrapSTSClient
 
 	Spec   *eastypes.ExternalAuditStorageSpec
 	Region string
+
+	ClusterName     string
+	IntegrationName string
 }
 
 // BootstrapAthenaClient is a subset of [athena.Client] methods needed for athena bootstrap.
@@ -67,6 +73,8 @@ type BootstrapGlueClient interface {
 	CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error)
 	// Creates a new table definition in the Data Catalog.
 	CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error)
+	// TagResource adds tags to resources.
+	TagResource(ctx context.Context, params *glue.TagResourceInput, optFns ...func(*glue.Options)) (*glue.TagResourceOutput, error)
 	// Updates a metadata table in the Data Catalog.
 	UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error)
 }
@@ -81,6 +89,14 @@ type BootstrapS3Client interface {
 	PutBucketVersioning(ctx context.Context, params *s3.PutBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.PutBucketVersioningOutput, error)
 	// Creates a new lifecycle configuration for the bucket or replaces an existing lifecycle configuration.
 	PutBucketLifecycleConfiguration(ctx context.Context, params *s3.PutBucketLifecycleConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutBucketLifecycleConfigurationOutput, error)
+	// Adds tags to a bucket.
+	PutBucketTagging(ctx context.Context, params *s3.PutBucketTaggingInput, optFns ...func(*s3.Options)) (*s3.PutBucketTaggingOutput, error)
+}
+
+// BootstrapSTSClient is a subset of [sts.Client] methods needed to bootstrap the storage.
+type BootstrapSTSClient interface {
+	// GetCallerIdentity returns the identity of the currently configured client.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
 // BootstrapInfra bootstraps External Audit Storage infrastructure.
@@ -96,8 +112,14 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 		return trace.BadParameter("param Glue required")
 	case params.S3 == nil:
 		return trace.BadParameter("param S3 required")
+	case params.STS == nil:
+		return trace.BadParameter("param STS required")
 	case params.Region == "":
 		return trace.BadParameter("param Region required")
+	case params.ClusterName == "":
+		return trace.BadParameter("param Cluster Name required")
+	case params.IntegrationName == "":
+		return trace.BadParameter("param Integration Name required")
 	case params.Spec == nil:
 		return trace.BadParameter("param Spec required")
 	}
@@ -107,19 +129,29 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 		return trace.Wrap(err)
 	}
 
-	if err := createLTSBucket(ctx, params.S3, ltsBucket, params.Region); err != nil {
+	callerIdentity, err := params.STS.GetCallerIdentity(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accountID := aws.ToString(callerIdentity.Account)
+
+	ownershipTags := tags.DefaultResourceCreationTags(params.ClusterName, params.IntegrationName)
+
+	s3OwnershipTags := ownershipTags.ToS3Tags()
+	if err := createLTSBucket(ctx, params.S3, ltsBucket, params.Region, s3OwnershipTags); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := createTransientBucket(ctx, params.S3, transientBucket, params.Region); err != nil {
+	if err := createTransientBucket(ctx, params.S3, transientBucket, params.Region, s3OwnershipTags); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := createAthenaWorkgroup(ctx, params.Athena, params.Spec.AthenaWorkgroup); err != nil {
+	athenaOwnershipTags := ownershipTags.ToAthenaTags()
+	if err := createAthenaWorkgroup(ctx, params.Athena, params.Spec.AthenaWorkgroup, athenaOwnershipTags); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := createGlueInfra(ctx, params.Glue, params.Spec.GlueTable, params.Spec.GlueDatabase, ltsBucket); err != nil {
+	if err := createGlueInfra(ctx, params.Glue, accountID, params.Region, params.Spec.GlueTable, params.Spec.GlueDatabase, ltsBucket, ownershipTags.ToMap()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -132,9 +164,9 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 // * Object locking enabled with Governance mode and default retention of 4 years
 // * Object ownership set to BucketOwnerEnforced
 // * Default SSE-S3 encryption
-func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string) error {
+func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, ownershipTags []s3types.Tag) error {
 	fmt.Printf("Creating long term storage S3 bucket %s\n", bucketName)
-	err := createBucket(ctx, clt, bucketName, region, true)
+	err := createBucket(ctx, clt, bucketName, region, true, ownershipTags)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return trace.Wrap(err, "creating long term storage S3 bucket")
 	}
@@ -160,9 +192,9 @@ func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName stri
 // policy is created that cleans up transient storage:
 // * Query results expire after 1 day
 // * DeleteMarkers, NonCurrentVersions and IncompleteMultipartUploads are also removed
-func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string) error {
+func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, ownershipTags []s3types.Tag) error {
 	fmt.Printf("Creating transient storage S3 bucket %s\n", bucketName)
-	err := createBucket(ctx, clt, bucketName, region, false)
+	err := createBucket(ctx, clt, bucketName, region, false, ownershipTags)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return trace.Wrap(err, "creating transient S3 bucket")
 	}
@@ -202,7 +234,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting lifecycle configuration on S3 bucket")
 }
 
-func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool) error {
+func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool, ownershipTags []s3types.Tag) error {
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket:                     &bucketName,
 		CreateBucketConfiguration:  awsutil.CreateBucketConfiguration(region),
@@ -211,6 +243,13 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		ObjectOwnership:            s3types.ObjectOwnershipBucketOwnerEnforced,
 	})
 	if err != nil {
+		return trace.Wrap(awsutil.ConvertS3Error(err))
+	}
+
+	if _, err := clt.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
+		Bucket:  &bucketName,
+		Tagging: &s3types.Tagging{TagSet: ownershipTags},
+	}); err != nil {
 		return trace.Wrap(awsutil.ConvertS3Error(err))
 	}
 
@@ -224,11 +263,12 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 }
 
 // createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.
-func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workgroup string) error {
+func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workgroup string, ownershipTags []athenatypes.Tag) error {
 	fmt.Printf("Creating Athena workgroup %s\n", workgroup)
 	_, err := clt.CreateWorkGroup(ctx, &athena.CreateWorkGroupInput{
 		Name:          &workgroup,
 		Configuration: &athenatypes.WorkGroupConfiguration{},
+		Tags:          ownershipTags,
 	})
 	if err != nil && !strings.Contains(err.Error(), "is already created") {
 		return trace.Wrap(err, "creating Athena workgroup")
@@ -243,7 +283,7 @@ func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workg
 // * CreateDatabase
 // * CreateTable
 // * UpdateTable
-func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, database, eventBucket string) error {
+func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, accountID, region, table, database, eventBucket string, ownershipTags map[string]string) error {
 	fmt.Printf("Creating Glue database %s\n", database)
 	_, err := clt.CreateDatabase(ctx, &glue.CreateDatabaseInput{
 		DatabaseInput: &gluetypes.DatabaseInput{
@@ -251,11 +291,24 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 			Description: aws.String(glueDatabaseDescription),
 		},
 	})
-	if err != nil {
-		var aee *gluetypes.AlreadyExistsException
-		if !errors.As(err, &aee) {
-			return trace.Wrap(err, "creating Glue database")
+
+	var aee *gluetypes.AlreadyExistsException
+	switch {
+	case err == nil:
+		// Tag created resource.
+		// Only Glue databases can be tagged. Glue tables do not have tags.
+		// https://docs.aws.amazon.com/glue/latest/dg/monitor-tags.html
+		databaseARN := glueDatabaseARN(region, accountID, database)
+		if _, err := clt.TagResource(ctx, &glue.TagResourceInput{
+			ResourceArn: aws.String(databaseARN),
+			TagsToAdd:   ownershipTags,
+		}); err != nil {
+			return trace.Wrap(err, "adding tags %+v to Glue Database %q", ownershipTags, databaseARN)
 		}
+	case errors.As(err, &aee):
+		// Re-using the existing table.
+	default:
+		return trace.Wrap(err, "creating Glue database")
 	}
 
 	// Currently matches table input as specified in:
@@ -283,6 +336,14 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 	}
 
 	return nil
+}
+
+// glueDatabaseARN returns the ARN for a Glue Database
+// Taken from here: https://docs.aws.amazon.com/glue/latest/dg/glue-specifying-resource-arns.html
+// Format: arn:aws:glue:<region>:<account-id>:database/<database>
+// For example: arn:aws:glue:us-east-1:123456789012:database/db1
+func glueDatabaseARN(region, accountID, database string) string {
+	return fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", region, accountID, database)
 }
 
 // validateAndParseS3Input parses and checks s3 input uris against our strict rules.
