@@ -83,8 +83,13 @@ export class PtyEventsStreamHandler {
         )
       );
     });
-    this.ptyProcess.start(event.getColumns(), event.getRows());
-    this.logger.info(`stream has started`);
+    // PtyProcess.prototype.start always returns a fulfilled promise. If an error is caught during
+    // start, it's reported through PtyProcess.prototype.onStartError. Similarly, the information
+    // about a successful start is also conveyed through an emitted event rather than the method
+    // returning with no error. Hence why we can ignore what this promise returns.
+    void this.ptyProcess.start(event.getColumns(), event.getRows()).then(() => {
+      this.logger.info(`stream has started`);
+    });
   }
 
   private handleDataEvent(event: PtyEventData): void {
