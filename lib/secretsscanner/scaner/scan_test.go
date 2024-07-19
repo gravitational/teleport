@@ -29,11 +29,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	cryptosshtestdata "golang.org/x/crypto/ssh/testdata"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	"github.com/gravitational/teleport/api/types/accessgraph"
+	scantestdata "github.com/gravitational/teleport/lib/secretsscanner/scaner/testdata"
 )
 
 var (
@@ -97,7 +97,7 @@ func writeEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Priv
 	t.Helper()
 	var expectedKeys []*accessgraphsecretsv1pb.PrivateKey
 	// Write encrypted keys to the directory.
-	for _, key := range cryptosshtestdata.PEMEncryptedKeys {
+	for _, key := range scantestdata.PEMEncryptedKeys {
 		err := os.Mkdir(filepath.Join(dir, key.Name), 0o777)
 		require.NoError(t, err)
 
@@ -141,7 +141,7 @@ func writeUnEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Pr
 	t.Helper()
 	var expectedKeys []*accessgraphsecretsv1pb.PrivateKey
 
-	for name, key := range cryptosshtestdata.PEMBytes {
+	for name, key := range scantestdata.PEMBytes {
 		err := os.Mkdir(filepath.Join(dir, name), 0o777)
 		require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func writeEncryptedKeyWithoutPubFile(t *testing.T, dir string) []*accessgraphsec
 	t.Helper()
 
 	// Write encrypted keys to the directory.
-	rawKey := cryptosshtestdata.PEMEncryptedKeys[0]
+	rawKey := scantestdata.PEMEncryptedKeys[0]
 	err := os.Mkdir(filepath.Join(dir, rawKey.Name), 0o777)
 	require.NoError(t, err)
 
@@ -199,19 +199,14 @@ func writeInvalidKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Privat
 	t.Helper()
 
 	// Write invalid keys to the directory.
-	err := os.WriteFile(filepath.Join(dir, "file-with-short-size"), []byte("invalid-key"), 0o644)
-	require.NoError(t, err)
+	for path, keyBytes := range scantestdata.InvalidKeysBytes {
+		err := os.Mkdir(filepath.Join(dir, path), 0o777)
+		require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(dir, "invalid-key-valid-headers"), []byte(
-		`-----BEGIN OPENSSH PRIVATE KEY-----\n
-trash\n
------END OPENSSH PRIVATE KEY-----\n`), 0o644)
-	require.NoError(t, err)
-
-	err = os.WriteFile(filepath.Join(dir, "invalid-key-invalid-header"), []byte(
-		`abcefg-----BEGIN OPENSSH PRIVATE KEY-----\n
------END OPENSSH PRIVATE KEY-----\n`), 0o644)
-	require.NoError(t, err)
+		filePath := filepath.Join(dir, path, path)
+		err = os.WriteFile(filePath, keyBytes, 0o666)
+		require.NoError(t, err)
+	}
 
 	return nil
 }
