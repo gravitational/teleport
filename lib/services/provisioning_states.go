@@ -24,16 +24,18 @@ import (
 
 type PageToken string
 
+type ProvisioningStateID string
+
 const (
 	EndOfList PageToken = ""
 )
 
 type ProvisioningStates interface {
-	GetProvisioningState(context.Context, string) (*provisioningv1.PrincipalState, error)
+	GetProvisioningState(context.Context, ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 	ListProvisioningStates(context.Context, PageToken) ([]*provisioningv1.PrincipalState, PageToken, error)
 	CreateProvisioningState(context.Context, *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error)
 	UpdateProvisioningState(context.Context, *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error)
-	DeleteProvisioningState(context.Context, string) error
+	DeleteProvisioningState(context.Context, ProvisioningStateID) error
 	DeleteAllProvisioningStates(context.Context) error
 }
 

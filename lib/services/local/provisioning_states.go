@@ -73,8 +73,8 @@ func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context,
 	return updatedState, nil
 }
 
-func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, name string) (*provisioningv1.PrincipalState, error) {
-	state, err := ss.service.GetResource(ctx, name)
+func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, name services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
+	state, err := ss.service.GetResource(ctx, string(name))
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching user provisioning state")
 	}
@@ -89,8 +89,8 @@ func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, 
 	return resp, services.PageToken(nextPage), nil
 }
 
-func (ss *ProvisioningStateService) DeleteProvisioningState(ctx context.Context, name string) error {
-	return trace.Wrap(ss.service.DeleteResource(ctx, name))
+func (ss *ProvisioningStateService) DeleteProvisioningState(ctx context.Context, name services.ProvisioningStateID) error {
+	return trace.Wrap(ss.service.DeleteResource(ctx, string(name)))
 }
 
 func (ss *ProvisioningStateService) DeleteAllProvisioningStates(ctx context.Context) error {

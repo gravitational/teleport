@@ -26,7 +26,7 @@ import (
 )
 
 type provisioningStateGetter interface {
-	GetProvisioningState(context.Context, string) (*provisioningv1.PrincipalState, error)
+	GetProvisioningState(context.Context, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 	ListProvisioningStates(context.Context, services.PageToken) ([]*provisioningv1.PrincipalState, services.PageToken, error)
 }
 
@@ -70,7 +70,8 @@ func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resou
 }
 
 func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.provisioningStatesCache.DeleteProvisioningState(ctx, resource.GetName()))
+	return trace.Wrap(cache.provisioningStatesCache.DeleteProvisioningState(ctx,
+		services.ProvisioningStateID(resource.GetName())))
 }
 
 func (provisioningStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
