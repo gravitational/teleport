@@ -1,4 +1,4 @@
-.version: &version "15.4.9"
+.version: &version "15.4.9-cloud.1.igs"
 
 name: teleport-operator
 apiVersion: v2
