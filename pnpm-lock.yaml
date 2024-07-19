@@ -42,10 +42,10 @@ importers:
         version: 2.9.4
       '@stripe/react-stripe-js':
         specifier: ^1.16.5
-        version: 1.16.5(@stripe/stripe-js@1.52.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.16.5(@stripe/stripe-js@1.54.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@stripe/stripe-js':
-        specifier: ^1.48.0
-        version: 1.52.1
+        specifier: ^1.54.2
+        version: 1.54.2
       '@uiw/codemirror-themes':
         specifier: ^4.22.2
         version: 4.22.2(@codemirror/language@6.9.2)(@codemirror/state@6.2.1)(@codemirror/view@6.19.0)
@@ -2341,8 +2341,8 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
 
-  '@stripe/stripe-js@1.52.1':
-    resolution: {integrity: sha512-fza40OPSpGQlFxc5TZWiYC/6Lk89Sep1fLuv9ss33YS6lCAF8UZbfA1E6W+lwO4c7WRKZIZumHIEbPJfP/O9uw==}
+  '@stripe/stripe-js@1.54.2':
+    resolution: {integrity: sha512-R1PwtDvUfs99cAjfuQ/WpwJ3c92+DAMy9xGApjqlWQMj0FKQabUAys2swfTRNzuYAYJh7NqK2dzcYVNkKLEKUg==}
 
   '@styled-system/background@5.1.2':
     resolution: {integrity: sha512-jtwH2C/U6ssuGSvwTN3ri/IyjdHb8W9X/g8Y0JLcrH02G+BW3OS8kZdHphF1/YyRklnrKrBT2ngwGUK6aqqV3A==}
@@ -11227,14 +11227,14 @@ snapshots:
       regenerator-runtime: 0.13.9
       resolve-from: 5.0.0
 
-  '@stripe/react-stripe-js@1.16.5(@stripe/stripe-js@1.52.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@stripe/react-stripe-js@1.16.5(@stripe/stripe-js@1.54.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@stripe/stripe-js': 1.52.1
+      '@stripe/stripe-js': 1.54.2
       prop-types: 15.8.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@stripe/stripe-js@1.52.1': {}
+  '@stripe/stripe-js@1.54.2': {}
 
   '@styled-system/background@5.1.2':
     dependencies:
