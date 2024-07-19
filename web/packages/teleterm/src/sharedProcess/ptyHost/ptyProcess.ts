@@ -30,6 +30,8 @@ import { PtyProcessOptions, IPtyProcess } from './types';
 
 type Status = 'open' | 'not_initialized' | 'terminated';
 
+const pathEnvVar = process.platform === 'win32' ? 'Path' : 'PATH';
+
 export class PtyProcess extends EventEmitter implements IPtyProcess {
   private _buffered = true;
   private _attachedBufferTimer;
@@ -62,7 +64,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       // TODO(ravicious): Remove the manual check for the existence of the executable after node-pty
       // makes its behavior consistent across platforms.
       // https://github.com/microsoft/node-pty/issues/689
-      await which(this.options.path);
+      await which(this.options.path, { path: this.options.env[pathEnvVar] });
 
       // TODO(ravicious): Set argv0 when node-pty adds support for it.
       // https://github.com/microsoft/node-pty/issues/472
