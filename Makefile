@@ -1640,13 +1640,17 @@ ensure-webassets-e:
 # pnpm is not already enabled and Corepack is available.
 # We check if pnpm is enabled, as the user may not have permission to
 # enable it, but it may already be available.
+# Enabling it merely installs a shim which then needs to be downloaded before first use.
+# Corepack typically prompts before downloading a package manager. We work around that
+# by issuing a bogus pnpm call with an env var that skips the prompt.
 .PHONY: ensure-js-package-manager
 ensure-js-package-manager:
 ifneq ($(WEBASSETS_SKIP_BUILD),1)
 	@if [ -z "$(CHECK_PNPM)" ]; then \
 		if [ -n "$(CHECK_COREPACK)" ]; then \
-			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm...'; \
+			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
 			corepack enable pnpm; \
+			COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v; \
 		else \
 			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
 			exit 1; \

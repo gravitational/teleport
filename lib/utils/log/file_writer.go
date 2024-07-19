@@ -61,6 +61,7 @@ func NewFileSharedWriter(logFileName string, flag int, mode fs.FileMode) (*FileS
 	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
+		_ = logFile.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -78,7 +79,7 @@ func (s *FileSharedWriter) Write(b []byte) (int, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.closed {
-		return 0, ErrFileSharedWriterClosed
+		return 0, trace.Wrap(ErrFileSharedWriterClosed)
 	}
 
 	return s.file.Write(b)
