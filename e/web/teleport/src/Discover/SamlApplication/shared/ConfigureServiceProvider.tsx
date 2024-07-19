@@ -137,7 +137,7 @@ export function ConfigureServiceProvider({
       if (!samlMeta.samlGcpWorkforce) {
         return;
       }
-      if (samlMeta.samlGcpWorkforce.isAutoConfig) {
+      if (samlMeta.samlGcpWorkforce.isAutoConfig && !isUpdateFlow) {
         const entityIdAndAcsUrl = genEntityIDAndAcsUrlForGcpWorkforce(
           samlMeta.samlGcpWorkforce.poolName,
           samlMeta.samlGcpWorkforce.poolProviderName
@@ -225,7 +225,9 @@ export function AddMetadataGeneric({
         return;
       }
       if (samlMeta.samlGcpWorkforce?.isAutoConfig) {
-        setDisabled(true);
+        if (!isUpdateFlow) {
+          setDisabled(true);
+        }
         setSPConfig({
           ...spConfig,
           name: samlMeta.samlGcpWorkforce?.poolProviderName,

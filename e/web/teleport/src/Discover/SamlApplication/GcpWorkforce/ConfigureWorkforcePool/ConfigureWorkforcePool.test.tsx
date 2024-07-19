@@ -20,6 +20,7 @@ import {
   ConfigurePool,
   isValidGCPResourceName,
   isValidGcpOrgID,
+  defaultSamlMetaForGcpWorkforce,
 } from './ConfigureWorkforcePool';
 
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
@@ -31,14 +32,7 @@ describe('Configure GCP workforce pool', () => {
     const discoverCtx: DiscoverContextState = {
       nextStep: () => null,
       prevStep: () => null,
-      agentMeta: {
-        samlGcpWorkforce: {
-          isAutoConfig: true,
-          orgId: '',
-          poolName: '',
-          poolProviderName: '',
-        },
-      },
+      agentMeta: defaultSamlMetaForGcpWorkforce,
       updateAgentMeta: AgentMeta => AgentMeta,
       resourceSpec: {
         samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
@@ -69,7 +63,7 @@ describe('Configure GCP workforce pool', () => {
     );
   };
 
-  test('Toggle on and off enables and disales auto config flow', async () => {
+  test('Toggle on and off enables and disables auto config flow', async () => {
     const mockFetchMetadata = jest.fn().mockResolvedValue({
       entityID: '',
       ssoURL: '',
@@ -79,13 +73,8 @@ describe('Configure GCP workforce pool', () => {
     render(
       <Provider>
         <ConfigurePool
-          agentMeta={{}}
+          agentMeta={defaultSamlMetaForGcpWorkforce}
           updateAgentMeta={jest.fn()}
-          resourceSpec={
-            {
-              samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
-            } as ResourceSpec
-          }
           prevStep={() => null}
           fetchMetadata={mockFetchMetadata}
           nextStep={() => null}
@@ -111,10 +100,6 @@ describe('Configure GCP workforce pool', () => {
         screen.getByText('Guided configuration flow is disabled.')
       ).toBeInTheDocument();
     });
-
-    expect(
-      screen.getByText('Guided configuration flow is disabled.')
-    ).toBeInTheDocument();
 
     expect(screen.getByText('Teleport IdP Metadata')).toBeInTheDocument();
   });

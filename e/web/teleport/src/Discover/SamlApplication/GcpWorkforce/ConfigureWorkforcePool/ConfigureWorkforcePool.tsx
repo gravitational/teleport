@@ -33,26 +33,22 @@ import {
   type SamlMeta,
 } from 'teleport/Discover/useDiscover';
 
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import { ConfigureServiceProvider } from 'e-teleport/Discover/SamlApplication/Generic/DownloadMetadata/DownloadMetadata';
 
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
-
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 
 export function Container() {
-  const {
-    prevStep,
-    nextStep,
-    agentMeta,
-    updateAgentMeta,
-    resourceSpec,
-    isUpdateFlow,
-  } = useDiscover();
-  const gcpWorkforceMeta: Extract<SamlMeta, AgentMeta> = agentMeta;
+  const { prevStep, nextStep, agentMeta, updateAgentMeta, isUpdateFlow } =
+    useDiscover();
+  // value of agentMeta will be defined if user is coming to
+  // this screen from update Discover flow or coming back from the
+  // next screen. But it's value will be undefined if the user is coming
+  // to this screen from the "Enroll New Resource" Discover screen.
+  const samlMeta: SamlMeta = agentMeta
+    ? agentMeta
+    : defaultSamlMetaForGcpWorkforce;
 
   const { idpService } = useTeleportE();
 
@@ -65,19 +61,26 @@ export function Container() {
       prevStep={isUpdateFlow ? null : prevStep}
       nextStep={nextStep}
       fetchMetadata={idpService.getIdPMetadataValues}
-      agentMeta={gcpWorkforceMeta}
+      agentMeta={samlMeta}
       updateAgentMeta={updateAgentMeta}
-      resourceSpec={resourceSpec}
     />
   );
 }
 
+export const defaultSamlMetaForGcpWorkforce: SamlMeta = {
+  samlGcpWorkforce: {
+    isAutoConfig: true,
+    orgId: '',
+    poolName: '',
+    poolProviderName: '',
+  },
+};
+
 export type ConfigurePoolProps = {
   nextStep: () => void;
   prevStep: () => void;
-  resourceSpec: ResourceSpec;
   fetchMetadata: () => Promise<SAMLIdPMetadataResponse>;
-  agentMeta?: SamlMeta;
+  agentMeta: SamlMeta;
   updateAgentMeta?: (meta: AgentMeta) => void;
 };
 
@@ -86,7 +89,6 @@ export function ConfigurePool({
   nextStep,
   agentMeta,
   updateAgentMeta,
-  resourceSpec,
   fetchMetadata,
 }: ConfigurePoolProps) {
   const { attempt, setAttempt } = useAttemptNext('processing');
@@ -98,17 +100,8 @@ export function ConfigurePool({
     });
 
   const [autoConfig, setAutoConfig] = useState<boolean>(
-    toggleInitialMode(agentMeta.samlGcpWorkforce?.isAutoConfig)
+    agentMeta?.samlGcpWorkforce?.isAutoConfig
   );
-
-  function toggleInitialMode(configMode: boolean) {
-    if (!configMode) {
-      return (
-        resourceSpec.samlMeta?.preset === SamlServiceProviderPreset.GcpWorkforce
-      );
-    }
-    return configMode;
-  }
 
   useEffect(() => {
     updateAgentMeta({
@@ -242,7 +235,7 @@ export function ScriptGenInput({
               toolTipContent="Obtain organization ID from GCP console."
               autoFocus
               name="orgId"
-              value={agentMeta.samlGcpWorkforce?.orgId || ''}
+              value={agentMeta.samlGcpWorkforce?.orgId}
               placeholder="10xxxxxxxxx44"
               width="500px"
               mr="3"
@@ -258,7 +251,7 @@ export function ScriptGenInput({
               toolTipContent="Pool name you want to configure in GCP. Name must be a unique name
               across GCP and follow GCP resource naming convention."
               name="poolName"
-              value={agentMeta.samlGcpWorkforce?.poolName || ''}
+              value={agentMeta.samlGcpWorkforce?.poolName}
               placeholder="myorg-workforce-dev-pool"
               width="500px"
               mr="3"
@@ -275,7 +268,7 @@ export function ScriptGenInput({
               name across GCP and follow GCP resource naming convention. Pool provider name will also
               be used as a SAML service provider name in the next step."
               name="poolProviderName"
-              value={agentMeta.samlGcpWorkforce?.poolProviderName || ''}
+              value={agentMeta.samlGcpWorkforce?.poolProviderName}
               placeholder="myorg-gcp-dev"
               width="500px"
               mr="3"

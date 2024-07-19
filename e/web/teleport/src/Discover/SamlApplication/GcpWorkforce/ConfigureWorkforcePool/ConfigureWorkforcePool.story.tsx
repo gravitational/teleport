@@ -9,15 +9,11 @@ import {
   SamlMeta,
 } from 'teleport/Discover/useDiscover';
 
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
 import { ContextProvider } from 'teleport';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { ConfigurePool, ConfigurePoolProps } from './ConfigureWorkforcePool';
-
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 
@@ -82,7 +78,5 @@ const props: ConfigurePoolProps = {
   prevStep: () => null,
   fetchMetadata: () => Promise.resolve({} as SAMLIdPMetadataResponse),
   updateAgentMeta: SamlGcpWorkforce => SamlGcpWorkforce,
-  resourceSpec: {
-    samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
-  } as ResourceSpec,
+  agentMeta: {},
 };
