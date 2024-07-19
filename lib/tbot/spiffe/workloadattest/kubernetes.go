@@ -319,12 +319,14 @@ func (c KubeletClientConfig) CheckAndSetDefaults() error {
 
 // kubeletClient is a HTTP client for the Kubelet API
 type kubeletClient struct {
-	cfg KubeletClientConfig
+	cfg    KubeletClientConfig
+	getEnv func(string) string
 }
 
 func newKubeletClient(cfg KubeletClientConfig) *kubeletClient {
 	return &kubeletClient{
-		cfg: cfg,
+		cfg:    cfg,
+		getEnv: os.Getenv,
 	}
 }
 
@@ -335,7 +337,7 @@ func (f roundTripperFn) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (c *kubeletClient) httpClient() (url.URL, *http.Client, error) {
-	host := os.Getenv(nodeNameEnv)
+	host := c.getEnv(nodeNameEnv)
 
 	if c.cfg.ReadOnlyPort != 0 {
 		return url.URL{

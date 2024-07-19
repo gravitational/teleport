@@ -19,12 +19,21 @@
 package workloadattest
 
 import (
+	"context"
+	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -76,4 +85,92 @@ func TestKubernetesAttestor_getContainerAndPodID(t *testing.T) {
 			assert.Equal(t, tt.wantContainerID, gotContainerID)
 		})
 	}
+}
+
+func TestKubernetesAttestor_Attest(t *testing.T) {
+	t.Parallel()
+	log := utils.NewSlogLoggerForTests()
+	ctx := context.Background()
+
+	mockToken := "FOOBARBUZZ"
+	mockPID := 1234
+	// Value from k8s-real-gcp-v1.29.5-gke.1091002
+	mockPodID := "61c266b0-6f75-4490-8d92-3c9ae4d02787"
+
+	// Setup mock Kubelet Secure API
+	mockKubeletAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/pods" {
+			http.NotFound(w, req)
+			return
+		}
+		out := v1.PodList{
+			Items: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-pod",
+						Namespace: "default",
+						UID:       types.UID(mockPodID),
+						Labels: map[string]string{
+							"my-label": "my-label-value",
+						},
+					},
+					Spec: v1.PodSpec{
+						ServiceAccountName: "my-service-account",
+					},
+				},
+			},
+		}
+		w.WriteHeader(200)
+		assert.NoError(t, json.NewEncoder(w).Encode(out))
+	}))
+	t.Cleanup(mockKubeletAPI.Close)
+	kubeletAddr := mockKubeletAPI.Listener.Addr().String()
+	host, port, err := net.SplitHostPort(kubeletAddr)
+	require.NoError(t, err)
+	portInt, err := strconv.Atoi(port)
+	require.NoError(t, err)
+
+	// Setup mock filesystem
+	tmpDir := t.TempDir()
+	tokenPath := filepath.Join(tmpDir, "token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte(mockToken), 0644))
+	procPath := filepath.Join(tmpDir, "proc")
+	procPIDPath := filepath.Join(procPath, strconv.Itoa(mockPID))
+	pidMountInfoPath := filepath.Join(procPIDPath, "mountinfo")
+	require.NoError(t, os.MkdirAll(procPIDPath, 0755))
+	require.NoError(t, utils.CopyFile(
+		filepath.Join("testdata", "mountfile", "k8s-real-gcp-v1.29.5-gke.1091002"),
+		pidMountInfoPath,
+		0755),
+	)
+
+	// Setup Attestor for mocks
+	attestor := NewKubernetesAttestor(KubernetesAttestorConfig{
+		Enabled: true,
+		Kubelet: KubeletClientConfig{
+			TokenPath:  tokenPath,
+			SkipVerify: true,
+			SecurePort: portInt,
+		},
+	}, log)
+	attestor.rootPath = tmpDir
+	attestor.kubeletClient.getEnv = func(s string) string {
+		env := map[string]string{
+			"TELEPORT_NODE_NAME": host,
+		}
+		return env[s]
+	}
+
+	att, err := attestor.Attest(ctx, mockPID)
+	assert.NoError(t, err)
+	assert.Equal(t, KubernetesAttestation{
+		Attested:       true,
+		ServiceAccount: "my-service-account",
+		Namespace:      "default",
+		PodName:        "my-pod",
+		PodUID:         mockPodID,
+		Labels: map[string]string{
+			"my-label": "my-label-value",
+		},
+	}, att)
 }
