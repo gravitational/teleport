@@ -655,7 +655,7 @@ function generateUnifiedResourceKey(
 function NoPinned() {
   return (
     <Box p={8} mt={3} mx="auto" textAlign="center">
-      <Text typography="h3">You have not pinned any resources</Text>
+      <Text typography="h1">You have not pinned any resources</Text>
     </Box>
   );
 }
@@ -670,7 +670,7 @@ function NoResults({
   if (query) {
     return (
       <Text
-        typography="h3"
+        typography="h1"
         mt={9}
         mx="auto"
         justifyContent="center"

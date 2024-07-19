@@ -108,17 +108,6 @@ exports[`auth2faType: off 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
 .c11 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -166,6 +155,17 @@ exports[`auth2faType: off 1`] = `
   width: 100%;
   margin-bottom: 4px;
   margin-bottom: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
+  text-align: center;
 }
 
 .c6 {
@@ -421,17 +421,6 @@ exports[`auth2faType: optional rendering 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
 .c11 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -487,6 +476,17 @@ exports[`auth2faType: optional rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
+  text-align: center;
 }
 
 .c6 {
@@ -986,17 +986,6 @@ exports[`auth2faType: otp rendering 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
 .c11 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -1052,6 +1041,17 @@ exports[`auth2faType: otp rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
+  text-align: center;
 }
 
 .c6 {
@@ -1563,17 +1563,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
 .c11 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -1629,6 +1618,17 @@ exports[`auth2faType: webauthn rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
+  text-align: center;
 }
 
 .c6 {
@@ -2224,17 +2224,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
 .c11 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -2290,6 +2279,17 @@ exports[`cloud auth2faType: on rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
+  text-align: center;
 }
 
 .c6 {
@@ -2729,8 +2729,8 @@ exports[`no login enabled 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
   margin-bottom: 24px;
   text-align: center;
@@ -2900,17 +2900,6 @@ exports[`server error rendering 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
 .c12 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -2958,6 +2947,17 @@ exports[`server error rendering 1`] = `
   width: 100%;
   margin-bottom: 4px;
   margin-bottom: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
+  text-align: center;
 }
 
 .c7 {
@@ -3205,8 +3205,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
   margin-bottom: 24px;
   text-align: center;
@@ -3589,8 +3589,8 @@ exports[`sso providers rendering 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
   margin-bottom: 24px;
   text-align: center;

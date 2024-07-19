@@ -81,15 +81,6 @@ exports[`render clusters 1`] = `
   margin-left: 8px;
 }
 
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-}
-
 .c16 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -103,6 +94,15 @@ exports[`render clusters 1`] = `
   color: #000000;
 }
 
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
 .c1 {
   display: flex;
 }
@@ -114,7 +114,6 @@ exports[`render clusters 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -304,11 +303,11 @@ exports[`render clusters 1`] = `
   <div
     class="c0 c3 c4"
   >
-    <div
+    <h1
       class="c5 c6"
     >
       Manage Clusters
-    </div>
+    </h1>
   </div>
   <nav
     class="c7"

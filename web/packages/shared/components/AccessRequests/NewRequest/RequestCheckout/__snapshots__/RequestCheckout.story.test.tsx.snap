@@ -344,14 +344,21 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
+.c28 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
-  color: #FFFFFF;
+  line-height: 24px;
 }
 
 .c20 {
@@ -367,14 +374,6 @@ exports[`failed state 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   margin-right: 4px;
-}
-
-.c28 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c5 {
@@ -950,15 +949,14 @@ exports[`failed state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <div
@@ -1856,14 +1854,21 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
+.c36 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
-  color: #FFFFFF;
+  line-height: 24px;
 }
 
 .c17 {
@@ -1894,14 +1899,6 @@ exports[`loaded state 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   margin-right: 4px;
-}
-
-.c36 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c5 {
@@ -2481,15 +2478,14 @@ exports[`loaded state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <table
@@ -3436,14 +3432,21 @@ exports[`success state 1`] = `
   cursor: auto;
 }
 
+.c9 {
+  display: block;
+  outline: none;
+  width: 250px;
+  height: 179px;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
-  color: #FFFFFF;
+  line-height: 24px;
+  margin-bottom: 4px;
 }
 
 .c6 {
@@ -3454,13 +3457,6 @@ exports[`success state 1`] = `
   font-size: 14px;
   line-height: 24px;
   color: rgba(255, 255, 255, 0.72);
-}
-
-.c9 {
-  display: block;
-  outline: none;
-  width: 250px;
-  height: 179px;
 }
 
 .c8 {
@@ -3534,12 +3530,11 @@ exports[`success state 1`] = `
           <div
             class="c4"
           >
-            <div
+            <h2
               class="c5"
-              color="text.main"
             >
               Resources Requested Successfully
-            </div>
+            </h2>
             <div
               class="c6"
               color="text.slightlyMuted"

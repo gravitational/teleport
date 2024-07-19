@@ -25,6 +25,7 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Image,
   Indicator,
   LabelInput,
@@ -194,9 +195,9 @@ export function RequestCheckout<T extends PendingListItem>({
           style={{ cursor: 'pointer' }}
         />
         <Box>
-          <Text typography="h4" color="text.main" bold>
+          <H2>
             {data.length} {pluralize(data.length, 'Resource')} Selected
-          </Text>
+          </H2>
         </Box>
       </Flex>
     );
@@ -222,9 +223,7 @@ export function RequestCheckout<T extends PendingListItem>({
             <>
               <Box>
                 <Box mt={2} mb={7} textAlign="center">
-                  <Text typography="h4" color="text.main" bold>
-                    Resources Requested Successfully
-                  </Text>
+                  <H2 mb={1}>Resources Requested Successfully</H2>
                   <Text typography="subtitle1" color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}

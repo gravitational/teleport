@@ -22,7 +22,7 @@ trails that include the device's information.
 Device Trust enforcement can be configured with the following three modes of operation, represented
 by the `device_trust_mode` authentication setting:
 
-- `off` - disables device trust. Device authentication is not performed and
+- `off` - disables Device Trust. Device authentication is not performed and
   device-aware audit logs are absent.
 - `optional` - enables device authentication and device-aware audit, but does
   not require a trusted device to access resources.
@@ -158,16 +158,16 @@ It is possible to use [trusted
 clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
 device mode `required`. A leaf cluster in mode `required` will enforce access to
 all of its resources, without imposing the same restrictions to the root
-cluster. Likewise, a root cluster will not enforce device trust on resources in
+cluster. Likewise, a root cluster will not enforce Device Trust on resources in
 leaf clusters.
 </Admonition>
 
 ## App Access support
 
-The Teleport App Service may enforce device trust via [role-based enforcement](
+The Teleport App Service may enforce Device Trust via [role-based enforcement](
 #role-based-trusted-device-enforcement).
 
-To access apps protected by device trust using the Web UI (Teleport v16 or
+To access apps protected by Device Trust using the Web UI (Teleport v16 or
 later), make sure your device is [registered and enrolled](
 ./device-management.mdx#register-a-trusted-device), install [Teleport Connect](
 ../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
@@ -177,7 +177,7 @@ Alternatively, you may use [tsh proxy app](
 ../../reference/cli/tsh.mdx#tsh-proxy-app) or the certificates issued by
 `tsh app login`.
 
-As an example, to enforce device trust for all `env:production` apps, save the
+As an example, to enforce Device Trust for all `env:production` apps, save the
 role below as `require-trusted-device-apps.yaml`:
 
 ```yaml
@@ -218,16 +218,16 @@ Now the alice user can only access `env:production` apps using a trusted device.
 
 ## Desktop Access support
 
-The Teleport Desktop Service may enforce device trust via [role-based
+The Teleport Desktop Service may enforce Device Trust via [role-based
 enforcement]( #role-based-trusted-device-enforcement).
 
-To access desktops protected by device trust make sure your device is
+To access desktops protected by Device Trust make sure your device is
 [registered and enrolled](./device-management.mdx#register-a-trusted-device),
 install [Teleport Connect](
 ../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
 follow the instructions during login.
 
-As an example, to enforce device trust for all `env:production` desktops, save
+As an example, to enforce Device Trust for all `env:production` desktops, save
 the role below as `require-trusted-device-desktops.yaml`:
 
 ```yaml
@@ -274,7 +274,7 @@ Similar to [session and identity locking](../guides/locking.mdx), a device can
 be locked using `tctl lock`.
 
 Locking blocks certificate issuance and ongoing or future accesses originating
-from a locked device. Locking a device only works if device trust is enabled and
+from a locked device. Locking a device only works if Device Trust is enabled and
 if the device is enrolled to Teleport.
 
 Find a device ID to lock:

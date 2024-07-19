@@ -140,11 +140,9 @@ exports[`confirm state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
@@ -244,12 +242,11 @@ exports[`confirm state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete User?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -448,11 +445,9 @@ exports[`failed state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c11 {
@@ -552,12 +547,11 @@ exports[`failed state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete User?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -741,11 +735,9 @@ exports[`processing state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
@@ -845,12 +837,11 @@ exports[`processing state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete User?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"

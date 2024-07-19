@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -140,6 +141,7 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -162,6 +164,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
@@ -1196,6 +1199,36 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if upgraderKind != "" {
 		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
 			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
+		}
+
+		if upgraderKind == "unit" {
+			process.RegisterFunc("autoupdates.endpoint.export", func() error {
+				conn, err := waitForInstanceConnector(process, process.logger)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if conn == nil {
+					return trace.BadParameter("process exiting and Instance connector never became available")
+				}
+
+				resp, err := conn.Client.Ping(process.ExitContext())
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !resp.GetServerFeatures().GetCloud() {
+					return nil
+				}
+
+				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
+					process.logger.WarnContext(process.ExitContext(),
+						"Failed to export and validate autoupdates endpoint.",
+						"addr", resolverAddr.String(),
+						"error", err)
+					return trace.Wrap(err)
+				}
+				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
+				return nil
+			})
 		}
 
 		driver, err := uw.NewDriver(upgraderKind)
@@ -2851,11 +2884,9 @@ func (process *TeleportProcess) initSSH() error {
 		var resumableServer *resumption.SSHServerWrapper
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
 			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
-				Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, resumption.Component)),
 				SSHServer: s.HandleConnection,
-
-				HostID:  serverID,
-				DataDir: cfg.DataDir,
+				HostID:    serverID,
+				DataDir:   cfg.DataDir,
 			})
 
 			go func() {
@@ -4140,7 +4171,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	alpnRouter, reverseTunnelALPNRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
-
 	alpnAddr := ""
 	if listeners.alpn != nil {
 		alpnAddr = listeners.alpn.Addr().String()
@@ -4989,8 +5019,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		grpcServerMTLS   *grpc.Server
 	)
 	if alpnRouter != nil {
-		grpcServerPublic = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
-
+		grpcServerPublic, err = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		grpcServerMTLS, err = process.initSecureGRPCServer(
 			initSecureGRPCServerCfg{
 				limiter:     proxyLimiter,
@@ -6319,7 +6351,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	limiter *limiter.Limiter,
 	conn *Connector,
 	listener net.Listener,
-) *grpc.Server {
+) (*grpc.Server, error) {
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.GRPCServerUnaryErrorInterceptor,
@@ -6350,11 +6382,24 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	)
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
+	accessGraphProxySvc, err := secretsscannerproxy.New(
+		secretsscannerproxy.ServiceConfig{
+			AuthClient: conn.Client,
+			Log:        process.logger,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+
+	}
+
+	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
+
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())
 		return trace.Wrap(server.Serve(listener))
 	})
-	return server
+	return server, nil
 }
 
 // initSecureGRPCServer creates and registers a gRPC server that uses mTLS for

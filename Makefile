@@ -71,18 +71,16 @@ FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
-# PAM support will only be built into Teleport if headers exist at build time.
+# Look for the PAM header "security/pam_appl.h" to determine if we should
+# enable PAM support in teleport. A native build will have it in /usr/include.
+# Darwin has it in /usr/local/include (SIP prevents us from modifying/creating
+# it in /usr/include), and the ng buildbox has it in one of the
+# $(C_INCLUDE_PATH) paths.
+PAM_HEADER_CANDIDATES := $(subst :, ,$(C_INCLUDE_PATH)) /usr/local/include /usr/include
 PAM_MESSAGE := without-PAM-support
-ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
+ifneq (,$(wildcard $(addsuffix /security/pam_appl.h,$(PAM_HEADER_CANDIDATES))))
 PAM_TAG := pam
 PAM_MESSAGE := with-PAM-support
-else
-# PAM headers for Darwin live under /usr/local/include/security instead, as SIP
-# prevents us from modifying/creating /usr/include/security on newer versions of MacOS
-ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
-PAM_TAG := pam
-PAM_MESSAGE := with-PAM-support
-endif
 endif
 
 # darwin universal (Intel + Apple Silicon combined) binary support
@@ -263,14 +261,14 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 ifeq ("$(OS)","linux")
 # True if $ARCH == amd64 || $ARCH == arm64
 ifeq ("$(ARCH)","arm64")
-	ifeq ($(IS_NATIVE_BUILD),"no")
+	ifeq (,$(IS_NATIVE_BUILD))
 		CGOFLAG += CC=aarch64-linux-gnu-gcc
 	endif
 else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
-ifeq ($(IS_NATIVE_BUILD),"no")
+ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
 endif
 
@@ -411,7 +409,7 @@ $(ER_BPF_BUILDDIR):
 
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 .PHONY: bpf-er-bytecode
@@ -759,6 +757,10 @@ $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
+
+RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
+$(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -1705,3 +1707,23 @@ rustup-install-target-toolchain: rustup-set-version
 .PHONY: changelog
 changelog:
 	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
+
+# create-github-release will generate release notes from the CHANGELOG.md and will
+# create release notes from them.
+#
+# usage: make create-github-release
+# usage: make create-github-release LATEST=true
+#
+# If it detects that the first version in CHANGELOG.md
+# does not match version set it will fail to create a release. If tag doesn't exist it
+# will also fail to create a release.
+#
+# For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
+.PHONY: create-github-release
+create-github-release: LATEST = false
+create-github-release: $(RELEASE_NOTES_GEN)
+	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	-t "Teleport $(VERSION)" \
+	--latest=$(LATEST) \
+	--verify-tag \
+	-F - <<< "$$NOTES"

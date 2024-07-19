@@ -29,7 +29,6 @@
   "private": true,
   "pnpm": {
     "overrides": {
-      "node-gyp": "^10.0.1",
       "minimist": "^1.2.8",
       "trim": "0.0.3",
       "webpack": "^5.88.2",

@@ -68,7 +68,7 @@ export interface IVnetServiceClient {
     listDNSZones(input: ListDNSZonesRequest, options?: RpcOptions): UnaryCall<ListDNSZonesRequest, ListDNSZonesResponse>;
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
-     * VNet daemon. macOS only.
+     * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
      *
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
@@ -122,7 +122,7 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
     }
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
-     * VNet daemon. macOS only.
+     * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
      *
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
