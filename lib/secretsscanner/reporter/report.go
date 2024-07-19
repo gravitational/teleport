@@ -32,32 +32,26 @@ import (
 	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
 )
 
-const (
-	defaultBatchSize = 100
-)
-
 // AssertCeremonyBuilderFunc is a function that builds the device authentication ceremony.
 type AssertCeremonyBuilderFunc func() (*dtassert.Ceremony, error)
 
 // Config specifies the configuration for the reporter.
 type Config struct {
-	// ProxyAddress is the address of the proxy server to send the report to.
-	ProxyAddress string
-	// InsecureSkipVerify specifies whether to trust the certificates from the Proxy Server during registration without verification.
-	InsecureSkipVerify bool
+	// Client is a client for the SecretsScannerService.
+	Client secretsscannerclient.Client
 	// Log is the logger.
 	Log *slog.Logger
 	// BatchSize is the number of secrets to send in a single batch. Defaults to [defaultBatchSize] if not set.
 	BatchSize int
 	// AssertCeremonyBuilder is the device authentication ceremony builder.
 	// If not set, the default device authentication ceremony will be used.
+	// Used for testing, avoid in production code.
 	AssertCeremonyBuilder AssertCeremonyBuilderFunc
 }
 
 // Reporter reports secrets to the Teleport Proxy.
 type Reporter struct {
-	proxyAddr             string
-	insecureSkipVerify    bool
+	client                secretsscannerclient.Client
 	log                   *slog.Logger
 	batchSize             int
 	assertCeremonyBuilder AssertCeremonyBuilderFunc
@@ -65,13 +59,14 @@ type Reporter struct {
 
 // New creates a new reporter instance.
 func New(cfg Config) (*Reporter, error) {
-	if cfg.ProxyAddress == "" {
-		return nil, trace.BadParameter("missing proxy address")
+	if cfg.Client == nil {
+		return nil, trace.BadParameter("missing client")
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
 	if cfg.BatchSize == 0 {
+		const defaultBatchSize = 100
 		cfg.BatchSize = defaultBatchSize
 	}
 	if cfg.AssertCeremonyBuilder == nil {
@@ -80,8 +75,7 @@ func New(cfg Config) (*Reporter, error) {
 		}
 	}
 	return &Reporter{
-		proxyAddr:             cfg.ProxyAddress,
-		insecureSkipVerify:    cfg.InsecureSkipVerify,
+		client:                cfg.Client,
 		log:                   cfg.Log,
 		batchSize:             cfg.BatchSize,
 		assertCeremonyBuilder: cfg.AssertCeremonyBuilder,
@@ -95,18 +89,8 @@ func New(cfg Config) (*Reporter, error) {
 // 3. Report the private keys to the Teleport cluster.
 // 4. Wait for the server to acknowledge the report.
 func (r *Reporter) ReportPrivateKeys(ctx context.Context, pks []*accessgraphsecretsv1pb.PrivateKey) error {
-	client, err := secretsscannerclient.NewSecretsScannerServiceClient(
-		ctx,
-		secretsscannerclient.ClientConfig{
-			ProxyServer: r.proxyAddr,
-			Insecure:    r.insecureSkipVerify,
-			Log:         slog.Default(),
-		})
-	if err != nil {
-		return trace.Wrap(err, "failed to create client")
-	}
 
-	stream, err := client.ReportSecrets(ctx)
+	stream, err := r.client.ReportSecrets(ctx)
 	if err != nil {
 		return trace.Wrap(err, "failed to create client")
 	}

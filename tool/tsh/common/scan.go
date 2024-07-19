@@ -20,7 +20,6 @@ package common
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"runtime"
 	"strings"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accessgraph"
 	"github.com/gravitational/teleport/lib/devicetrust/assert"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
+	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
 	secretsreporter "github.com/gravitational/teleport/lib/secretsscanner/reporter"
 	secretsscanner "github.com/gravitational/teleport/lib/secretsscanner/scaner"
 )
@@ -51,16 +51,14 @@ func newScanCommand(app *kingpin.Application) scanCommand {
 
 type scanKeysCommand struct {
 	*kingpin.CmdClause
-	dirs     []string
-	skipDirs []string
-	ca       string
-	out      io.Writer
+	dirs      []string
+	skipPaths []string
 }
 
 func newScanKeysCommand(parent *kingpin.CmdClause) *scanKeysCommand {
 	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport")}
 	c.Flag("dirs", "Directories to scan.").Default(defaultDirValues()).StringsVar(&c.dirs)
-	c.Flag("skip-dirs", "Directories to skip. Supports matching patterns.").StringsVar(&c.skipDirs)
+	c.Flag("skip-paths", "Paths to directories or files to skip. Supports for matching patterns.").StringsVar(&c.skipPaths)
 	return c
 }
 
@@ -96,9 +94,9 @@ func (c *scanKeysCommand) run(cf *CLIConf) error {
 	fmt.Printf("Device trust credentials found.\nScanning %s.\n", strings.Join(c.dirs, ", "))
 
 	scanner, err := secretsscanner.New(secretsscanner.Config{
-		Dirs:     c.dirs,
-		SkipDirs: c.skipDirs,
-		Log:      slog.Default(),
+		Dirs:      c.dirs,
+		SkipPaths: c.skipPaths,
+		Log:       slog.Default(),
 	})
 	if err != nil {
 		return trace.Wrap(err, "failed to create scanner")
@@ -111,11 +109,21 @@ func (c *scanKeysCommand) run(cf *CLIConf) error {
 
 	printPrivateKeys(privateKeys)
 
+	client, err := secretsscannerclient.NewSecretsScannerServiceClient(
+		ctx,
+		secretsscannerclient.ClientConfig{
+			ProxyServer: cf.Proxy,
+			Insecure:    cf.InsecureSkipVerify,
+			Log:         slog.Default(),
+		})
+	if err != nil {
+		return trace.Wrap(err, "failed to create client")
+	}
+
 	reporter, err := secretsreporter.New(
 		secretsreporter.Config{
-			ProxyAddress:       cf.Proxy,
-			Log:                slog.Default(),
-			InsecureSkipVerify: cf.InsecureSkipVerify,
+			Client: client,
+			Log:    slog.Default(),
 			AssertCeremonyBuilder: func() (*assert.Ceremony, error) {
 				return assert.NewCeremony()
 			},

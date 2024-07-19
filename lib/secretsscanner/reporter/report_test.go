@@ -38,6 +38,7 @@ import (
 	dtassert "github.com/gravitational/teleport/lib/devicetrust/assert"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
+	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
 	"github.com/gravitational/teleport/lib/secretsscanner/reporter"
 )
 
@@ -50,7 +51,6 @@ func TestReporter(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		assertionError    error
 		preReconcileError error
 		assertErr         require.ErrorAssertionFunc
 		report            []*accessgraphsecretsv1pb.PrivateKey
@@ -63,39 +63,40 @@ func TestReporter(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			name:           "assertion error",
-			assertionError: errors.New("assertion error"),
-			report:         newPrivateKeys(t, deviceID),
-			assertErr: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "assertion error")
-
-			},
-		},
-		{
 			name:              "pre-reconcile error",
 			preReconcileError: errors.New("pre-reconcile error"),
 			report:            newPrivateKeys(t, deviceID),
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "pre-reconcile error")
 			},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			e := setup(
 				t,
 				withDevice(deviceID, device),
-				withAssertionError(tt.assertionError),
 				withPreReconcileError(tt.preReconcileError),
 			)
 
+			ctx := context.Background()
+
+			client, err := secretsscannerclient.NewSecretsScannerServiceClient(ctx,
+				secretsscannerclient.ClientConfig{
+					ProxyServer: e.secretsScannerAddr,
+					Insecure:    true,
+				},
+			)
+			require.NoError(t, err)
+
 			r, err := reporter.New(
 				reporter.Config{
-					ProxyAddress:       e.secretsScannerAddr,
-					Log:                slog.Default(),
-					InsecureSkipVerify: true, /* insecureSkipVerify for tests */
-					BatchSize:          1,    /* batch size for tests */
+					Log:       slog.Default(),
+					Client:    client,
+					BatchSize: 1, /* batch size for tests */
 					AssertCeremonyBuilder: func() (*dtassert.Ceremony, error) {
 						return dtassert.NewCeremony(
 							dtassert.WithNewAuthnCeremonyFunc(
@@ -117,7 +118,7 @@ func TestReporter(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			err = r.ReportPrivateKeys(context.Background(), tt.report)
+			err = r.ReportPrivateKeys(ctx, tt.report)
 			tt.assertErr(t, err)
 
 			got := e.service.privateKeysReported

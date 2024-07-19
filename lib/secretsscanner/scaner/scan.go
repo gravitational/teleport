@@ -41,10 +41,10 @@ import (
 type Config struct {
 	// Dirs is a list of directories to scan.
 	Dirs []string
-	// SkipDirs is a list of directories to skip.
+	// SkipPaths is a list of paths to skip.
 	// It supports glob patterns (e.g. "/etc/*/").
 	// Please refer to the [filepath.Match] documentation for more information.
-	SkipDirs []string
+	SkipPaths []string
 	// Log is the logger.
 	Log *slog.Logger
 }
@@ -58,26 +58,26 @@ func New(cfg Config) (*Scanner, error) {
 		cfg.Log = slog.Default()
 	}
 
-	// expand the glob patterns in the skipDirs list.
+	// expand the glob patterns in the skipPaths list.
 	// we expand the glob patterns here to avoid expanding them for each file during the scan.
 	// only the directories matched by the glob patterns will be skipped.
-	skippedDirs, err := expandSkipDirs(cfg.SkipDirs)
+	skippedPaths, err := expandSkipPaths(cfg.SkipPaths)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Scanner{
-		dirs:        cfg.Dirs,
-		log:         cfg.Log,
-		skippedDirs: skippedDirs,
+		dirs:         cfg.Dirs,
+		log:          cfg.Log,
+		skippedPaths: skippedPaths,
 	}, nil
 }
 
 // Scanner is a scanner that scans directories for secrets.
 type Scanner struct {
-	dirs        []string
-	log         *slog.Logger
-	skippedDirs map[string]struct{}
+	dirs         []string
+	log          *slog.Logger
+	skippedPaths map[string]struct{}
 }
 
 // ScanPrivateKeys scans directories for SSH private keys.
@@ -118,12 +118,18 @@ func (s *Scanner) findPrivateKeys(ctx context.Context, root, deviceID string, pr
 			return fs.SkipDir
 		}
 		if info.IsDir() {
-			if _, ok := s.skippedDirs[path]; ok {
+			if _, ok := s.skippedPaths[path]; ok {
 				logger.DebugContext(ctx, "skipping directory", "path", path)
 				return fs.SkipDir
 			}
 			return nil
 		}
+
+		if _, ok := s.skippedPaths[path]; ok {
+			logger.DebugContext(ctx, "skipping file", "path", path)
+			return nil
+		}
+
 		switch fileData, isKey, err := s.readFileIfSSHPrivateKey(ctx, path); {
 		case err != nil:
 			logger.DebugContext(ctx, "error reading file", "path", path, "error", err)
@@ -161,7 +167,7 @@ func (s *Scanner) readFileIfSSHPrivateKey(ctx context.Context, filePath string) 
 	}
 	defer func() {
 		if err = file.Close(); err != nil {
-			s.log.WarnContext(ctx, "failed to close file", "path", filePath, "error", err)
+			s.log.DebugContext(ctx, "failed to close file", "path", filePath, "error", err)
 		}
 	}()
 
@@ -275,18 +281,18 @@ func privateKeyNameGen(path, deviceID, fingerprint string) string {
 	return hex.EncodeToString(sha.Sum(nil))
 }
 
-// expandSkipDirs expands the glob patterns in the skipDirs list and returns a set of the
-// directories matched by the glob patterns to be skipped.
-func expandSkipDirs(skipDirs []string) (map[string]struct{}, error) {
-	skippedDirs := make(map[string]struct{})
-	for _, glob := range skipDirs {
+// expandSkipPaths expands the glob patterns in the skipPaths list and returns a set of the
+// paths matched by the glob patterns to be skipped.
+func expandSkipPaths(skipPaths []string) (map[string]struct{}, error) {
+	set := make(map[string]struct{})
+	for _, glob := range skipPaths {
 		matches, err := filepath.Glob(glob)
 		if err != nil {
 			return nil, trace.Wrap(err, "glob pattern %q is invalid", glob)
 		}
 		for _, match := range matches {
-			skippedDirs[match] = struct{}{}
+			set[match] = struct{}{}
 		}
 	}
-	return skippedDirs, nil
+	return set, nil
 }

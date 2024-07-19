@@ -43,7 +43,6 @@ type env struct {
 
 type opts struct {
 	device            *device
-	assertionError    error
 	preReconcileError error
 }
 
@@ -69,12 +68,6 @@ func withPreReconcileError(err error) option {
 	}
 }
 
-func withAssertionError(err error) option {
-	return func(o *opts) {
-		o.assertionError = err
-	}
-}
-
 func setup(t *testing.T, ops ...option) env {
 	t.Helper()
 
@@ -96,8 +89,7 @@ func setup(t *testing.T, ops ...option) env {
 		assert.NoError(t, err)
 	})
 
-	svc := newServiceFake(dtFakeSvc)
-	svc.assertionError = o.assertionError
+	svc := newServiceFake(dtFakeSvc.Service)
 	svc.preReconcileError = o.preReconcileError
 
 	tlsConfig, err := fixtures.LocalTLSConfig()
@@ -127,7 +119,7 @@ func setup(t *testing.T, ops ...option) env {
 	}
 }
 
-func newServiceFake(deviceTrustSvc *dttestenv.E) *serviceFake {
+func newServiceFake(deviceTrustSvc *dttestenv.FakeDeviceService) *serviceFake {
 	return &serviceFake{
 		deviceTrustSvc: deviceTrustSvc,
 	}
@@ -136,17 +128,13 @@ func newServiceFake(deviceTrustSvc *dttestenv.E) *serviceFake {
 type serviceFake struct {
 	accessgraphsecretsv1pb.UnimplementedSecretsScannerServiceServer
 	privateKeysReported []*accessgraphsecretsv1pb.PrivateKey
-	deviceTrustSvc      *dttestenv.E
-	assertionError      error
+	deviceTrustSvc      *dttestenv.FakeDeviceService
 	preReconcileError   error
 }
 
 func (s *serviceFake) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
-	if s.assertionError != nil {
-		return s.assertionError
-	}
 	// Step 1. Assert the device.
-	if _, err := s.deviceTrustSvc.Service.AssertDevice(in.Context(), streamAdapter{stream: in}); err != nil {
+	if _, err := s.deviceTrustSvc.AssertDevice(in.Context(), streamAdapter{stream: in}); err != nil {
 		return trace.Wrap(err)
 	}
 	// Step 2. Collect the private keys into a temporary slice.

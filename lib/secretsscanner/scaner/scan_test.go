@@ -78,17 +78,17 @@ func TestNewScanner(t *testing.T) {
 
 			expect := tt.keysGen(t, dir)
 
-			var skipDirs []string
+			var skipPaths []string
 			if tt.skipTestDir {
 				// skip the test directory.
-				skipDirs = []string{filepath.Join(dir, "*")}
+				skipPaths = []string{filepath.Join(dir, "*")}
 				// the expected keys should be nil since the test directory is skipped.
 				expect = nil
 			}
 
 			s, err := New(Config{
-				Dirs:     []string{dir},
-				SkipDirs: skipDirs,
+				Dirs:      []string{dir},
+				SkipPaths: skipPaths,
 			})
 			require.NoError(t, err)
 
