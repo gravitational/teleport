@@ -2356,6 +2356,9 @@ func (g *GRPCServer) DeleteMFADevice(stream authpb.AuthService_DeleteMFADeviceSe
 }
 
 func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
+	if d == nil {
+		return apievents.MFADeviceMetadata{}
+	}
 	return apievents.MFADeviceMetadata{
 		DeviceName: d.Metadata.Name,
 		DeviceID:   d.Id,

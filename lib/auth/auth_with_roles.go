@@ -3002,7 +3002,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		verifiedMFADeviceID = mfaData.Device.Id
+		if mfaData.SSO {
+			verifiedMFADeviceID = "sso-mfa-connector-name-todo"
+		} else {
+			verifiedMFADeviceID = mfaData.Device.Id
+		}
 	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
@@ -6847,7 +6851,7 @@ func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.C
 		}
 	}
 
-	return a.authServer.CreatePrivilegeToken(ctx, req)
+	return a.authServer.CreatePrivilegeTokenWithMFA(ctx, req)
 }
 
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.

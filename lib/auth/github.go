@@ -412,11 +412,12 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
-		CSRFToken:         req.CSRFToken,
-		CreateWebSession:  req.CreateWebSession,
-		ClientRedirectURL: req.ClientRedirectURL,
+		ConnectorID:           req.ConnectorID,
+		PublicKey:             req.PublicKey,
+		CSRFToken:             req.CSRFToken,
+		CreateWebSession:      req.CreateWebSession,
+		ClientRedirectURL:     req.ClientRedirectURL,
+		CreatePrivilegedToken: req.CreatePrivilegedToken,
 	}
 }
 
@@ -760,6 +761,14 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
+	if req.CreatePrivilegedToken {
+		token, err := a.CreatePrivilegeToken(ctx, req.Username, authclient.UserTokenTypePrivilege)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		auth.Token = token.GetName()
+	}
+
 	return &auth, nil
 }
 
@@ -804,6 +813,10 @@ type CreateUserParams struct {
 }
 
 func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContext, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
+	if request.Username != "" && request.Username != claims.Username {
+		return nil, trace.AccessDenied("username mismatch")
+	}
+
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      claims.Username,

@@ -1967,7 +1967,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	logger.Infof("Callback is redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
+	if len(response.Req.PublicKey) == 0 && !response.Req.CreatePrivilegedToken {
 		logger.Error("Not a web or console login request.")
 		return sso.LoginFailedRedirectURL
 	}
@@ -1981,6 +1981,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		FIPS:              h.cfg.FIPS,
+		Token:             response.Token,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
@@ -2060,6 +2061,8 @@ type AuthParams struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+	// Token is a privileged token.
+	Token string
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -2069,12 +2072,15 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	consoleResponse := authclient.SSHLoginResponse{
 		Username:    response.Username,
 		Cert:        response.Cert,
 		TLSCert:     response.TLSCert,
 		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
+		Token:       response.Token,
 	}
+
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)

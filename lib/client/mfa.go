@@ -127,6 +127,10 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 			return nil, trace.Wrap(err)
 		}
 
+		if resp.Token == "" {
+			panic("no token")
+		}
+
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_TokenID{
 				TokenID: resp.Token,

@@ -6887,6 +6887,25 @@ func (a *Server) validateMFAAuthResponseInternal(
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 
+	case *proto.MFAAuthenticateResponse_TokenID:
+		privilegeToken, err := a.GetUserToken(ctx, res.TokenID)
+		switch {
+		case err != nil:
+			return nil, trace.AccessDenied("access denied")
+		case privilegeToken.GetUser() != user:
+			return nil, trace.AccessDenied("access denied")
+		}
+
+		if err := a.verifyUserToken(privilegeToken, authclient.UserTokenTypePrivilege); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &authz.MFAAuthData{
+			User:       user,
+			SSO:        true,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		}, nil
+
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}

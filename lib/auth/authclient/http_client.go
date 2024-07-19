@@ -691,6 +691,8 @@ type OIDCAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// Token is a privileged token.
+	Token string `json:"token"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -711,6 +713,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		Token:    rawResponse.Token,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -760,6 +763,8 @@ type SAMLAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// TLSCert is TLS certificate authority certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
+	// Token is a privileged token.
+	Token string `json:"token"`
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -782,6 +787,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		Token:    rawResponse.Token,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -825,6 +831,8 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// Token is a privileged token.
+	Token string `json:"token"`
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
@@ -844,6 +852,7 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		Token:    rawResponse.Token,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(

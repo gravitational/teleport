@@ -879,6 +879,8 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// Token is a privileged token.
+	Token string `json:"token"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -897,6 +899,11 @@ type OIDCAuthRequest struct {
 	// ClientRedirectURL is a URL client wants to be redirected
 	// after successful authentication
 	ClientRedirectURL string `json:"client_redirect_url"`
+	// CreatePrivilegedToken is an option to create a privileged token instead of creating
+	// a user session. Privileged tokens can be used in place of standard MFA verification for
+	// privileged actions. This action is only allowed if the auth connector is allowed
+	// to be used as an MFA method and if the user is pre-authenticated (not first time login).
+	CreatePrivilegedToken bool `json:"create_privileged_token"`
 }
 
 // SAMLAuthResponse is returned when auth server validated callback parameters
@@ -917,6 +924,8 @@ type SAMLAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// Token is a privileged token.
+	Token string `json:"token"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -935,6 +944,11 @@ type SAMLAuthRequest struct {
 	// ClientRedirectURL is a URL client wants to be redirected
 	// after successful authentication.
 	ClientRedirectURL string `json:"client_redirect_url"`
+	// CreatePrivilegedToken is an option to create a privileged token instead of creating
+	// a user session. Privileged tokens can be used in place of standard MFA verification for
+	// privileged actions. This action is only allowed if the auth connector is allowed
+	// to be used as an MFA method and if the user is pre-authenticated (not first time login).
+	CreatePrivilegedToken bool `json:"create_privileged_token"`
 }
 
 // GithubAuthResponse represents Github auth callback validation response
@@ -954,6 +968,8 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// Token is a privileged token.
+	Token string `json:"token"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -970,6 +986,11 @@ type GithubAuthRequest struct {
 	// ClientRedirectURL is the URL where client will be redirected after
 	// successful auth.
 	ClientRedirectURL string `json:"client_redirect_url"`
+	// CreatePrivilegedToken is an option to create a privileged token instead of creating
+	// a user session. Privileged tokens can be used in place of standard MFA verification for
+	// privileged actions. This action is only allowed if the auth connector is allowed
+	// to be used as an MFA method and if the user is pre-authenticated (not first time login).
+	CreatePrivilegedToken bool `json:"create_privileged_token"`
 }
 
 // IdentityService manages identities and users
@@ -1371,7 +1392,7 @@ type SSHLoginResponse struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 	// Token is a privileged token.
-	Token string `jsson:"token"`
+	Token string `json:"token"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility

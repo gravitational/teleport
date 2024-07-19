@@ -213,6 +213,8 @@ type MFAAuthData struct {
 	User string
 	// Device is the user's MFA device used to authenticate.
 	Device *types.MFADevice
+	// SSO
+	SSO bool
 	// AllowReuse determines whether the MFA challenge response used to authenticate
 	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
 	AllowReuse mfav1.ChallengeAllowReuse
