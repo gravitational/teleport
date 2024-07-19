@@ -51,6 +51,11 @@ func TestKubernetesAttestor_getContainerAndPodID(t *testing.T) {
 			wantPodID:       "fecd2321-17b5-49b9-9f75-8c5be777fbfb",
 			wantContainerID: "397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64",
 		},
+		{
+			name:            "k8s-real-gcp-v1.29.5-gke.1091002",
+			wantPodID:       "61c266b0-6f75-4490-8d92-3c9ae4d02787",
+			wantContainerID: "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
