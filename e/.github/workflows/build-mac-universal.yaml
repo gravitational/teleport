@@ -89,6 +89,15 @@ jobs:
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
 
+      # This is needed to build Teleport Connect.
+      # The @electron/rebuild tool that rebuilds native dependencies still
+      # uses node-gyp@9 that relies on distutils.
+      # Remove this step after @electron/rebuild migrates to node-gyp@10
+      # (which is compatible with Python 3.12).
+      - name: Install Python setuptools
+        run: |
+          brew install python-setuptools
+
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
         with:
@@ -262,7 +271,7 @@ jobs:
           role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: upload-artifacts-${{ github.run_number }}
           role-duration-seconds: 3600
-  
+
       - name: Copy artifacts to S3 bucket
         working-directory: build/artifacts
         env:
