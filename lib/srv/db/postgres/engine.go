@@ -227,6 +227,18 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	// Don't allow empty database or user names. Postgres will silently use
+	// the user name as the database name if no database name is passed which
+	// can cause Teleport to allow connections that are explicitly blocked by
+	// RBAC rules. To be safe just don't allow either the database or username
+	// to be empty.
+	if sessionCtx.DatabaseName == "" {
+		return trace.BadParameter("database name must not be empty")
+	}
+	if sessionCtx.DatabaseUser == "" {
+		return trace.BadParameter("user name must not be empty")
+	}
+
 	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
 		return trace.Wrap(err)
 	}

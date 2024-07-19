@@ -231,6 +231,26 @@ func TestAccessPostgres(t *testing.T) {
 			dbUser:        "alice",
 			err:           "access to db denied",
 		},
+		{
+			desc:         "empty DB name is not allowed",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{types.Wildcard},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "",
+			dbUser:       "postgres",
+			err:          "database name must not be empty",
+		},
+		{
+			desc:         "empty username is not allowed",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{types.Wildcard},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "postgres",
+			dbUser:       "",
+			err:          "user name must not be empty",
+		},
 	}
 
 	for _, test := range tests {
