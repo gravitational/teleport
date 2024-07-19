@@ -106,6 +106,8 @@ func (p UpstreamInventoryPong) sealedUpstreamInventoryMessage() {}
 
 func (a UpstreamInventoryAgentMetadata) sealedUpstreamInventoryMessage() {}
 
+func (h UpstreamInventoryGoodbye) sealedUpstreamInventoryMessage() {}
+
 // DownstreamInventoryMessage is a sealed interface representing the possible
 // downstream messages of the inventory controls stream after initial hello.
 type DownstreamInventoryMessage interface {

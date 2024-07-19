@@ -19,6 +19,7 @@
 package ui
 
 import (
+	"cmp"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -155,6 +156,8 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
 // Keep in sync with lib/teleterm/apiserver/handler/handler_apps.go.
+// Note: The SAMLAppPreset field is used in SAML service provider update flow in the
+// Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{
@@ -166,7 +169,7 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 		ClusterID:       c.AppClusterName,
 		FriendlyName:    types.FriendlyName(app),
 		SAMLApp:         true,
-		SAMLAppPreset:   app.GetPreset(),
+		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
 		RequiresRequest: c.RequiresRequest,
 	}
 

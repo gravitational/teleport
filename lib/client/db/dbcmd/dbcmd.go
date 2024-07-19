@@ -19,6 +19,7 @@
 package dbcmd
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -173,7 +174,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 // If CLICommandBuilder's options.tolerateMissingCLIClient is set to true, GetConnectCommand
 // shouldn't return an error if it cannot locate a client binary. Check WithTolerateMissingCLIClient
 // docs for more details.
-func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
+func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
 		return c.getPostgresCommand(), nil
@@ -185,7 +186,7 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 		return c.getMySQLCommand()
 
 	case defaults.ProtocolMongoDB:
-		return c.getMongoCommand(), nil
+		return c.getMongoCommand(ctx)
 
 	case defaults.ProtocolRedis:
 		return c.getRedisCommand(), nil
@@ -232,8 +233,7 @@ type CommandAlternative struct {
 // GetConnectCommandAlternatives returns optional connection commands for protocols that offer multiple options.
 // Otherwise, it falls back to GetConnectCommand.
 // The keys in the returned map are command descriptions suitable for display to the end user.
-func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternative, error) {
-
+func (c *CLICommandBuilder) GetConnectCommandAlternatives(ctx context.Context) ([]CommandAlternative, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchAlternativeCommands(), nil
@@ -241,7 +241,7 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 		return c.getOpenSearchAlternativeCommands(), nil
 	}
 
-	cmd, err := c.GetConnectCommand()
+	cmd, err := c.GetConnectCommand(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -464,16 +464,25 @@ func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
 	return c.isBinAvailable(sqlcmdBin)
 }
 
-func (c *CLICommandBuilder) shouldUseMongoshBin() bool {
+func (c *CLICommandBuilder) shouldUseMongoshBin(db types.Database) bool {
+	// DocumentDB prefers the legacy "mongo" client.
+	if db.GetType() == types.DatabaseTypeDocumentDB {
+		return c.isMongoshBinAvailable() && !c.isBinAvailable(mongoBin)
+	}
 	// Use "mongosh" if available.
 	// If not, use legacy "mongo" if available.
 	// If both are not available, pick "mongosh" in print out.
 	return c.isMongoshBinAvailable() || !c.isBinAvailable(mongoBin)
 }
 
-func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMongoCommand(ctx context.Context) (*exec.Cmd, error) {
+	db, err := c.getDatabase(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// look for `mongosh`
-	useMongosh := c.shouldUseMongoshBin()
+	useMongosh := c.shouldUseMongoshBin(db)
 
 	var args []string
 
@@ -519,11 +528,27 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// use `mongosh` if available
 	if useMongosh {
-		return exec.Command(mongoshBin, args...)
+		// DocumentDB does not support retryable writes.
+		// https://docs.aws.amazon.com/documentdb/latest/developerguide/functional-differences.html#functional-differences.retryable-writes
+		if db.GetType() == types.DatabaseTypeDocumentDB {
+			args = append(args, "--retryWrites=false")
+		}
+
+		return exec.Command(mongoshBin, args...), nil
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return exec.Command(mongoBin, args...)
+	return exec.Command(mongoBin, args...), nil
+}
+
+func (c *CLICommandBuilder) getDatabase(ctx context.Context) (types.Database, error) {
+	// Technically, we can just use tc to get the database. But caller may have
+	// extra logic so rely on the callback for now.
+	if c.options.getDatabase == nil {
+		return nil, trace.NotFound("missing GetDatabaseFunc")
+	}
+	db, err := c.options.getDatabase(ctx, c.tc, c.db.ServiceName)
+	return db, trace.Wrap(err)
 }
 
 func (c *CLICommandBuilder) getMongoAddress() string {
@@ -881,6 +906,7 @@ type connectionCommandOpts struct {
 	exe                      Execer
 	password                 string
 	gcp                      types.GCPCloudSQL
+	getDatabase              GetDatabaseFunc
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -971,9 +997,20 @@ func WithExecer(exe Execer) ConnectCommandFunc {
 }
 
 // WithGCP adds GCP metadata for the database command to access.
+// TODO(greedy52) use GetDatabaseFunc instead.
 func WithGCP(gcp types.GCPCloudSQL) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.gcp = gcp
+	}
+}
+
+// GetDatabaseFunc is a callback to retrieve types.Database.
+type GetDatabaseFunc func(context.Context, *client.TeleportClient, string) (types.Database, error)
+
+// WithGetDatabaseFunc provides a callback to retrieve types.Database.
+func WithGetDatabaseFunc(f GetDatabaseFunc) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.getDatabase = f
 	}
 }
 

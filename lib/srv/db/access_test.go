@@ -2541,6 +2541,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(p.Recorder),
 				Database: cfg.Database,
+				Clock:    c.clock,
 			})
 		},
 		CADownloader:             p.CADownloader,

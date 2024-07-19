@@ -335,15 +335,7 @@ function EmptyState() {
       >
         <BellRinging size={40} />
       </Flex>
-      <Text
-        mt={4}
-        css={`
-          font-weight: 500;
-          font-size: 18px;
-          line-height: 24px;
-          text-align: center;
-        `}
-      >
+      <Text mt={4} typography="h2" textAlign="center">
         You currently have no notifications.
       </Text>
     </Flex>

@@ -1,29 +1,27 @@
 <Tabs>
 <TabItem label="Linux">
 
+The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloading.
+Replace `ARCH` with your required version.
+
 ```code
-$ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
 $ sudo ./teleport-event-handler/install
 ```
-
-We currently only build the Event Handler plugin for amd64 machines. For ARM
-architecture, you can build from source.
 
 </TabItem>
 
 <TabItem label="macOS">
 
+The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloading.
+Replace `ARCH` with your required version.
+
 ```code
-$ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.plugin.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
 $ sudo ./teleport-event-handler/install
 ```
-
-We currently only build the event handler plugin for amd64 machines. If your
-macOS machine uses Apple silicon, you will need to [install
-Rosetta](https://support.apple.com/en-us/HT211861) before you can run the
-event handler plugin. You can also build from source.
 
 </TabItem>
 
@@ -58,7 +56,7 @@ You will need Go >= (=teleport.golang=) installed.
 Run the following commands on your Universal Forwarder host:
 
 ```code
-$ git clone https://github.com/gravitational/teleport.git --depth 1
+$ git clone https://github.com/gravitational/teleport.git --depth 1 -b branch/v(=teleport.major_version=)
 $ cd teleport/integrations/event-handler
 $ git checkout (=teleport.plugin.version=)
 $ make build

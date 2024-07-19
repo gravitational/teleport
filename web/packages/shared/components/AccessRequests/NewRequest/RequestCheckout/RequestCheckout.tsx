@@ -25,6 +25,7 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Image,
   Indicator,
   LabelInput,
@@ -194,9 +195,9 @@ export function RequestCheckout<T extends PendingListItem>({
           style={{ cursor: 'pointer' }}
         />
         <Box>
-          <Text typography="h4" color="text.main" bold>
+          <H2>
             {data.length} {pluralize(data.length, 'Resource')} Selected
-          </Text>
+          </H2>
         </Box>
       </Flex>
     );
@@ -222,9 +223,7 @@ export function RequestCheckout<T extends PendingListItem>({
             <>
               <Box>
                 <Box mt={2} mb={7} textAlign="center">
-                  <Text typography="h4" color="text.main" bold>
-                    Resources Requested Successfully
-                  </Text>
+                  <H2 mb={1}>Resources Requested Successfully</H2>
                   <Text typography="subtitle1" color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
@@ -281,7 +280,7 @@ export function RequestCheckout<T extends PendingListItem>({
                               theme.colors.buttons.trashButton.default};
                             border-radius: 2px;
 
-                            :hover {
+                            &:hover {
                               background-color: ${({ theme }) =>
                                 theme.colors.buttons.trashButton.hover};
                             }
@@ -570,12 +569,12 @@ const RoleRowContainer = styled.div<{ checked?: boolean }>`
 
   // TODO(bl-nero): That's the third place where we're copying these
   // definitions. We need to make them reusable.
-  :hover {
+  &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    :after {
+    &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       content: '';
       position: absolute;
@@ -638,7 +637,7 @@ function TextBox({
           outline: none;
           background: transparent;
 
-          ::placeholder {
+          &::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
 
