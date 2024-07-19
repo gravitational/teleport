@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { readlink } from 'fs';
-
-import { exec } from 'child_process';
-
-import { promisify } from 'util';
-
-import { EventEmitter } from 'events';
+import { readlink } from 'node:fs';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { EventEmitter } from 'node:events';
 
 import * as nodePTY from 'node-pty';
+import which from 'which';
 
 import Logger from 'teleterm/logger';
 
 import { PtyProcessOptions, IPtyProcess } from './types';
 
 type Status = 'open' | 'not_initialized' | 'terminated';
+
+const pathEnvVar = process.platform === 'win32' ? 'Path' : 'PATH';
 
 export class PtyProcess extends EventEmitter implements IPtyProcess {
   private _buffered = true;
@@ -54,8 +54,18 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     return this.options.ptyId;
   }
 
-  start(cols: number, rows: number) {
+  /**
+   * start spawns a new PTY with the arguments given through the constructor.
+   * It emits TermEventEnum.StartError on error. start itself always returns a fulfilled promise.
+   */
+  async start(cols: number, rows: number) {
     try {
+      // which throws an error if the argument is not found in path.
+      // TODO(ravicious): Remove the manual check for the existence of the executable after node-pty
+      // makes its behavior consistent across platforms.
+      // https://github.com/microsoft/node-pty/issues/689
+      await which(this.options.path, { path: this.options.env[pathEnvVar] });
+
       // TODO(ravicious): Set argv0 when node-pty adds support for it.
       // https://github.com/microsoft/node-pty/issues/472
       this._process = nodePTY.spawn(this.options.path, this.options.args, {
