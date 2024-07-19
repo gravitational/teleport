@@ -61,7 +61,7 @@ func newTestAuthority(t *testing.T) testAuthority {
 }
 
 // makeSignedKey helper returns a new user key signed by CAPriv key.
-func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
+func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *KeyRing {
 	priv, err := s.keygen.GeneratePrivateKey()
 	require.NoError(t, err)
 
