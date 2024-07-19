@@ -283,7 +283,6 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
-
 	b := &Backend{
 		Entry:   l,
 		Config:  *cfg,
@@ -362,7 +361,8 @@ func (b *Backend) configureTable(ctx context.Context, svc *applicationautoscalin
 	if err != nil {
 		return trace.Wrap(convertError(err))
 	}
-	if tableStatus.Table.StreamSpecification != nil && !aws.ToBool(tableStatus.Table.StreamSpecification.StreamEnabled) {
+
+	if tableStatus.Table.StreamSpecification == nil || (tableStatus.Table.StreamSpecification != nil && !aws.ToBool(tableStatus.Table.StreamSpecification.StreamEnabled)) {
 		_, err = b.svc.UpdateTable(ctx, &dynamodb.UpdateTableInput{
 			TableName: tableName,
 			StreamSpecification: &types.StreamSpecification{
