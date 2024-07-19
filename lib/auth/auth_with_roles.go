@@ -3674,10 +3674,6 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// require additional permissions for executing SSO test flow.
 	if req.SSOTestFlow {
 		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
@@ -3688,6 +3684,12 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 	// Only the Proxy service can create web sessions via OIDC connector.
 	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	if req.CreatePrivilegedToken {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err, "privileged tokens can only be made by users")
+		}
 	}
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
@@ -3832,10 +3834,6 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// require additional permissions for executing SSO test flow.
 	if req.SSOTestFlow {
 		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
@@ -3846,6 +3844,12 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 	// Only the Proxy service can create web sessions via SAML connector.
 	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	if req.CreatePrivilegedToken {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err, "privileged tokens can only be made by users")
+		}
 	}
 
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
@@ -4046,10 +4050,6 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// require additional permissions for executing SSO test flow.
 	if req.SSOTestFlow {
 		if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
@@ -4060,6 +4060,12 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 	// Only the Proxy service can create web sessions via Github connector.
 	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	if req.CreatePrivilegedToken {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err, "privileged tokens can only be made by users")
+		}
 	}
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
