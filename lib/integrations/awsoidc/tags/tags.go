@@ -20,6 +20,7 @@ package tags
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	athenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
@@ -60,7 +61,6 @@ func DefaultResourceCreationTags(clusterName, integrationName string) AWSTags {
 func (d AWSTags) ToECSTags() []ecsTypes.Tag {
 	ecsTags := make([]ecsTypes.Tag, 0, len(d))
 	for k, v := range d {
-		k, v := k, v
 		ecsTags = append(ecsTags, ecsTypes.Tag{
 			Key:   &k,
 			Value: &v,
@@ -73,7 +73,6 @@ func (d AWSTags) ToECSTags() []ecsTypes.Tag {
 func (d AWSTags) ToEC2Tags() []ec2Types.Tag {
 	ec2Tags := make([]ec2Types.Tag, 0, len(d))
 	for k, v := range d {
-		k, v := k, v
 		ec2Tags = append(ec2Tags, ec2Types.Tag{
 			Key:   &k,
 			Value: &v,
@@ -120,7 +119,6 @@ func (d AWSTags) MatchesIAMTags(resourceTags []iamTypes.Tag) bool {
 func (d AWSTags) ToIAMTags() []iamTypes.Tag {
 	iamTags := make([]iamTypes.Tag, 0, len(d))
 	for k, v := range d {
-		k, v := k, v
 		iamTags = append(iamTags, iamTypes.Tag{
 			Key:   &k,
 			Value: &v,
@@ -133,7 +131,6 @@ func (d AWSTags) ToIAMTags() []iamTypes.Tag {
 func (d AWSTags) ToS3Tags() []s3types.Tag {
 	s3Tags := make([]s3types.Tag, 0, len(d))
 	for k, v := range d {
-		k, v := k, v
 		s3Tags = append(s3Tags, s3types.Tag{
 			Key:   &k,
 			Value: &v,
@@ -146,7 +143,6 @@ func (d AWSTags) ToS3Tags() []s3types.Tag {
 func (d AWSTags) ToAthenaTags() []athenatypes.Tag {
 	athenaTags := make([]athenatypes.Tag, 0, len(d))
 	for k, v := range d {
-		k, v := k, v
 		athenaTags = append(athenaTags, athenatypes.Tag{
 			Key:   &k,
 			Value: &v,
@@ -158,10 +154,5 @@ func (d AWSTags) ToAthenaTags() []athenatypes.Tag {
 // ToMap returns the default tags using the expected type for other aws resources.
 // Eg Glue resources
 func (d AWSTags) ToMap() map[string]string {
-	mapTags := make(map[string]string, len(d))
-	for k, v := range d {
-		k, v := k, v
-		mapTags[k] = v
-	}
-	return mapTags
+	return maps.Clone((map[string]string)(d))
 }
