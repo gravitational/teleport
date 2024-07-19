@@ -866,33 +866,28 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 }
 
 func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
-	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
-		stored, err := asrv.Services.GetAccessGraphSettings(ctx)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-
-		if stored != nil {
-			return nil
-		}
-		stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
-			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Infof("Creating access graph settings: %v.", stored)
-		_, err = asrv.CreateAccessGraphSettings(ctx, stored)
-		if trace.IsAlreadyExists(err) {
-			continue
-		}
-
+	stored, err := asrv.Services.GetAccessGraphSettings(ctx)
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
-
+	}
+	if stored != nil {
+		return nil
 	}
 
-	return trace.LimitExceeded("failed to initialize access graph settings in %v iterations", iterationLimit)
+	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Creating access graph settings: %v.", stored)
+	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
 }
 
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
