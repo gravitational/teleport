@@ -44,6 +44,11 @@ type IntegrationStatus struct {
 	State string `json:"state"`
 	// LastErrorMessage holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.
 	LastErrorMessage *string `json:"last_error_message,omitempty"`
+	// LastRawError variable stores the most recent raw error message received from an API or service.
+	// It is intended to capture the original error message without any modifications or formatting.
+	// This can be useful for debugging purposes, providing detailed information about what went wrong
+	// in the interaction with the external service.
+	LastRawError *string `json:"last_raw_error,omitempty"`
 	// DiscoveredResources holds the count of the discovered resources in the previous iteration.
 	DiscoveredResources uint64 `json:"discovered_resources"`
 	// LastSyncTime is the timestamp when the Discovery Config was last sync.
@@ -98,6 +103,11 @@ type PluginStatus struct {
 	State string `json:"state"`
 	// LastErrorMessage holds the error message.
 	LastErrorMessage string `json:"last_error_message,omitempty"`
+	// LastRawError variable stores the most recent raw error message received from an API or service.
+	// It is intended to capture the original error message without any modifications or formatting.
+	// This can be useful for debugging purposes, providing detailed information about what went wrong
+	// in the interaction with the external service.
+	LastRawError string `json:"last_raw_error,omitempty"`
 	// LastSyncTime is the timestamp when the plugin was last sync.
 	LastSyncTime time.Time `json:"last_sync_time,omitempty"`
 	// Details is the details of the plugin.
@@ -188,6 +198,7 @@ func newPlugin(pl *types.PluginV1) *Plugin {
 		Status: PluginStatus{
 			State:            codeToStr(pl.Status.Code),
 			LastErrorMessage: pl.Status.ErrorMessage,
+			LastRawError:     pl.Status.LastRawError,
 			LastSyncTime:     pl.Status.LastSyncTime,
 		},
 	}

@@ -65,7 +65,8 @@ func startGitlabService(ctx context.Context, process *service.TeleportProcess, s
 				&types.PluginStatusV1{
 					Code:         code,
 					LastSyncTime: process.Clock.Now(),
-					ErrorMessage: gitlabservice.GitlabMessageOrError(err),
+					ErrorMessage: gitlabservice.GitlabHumanReadableError(err),
+					LastRawError: gitlabservice.GitlabRawError(err),
 					Details: &types.PluginStatusV1_Gitlab{
 						Gitlab: &types.PluginGitlabStatusV1{},
 					},

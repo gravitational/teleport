@@ -112,7 +112,7 @@ func New(ctx context.Context, opts Opts) (*Service, error) {
 
 	fetcher, err := newGitlabFetcher(opts.Address, opts.Token)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(&pollError{err: err})
 	}
 	return &Service{
 		logger:            opts.Logger,
@@ -264,7 +264,8 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 	for {
 		err = s.reconcileAccessGraph(ctx, currentTAGResources, stream)
 		code := types.PluginStatusCode_RUNNING
-		message := GitlabMessageOrError(err)
+		message := GitlabHumanReadableError(err)
+		rawErr := GitlabRawError(err)
 		if err != nil {
 			code = types.PluginStatusCode_OTHER_ERROR
 			if isUnauthorized(err) {
@@ -278,6 +279,7 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 					Code:         code,
 					LastSyncTime: s.clock.Now(),
 					ErrorMessage: message,
+					LastRawError: rawErr,
 					Details: &types.PluginStatusV1_Gitlab{
 						Gitlab: &types.PluginGitlabStatusV1{
 							ImportedUsers:    uint32(len(currentTAGResources.Users)),
@@ -300,12 +302,14 @@ func (s *Service) reconcileAccessGraph(ctx context.Context, currentTAGResources 
 	result, errPoll := s.fetcher.poll(ctx)
 	if errPoll != nil {
 		s.logger.ErrorContext(ctx, "Error polling gitlab resources", "error", errPoll)
+		errPoll = &pollError{err: errPoll}
 	}
 
 	upsert, toDel := reconcileResults(currentTAGResources, result)
 	errPush := push(stream, upsert, toDel)
 	if errPush != nil {
 		s.logger.ErrorContext(ctx, "Error pushing resources diff to TAG", "error", errPush)
+		errPush = &accessGraphPushError{err: errPush}
 		return trace.NewAggregate(errPoll, errPush)
 	}
 	// Update the currentTAGResources with the result of the reconciliation.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -222,8 +223,15 @@ func isUnauthorized(err error) bool {
 	return false
 }
 
-// GitlabMessageOrError returns the error message from a Gitlab error or the error message itself.
-func GitlabMessageOrError(err error) string {
+// GitlabRawError returns the error message from a Gitlab error or the error message itself.
+func GitlabRawError(err error) (str string) {
+	const maxErrorLength = 200 * 1024 /* 200KB */
+
+	defer func() {
+		if len(str) > maxErrorLength {
+			str = str[:maxErrorLength]
+		}
+	}()
 	if err == nil {
 		return ""
 	}
@@ -235,6 +243,58 @@ func GitlabMessageOrError(err error) string {
 		return gitlabErr.Message
 	}
 	return err.Error()
+}
+
+// GitlabHumanReadableError returns a human-readable description of a Gitlab error.
+func GitlabHumanReadableError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var pollErr *pollError
+	if errors.As(err, &pollErr) {
+		var gitlabErr *gitlab.ErrorResponse
+		if errors.As(err, &gitlabErr) {
+			return handleGitlabError(gitlabErr)
+		}
+		if errors.Is(err, gitlab.ErrNotFound) {
+			return "Failed to access GitLab resources. Please check your GitLab URL and try again."
+		}
+
+		// the other errors are not GitLab API errors but rather connection or other errors
+		return "Failed to access GitLab. Please check that your GitLab instance is reachable from the Teleport Auth server and try again."
+	}
+
+	var pushErr *accessGraphPushError
+	if errors.As(err, &pushErr) {
+		return "Failed to push GitLab resources to Access Graph. Please check the Access Graph configuration and try again."
+	}
+
+	return "Failed to access GitLab. Please check the full response for more details."
+
+}
+
+func handleGitlabError(gitlabErr *gitlab.ErrorResponse) string {
+	switch gitlabErr.Response.StatusCode {
+	case http.StatusUnauthorized:
+		/* revoked tokens return 401 */
+		if strings.Contains(gitlabErr.Message, "revoked") {
+			return "The access token has been revoked. Please create a new access token and try again."
+		}
+		return "Failed to authenticate with GitLab. Please check your access token and try again."
+	case http.StatusForbidden:
+		return "Failed to access GitLab resources. Please check your access permissions and try again."
+	case http.StatusNotFound:
+		return "Failed to access GitLab resources. Please check your GitLab URL and try again."
+	case http.StatusServiceUnavailable, http.StatusInternalServerError, http.StatusBadGateway, http.StatusGatewayTimeout, http.StatusConflict:
+		return "Failed to access GitLab. Please check your GitLab instance state and try again."
+	case http.StatusTooManyRequests:
+		return "The client was rate-limited and couldn't complete the requests. Please ensure the client is not being rate-limited and try again."
+	case http.StatusRequestTimeout:
+		return "The request to GitLab timed out. Please check your network connection and try again."
+	default:
+		return "Failed to access GitLab. Please check the full response for more details."
+	}
+
 }
 
 func uniqueUsernames(projectMembers []*accessgraphv1alpha.GitlabProjectMember, groupMembers []*accessgraphv1alpha.GitlabGroupMember) []string {
@@ -287,4 +347,38 @@ func gitlabInstanceReachable(ctx context.Context, gitlabURL string) error {
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
 	return nil
+}
+
+type pollError struct {
+	err error
+}
+
+func (p *pollError) Error() string {
+	return p.err.Error()
+}
+
+func (p *pollError) Unwrap() error {
+	return p.err
+}
+
+func (p *pollError) Is(err error) bool {
+	_, ok := err.(*pollError)
+	return ok
+}
+
+type accessGraphPushError struct {
+	err error
+}
+
+func (p *accessGraphPushError) Error() string {
+	return p.err.Error()
+}
+
+func (p *accessGraphPushError) Unwrap() error {
+	return p.err
+}
+
+func (p *accessGraphPushError) Is(err error) bool {
+	_, ok := err.(*accessGraphPushError)
+	return ok
 }

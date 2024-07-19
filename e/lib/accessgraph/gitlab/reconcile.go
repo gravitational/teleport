@@ -16,6 +16,13 @@ import (
 func reconcileResults(old *resources, new *resources) (upsert, delete *accessgraphv1alpha.GitlabResourceList) {
 	upsert, delete = &accessgraphv1alpha.GitlabResourceList{}, &accessgraphv1alpha.GitlabResourceList{}
 
+	if old == nil {
+		old = &resources{}
+	}
+	if new == nil {
+		new = &resources{}
+	}
+
 	for _, results := range []*reconcileIntermediateResult{
 		reconcileUsers(old.Users, new.Users),
 		reconcileGroups(old.Groups, new.Groups),

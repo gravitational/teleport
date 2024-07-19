@@ -89,6 +89,7 @@
             "status": {
                 "state": "running",
                 "last_error_message":"fake error",
+                "last_raw_error": "fake raw error",
                 "last_sync_time":"1984-04-04T00:00:00Z",
                 "details":{
                     "gitlab":{

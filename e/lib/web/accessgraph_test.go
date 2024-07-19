@@ -228,6 +228,7 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 				Code:         types.PluginStatusCode_RUNNING,
 				ErrorMessage: "fake error",
 				LastSyncTime: s.clock.Now(),
+				LastRawError: "fake raw error",
 				Details: &types.PluginStatusV1_Gitlab{
 					Gitlab: &types.PluginGitlabStatusV1{
 						ImportedGroups:   100,
