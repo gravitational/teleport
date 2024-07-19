@@ -20,6 +20,7 @@ package externalauditstorage_test
 
 import (
 	"context"
+	"maps"
 	"net/url"
 	"testing"
 
@@ -30,7 +31,6 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -138,12 +138,10 @@ func TestBootstrapInfra(t *testing.T) {
 			s3Clt := &mockBootstrapS3Client{buckets: make(map[string]bucket)}
 			athenaClt := &mockBootstrapAthenaClient{}
 			glueClt := &mockBootstrapGlueClient{}
-			stsClt := &mockBootstrapSTSClient{}
 			err := externalauditstorage.BootstrapInfra(testCtx, externalauditstorage.BootstrapInfraParams{
 				Athena:          athenaClt,
 				Glue:            glueClt,
 				S3:              s3Clt,
-				STS:             stsClt,
 				Spec:            tc.spec,
 				Region:          tc.region,
 				ClusterName:     "my-cluster",
@@ -183,7 +181,6 @@ func TestBootstrapInfra(t *testing.T) {
 				Athena:          athenaClt,
 				Glue:            glueClt,
 				S3:              s3Clt,
-				STS:             stsClt,
 				Spec:            tc.spec,
 				Region:          tc.region,
 				ClusterName:     "my-cluster",
@@ -212,15 +209,13 @@ func TestBootstrapInfra(t *testing.T) {
 				athenaClt.tags,
 			)
 			// Glue Database
-			databaseARN := "arn:aws:glue:" + tc.region + ":123456789012:database/teleport-database"
-			require.Contains(t, glueClt.taggedResources, databaseARN)
 			require.Equal(t,
 				map[string]string{
 					"teleport.dev/cluster":     "my-cluster",
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/integration": "my-integration",
 				},
-				glueClt.taggedResources[databaseARN],
+				glueClt.databaseTags,
 			)
 		})
 	}
@@ -241,13 +236,10 @@ type mockBootstrapAthenaClient struct {
 }
 
 type mockBootstrapGlueClient struct {
-	table    string
-	database string
-	// taggedResources maps between an ARN and a map of tags
-	taggedResources map[string]map[string]string
+	table        string
+	database     string
+	databaseTags map[string]string
 }
-
-type mockBootstrapSTSClient struct{}
 
 func (c *mockBootstrapS3Client) CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
 	if _, ok := c.buckets[*params.Bucket]; ok {
@@ -334,15 +326,6 @@ func (c *mockBootstrapGlueClient) CreateTable(ctx context.Context, params *glue.
 	return &glue.CreateTableOutput{}, nil
 }
 
-func (c *mockBootstrapGlueClient) TagResource(ctx context.Context, params *glue.TagResourceInput, optFns ...func(*glue.Options)) (*glue.TagResourceOutput, error) {
-	if c.taggedResources == nil {
-		c.taggedResources = make(map[string]map[string]string)
-	}
-	c.taggedResources[aws.ToString(params.ResourceArn)] = params.TagsToAdd
-
-	return &glue.TagResourceOutput{}, nil
-}
-
 // Creates a new database in a Data Catalog.
 func (c *mockBootstrapGlueClient) CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error) {
 	if c.database != "" {
@@ -350,12 +333,7 @@ func (c *mockBootstrapGlueClient) CreateDatabase(ctx context.Context, params *gl
 	}
 
 	c.database = *params.DatabaseInput.Name
+	c.databaseTags = maps.Clone(params.Tags)
 
 	return &glue.CreateDatabaseOutput{}, nil
-}
-
-func (c *mockBootstrapSTSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Account: aws.String("123456789012"),
-	}, nil
 }

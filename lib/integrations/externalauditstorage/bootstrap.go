@@ -32,7 +32,6 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	eastypes "github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -52,7 +51,6 @@ type BootstrapInfraParams struct {
 	Athena BootstrapAthenaClient
 	Glue   BootstrapGlueClient
 	S3     BootstrapS3Client
-	STS    BootstrapSTSClient
 
 	Spec   *eastypes.ExternalAuditStorageSpec
 	Region string
@@ -73,8 +71,6 @@ type BootstrapGlueClient interface {
 	CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error)
 	// Creates a new table definition in the Data Catalog.
 	CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error)
-	// TagResource adds tags to resources.
-	TagResource(ctx context.Context, params *glue.TagResourceInput, optFns ...func(*glue.Options)) (*glue.TagResourceOutput, error)
 	// Updates a metadata table in the Data Catalog.
 	UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error)
 }
@@ -93,12 +89,6 @@ type BootstrapS3Client interface {
 	PutBucketTagging(ctx context.Context, params *s3.PutBucketTaggingInput, optFns ...func(*s3.Options)) (*s3.PutBucketTaggingOutput, error)
 }
 
-// BootstrapSTSClient is a subset of [sts.Client] methods needed to bootstrap the storage.
-type BootstrapSTSClient interface {
-	// GetCallerIdentity returns the identity of the currently configured client.
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-}
-
 // BootstrapInfra bootstraps External Audit Storage infrastructure.
 // We are currently very opinionated about inputs and have additional checks to ensure
 // a stricter setup is created.
@@ -112,8 +102,6 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 		return trace.BadParameter("param Glue required")
 	case params.S3 == nil:
 		return trace.BadParameter("param S3 required")
-	case params.STS == nil:
-		return trace.BadParameter("param STS required")
 	case params.Region == "":
 		return trace.BadParameter("param Region required")
 	case params.ClusterName == "":
@@ -129,15 +117,9 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 		return trace.Wrap(err)
 	}
 
-	callerIdentity, err := params.STS.GetCallerIdentity(ctx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	accountID := aws.ToString(callerIdentity.Account)
-
 	ownershipTags := tags.DefaultResourceCreationTags(params.ClusterName, params.IntegrationName)
-
 	s3OwnershipTags := ownershipTags.ToS3Tags()
+
 	if err := createLTSBucket(ctx, params.S3, ltsBucket, params.Region, s3OwnershipTags); err != nil {
 		return trace.Wrap(err)
 	}
@@ -151,7 +133,7 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 		return trace.Wrap(err)
 	}
 
-	if err := createGlueInfra(ctx, params.Glue, accountID, params.Region, params.Spec.GlueTable, params.Spec.GlueDatabase, ltsBucket, ownershipTags.ToMap()); err != nil {
+	if err := createGlueInfra(ctx, params.Glue, params.Region, params.Spec.GlueTable, params.Spec.GlueDatabase, ltsBucket, ownershipTags.ToMap()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -283,32 +265,20 @@ func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workg
 // * CreateDatabase
 // * CreateTable
 // * UpdateTable
-func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, accountID, region, table, database, eventBucket string, ownershipTags map[string]string) error {
+func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, region, table, database, eventBucket string, ownershipTags map[string]string) error {
 	fmt.Printf("Creating Glue database %s\n", database)
 	_, err := clt.CreateDatabase(ctx, &glue.CreateDatabaseInput{
 		DatabaseInput: &gluetypes.DatabaseInput{
 			Name:        &database,
 			Description: aws.String(glueDatabaseDescription),
 		},
+		Tags: ownershipTags,
 	})
-
-	var aee *gluetypes.AlreadyExistsException
-	switch {
-	case err == nil:
-		// Tag created resource.
-		// Only Glue databases can be tagged. Glue tables do not have tags.
-		// https://docs.aws.amazon.com/glue/latest/dg/monitor-tags.html
-		databaseARN := glueDatabaseARN(region, accountID, database)
-		if _, err := clt.TagResource(ctx, &glue.TagResourceInput{
-			ResourceArn: aws.String(databaseARN),
-			TagsToAdd:   ownershipTags,
-		}); err != nil {
-			return trace.Wrap(err, "adding tags %+v to Glue Database %q", ownershipTags, databaseARN)
+	if err != nil {
+		var aee *gluetypes.AlreadyExistsException
+		if !errors.As(err, &aee) {
+			return trace.Wrap(err, "creating Glue database")
 		}
-	case errors.As(err, &aee):
-		// Re-using the existing table.
-	default:
-		return trace.Wrap(err, "creating Glue database")
 	}
 
 	// Currently matches table input as specified in:
@@ -336,14 +306,6 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, accountID, re
 	}
 
 	return nil
-}
-
-// glueDatabaseARN returns the ARN for a Glue Database
-// Taken from here: https://docs.aws.amazon.com/glue/latest/dg/glue-specifying-resource-arns.html
-// Format: arn:aws:glue:<region>:<account-id>:database/<database>
-// For example: arn:aws:glue:us-east-1:123456789012:database/db1
-func glueDatabaseARN(region, accountID, database string) string {
-	return fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", region, accountID, database)
 }
 
 // validateAndParseS3Input parses and checks s3 input uris against our strict rules.

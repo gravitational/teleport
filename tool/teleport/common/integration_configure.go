@@ -183,7 +183,6 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 			Athena: athena.NewFromConfig(cfg),
 			Glue:   glue.NewFromConfig(cfg),
 			S3:     s3.NewFromConfig(cfg),
-			STS:    sts.NewFromConfig(cfg),
 			Spec: &ecatypes.ExternalAuditStorageSpec{
 				SessionRecordingsURI:   params.SessionRecordingsURI,
 				AuditEventsLongTermURI: params.AuditEventsURI,
