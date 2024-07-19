@@ -22,6 +22,8 @@ import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import generateResourcePath from './generateResourcePath';
 
+import { defaultEntitlements } from './entitlement';
+
 import type {
   Auth2faType,
   AuthProvider,
@@ -99,33 +101,7 @@ const cfg = {
   },
 
   // default entitlements to false
-  entitlements: {
-    hsm: { enabled: false, limit: 0 },
-    oidc: { enabled: false, limit: 0 },
-    assist: { enabled: false, limit: 0 },
-    app: { enabled: false, limit: 0 },
-    db: { enabled: false, limit: 0 },
-    desktop: { enabled: false, limit: 0 },
-    accessMonitoring: { enabled: false, limit: 0 },
-    customTheme: { enabled: false, limit: 0 },
-    featureHiding: { enabled: false, limit: 0 },
-    policy: { enabled: false, limit: 0 },
-    identity: { enabled: false, limit: 0 },
-    deviceTrust: { enabled: false, limit: 0 },
-    k8s: { enabled: false, limit: 0 },
-    usageReporting: { enabled: false, limit: 0 },
-    upsellAlert: { enabled: false, limit: 0 },
-    saml: { enabled: false, limit: 0 },
-    cloudAuditLogRetention: { enabled: false, limit: 0 },
-    externalAuditStorage: { enabled: false, limit: 0 },
-    joinActiveSessions: { enabled: false, limit: 0 },
-    mobileDeviceManagement: { enabled: false, limit: 0 },
-    accessRequests: { enabled: false, limit: 0 },
-    accessLists: { enabled: false, limit: 0 },
-    sessionLocks: { enabled: false, limit: 0 },
-    oktaUserSync: { enabled: false, limit: 0 },
-    oktaSCIM: { enabled: false, limit: 0 },
-  },
+  entitlements: defaultEntitlements,
 
   ui: {
     scrollbackLines: 1000,

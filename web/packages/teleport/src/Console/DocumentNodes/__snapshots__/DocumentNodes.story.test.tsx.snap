@@ -267,6 +267,21 @@ exports[`render DocumentNodes 1`] = `
   margin-left: 4px;
 }
 
+.c37 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -285,21 +300,6 @@ exports[`render DocumentNodes 1`] = `
   line-height: 16px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c37 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
 }
 
 .c1 {

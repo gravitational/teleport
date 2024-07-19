@@ -263,7 +263,7 @@
               "slug": "/access-controls/guides/passwordless/"
             },
             {
-              "title": "Second Factor - WebAuthn",
+              "title": "IdP Hardening with WebAuthn",
               "slug": "/access-controls/guides/webauthn/"
             },
             {
@@ -506,6 +506,14 @@
             {
               "title": "Analyze AWS IAM policies",
               "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
+            },
+            {
+              "title": "Analyze Entra ID policies",
+              "slug": "/access-controls/access-graph/entra-id/",
               "forScopes": [
                 "cloud",
                 "enterprise"
@@ -1679,7 +1687,7 @@
     },
     {
       "source": "/auto-discovery/kubernetes-applications/reference/",
-      "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
+      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-applications/",
       "permanent": true
     },
     {

@@ -68,6 +68,25 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 	}, releaseMockFNs
 }
 
+func setupDirsForTest(t *testing.T, testTempDir string, distroConfig map[string]string) {
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
+
+	for fileName, contents := range distroConfig {
+		isDir := strings.HasSuffix(fileName, "/")
+		if isDir {
+			require.Empty(t, contents, "expected no contents for directory %q", fileName)
+			require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
+		} else {
+			filePathWithoutParent := path.Base(fileName)
+			require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
+			require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
+		}
+	}
+}
+
 func TestAutoDiscoverNode(t *testing.T) {
 	ctx := context.Background()
 
@@ -107,22 +126,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 					testTempDir := t.TempDir()
 
 					// Common folders to all distros
-					require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
-					require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
-					require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
-					require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
-
-					for fileName, contents := range distroConfig {
-						isDir := strings.HasSuffix(fileName, "/")
-						if isDir {
-							require.Empty(t, contents, "expected no contents for directory %q", fileName)
-							require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
-						} else {
-							filePathWithoutParent := path.Base(fileName)
-							require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
-							require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
-						}
-					}
+					setupDirsForTest(t, testTempDir, distroConfig)
 
 					installerConfig := &AutoDiscoverNodeInstallerConfig{
 						RepositoryChannel: "stable/rolling",
@@ -177,15 +181,20 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 					mockBins["teleport"].Expect("node",
 						"configure",
-						"--output=file://"+testTempDir+"/etc/teleport.yaml",
+						"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
 						"--proxy=proxy.example.com",
 						"--join-method=azure",
 						"--token=my-token",
 						"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 						"--azure-client-id=azure-client-id",
-					)
+					).AndCallFunc(func(c *bintest.Call) {
+						// create a teleport.yaml configuration file
+						require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+						c.Exit(0)
+					})
 
-					mockBins["systemctl"].Expect("enable", "--now", "teleport")
+					mockBins["systemctl"].Expect("enable", "teleport")
+					mockBins["systemctl"].Expect("restart", "teleport")
 
 					require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -198,9 +207,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 	})
 
 	t.Run("with automatic upgrades", func(t *testing.T) {
-		distroName := "ubuntu"
-		distroVersion := "24.04"
-		distroConfig := wellKnownOS[distroName][distroVersion]
+		distroConfig := wellKnownOS["ubuntu"]["24.04"]
 
 		proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			// We only expect calls to the automatic upgrade default channel's version endpoint.
@@ -214,22 +221,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 		testTempDir := t.TempDir()
 
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
-
-		for fileName, contents := range distroConfig {
-			isDir := strings.HasSuffix(fileName, "/")
-			if isDir {
-				require.Empty(t, contents, "expected no contents for directory %q", fileName)
-				require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
-			} else {
-				filePathWithoutParent := path.Base(fileName)
-				require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
-				require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
-			}
-		}
+		setupDirsForTest(t, testTempDir, distroConfig)
 
 		installerConfig := &AutoDiscoverNodeInstallerConfig{
 			RepositoryChannel: "stable/rolling",
@@ -265,15 +257,20 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 		mockBins["teleport"].Expect("node",
 			"configure",
-			"--output=file://"+testTempDir+"/etc/teleport.yaml",
+			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
 			"--proxy="+proxyPublicAddr,
 			"--join-method=azure",
 			"--token=my-token",
 			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
-		)
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
 
-		mockBins["systemctl"].Expect("enable", "--now", "teleport")
+		mockBins["systemctl"].Expect("enable", "teleport")
+		mockBins["systemctl"].Expect("restart", "teleport")
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -283,29 +280,12 @@ func TestAutoDiscoverNode(t *testing.T) {
 	})
 
 	t.Run("fails when imds server is not available", func(t *testing.T) {
-		distroName := "ubuntu"
-		distroVersion := "24.04"
-		distroConfig := wellKnownOS[distroName][distroVersion]
+		distroConfig := wellKnownOS["ubuntu"]["24.04"]
 		proxyPublicAddr := "proxy.example.com"
 
 		testTempDir := t.TempDir()
 
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
-		require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
-
-		for fileName, contents := range distroConfig {
-			isDir := strings.HasSuffix(fileName, "/")
-			if isDir {
-				require.Empty(t, contents, "expected no contents for directory %q", fileName)
-				require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
-			} else {
-				filePathWithoutParent := path.Base(fileName)
-				require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
-				require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
-			}
-		}
+		setupDirsForTest(t, testTempDir, distroConfig)
 
 		installerConfig := &AutoDiscoverNodeInstallerConfig{
 			RepositoryChannel: "stable/rolling",
@@ -328,20 +308,137 @@ func TestAutoDiscoverNode(t *testing.T) {
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
 		require.NoError(t, err)
 
-		// One of the first things the install command does is to check if teleport is already installed.
-		// If so, it stops the installation with success.
-		// Given that we are mocking the binary, it means it already exists and as such, the installation will stop.
-		// To prevent that, we must rename the file, call `<pakageManager> install teleport` and rename it back.
-		teleportInitialPath := mockBins["teleport"].Path
-		teleportHiddenPath := teleportInitialPath + "-hidden"
-		require.NoError(t, os.Rename(teleportInitialPath, teleportHiddenPath))
-
 		err = teleportInstaller.Install(ctx)
 		require.ErrorContains(t, err, "Auto Discover only runs on Cloud instances with IMDS/Metadata service enabled. Ensure the service is running and try again.")
 
 		for binName, mockBin := range mockBins {
 			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
 		}
+	})
+
+	t.Run("reconfigures and restarts if target teleport.yaml is different", func(t *testing.T) {
+		distroConfig := wellKnownOS["ubuntu"]["24.04"]
+
+		testTempDir := t.TempDir()
+
+		setupDirsForTest(t, testTempDir, distroConfig)
+
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
+			RepositoryChannel: "stable/rolling",
+			AutoUpgrades:      false,
+			ProxyPublicAddr:   "proxy.example.com",
+			TeleportPackage:   "teleport",
+			TokenName:         "my-token",
+			AzureClientID:     "azure-client-id",
+
+			fsRootPrefix:         testTempDir,
+			imdsProviders:        mockIMDSProviders,
+			binariesLocation:     binariesLocation,
+			aptPublicKeyEndpoint: mockRepoKeys.URL,
+		}
+
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
+		require.NoError(t, err)
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		// create an existing teleport.yaml configuration file
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml", []byte("has wrong config"), 0o644))
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		mockBins["teleport"].Expect("node",
+			"configure",
+			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--proxy=proxy.example.com",
+			"--join-method=azure",
+			"--token=my-token",
+			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--azure-client-id=azure-client-id",
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
+
+		mockBins["systemctl"].Expect("enable", "teleport")
+		mockBins["systemctl"].Expect("restart", "teleport")
+
+		require.NoError(t, teleportInstaller.Install(ctx))
+
+		for binName, mockBin := range mockBins {
+			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+		}
+
+		require.NoFileExists(t, testTempDir+"/etc/teleport.yaml.new")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
+		bs, err := os.ReadFile(testTempDir + "/etc/teleport.yaml")
+		require.NoError(t, err)
+		require.Equal(t, "teleport.yaml configuration bytes", string(bs))
+	})
+
+	t.Run("does nothing if teleport is already installed and target teleport.yaml configuration already exists", func(t *testing.T) {
+		distroName := "ubuntu"
+		distroVersion := "24.04"
+		distroConfig := wellKnownOS[distroName][distroVersion]
+
+		testTempDir := t.TempDir()
+
+		setupDirsForTest(t, testTempDir, distroConfig)
+
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
+			RepositoryChannel: "stable/rolling",
+			AutoUpgrades:      false,
+			ProxyPublicAddr:   "proxy.example.com",
+			TeleportPackage:   "teleport",
+			TokenName:         "my-token",
+			AzureClientID:     "azure-client-id",
+
+			fsRootPrefix:         testTempDir,
+			imdsProviders:        mockIMDSProviders,
+			binariesLocation:     binariesLocation,
+			aptPublicKeyEndpoint: mockRepoKeys.URL,
+		}
+
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
+		require.NoError(t, err)
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		// create an existing teleport.yaml configuration file
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml", []byte("teleport.yaml configuration bytes"), 0o644))
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		mockBins["teleport"].Expect("node",
+			"configure",
+			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--proxy=proxy.example.com",
+			"--join-method=azure",
+			"--token=my-token",
+			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--azure-client-id=azure-client-id",
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
+
+		require.NoError(t, teleportInstaller.Install(ctx))
+
+		for binName, mockBin := range mockBins {
+			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+		}
+
+		require.NoFileExists(t, testTempDir+"/etc/teleport.yaml.new")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
+		bs, err := os.ReadFile(testTempDir + "/etc/teleport.yaml")
+		require.NoError(t, err)
+		require.Equal(t, "teleport.yaml configuration bytes", string(bs))
 	})
 }
 

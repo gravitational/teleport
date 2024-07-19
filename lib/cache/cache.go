@@ -33,11 +33,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -180,6 +182,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
+		{Kind: types.KindAccessGraphSettings},
 		//{Kind: types.KindProvisioningState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -3251,4 +3254,29 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	}
 
 	return rg.reader.ListResources(ctx, req)
+}
+
+// GetAccessGraphSettings gets AccessGraphSettings from the backend.
+func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessGraphSettings)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+			cfg, err := rg.reader.GetAccessGraphSettings(ctx)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clone := protobuf.Clone(cachedCfg).(*clusterconfigpb.AccessGraphSettings)
+		return clone, nil
+	}
+	return rg.reader.GetAccessGraphSettings(ctx)
 }

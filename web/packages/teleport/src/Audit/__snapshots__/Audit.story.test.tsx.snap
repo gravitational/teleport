@@ -13547,8 +13547,8 @@ exports[`loaded audit log screen 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
   margin-right: 56px;
 }
@@ -13724,7 +13724,6 @@ exports[`loaded audit log screen 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -13920,11 +13919,11 @@ exports[`loaded audit log screen 1`] = `
   <div
     class="c0 c3 c4"
   >
-    <div
+    <h1
       class="c5 c6"
     >
       Audit Log
-    </div>
+    </h1>
     <div
       class="c7"
       width="210px"

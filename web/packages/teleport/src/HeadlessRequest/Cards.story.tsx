@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,5 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Text from './Text';
-export default Text;
+import React from 'react';
+
+import { CardAccept, CardDenied } from './Cards';
+
+export default {
+  title: 'Headless Request',
+};
+
+export function Cards() {
+  return (
+    <>
+      <CardAccept title="Card Title">Message</CardAccept>
+      <CardDenied title="Card Title">Message</CardDenied>
+    </>
+  );
+}

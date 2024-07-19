@@ -41,31 +41,10 @@ pre-existing access configured.
 
 ## Step 1/3. Set up AWS IAM credentials
 
-For Teleport to discover EKS clusters, the instance
-running the Discovery Service requires an IAM policy that allows Teleport to list and
-describe EKS clusters:
+Create and attach the following AWS IAM policy to the identity of the instance
+running the Teleport Discovery Service:
 
-```js
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-              "eks:DescribeCluster",
-              "eks:ListClusters",
-              "eks:DescribeAccessEntry",
-              "eks:CreateAccessEntry",
-              "eks:DeleteAccessEntry",
-              "eks:AssociateAccessPolicy"
-            ],
-            "Resource": "<Var name="arn:aws:eks:*:123456789012:cluster/*" />"
-        }
-    ]
-}
-```
-
-Update `Resource` entries to match your AWS account's EKS resources, which have ARNs in the following format: `arn:aws:eks:{Region}:{Account}:cluster/{ClusterName}`.
+(!docs/pages/includes/discovery/reference/aws-iam/eks.mdx!)
 
 ## Step 2/3. Configure EKS cluster authorization
 
