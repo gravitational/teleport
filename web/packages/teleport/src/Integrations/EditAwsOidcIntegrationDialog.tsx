@@ -146,8 +146,9 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                     s3Prefix={s3Prefix}
                   />
                   <OutlineWarn>
-                    We suggest reconfiguring this integration to remove the
-                    deprecated s3 fields.
+                    Using an S3 bucket to store the OpenID Configuration is not
+                    recommended. Reconfiguring this integration is suggested
+                    (this will not break existing features).
                   </OutlineWarn>
                 </>
               )}

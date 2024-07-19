@@ -52,7 +52,7 @@ test('user acknowledging script was ran when reconfiguring', async () => {
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   // Check s3 related fields are not rendered.
-  expect(screen.queryByText(/S3 bucket is deprecated/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/not recommended/)).not.toBeInTheDocument();
   expect(screen.queryByText('Amazon S3')).not.toBeInTheDocument();
 
   // change role arn
@@ -126,19 +126,19 @@ test('render warning when s3 buckets are present', async () => {
   expect(
     screen.getByRole('button', { name: /reconfigure/i })
   ).toBeInTheDocument();
-  expect(screen.getByText(/S3 bucket is deprecated/)).toBeInTheDocument();
+  expect(screen.getByText(/not recommended/)).toBeInTheDocument();
   expect(screen.getByText(/Amazon S3 Location/)).toBeInTheDocument();
 
   // Clicking on reconfigure should hide s3 fields.
   await userEvent.click(screen.getByRole('button', { name: /reconfigure/i }));
   await screen.findByText(/AWS CloudShell/);
-  expect(screen.queryByText(/S3 bucket is deprecated/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/not recommended/)).not.toBeInTheDocument();
   expect(screen.queryByText('/Amazon S3 Location/')).not.toBeInTheDocument();
 
   // Clicking on edit, should render it back.
   await userEvent.click(screen.getByRole('button', { name: /edit/i }));
 
-  await screen.findByText(/S3 bucket is deprecated/);
+  await screen.findByText(/not recommended/);
   await screen.findByText(/Amazon S3 Location/);
 });
 

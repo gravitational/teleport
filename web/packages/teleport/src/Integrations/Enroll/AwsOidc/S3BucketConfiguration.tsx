@@ -32,8 +32,10 @@ export function S3BucketConfiguration({
     <>
       <Flex alignItems="center" gap={1}>
         <Text>Amazon S3 Location</Text>
-        <ToolTipInfo sticky={true} kind="warning">
-          Deprecated.
+        <ToolTipInfo kind="warning">
+          Deprecated. Amazon is now validating the IdP certificate against a
+          list of root CAs. Storing the OpenID Configuration in S3 is no longer
+          required, and should be removed to improve security.
         </ToolTipInfo>
       </Flex>
       <Flex gap={3}>
