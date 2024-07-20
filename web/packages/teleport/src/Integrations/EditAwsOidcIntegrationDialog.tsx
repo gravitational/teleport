@@ -33,6 +33,7 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
+import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -47,7 +48,6 @@ import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
-import { S3BucketWarningBanner } from './Enroll/AwsOidc/S3BucketWarningBanner';
 
 type Props = {
   close(): void;
@@ -59,15 +59,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   const { close, edit, integration } = props;
   const { attempt, run } = useAttempt();
 
-  const [showS3BucketWarning, setShowS3BucketWarning] = useState(false);
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);
-  const [s3Bucket, setS3Bucket] = useState(
-    () => integration.spec.issuerS3Bucket
-  );
-  const [s3Prefix, setS3Prefix] = useState(
-    () => integration.spec.issuerS3Prefix
-  );
-
   const [scriptUrl, setScriptUrl] = useState('');
   const [confirmed, setConfirmed] = useState(false);
 
@@ -76,7 +68,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
       return;
     }
 
-    run(() => edit({ roleArn, s3Bucket, s3Prefix }));
+    run(() => edit({ roleArn }));
   }
 
   function generateAwsOidcConfigIdpScript(validator: Validator) {
@@ -92,24 +84,20 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName: integration.name,
       roleName: arnResourceName,
-      s3Bucket: s3Bucket,
-      s3Prefix: s3Prefix,
     });
 
     setScriptUrl(newScriptUrl);
   }
 
-  const isProcessing = attempt.status === 'processing';
-  const requiresS3BucketWarning = !s3Bucket && !s3Prefix;
-  const showGenerateCommand =
-    integration.spec.issuerS3Bucket !== s3Bucket ||
-    integration.spec.issuerS3Prefix !== s3Prefix ||
-    integration.spec.roleArn !== roleArn;
+  const s3Bucket = integration.spec.issuerS3Bucket;
+  const s3Prefix = integration.spec.issuerS3Prefix;
+  const showReadonlyS3Fields = s3Bucket || s3Prefix;
 
-  const changeDetected =
-    integration.spec.issuerS3Bucket !== s3Bucket ||
-    integration.spec.issuerS3Prefix !== s3Prefix ||
-    integration.spec.roleArn !== roleArn;
+  const isProcessing = attempt.status === 'processing';
+  const showGenerateCommand =
+    integration.spec.roleArn !== roleArn || showReadonlyS3Fields;
+
+  const changeDetected = integration.spec.roleArn !== roleArn;
 
   return (
     <Validation>
@@ -135,7 +123,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
               value={integration.name}
               readonly={true}
             />
-            <EditableBox px={3} pt={2}>
+            <EditableBox px={3} pt={2} mt={2}>
               <FieldInput
                 autoFocus
                 label="Role ARN"
@@ -151,16 +139,21 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 }
                 disabled={scriptUrl}
               />
-              <S3BucketConfiguration
-                s3Bucket={s3Bucket}
-                setS3Bucket={setS3Bucket}
-                s3Prefix={s3Prefix}
-                setS3Prefix={setS3Prefix}
-                disabled={!!scriptUrl}
-              />
+              {showReadonlyS3Fields && !scriptUrl && (
+                <>
+                  <S3BucketConfiguration
+                    s3Bucket={s3Bucket}
+                    s3Prefix={s3Prefix}
+                  />
+                  <OutlineWarn>
+                    Using an S3 bucket to store the OpenID Configuration is not
+                    recommended. Reconfiguring this integration is suggested
+                    (this will not break existing features).
+                  </OutlineWarn>
+                </>
+              )}
               {scriptUrl && (
                 <Box mb={5} data-testid="scriptbox">
-                  Configure the required permission in your AWS account.
                   <Text mb={2}>
                     Open{' '}
                     <Link
@@ -180,6 +173,27 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                         },
                       ]}
                     />
+                    {showReadonlyS3Fields && (
+                      <OutlineInfo mt={3} linkColor="buttons.link.default">
+                        <Box>
+                          After running the command, delete the previous{' '}
+                          <Link
+                            target="_blank"
+                            href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn({ s3Bucket, s3Prefix, roleArn: integration.spec.roleArn })}`}
+                          >
+                            identity provider
+                          </Link>{' '}
+                          along with its{' '}
+                          <Link
+                            target="_blank"
+                            href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
+                          >
+                            S3 bucket
+                          </Link>{' '}
+                          from your AWS console.
+                        </Box>
+                      </OutlineInfo>
+                    )}
                   </Box>
                 </Box>
               )}
@@ -192,16 +206,13 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                   Edit
                 </ButtonSecondary>
               )}
-              {showGenerateCommand && !scriptUrl && (
+              {!scriptUrl && showGenerateCommand && (
                 <ButtonBorder
                   mb={3}
                   onClick={() => generateAwsOidcConfigIdpScript(validator)}
-                  disabled={
-                    (!requiresS3BucketWarning && (!s3Bucket || !s3Prefix)) ||
-                    !roleArn
-                  }
+                  disabled={!roleArn}
                 >
-                  Generate Command
+                  Reconfigure
                 </ButtonBorder>
               )}
             </EditableBox>
@@ -217,40 +228,20 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 }}
               />
             )}
-
-            {requiresS3BucketWarning && showS3BucketWarning ? (
-              <S3BucketWarningBanner
-                onClose={() => setShowS3BucketWarning(false)}
-                onContinue={() => {
-                  setShowS3BucketWarning(false);
-                  handleEdit(validator);
-                }}
-                btnFlexWrap={true}
-              />
-            ) : (
-              <>
-                <ButtonPrimary
-                  mr="3"
-                  disabled={
-                    isProcessing ||
-                    (showGenerateCommand && !confirmed) ||
-                    !changeDetected
-                  }
-                  onClick={() => {
-                    if (requiresS3BucketWarning) {
-                      setShowS3BucketWarning(true);
-                    } else {
-                      handleEdit(validator);
-                    }
-                  }}
-                >
-                  Save
-                </ButtonPrimary>
-                <ButtonSecondary disabled={isProcessing} onClick={close}>
-                  Cancel
-                </ButtonSecondary>
-              </>
-            )}
+            <ButtonPrimary
+              mr="3"
+              disabled={
+                isProcessing ||
+                (showGenerateCommand && !confirmed) ||
+                (!showReadonlyS3Fields && !changeDetected)
+              }
+              onClick={() => handleEdit(validator)}
+            >
+              Save
+            </ButtonPrimary>
+            <ButtonSecondary disabled={isProcessing} onClick={close}>
+              Cancel
+            </ButtonSecondary>
           </DialogFooter>
         </Dialog>
       )}
@@ -263,3 +254,17 @@ const EditableBox = styled(Box)`
   border: 2px solid ${p => p.theme.colors.spotBackground[1]};
   background-color: ${p => p.theme.colors.spotBackground[0]};
 `;
+
+function getIdpArn({
+  s3Bucket,
+  s3Prefix,
+  roleArn,
+}: {
+  s3Bucket: string;
+  s3Prefix: string;
+  roleArn: string;
+}) {
+  const { awsAccountId } = splitAwsIamArn(roleArn);
+  const arn = `arn:aws:iam::${awsAccountId}:oidc-provider/${s3Bucket}.s3.amazonaws.com/${s3Prefix}`;
+  return encodeURIComponent(arn);
+}
