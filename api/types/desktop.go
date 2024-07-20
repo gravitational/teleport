@@ -19,6 +19,7 @@ package types
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -39,10 +40,12 @@ type WindowsDesktopService interface {
 	ResourceWithLabels
 	// GetAddr returns the network address of this service.
 	GetAddr() string
-	// GetVersion returns the teleport binary version of this service.
+	// GetTeleportVersion returns the teleport binary version of this service.
 	GetTeleportVersion() string
 	// GetHostname returns the hostname of this service
 	GetHostname() string
+	// GetLocalTime gets the local time of the current server.
+	GetLocalTime() time.Time
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -105,12 +108,12 @@ func (s *WindowsDesktopServiceV3) GetTeleportVersion() string {
 	return s.Spec.TeleportVersion
 }
 
-// GetProxyID returns a list of proxy ids this server is connected to.
+// GetProxyIDs returns a list of proxy ids this server is connected to.
 func (s *WindowsDesktopServiceV3) GetProxyIDs() []string {
 	return s.Spec.ProxyIDs
 }
 
-// SetProxyID sets the proxy ids this server is connected to.
+// SetProxyIDs sets the proxy ids this server is connected to.
 func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
@@ -118,6 +121,11 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
+}
+
+// GetLocalTime gets the local time of the current server.
+func (s *WindowsDesktopServiceV3) GetLocalTime() time.Time {
+	return s.Spec.LocalTime
 }
 
 // MatchSearch goes through select field values and tries to

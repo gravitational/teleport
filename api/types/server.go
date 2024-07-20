@@ -101,6 +101,9 @@ type Server interface {
 	GetAWSInstanceID() string
 	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
 	GetAWSAccountID() string
+
+	// GetLocalTime gets the local time of the current server.
+	GetLocalTime() time.Time
 }
 
 // NewServer creates an instance of Server.
@@ -623,6 +626,11 @@ func (s *ServerV2) GetAWSInfo() *AWSInfo {
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
+}
+
+// GetLocalTime gets the local time of the current server.
+func (s *ServerV2) GetLocalTime() time.Time {
+	return s.Spec.LocalTime
 }
 
 // CommandLabel is a label that has a value as a result of the

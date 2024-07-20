@@ -1050,6 +1050,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
 			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
+			LocalTime: s.clock.Now().UTC(),
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))

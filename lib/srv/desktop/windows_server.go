@@ -1080,6 +1080,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 			TeleportVersion: teleport.Version,
 			Hostname:        s.cfg.Hostname,
 			ProxyIDs:        s.cfg.ConnectedProxyGetter.GetProxyIDs(),
+			LocalTime:       s.cfg.Clock.Now().UTC(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -56,6 +56,8 @@ type KubeServer interface {
 	GetCluster() KubeCluster
 	// SetCluster sets the kube cluster this kube server server proxies.
 	SetCluster(KubeCluster) error
+	// GetLocalTime gets the local time of the current server.
+	GetLocalTime() time.Time
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -186,6 +188,11 @@ func (s *KubernetesServerV3) SetCluster(cluster KubeCluster) error {
 	return nil
 }
 
+// GetLocalTime gets the local time of the current server.
+func (s *KubernetesServerV3) GetLocalTime() time.Time {
+	return s.Spec.LocalTime
+}
+
 // String returns the server string representation.
 func (s *KubernetesServerV3) String() string {
 	return fmt.Sprintf("KubeServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Cluster=%v)",
@@ -236,7 +243,7 @@ func (s *KubernetesServerV3) GetProxyIDs() []string {
 	return s.Spec.ProxyIDs
 }
 
-// SetProxyID sets the proxy ids this server is connected to.
+// SetProxyIDs sets the proxy ids this server is connected to.
 func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }

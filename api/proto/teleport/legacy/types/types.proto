@@ -233,6 +233,12 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // LocalTime stores information about the server local time.
+  google.protobuf.Timestamp LocalTime = 14 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_time,omitempty"
+  ];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -822,6 +828,12 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+  // LocalTime stores information about the server local time.
+  google.protobuf.Timestamp LocalTime = 15 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_time,omitempty"
+  ];
 
   reserved 8;
   reserved 10;
@@ -895,6 +907,12 @@ message AppServerSpecV3 {
   AppV3 App = 5 [(gogoproto.jsontag) = "app"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // LocalTime stores information about the server local time.
+  google.protobuf.Timestamp LocalTime = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_time,omitempty"
+  ];
 }
 
 // AppV3List represents a list of app resources.
@@ -4190,6 +4208,12 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // LocalTime stores information about the server local time.
+  google.protobuf.Timestamp LocalTime = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_time,omitempty"
+  ];
 }
 
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
@@ -5140,6 +5164,12 @@ message WindowsDesktopServiceSpecV3 {
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 4 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // LocalTime stores information about the server local time.
+  google.protobuf.Timestamp LocalTime = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_time,omitempty"
+  ];
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.

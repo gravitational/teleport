@@ -57,6 +57,8 @@ type AppServer interface {
 	SetApp(Application) error
 	// GetTunnelType returns the tunnel type associated with the app server.
 	GetTunnelType() TunnelType
+	// GetLocalTime gets the local time of the current server.
+	GetLocalTime() time.Time
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -212,6 +214,11 @@ func (s *AppServerV3) GetTunnelType() TunnelType {
 	default:
 		return AppTunnel
 	}
+}
+
+// GetLocalTime gets the local time of the current server.
+func (s *AppServerV3) GetLocalTime() time.Time {
+	return s.Spec.LocalTime
 }
 
 // String returns the server string representation.

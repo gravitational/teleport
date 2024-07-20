@@ -469,12 +469,13 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 			Namespace: t.Namespace,
 		},
 		types.KubernetesServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: addr,
-			HostID:   t.TLSServerConfig.HostID,
-			Rotation: t.getRotationState(),
-			Cluster:  cluster,
-			ProxyIDs: t.ConnectedProxyGetter.GetProxyIDs(),
+			Version:   teleport.Version,
+			Hostname:  addr,
+			HostID:    t.TLSServerConfig.HostID,
+			Rotation:  t.getRotationState(),
+			Cluster:   cluster,
+			ProxyIDs:  t.ConnectedProxyGetter.GetProxyIDs(),
+			LocalTime: t.Clock.Now().UTC(),
 		},
 	)
 	if err != nil {
