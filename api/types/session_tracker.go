@@ -25,22 +25,25 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 )
 
-const (
-	SSHSessionKind            SessionKind            = "ssh"
-	KubernetesSessionKind     SessionKind            = "k8s"
-	DatabaseSessionKind       SessionKind            = "db"
-	AppSessionKind            SessionKind            = "app"
-	WindowsDesktopSessionKind SessionKind            = "desktop"
-	SessionObserverMode       SessionParticipantMode = "observer"
-	SessionModeratorMode      SessionParticipantMode = "moderator"
-	SessionPeerMode           SessionParticipantMode = "peer"
-)
-
 // SessionKind is a type of session.
 type SessionKind string
 
+const (
+	SSHSessionKind            SessionKind = "ssh"
+	KubernetesSessionKind     SessionKind = "k8s"
+	DatabaseSessionKind       SessionKind = "db"
+	AppSessionKind            SessionKind = "app"
+	WindowsDesktopSessionKind SessionKind = "desktop"
+)
+
 // SessionParticipantMode is the mode that determines what you can do when you join a session.
 type SessionParticipantMode string
+
+const (
+	SessionObserverMode  SessionParticipantMode = "observer"
+	SessionModeratorMode SessionParticipantMode = "moderator"
+	SessionPeerMode      SessionParticipantMode = "peer"
+)
 
 // SessionTracker is a resource which tracks an active session.
 type SessionTracker interface {
