@@ -16,7 +16,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -199,9 +198,7 @@ func (u *UserMonitor) reconcile(ctx context.Context) error {
 
 		rebuilt, err := rebuildUserFromUserLoginState(uls)
 		if err != nil {
-			if !errors.Is(err, errOriginalRolesAndTraitsNotSet) {
-				u.log.Debugf("Unable to rebuild user %s: %s", uls.GetName(), err.Error())
-			}
+			u.log.Debugf("Unable to rebuild user %s: %s", uls.GetName(), err.Error())
 			continue
 		}
 		usersToProcess[uls.GetName()] = rebuilt
@@ -270,9 +267,7 @@ func (u *UserMonitor) watchEvents(ctx context.Context) error {
 		select {
 		case event := <-watcher.Events():
 			if err := u.processResource(ctx, event.Resource, event.Type); err != nil {
-				if !errors.Is(err, errOriginalRolesAndTraitsNotSet) {
-					u.log.Debugf("Error while processing events: %s", err.Error())
-				}
+				u.log.Debugf("Error while processing events: %s", err.Error())
 			}
 		case <-watcher.Done():
 			return watcher.Error()
@@ -391,16 +386,9 @@ func (u *UserMonitor) rebuildAndProcessUser(ctx context.Context, name string) er
 	return trace.Wrap(u.processUserChange(ctx, user))
 }
 
-// error if the original roles and traits are not set. If they are, this is an error, but we'll suppress the logging.
-var errOriginalRolesAndTraitsNotSet = errors.New("user login state cannot be used, as original roles and traits not set")
-
 // rebuildUserFromUserLoginState will attempt to create a user object from the user login state if the user login state
 // represents an SSO user. Otherwise this will return an empty user.
 func rebuildUserFromUserLoginState(uls *userloginstate.UserLoginState) (types.User, error) {
-	if !uls.IsOriginalRolesAndTraitsSet() {
-		return nil, trace.Wrap(errOriginalRolesAndTraitsNotSet)
-	}
-
 	user, err := types.NewUser(uls.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)

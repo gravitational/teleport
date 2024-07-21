@@ -40,6 +40,11 @@ import (
 var userMonitorCmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+
+	// TODO: remove labels exclusion after teleport#44430 merges
+	cmpopts.IgnoreFields(header.Metadata{}, "Labels"),
+	cmpopts.IgnoreFields(types.Metadata{}, "Labels"),
+
 	cmpopts.SortSlices(func(u1, u2 *userloginstate.UserLoginState) bool {
 		return u1.GetName() < u2.GetName()
 	}),
@@ -163,7 +168,6 @@ func TestReconcile(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(test.expectedStates, states, userMonitorCmpOpts...))
-
 			require.Empty(t, cmp.Diff(test.expectedLocks, svc.lockToTarget))
 		})
 	}
@@ -717,9 +721,6 @@ func newUserLoginState(t *testing.T, name string, originalRoles, roles []string,
 
 	uls, err := userloginstate.New(header.Metadata{
 		Name: name,
-		Labels: map[string]string{
-			userloginstate.OriginalRolesAndTraitsSet: "true",
-		},
 	}, userloginstate.Spec{
 		OriginalRoles: originalRoles,
 		Roles:         roles,
