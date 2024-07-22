@@ -49,6 +49,11 @@ measurement.
 The code that aggregates and anonymizes this data can be found in our [GitHub
 repository](https://github.com/gravitational/teleport/tree/master/lib/usagereporter/teleport/aggregating).
 
+For Teleport Auth services that run in a restricted network environment you
+can set the `TELEPORT_REPORTING_HTTPS_PROXY` and `TELEPORT_REPORTING_HTTP_PROXY`
+environment variables. That will apply as the HTTP connect proxy setting overriding
+`HTTPS_PROXY` and `HTTP_PROXY` just for outbound usage reporting.
+
 ## Billing metrics
 
 Teleport uses the anonymized usage data described in the previous section to
