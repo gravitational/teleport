@@ -95,11 +95,6 @@ TARBINS = $(addprefix teleport/,$(BINS))
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
-# Check if pnpm is enabled before using it
-CHECK_PNPM := $(shell COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --version 2>/dev/null)
-# Check if Corepack is installed before using it
-CHECK_COREPACK := $(shell corepack --version 2>/dev/null)
-
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
@@ -1636,7 +1631,7 @@ ensure-webassets-e:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/teleport/index.html webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
-# Enables the pnpm package manager if  pnpm is not already enabled and Corepack
+# Enables the pnpm package manager if it is not already enabled and Corepack
 # is available.
 # We check if pnpm is enabled, as the user may not have permission to
 # enable it, but it may already be available.
@@ -1645,8 +1640,8 @@ ensure-webassets-e:
 # by issuing a bogus pnpm call with an env var that skips the prompt.
 .PHONY: ensure-js-package-manager
 ensure-js-package-manager:
-	@if [ -z "$(CHECK_PNPM)" ]; then \
-		if [ -n "$(CHECK_COREPACK)" ]; then \
+	@if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
+		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
 			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
 			corepack enable pnpm; \
 			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
