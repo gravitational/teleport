@@ -183,7 +183,7 @@ func (a *LocalKeyAgent) LoadKeyForCluster(clusterName string) error {
 // Some agent keys are only supported by the local agent, such as those
 // for a YubiKeyPrivateKey. Any failures to add the key will be aggregated
 // into the returned error to be handled by the caller if necessary.
-func (a *LocalKeyAgent) LoadKey(key Key) error {
+func (a *LocalKeyAgent) LoadKey(key KeyRing) error {
 	// convert key into a format understood by x/crypto/ssh/agent
 	agentKey, err := key.AsAgentKey()
 	if err != nil {
@@ -296,7 +296,7 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 
 // GetKey returns the key for the given cluster of the proxy from
 // the backing keystore.
-func (a *LocalKeyAgent) GetKey(clusterName string, opts ...CertOption) (*Key, error) {
+func (a *LocalKeyAgent) GetKey(clusterName string, opts ...CertOption) (*KeyRing, error) {
 	idx := KeyIndex{a.proxyHost, a.username, clusterName}
 	key, err := a.clientStore.GetKey(idx, opts...)
 	if err != nil {
@@ -312,7 +312,7 @@ func (a *LocalKeyAgent) GetKey(clusterName string, opts ...CertOption) (*Key, er
 
 // GetCoreKey returns the key without any cluster-dependent certificates,
 // i.e. including only the private key and the Teleport TLS certificate.
-func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
+func (a *LocalKeyAgent) GetCoreKey() (*KeyRing, error) {
 	return a.GetKey("")
 }
 
@@ -492,7 +492,7 @@ func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, wr
 
 // AddKey activates a new signed session key by adding it into the keystore and also
 // by loading it into the SSH agent.
-func (a *LocalKeyAgent) AddKey(key *Key) error {
+func (a *LocalKeyAgent) AddKey(key *KeyRing) error {
 	if err := a.addKey(key); err != nil {
 		return trace.Wrap(err)
 	}
@@ -505,7 +505,7 @@ func (a *LocalKeyAgent) AddKey(key *Key) error {
 
 // AddDatabaseKey activates a new signed database key by adding it into the keystore.
 // key must contain at least one db cert. ssh cert is not required.
-func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
+func (a *LocalKeyAgent) AddDatabaseKey(key *KeyRing) error {
 	if len(key.DBTLSCerts) == 0 {
 		return trace.BadParameter("key must contains at least one database access certificate")
 	}
@@ -514,7 +514,7 @@ func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
 
 // AddKubeKey activates a new signed Kubernetes key by adding it into the keystore.
 // key must contain at least one Kubernetes cert. ssh cert is not required.
-func (a *LocalKeyAgent) AddKubeKey(key *Key) error {
+func (a *LocalKeyAgent) AddKubeKey(key *KeyRing) error {
 	if len(key.KubeTLSCerts) == 0 {
 		return trace.BadParameter("key must contains at least one Kubernetes access certificate")
 	}
@@ -523,7 +523,7 @@ func (a *LocalKeyAgent) AddKubeKey(key *Key) error {
 
 // AddAppKey activates a new signed app key by adding it into the keystore.
 // key must contain at least one app cert. ssh cert is not required.
-func (a *LocalKeyAgent) AddAppKey(key *Key) error {
+func (a *LocalKeyAgent) AddAppKey(key *KeyRing) error {
 	if len(key.AppTLSCerts) == 0 {
 		return trace.BadParameter("key must contains at least one App access certificate")
 	}
@@ -531,7 +531,7 @@ func (a *LocalKeyAgent) AddAppKey(key *Key) error {
 }
 
 // addKey activates a new signed session key by adding it into the keystore.
-func (a *LocalKeyAgent) addKey(key *Key) error {
+func (a *LocalKeyAgent) addKey(key *KeyRing) error {
 	if key == nil {
 		return trace.BadParameter("key is nil")
 	}
@@ -627,7 +627,7 @@ func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
 			if err := k.checkCert(cert); err != nil {
 				return nil, trace.Wrap(err)
 			}
-			signer, err := sshutils.SSHSigner(cert, k)
+			signer, err := sshutils.SSHSigner(cert, k.PrivateKey.Signer)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

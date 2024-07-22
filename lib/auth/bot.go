@@ -320,7 +320,8 @@ func newBotInstance(
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
 func (a *Server) generateInitialBotCerts(
-	ctx context.Context, botName, username, loginIP string, pubKey []byte,
+	ctx context.Context, botName, username, loginIP string,
+	sshPubKey, tlsPubKey []byte,
 	expires time.Time, renewable bool, initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 ) (*proto.Certs, error) {
 	var err error
@@ -386,23 +387,12 @@ func (a *Server) generateInitialBotCerts(
 		botInstanceID = uuid.String()
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := pubKey
-	cryptoPublicKey, err := sshutils.CryptoPublicKey(pubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Generate certificate
 	certReq := certRequest{
 		user:          userState,
 		ttl:           expires.Sub(a.GetClock().Now()),
-		sshPublicKey:  sshPublicKey,
-		tlsPublicKey:  tlsPublicKey,
+		sshPublicKey:  sshPubKey,
+		tlsPublicKey:  tlsPubKey,
 		checker:       checker,
 		traits:        accessInfo.Traits,
 		renewable:     renewable,

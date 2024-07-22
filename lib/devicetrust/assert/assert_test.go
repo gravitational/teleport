@@ -20,24 +20,22 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/assert"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
-	"github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
 func TestCeremony(t *testing.T) {
 	t.Parallel()
 
-	env := testenv.MustNew(
-		testenv.WithAutoCreateDevice(true),
-	)
+	deviceID := uuid.NewString()
 
-	devicesClient := env.DevicesClient
 	ctx := context.Background()
 
 	macDev, err := testenv.NewFakeMacOSDevice()
@@ -62,17 +60,17 @@ func TestCeremony(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Enroll the device before we attempt authentication (auto creates device
-			// as part of ceremony)
 			dev := test.dev
-			enrollC := enroll.Ceremony{
-				GetDeviceOSType:         dev.GetDeviceOSType,
-				EnrollDeviceInit:        dev.EnrollDeviceInit,
-				SignChallenge:           dev.SignChallenge,
-				SolveTPMEnrollChallenge: dev.SolveTPMEnrollChallenge,
-			}
-			_, err := enrollC.Run(ctx, devicesClient, false, testenv.FakeEnrollmentToken)
-			require.NoError(t, err, "EnrollDevice errored")
+
+			// Create an enrolled device.
+			devpb, pubKey, err := testenv.CreateEnrolledDevice(deviceID, dev)
+			require.NoError(t, err, "CreateEnrolledDevice errored")
+
+			env := testenv.MustNew(
+				testenv.WithAutoCreateDevice(true),
+				// Register the enrolled device with the service.
+				testenv.WithPreEnrolledDevice(devpb, pubKey),
+			)
 
 			assertC, err := assert.NewCeremony(assert.WithNewAuthnCeremonyFunc(func() *authn.Ceremony {
 				return &authn.Ceremony{
@@ -87,78 +85,83 @@ func TestCeremony(t *testing.T) {
 			}))
 			require.NoError(t, err, "NewCeremony errored")
 
-			authnStream, err := devicesClient.AuthenticateDevice(ctx)
-			require.NoError(t, err, "AuthenticateDevice errored")
+			clientToServer := make(chan *devicepb.AssertDeviceRequest)
+			serverToClient := make(chan *devicepb.AssertDeviceResponse)
 
-			// Typically this would be some other, non-DeviceTrustService stream, but
-			// here this is a good way to test it (as it runs actual fake device
-			// authn)
-			if err := assertC.Run(ctx, &assertStreamAdapter{
-				stream: authnStream,
-			}); err != nil {
-				t.Errorf("Run returned err=%q, want nil", err)
-			}
+			group, ctx := errgroup.WithContext(ctx)
+
+			// Run the client side of the ceremony.
+			group.Go(func() error {
+				err := assertC.Run(ctx, &assertStreamClientAdapter{
+					ctx:            ctx,
+					clientToServer: clientToServer,
+					serverToClient: serverToClient,
+				})
+				return trace.Wrap(err, "server AssertDevice errored")
+			})
+
+			serverAssertC, err := env.Service.CreateAssertCeremony()
+			require.NoError(t, err, "CreateAssertCeremony errored")
+			// Run the server side of the ceremony.
+			group.Go(func() error {
+				_, err := serverAssertC.AssertDevice(ctx, &assertStreamServerAdapter{
+					ctx:            ctx,
+					clientToServer: clientToServer,
+					serverToClient: serverToClient,
+				})
+				return trace.Wrap(err, "server AssertDevice errored")
+			})
+
+			err = group.Wait()
+			require.NoError(t, err, "group.Wait errored")
 		})
 	}
 }
 
-type assertStreamAdapter struct {
-	stream devicepb.DeviceTrustService_AuthenticateDeviceClient
+type assertStreamClientAdapter struct {
+	ctx            context.Context
+	clientToServer chan *devicepb.AssertDeviceRequest
+	serverToClient chan *devicepb.AssertDeviceResponse
 }
 
-func (s *assertStreamAdapter) Recv() (*devicepb.AssertDeviceResponse, error) {
-	resp, err := s.stream.Recv()
-	if err != nil {
-		return nil, err
-	}
-
-	switch resp.Payload.(type) {
-	case *devicepb.AuthenticateDeviceResponse_Challenge:
-		return &devicepb.AssertDeviceResponse{
-			Payload: &devicepb.AssertDeviceResponse_Challenge{
-				Challenge: resp.GetChallenge(),
-			},
-		}, nil
-	case *devicepb.AuthenticateDeviceResponse_TpmChallenge:
-		return &devicepb.AssertDeviceResponse{
-			Payload: &devicepb.AssertDeviceResponse_TpmChallenge{
-				TpmChallenge: resp.GetTpmChallenge(),
-			},
-		}, nil
-	case *devicepb.AuthenticateDeviceResponse_UserCertificates:
-		// UserCertificates means success.
-		return &devicepb.AssertDeviceResponse{
-			Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{
-				DeviceAsserted: &devicepb.DeviceAsserted{},
-			},
-		}, nil
-	default:
-		return nil, trace.BadParameter("unexpected authenticate response payload: %T", resp.Payload)
+func (s *assertStreamClientAdapter) Recv() (*devicepb.AssertDeviceResponse, error) {
+	select {
+	case resp := <-s.serverToClient:
+		return resp, nil
+	case <-s.ctx.Done():
+		return nil, trace.Wrap(s.ctx.Err())
 	}
 }
 
-func (s *assertStreamAdapter) Send(req *devicepb.AssertDeviceRequest) error {
-	authnReq := &devicepb.AuthenticateDeviceRequest{}
-	switch req.Payload.(type) {
-	case *devicepb.AssertDeviceRequest_Init:
-		init := req.GetInit()
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_Init{
-			Init: &devicepb.AuthenticateDeviceInit{
-				CredentialId: init.CredentialId,
-				DeviceData:   init.DeviceData,
-			},
-		}
-	case *devicepb.AssertDeviceRequest_ChallengeResponse:
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: req.GetChallengeResponse(),
-		}
-	case *devicepb.AssertDeviceRequest_TpmChallengeResponse:
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: req.GetTpmChallengeResponse(),
-		}
-	default:
-		return trace.BadParameter("unexpected assert request payload: %T", req.Payload)
+func (s *assertStreamClientAdapter) Send(req *devicepb.AssertDeviceRequest) error {
+	select {
+	case s.clientToServer <- req:
+		return nil
+	case <-s.ctx.Done():
+		return trace.Wrap(s.ctx.Err())
 	}
+}
 
-	return s.stream.Send(authnReq)
+type assertStreamServerAdapter struct {
+	ctx            context.Context
+	clientToServer chan *devicepb.AssertDeviceRequest
+	serverToClient chan *devicepb.AssertDeviceResponse
+}
+
+func (s *assertStreamServerAdapter) Recv() (*devicepb.AssertDeviceRequest, error) {
+	select {
+	case req := <-s.clientToServer:
+		return req, nil
+	case <-s.ctx.Done():
+		return nil, trace.Wrap(s.ctx.Err())
+	}
+}
+
+func (s *assertStreamServerAdapter) Send(resp *devicepb.AssertDeviceResponse) error {
+	select {
+	case s.serverToClient <- resp:
+		return nil
+	case <-s.ctx.Done():
+		return trace.Wrap(s.ctx.Err())
+	}
 }

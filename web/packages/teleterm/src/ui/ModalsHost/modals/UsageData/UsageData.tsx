@@ -22,7 +22,14 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
+import {
+  ButtonIcon,
+  ButtonPrimary,
+  ButtonSecondary,
+  H2,
+  Link,
+  Text,
+} from 'design';
 import { Cross } from 'design/Icon';
 
 interface UsageDataProps {
@@ -54,9 +61,7 @@ export function UsageData(props: UsageDataProps) {
           mb={0}
           alignItems="baseline"
         >
-          <Text typography="h4" bold>
-            Anonymous usage data
-          </Text>
+          <H2 mb={4}>Anonymous usage data</H2>
           <ButtonIcon
             type="button"
             onClick={props.onCancel}

@@ -1077,6 +1077,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 		Emitter:  s.cfg.Emitter,
 		Recorder: rec,
 		Database: sessionCtx.Database,
+		Clock:    s.cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1174,6 +1175,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		StartupParameters:  make(map[string]string),
 		Log:                s.log.With("id", id, "db", database.GetName()),
 		LockTargets:        authContext.LockTargets(),
+		StartTime:          s.cfg.Clock.Now(),
 	}
 
 	s.log.DebugContext(ctx, "Created session context.", "session", sessionCtx)

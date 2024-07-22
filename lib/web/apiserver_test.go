@@ -121,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -3858,8 +3859,8 @@ func TestAuthExport(t *testing.T) {
 			authType:       "",
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
-				require.Contains(t, string(b), "cert-authority ssh-rsa")
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
+				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
 			},
 		},
 		{
@@ -3867,7 +3868,7 @@ func TestAuthExport(t *testing.T) {
 			authType:       "host",
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
 			},
 		},
 		{
@@ -3875,7 +3876,7 @@ func TestAuthExport(t *testing.T) {
 			authType:       "user",
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "cert-authority ssh-rsa")
+				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
 			},
 		},
 		{
@@ -4598,6 +4599,7 @@ func TestGetWebConfig(t *testing.T) {
 		Questionnaire:                  false,
 		IsStripeManaged:                false,
 		PremiumSupport:                 false,
+		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.
@@ -4756,6 +4758,7 @@ func TestGetWebConfig_LegacyIdentityFeatureLimits(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: false},
 			string(entitlements.UsageReporting):         {Enabled: false},
 		},
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.

@@ -923,7 +923,10 @@ install_from_repo() {
         fi
         apt-get update
         apt-get install -y ${PACKAGE_LIST}
-    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ]; then
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "almalinux" ]; then
+        if [ "$ID" = "rocky" ] || [ "$ID" = "almalinux" ]; then
+            ID="rhel" # Rocky and AlmaLinux are bug-for-bug compatible with rhel (including the VERSION_ID format).
+        fi
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi

@@ -123,7 +123,12 @@ message OpenSSHCert {
 // for a user.
 message UserCertsRequest {
   // PublicKey is a public key to be signed.
-  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: Prefer SSHPublicKey and/or TLSPublicKey.
+  bytes PublicKey = 1 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
   // Username of key owner.
   string Username = 2 [(gogoproto.jsontag) = "username"];
   // Expires is a desired time of the expiry of the certificate, could
@@ -251,7 +256,10 @@ message UserCertsRequest {
   string SSHLogin = 19;
 
   // AttestationStatement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
+  //
+  // Deprecated: prefer SSHPublicKeyAttestationStatement and/or
+  // TLSPublicKeyAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20 [deprecated = true];
 
   // CertPurpose complements CertUsage by informing Teleport of the intended use
   // for the certificates.
@@ -269,6 +277,20 @@ message UserCertsRequest {
   }
   // Purpose is the intended purpose of the certificates.
   CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
+
+  // SSHPublicKey is a public key in SSH authorized_keys format, to be used as
+  // the subject for the issued SSH certificate. If omitted, only a TLS cert
+  // will be returned.
+  bytes SSHPublicKey = 22 [(gogoproto.jsontag) = "ssh_public_key,omitempty"];
+  // TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format, to be used as
+  // the subject for the issued TLS certificate. If omitted, only an SSH cert
+  // will be returned.
+  bytes TLSPublicKey = 23 [(gogoproto.jsontag) = "tls_public_key,omitempty"];
+
+  // SSHPublicKeyAttestationStatement is an attestation statement for SSHPublicKey.
+  teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
+  // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
+  teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -2267,6 +2289,8 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryPong Pong = 3;
     // UpstreamInventoryAgentMetadata advertises instance metadata.
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
+    // UpstreamInventoryGoodbye advertises that the instance is terminating.
+    UpstreamInventoryGoodbye Goodbye = 5;
   }
 }
 
@@ -2347,6 +2371,51 @@ message DownstreamInventoryHello {
   string Version = 1;
   // ServerID advertises the server ID of the auth server.
   string ServerID = 2;
+
+  // SupportedCapabilities indicate which features of the ICS that
+  // the connect auth server supports. This allows agents to determine
+  // how they should interact with the auth server to maintain compatibility.
+  message SupportedCapabilities {
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool ProxyHeartbeats = 1;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool ProxyCleanup = 2;
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool AuthHeartbeats = 3;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AuthCleanup = 4;
+    // NodeHeartbeats indicates the ICS supports heartbeating ssh servers.
+    bool NodeHeartbeats = 5;
+    // NodeCleanup indicates the ICS supports deleting nodes when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool NodeCleanup = 6;
+    // AppHeartbeats indicates the ICS supports heartbeating app servers.
+    bool AppHeartbeats = 7;
+    // AppCleanup indicates the ICS supports deleting apps when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AppCleanup = 8;
+    // DatabaseHeartbeats indicates the ICS supports heartbeating databases.
+    bool DatabaseHeartbeats = 9;
+    // DatabaseCleanup indicates the ICS supports deleting databases when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseCleanup = 10;
+    // DatabaseServiceHeartbeats indicates the ICS supports heartbeating databse services.
+    bool DatabaseServiceHeartbeats = 11;
+    // DatabaseServiceCleanup indicates the ICS supports deleting database services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseServiceCleanup = 12;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop servers.
+    bool WindowsDesktopHeartbeats = 13;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopCleanup = 14;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+    bool WindowsDesktopServiceHeartbeats = 15;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopServiceCleanup = 16;
+    // KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
+    bool KubernetesHeartbeats = 17;
+    // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool KubernetesCleanup = 18;
+  }
+
+  // SupportedCapabilities advertises the supported features of the auth server.
+  SupportedCapabilities Capabilities = 3;
 }
 
 // LabelUpdateKind is the type of service to update labels for.
@@ -2387,6 +2456,14 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
+}
+
+// UpstreamInventoryGoodbye informs the upstream service that instance
+// is terminating
+message UpstreamInventoryGoodbye {
+  // DeleteResources indicates that any heartbeats received from
+  // the instance should be terminated when the stream is closed.
+  bool DeleteResources = 1;
 }
 
 // InventoryStatusRequest requests inventory status info.

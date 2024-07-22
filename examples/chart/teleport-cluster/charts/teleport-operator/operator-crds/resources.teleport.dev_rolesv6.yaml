@@ -1158,7 +1158,6 @@ spec:
                   device_trust_mode:
                     description: DeviceTrustMode is the device authorization mode
                       used for the resources associated with the role. See DeviceTrust.Mode.
-                      Reserved for future use, not yet used by Teleport.
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on

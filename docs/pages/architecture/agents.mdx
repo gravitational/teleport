@@ -69,7 +69,7 @@ following components:
 
 The Teleport Auth Service runs a certificate authority that issues a host
 certificate to an agent when it joins the cluster for the first time. Read [Join
-Services to your Teleport Cluster](../agents/join-services-to-your-cluster.mdx)
+Services to your Teleport Cluster](../enroll-resources/agents/join-services-to-your-cluster.mdx)
 for the available methods you can use to join an agent to your Teleport cluster.
 
 All agents in a Teleport cluster keep the Auth Service updated on their status
@@ -119,7 +119,7 @@ agent.
 <Details title="Connecting to agents without reverse tunnels">
 
 It is possible to join Teleport agents to a cluster [through the Teleport Auth
-Service](../agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
 Once an agent joins a cluster through the Teleport Auth Service, the Teleport
 Proxy Service dials the agent directly, without creating a reverse tunnel. This
 mode supports the following services:
@@ -172,13 +172,13 @@ To learn more about the mechanism an agent uses to authenticate to an
 infrastructure resource, read the guide to enrolling that resource in your
 Teleport cluster:
 
-- [Applications](../application-access/guides.mdx)
-- [Cloud provider APIs](../application-access/cloud-apis.mdx)
-- [Databases](../database-access/guides.mdx)
-- [Kubernetes clusters](../kubernetes-access/register-clusters.mdx)
-- [Linux hosts with Teleport](../server-access/getting-started.mdx)
-- [OpenSSH servers](../server-access/openssh.mdx)
-- [Windows desktops](../desktop-access/getting-started.mdx)
+- [Applications](../enroll-resources/application-access/guides.mdx)
+- [Cloud provider APIs](../enroll-resources/application-access/cloud-apis.mdx)
+- [Databases](../enroll-resources/database-access/guides.mdx)
+- [Kubernetes clusters](../enroll-resources/kubernetes-access/register-clusters.mdx)
+- [Linux hosts with Teleport](../enroll-resources/server-access/getting-started.mdx)
+- [OpenSSH servers](../enroll-resources/server-access/openssh.mdx)
+- [Windows desktops](../enroll-resources/desktop-access/getting-started.mdx)
 
 ## Clients to agents
 
@@ -248,11 +248,11 @@ CLI:
 
 |`tsh` command|Upstream infrastructure resource|
 |---|---|
-|`tsh proxy app`|HTTP and [TCP](../application-access/guides/tcp.mdx) applications|
-|`tsh proxy aws`|[AWS SDK applications](../application-access/cloud-apis/aws-console.mdx)|
-|`tsh proxy azure`|[Azure SDK applications](../application-access/cloud-apis/azure.mdx)|
-|`tsh proxy gcloud`|[Google Cloud SDK applications](../application-access/cloud-apis/google-cloud.mdx)|
-|`tsh proxy ssh`|[OpenSSH client traffic](../server-access/openssh/openssh.mdx)|
+|`tsh proxy app`|HTTP and [TCP](../enroll-resources/application-access/guides/tcp.mdx) applications|
+|`tsh proxy aws`|[AWS SDK applications](../enroll-resources/application-access/cloud-apis/aws-console.mdx)|
+|`tsh proxy azure`|[Azure SDK applications](../enroll-resources/application-access/cloud-apis/azure.mdx)|
+|`tsh proxy gcloud`|[Google Cloud SDK applications](../enroll-resources/application-access/cloud-apis/google-cloud.mdx)|
+|`tsh proxy ssh`|[OpenSSH client traffic](../enroll-resources/server-access/openssh/openssh.mdx)|
 |`tsh proxy db`|[Native database clients](../connect-your-client/gui-clients.mdx)|
 |`tsh proxy kube`|[Kubernetes clusters behind L7 load balancers](tls-routing.mdx#kubernetes)|
 
@@ -276,4 +276,4 @@ Reference](../reference/audit.mdx).
 ## Further reading
 
 - For instructions on deploying agents, see the [Teleport agent
-  guides](../agents/introduction.mdx).
+  guides](../enroll-resources/agents/introduction.mdx).

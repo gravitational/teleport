@@ -25,7 +25,7 @@ import { ResourceSpec } from './types';
 
 export const SAML_APPLICATIONS: ResourceSpec[] = [
   {
-    name: 'SAML Application',
+    name: 'SAML Application (Generic)',
     kind: ResourceKind.SamlApplication,
     samlMeta: { preset: SamlServiceProviderPreset.Unspecified },
     keywords: 'saml sso application idp',

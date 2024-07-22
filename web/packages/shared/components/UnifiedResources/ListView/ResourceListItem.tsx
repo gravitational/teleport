@@ -278,12 +278,12 @@ const RowContainer = styled(Box)`
   transition: all 150ms;
   position: relative;
 
-  :hover {
+  &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    :after {
+    &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       content: '';
       position: absolute;
@@ -315,7 +315,7 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   border-bottom: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
 
-  :hover {
+  &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }

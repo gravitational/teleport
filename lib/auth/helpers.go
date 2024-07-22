@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -283,7 +283,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	srv.AuthServer, err = NewServer(&InitConfig{
+		DataDir:                cfg.Dir,
 		Backend:                srv.Backend,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.NewWithClock(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,
@@ -985,7 +987,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authcli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetPriv())
+	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -1145,14 +1147,42 @@ func (t *TestTLSServer) Stop() error {
 	return err
 }
 
+// FakeTeleportVersion fake version storage implementation always return current version.
+type FakeTeleportVersion struct{}
+
+// NewFakeTeleportVersion creates fake version storage.
+func NewFakeTeleportVersion() *FakeTeleportVersion {
+	return &FakeTeleportVersion{}
+}
+
+// GetTeleportVersion returns current Teleport version.
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
+	return teleport.SemVersion, nil
+}
+
+// WriteTeleportVersion stub function for writing.
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+	return nil
+}
+
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1162,14 +1192,14 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*stat
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
-			PublicTLSKey: publicTLS,
-			PublicSSHKey: pub,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return state.ReadIdentityFromKeyPair(priv, certs)
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
 }
 
 // clt limits required interface to the necessary methods

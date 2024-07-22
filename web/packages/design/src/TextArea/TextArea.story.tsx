@@ -28,6 +28,8 @@ export const TextAreas = () => (
   <>
     <TextArea mb={4} placeholder="Enter Some long text" />
     <TextArea mb={4} hasError={true} defaultValue="This field has an error" />
+    <TextArea mb={4} readOnly defaultValue="This field is read-only" />
+    <TextArea mb={4} disabled defaultValue="This field is disabled" />
     <TextArea
       mb={4}
       resizable={true}

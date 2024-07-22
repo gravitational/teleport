@@ -466,6 +466,16 @@ func (s *Server) close(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
 
+	sender, ok := s.c.InventoryHandle.GetSender()
+	if ok {
+		// Manual deletion per app is only required if the auth server
+		// doesn't support actively cleaning up app resources when the
+		// inventory control stream is terminated during shutdown.
+		if capabilities := sender.Hello().Capabilities; capabilities != nil {
+			shouldDeleteApps = shouldDeleteApps && !capabilities.AppCleanup
+		}
+	}
+
 	// Hold the READ lock while iterating the applications here to prevent
 	// deadlocking in flight heartbeats. The heartbeat announce acquires
 	// the lock to build the app resource to send. If the WRITE lock is

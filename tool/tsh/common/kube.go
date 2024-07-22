@@ -147,7 +147,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 	cluster := meta.GetClusterName()
 	kubeCluster := meta.GetKubeCluster()
-	var k *client.Key
+	var k *client.KeyRing
 
 	// Try loading existing keys.
 	k, err = tc.LocalAgent().GetKey(cluster, client.WithKubeCerts{})
@@ -791,7 +791,7 @@ func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Pro
 	return nil
 }
 
-func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
+func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.KeyRing, kubeClusterName string) error {
 	crt, err := key.KubeX509Cert(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1439,7 +1439,7 @@ type kubernetesStatus struct {
 	clusterAddr         string
 	teleportClusterName string
 	kubeClusters        []types.KubeCluster
-	credentials         *client.Key
+	credentials         *client.KeyRing
 	tlsServerName       string
 }
 

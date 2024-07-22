@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Card, Flex, Image, Link, Text } from 'design';
+import { Box, Card, Flex, H2, Image, Link, Text } from 'design';
 
 import {
   FeatureBox,
@@ -56,9 +56,7 @@ export function LockedAccessRequests() {
         width="auto"
       >
         <Box width="100%" textAlign="left">
-          <Text typography="h4" bold>
-            Access Requests Flow
-          </Text>
+          <H2 mb={1}>Access Requests Flow</H2>
           <Text typography="subtitle1" mb={5}>
             To learn more about access requests, take a look at&nbsp;
             <Link

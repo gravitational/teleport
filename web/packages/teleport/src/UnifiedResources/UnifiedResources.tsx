@@ -262,9 +262,6 @@ export function ClusterResources({
         Header={
           <>
             <FeatureHeader
-              css={`
-                border-bottom: none;
-              `}
               mb={1}
               alignItems="center"
               justifyContent="space-between"

@@ -111,6 +111,10 @@ type Profile struct {
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.
 	MissingClusterDetails bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool `yaml:"saml_slo_enabled,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
