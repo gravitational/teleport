@@ -148,9 +148,13 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 // * Default SSE-S3 encryption
 func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, ownershipTags []s3types.Tag) error {
 	fmt.Printf("Creating long term storage S3 bucket %s\n", bucketName)
-	err := createBucket(ctx, clt, bucketName, region, true, ownershipTags)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err, "creating long term storage S3 bucket")
+	err := ensureBucket(ctx, clt, bucketName, region, true)
+	if err != nil {
+		return trace.Wrap(err, "creating transient S3 bucket")
+	}
+
+	if err := applyBucketProperties(ctx, clt, bucketName, ownershipTags); err != nil {
+		return trace.Wrap(err, "applying S3 bucket properties")
 	}
 
 	fmt.Printf("Applying object lock configuration to long term storage S3 bucket with default retention period of %d years\n", defaultObjectLockRetentionYears)
@@ -176,9 +180,13 @@ func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName stri
 // * DeleteMarkers, NonCurrentVersions and IncompleteMultipartUploads are also removed
 func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, ownershipTags []s3types.Tag) error {
 	fmt.Printf("Creating transient storage S3 bucket %s\n", bucketName)
-	err := createBucket(ctx, clt, bucketName, region, false, ownershipTags)
-	if err != nil && !trace.IsAlreadyExists(err) {
+	err := ensureBucket(ctx, clt, bucketName, region, false)
+	if err != nil {
 		return trace.Wrap(err, "creating transient S3 bucket")
+	}
+
+	if err := applyBucketProperties(ctx, clt, bucketName, ownershipTags); err != nil {
+		return trace.Wrap(err, "applying S3 bucket properties")
 	}
 
 	fmt.Println("Applying bucket lifecycle configuration to transient storage S3 bucket")
@@ -216,7 +224,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting lifecycle configuration on S3 bucket")
 }
 
-func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool, ownershipTags []s3types.Tag) error {
+func ensureBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool) error {
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket:                     &bucketName,
 		CreateBucketConfiguration:  awsutil.CreateBucketConfiguration(region),
@@ -224,12 +232,21 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		ACL:                        s3types.BucketCannedACLPrivate,
 		ObjectOwnership:            s3types.ObjectOwnershipBucketOwnerEnforced,
 	})
-	if err != nil {
-		return trace.Wrap(awsutil.ConvertS3Error(err))
+	convertedErr := awsutil.ConvertS3Error(err)
+	switch {
+	case convertedErr == nil:
+		return nil
+	case trace.IsAlreadyExists(convertedErr):
+		return nil
+	default:
+		return trace.Wrap(convertedErr)
 	}
+}
 
+func applyBucketProperties(ctx context.Context, clt BootstrapS3Client, bucketName string, ownershipTags []s3types.Tag) error {
 	// s3:CreateBucket doesn't support tags, so the best we can do is
 	// to tag the bucket shortly after creating it
+	fmt.Printf("Adding tags to S3 bucket %s\n", bucketName)
 	if _, err := clt.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
 		Bucket:  &bucketName,
 		Tagging: &s3types.Tagging{TagSet: ownershipTags},
@@ -237,13 +254,17 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		return trace.Wrap(awsutil.ConvertS3Error(err))
 	}
 
-	_, err = clt.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+	fmt.Printf("Enabling Bucket versioning to S3 bucket %s\n", bucketName)
+	if _, err := clt.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
 		Bucket: &bucketName,
 		VersioningConfiguration: &s3types.VersioningConfiguration{
 			Status: s3types.BucketVersioningStatusEnabled,
 		},
-	})
-	return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
+	}); err != nil {
+		return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
+	}
+
+	return nil
 }
 
 // createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.
