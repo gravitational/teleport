@@ -1,0 +1,53 @@
+# extraLabels -- contains additional Kubernetes labels to apply on the resources
+# created by the chart.
+# See [the Kubernetes label documentation
+# ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+# for more information.
+extraLabels:
+  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole.
+  clusterRole: {}
+  # extraLabels.clusterRoleBinding(object) -- are labels to set on the ClusterRoleBinding.
+  clusterRoleBinding: {}
+  # extraLabels.role(object) -- are labels to set on the Role.
+  role: {}
+  # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
+  roleBinding: {}
+  # extraLabels.config(object) -- are labels to set on the ConfigMap.
+  config: {}
+  # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
+  deployment: {}
+  # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
+  job: {}
+  # extraLabels.pod(object) -- are labels to set on the Pods created by the
+  # Deployment or StatefulSet.
+  pod: {}
+  # extraLabels.podDisruptionBudget(object) -- are labels to set on the podDisruptionBudget.
+  podDisruptionBudget: {}
+  # extraLabels.podSecurityPolicy(object) -- are labels to set on the podSecurityPolicy.
+  podSecurityPolicy: {}
+  # extraLabels.secret(object) -- are labels to set on the Secret.
+  secret: {}
+  # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
+  serviceAccount: {}
+
+# annotations -- contains annotations to apply to the different Kubernetes
+# objects created by the chart. See [the Kubernetes annotation
+# documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+# for more details.
+annotations:
+  # annotations.config(object) -- contains the Kubernetes annotations
+  # put on the `ConfigMap` resource created by the chart.
+  config: {}
+  # annotations.deployment(object) -- contains the Kubernetes annotations
+  # put on the `Deployment` or `StatefulSet` resource created by the chart.
+  deployment: {}
+  # annotations.pod(object) -- contains the Kubernetes annotations
+  # put on the `Pod` resources created by the chart.
+  pod: {}
+  # annotations.secret(object) -- contains the Kubernetes annotations
+  # put on the `Secret` resource created by the chart.
+  # This has no effect when `joinTokenSecret.create` is `false`.
+  secret: {}
+  # annotations.serviceAccount(object) -- contains the Kubernetes annotations
+  # put on the `ServiceAccount` resource created by the chart.
+  serviceAccount: {}

@@ -1,0 +1,10 @@
+.version: &version "17.0.0-dev"
+
+name: tbot
+apiVersion: v2
+version: *version
+appVersion: *version
+description: TODO
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport
