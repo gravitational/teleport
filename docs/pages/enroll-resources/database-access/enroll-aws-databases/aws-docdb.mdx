@@ -27,11 +27,11 @@ description: How to access Amazon DocumentDB with Teleport database access
 
 - AWS account with a DocumentDB cluster.
   <Admonition type="warning" title="IAM authentication and TLS">
-  DocumentDB access requires IAM authentication which is only supported for
-  DocumentDB 5.0 or higher.
+  Teleport uses IAM authentication to connect users to DocumentDB, which is
+  only supported for DocumentDB 5.0 or higher.
 
-  In addition, the cluster must have Transport Layer Security (TLS) enabled.
-  TLS is enabled by default when using the default parameter group.
+  In addition, the DocumentDB cluster must have Transport Layer Security (TLS)
+  enabled. TLS is enabled by default when using the default parameter group.
   </Admonition>
 - Command-line client `mongosh` or `mongo` installed and added to your
   system's `PATH` environment variable.
@@ -65,7 +65,7 @@ $ sudo teleport db configure create \
 ```
 
 The command will generate a Database Service configuration to proxy your AWS
-DocumentDB cluster place it at the `/etc/teleport.yaml` location.
+DocumentDB cluster and save the configuration to `/etc/teleport.yaml`.
 
 ## Step 3/6. Create an IAM role for the Database Service
 
@@ -100,8 +100,8 @@ Use the **JSON** option for Policy editor and paste in the following policy:
 ```
 
 This policy allows Teleport Database Service to retrieve DocumentDB cluster
-metadata and assume IAM roles as DocumentDB IAM users. Note that the
-`sts:AssumeRole` has a resource tag condition to limit the IAM roles the
+metadata and assume IAM roles to authenticate as DocumentDB users. Note that
+the `sts:AssumeRole` has a resource tag condition to limit the IAM roles the
 Teleport Database Service can assume.
 
 Click **Next** and give the policy a name. In this guide, we will use the example
@@ -131,10 +131,10 @@ The Database Service will proxy the Amazon DocumentDB cluster with the URI you
 specified earlier. Keep in mind that AWS IAM changes may not propagate
 immediately and can take a few minutes to come into effect.
 
-## Step 5/6. Create a DocumentDB IAM user
+## Step 5/6. Create an IAM role for a DocumentDB user
 
-In this step, we will create a DocumentDB IAM user that can be accessed by
-Teleport. 
+In this step, we will create an IAM role that the Teleport Database Service can
+assume to authenticate to DocumentDB on behalf of a Teleport user.
 
 ### Create an IAM role
 
@@ -156,8 +156,8 @@ and `Allowed` for the value. Then click **Create Role** to complete the process.
 
 Login your DocumentDB cluster with your master username and password from a
 machine that has network access to the DocumentDB cluster. Create a DocumentDB
-user with the IAM role ARN and use the `MONGODB-AWS` mechanisms for
-authentication:
+user with the IAM role ARN as username and specify `MONGODB-AWS` in the
+mechanisms for authentication:
 ```code
 use $external;
 db.createUser(
@@ -230,6 +230,7 @@ for more details.
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
 - Learn more about [Authentication using IAM identity for
   DocumentDB](https://docs.aws.amazon.com/documentdb/latest/developerguide/iam-identity-auth.html)
   for more details.
