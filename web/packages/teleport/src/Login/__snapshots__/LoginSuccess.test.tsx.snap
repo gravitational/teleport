@@ -26,16 +26,6 @@ exports[`renders 1`] = `
   background-color: #222C59;
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 28px;
-  line-height: 32px;
-  margin-bottom: 24px;
-}
-
 .c0 {
   display: block;
   outline: none;
@@ -45,6 +35,16 @@ exports[`renders 1`] = `
   margin-right: auto;
   max-width: 200px;
   max-height: 120px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+  margin-bottom: 24px;
 }
 
 <div>
@@ -76,11 +76,11 @@ exports[`renders 1`] = `
         />
       </svg>
     </span>
-    <div
+    <h1
       class="c4"
     >
       Login Successful
-    </div>
+    </h1>
     You have successfully signed into your account. 
     <br />
      You can close this window and continue using the product.

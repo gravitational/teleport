@@ -36,17 +36,7 @@ import type {
 const tracer = trace.getTracer('TTY');
 
 export default function useKubeExecSession(doc: DocumentKubeExec) {
-  const {
-    clusterId,
-    sid,
-    kubeCluster,
-    kubeNamespace,
-    pod,
-    container,
-    command,
-    isInteractive,
-    mode,
-  } = doc;
+  const { clusterId, sid, kubeCluster, mode } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
@@ -72,6 +62,14 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
       command,
       isInteractive,
     });
+    ctx.updateKubeExecDocument(doc.id, {
+      title: `${namespace}/${pod}@${kubeCluster}`,
+      kubeNamespace: namespace,
+      pod,
+      container,
+      isInteractive,
+      command,
+    });
     setStatus('initialized');
   }
 
@@ -88,6 +86,7 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
 
           tty.on(TermEvent.CONN_CLOSE, () => {
+            setStatus('disconnected');
             ctx.updateKubeExecDocument(doc.id, { status: 'disconnected' });
           });
 
@@ -95,7 +94,7 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
             const data = JSON.parse(payload);
             data.session.kind = 'k8s';
             setSession(data.session);
-            handleTtyConnect(ctx, data.session, doc.id, isInteractive, command);
+            handleTtyConnect(ctx, data.session, doc.id);
           });
 
           // assign tty reference so it can be passed down to xterm
@@ -110,9 +109,7 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
       {
         kind: 'k8s',
         resourceName: kubeCluster,
-        login: [kubeNamespace, pod, container].join('/'),
-        isInteractive,
-        command,
+        login: 'root', // standard login value for kube sessions.
         clusterId,
         sid,
       },
@@ -138,38 +135,17 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
 function handleTtyConnect(
   ctx: ConsoleContext,
   session: SessionMetadata,
-  docId: number,
-  isInteractive: boolean,
-  command: string
+  docId: number
 ) {
-  const {
-    login,
-    id: sid,
-    cluster_name: clusterId,
-    created,
-    kubernetes_cluster_name,
-  } = session;
-
-  const splits = login.split('/');
-
-  const kubeCluster = kubernetes_cluster_name;
-  const kubeNamespace = splits[0];
-  const pod = splits[1];
-  const container = splits?.[2];
+  const { id: sid, cluster_name: clusterId, created } = session;
 
   const url = cfg.getKubeExecSessionRoute({ clusterId, sid });
   const createdDate = new Date(created);
+
   ctx.updateKubeExecDocument(docId, {
-    title: `${kubeNamespace}/${pod}@${kubeCluster}`,
     status: 'connected',
     url,
     created: createdDate,
-    kubeNamespace,
-    kubeCluster,
-    pod,
-    container,
-    isInteractive,
-    command,
     sid,
     clusterId,
   });
@@ -177,4 +153,8 @@ function handleTtyConnect(
   ctx.gotoTab({ url });
 }
 
-export type Status = 'loading' | 'waiting-for-exec-data' | 'initialized';
+export type Status =
+  | 'loading'
+  | 'waiting-for-exec-data'
+  | 'initialized'
+  | 'disconnected';

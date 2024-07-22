@@ -3219,18 +3219,34 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.PublicKey
-	cryptoPubKey, err := sshutils.CryptoPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var sshPublicKey, tlsPublicKey []byte
+	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+	if sharedPublicKey != nil {
+		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
+		}
+		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
+		}
+		sshPublicKey = sharedPublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+	} else {
+		sshPublicKey = req.SSHPublicKey
+		tlsPublicKey = req.TLSPublicKey
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
 	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := keys.AttestationStatementFromProto(req.AttestationStatement)
-	tlsPublicKeyAttestationStatement := keys.AttestationStatementFromProto(req.AttestationStatement)
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.

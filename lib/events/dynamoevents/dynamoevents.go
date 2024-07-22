@@ -50,7 +50,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
@@ -304,57 +303,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 	b.svc = svc
 
-	// check if the table exists?
-	ts, err := b.getTableStatus(ctx, b.Tablename)
-	if err != nil {
+	if err := b.configureTable(ctx); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	switch ts {
-	case tableStatusOK:
-		break
-	case tableStatusMissing:
-		err = b.createTable(ctx, b.Tablename)
-	case tableStatusNeedsMigration:
-		return nil, trace.BadParameter("unsupported schema")
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = dynamo.TurnOnTimeToLive(ctx, b.svc, b.Tablename, keyExpires)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Enable continuous backups if requested.
-	if b.Config.EnableContinuousBackups {
-		if err := dynamo.SetContinuousBackups(ctx, b.svc, b.Tablename); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Enable auto scaling if requested.
-	if b.Config.EnableAutoScaling {
-		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetTableID(b.Tablename), dynamo.AutoScalingParams{
-			ReadMinCapacity:  b.Config.ReadMinCapacity,
-			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
-			ReadTargetValue:  b.Config.ReadTargetValue,
-			WriteMinCapacity: b.Config.WriteMinCapacity,
-			WriteMaxCapacity: b.Config.WriteMaxCapacity,
-			WriteTargetValue: b.Config.WriteTargetValue,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetIndexID(b.Tablename, indexTimeSearchV2), dynamo.AutoScalingParams{
-			ReadMinCapacity:  b.Config.ReadMinCapacity,
-			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
-			ReadTargetValue:  b.Config.ReadTargetValue,
-			WriteMinCapacity: b.Config.WriteMinCapacity,
-			WriteMaxCapacity: b.Config.WriteMaxCapacity,
-			WriteTargetValue: b.Config.WriteTargetValue,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	return b, nil
@@ -368,6 +318,148 @@ const (
 	tableStatusNeedsMigration
 	tableStatusOK
 )
+
+func (l *Log) configureTable(ctx context.Context) error {
+	// check if the table exists?
+	ts, err := l.getTableStatus(ctx, l.Tablename)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch ts {
+	case tableStatusOK:
+		break
+	case tableStatusMissing:
+		err = l.createTable(ctx, l.Tablename)
+	case tableStatusNeedsMigration:
+		return trace.BadParameter("unsupported schema")
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tableName := aws.String(l.Tablename)
+	ttlStatus, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
+		TableName: tableName,
+	})
+	if err != nil {
+		return trace.Wrap(convertError(err))
+	}
+	switch aws.StringValue(ttlStatus.TimeToLiveDescription.TimeToLiveStatus) {
+	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
+	default:
+		_, err = l.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
+			TableName: tableName,
+			TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
+				AttributeName: aws.String(keyExpires),
+				Enabled:       aws.Bool(true),
+			},
+		})
+		if err != nil {
+			return trace.Wrap(convertError(err))
+		}
+	}
+
+	// Enable continuous backups if requested.
+	if l.Config.EnableContinuousBackups {
+		// Make request to AWS to update continuous backups settings.
+		_, err := l.svc.UpdateContinuousBackupsWithContext(ctx, &dynamodb.UpdateContinuousBackupsInput{
+			PointInTimeRecoverySpecification: &dynamodb.PointInTimeRecoverySpecification{
+				PointInTimeRecoveryEnabled: aws.Bool(true),
+			},
+			TableName: tableName,
+		})
+		if err != nil {
+			return trace.Wrap(convertError(err))
+		}
+	}
+
+	// Enable auto scaling if requested.
+	if l.Config.EnableAutoScaling {
+		svc := applicationautoscaling.New(l.session)
+
+		type autoscalingParams struct {
+			readDimension  string
+			writeDimension string
+			resourceID     string
+			readPolicy     string
+			writePolicy    string
+		}
+
+		params := []autoscalingParams{
+			{
+				readDimension:  applicationautoscaling.ScalableDimensionDynamodbTableReadCapacityUnits,
+				writeDimension: applicationautoscaling.ScalableDimensionDynamodbTableWriteCapacityUnits,
+				resourceID:     fmt.Sprintf("table/%s", l.Tablename),
+				readPolicy:     fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+				writePolicy:    fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+			},
+			{
+				readDimension:  applicationautoscaling.ScalableDimensionDynamodbIndexReadCapacityUnits,
+				writeDimension: applicationautoscaling.ScalableDimensionDynamodbIndexWriteCapacityUnits,
+				resourceID:     fmt.Sprintf("table/%s/index/%s", l.Tablename, indexTimeSearchV2),
+				readPolicy:     fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
+				writePolicy:    fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
+			},
+		}
+
+		for _, p := range params {
+			// Define scaling targets. Defines minimum and maximum {read,write} capacity.
+			if _, err := svc.RegisterScalableTargetWithContext(ctx, &applicationautoscaling.RegisterScalableTargetInput{
+				MinCapacity:       aws.Int64(l.ReadMinCapacity),
+				MaxCapacity:       aws.Int64(l.ReadMaxCapacity),
+				ResourceId:        aws.String(p.resourceID),
+				ScalableDimension: aws.String(p.readDimension),
+				ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
+			}); err != nil {
+				return trace.Wrap(convertError(err))
+			}
+			if _, err := svc.RegisterScalableTargetWithContext(ctx, &applicationautoscaling.RegisterScalableTargetInput{
+				MinCapacity:       aws.Int64(l.WriteMinCapacity),
+				MaxCapacity:       aws.Int64(l.WriteMaxCapacity),
+				ResourceId:        aws.String(p.resourceID),
+				ScalableDimension: aws.String(p.writeDimension),
+				ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
+			}); err != nil {
+				return trace.Wrap(convertError(err))
+			}
+
+			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
+			// provisioned capacity DynamoDB will try and maintain.
+			if _, err := svc.PutScalingPolicyWithContext(ctx, &applicationautoscaling.PutScalingPolicyInput{
+				PolicyName:        aws.String(p.readPolicy),
+				PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
+				ResourceId:        aws.String(p.resourceID),
+				ScalableDimension: aws.String(p.readDimension),
+				ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
+				TargetTrackingScalingPolicyConfiguration: &applicationautoscaling.TargetTrackingScalingPolicyConfiguration{
+					PredefinedMetricSpecification: &applicationautoscaling.PredefinedMetricSpecification{
+						PredefinedMetricType: aws.String(applicationautoscaling.MetricTypeDynamoDbreadCapacityUtilization),
+					},
+					TargetValue: aws.Float64(l.ReadTargetValue),
+				},
+			}); err != nil {
+				return trace.Wrap(convertError(err))
+			}
+
+			if _, err := svc.PutScalingPolicyWithContext(ctx, &applicationautoscaling.PutScalingPolicyInput{
+				PolicyName:        aws.String(p.writePolicy),
+				PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
+				ResourceId:        aws.String(p.resourceID),
+				ScalableDimension: aws.String(p.writeDimension),
+				ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
+				TargetTrackingScalingPolicyConfiguration: &applicationautoscaling.TargetTrackingScalingPolicyConfiguration{
+					PredefinedMetricSpecification: &applicationautoscaling.PredefinedMetricSpecification{
+						PredefinedMetricType: aws.String(applicationautoscaling.MetricTypeDynamoDbwriteCapacityUtilization),
+					},
+					TargetValue: aws.Float64(l.WriteTargetValue),
+				},
+			}); err != nil {
+				return trace.Wrap(convertError(err))
+			}
+		}
+	}
+
+	return nil
+}
 
 // EmitAuditEvent emits audit event
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
@@ -653,7 +745,9 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 
 	if startKey != "" {
 		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
-			if fromUTC.After(createdAt) {
+			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
+			// that are not present in the cursor.
+			if fromUTC.Unix() > createdAt.Unix() {
 				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
 				// This is a guard check when iterating over the events using sliding window
 				// and the previous cursor no longer fits the new window.
@@ -780,7 +874,7 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 		return time.Time{}, errors.New("createdAt is invalid")
 	}
 
-	return time.Unix(e.CreatedAt, 0), nil
+	return time.Unix(e.CreatedAt, 0).UTC(), nil
 }
 
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {

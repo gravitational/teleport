@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
@@ -98,7 +99,7 @@ type IdPIAMConfigureRequest struct {
 	// IntegrationRole is the Integration's AWS Role used to set up Teleport as an OIDC IdP.
 	IntegrationRole string
 
-	ownershipTags AWSTags
+	ownershipTags tags.AWSTags
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -151,7 +152,7 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 		}
 	}
 
-	r.ownershipTags = defaultResourceCreationTags(r.Cluster, r.IntegrationName)
+	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
 
 	return nil
 }

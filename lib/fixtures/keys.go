@@ -29,11 +29,6 @@ import (
 )
 
 var PEMBytes = map[string][]byte{
-	"ecdsa": []byte(`-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEINGWx0zo6fhJ/0EAfrPzVFyFC9s18lBt3cRoEDhS3ARooAoGCCqGSM49
-AwEHoUQDQgAEi9Hdw6KvZcWxfg2IDhA7UkpDtzzt6ZqJXSsFdLd+Kx4S3Sx4cVO+
-6/ZOXRnPmNAlLUqjShUsUBBngG0u2fqEqA==
------END EC PRIVATE KEY-----`),
 	"rsa": []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAz1MArBKUGR4pHEwGS8PC6buJcjY7IHd5E8N7bDezVlmkZhz3
 2bMLCkKpoHGrcgL5UmiyTjcMZkfp/mVVkqGGQo+7ufiSbrUMgWhXpy0JL+ec2THY

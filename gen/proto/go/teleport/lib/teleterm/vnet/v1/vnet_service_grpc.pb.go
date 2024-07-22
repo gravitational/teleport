@@ -62,7 +62,7 @@ type VnetServiceClient interface {
 	// be fetched (due to e.g., a network error or an expired cert).
 	ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
-	// VNet daemon. macOS only.
+	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
 }
 
@@ -135,7 +135,7 @@ type VnetServiceServer interface {
 	// be fetched (due to e.g., a network error or an expired cert).
 	ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
-	// VNet daemon. macOS only.
+	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }

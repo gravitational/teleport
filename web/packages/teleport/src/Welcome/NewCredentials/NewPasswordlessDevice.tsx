@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, ButtonPrimary, ButtonText } from 'design';
+import { Box, ButtonPrimary, ButtonText, H2 } from 'design';
 import { Danger, Info } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -86,9 +86,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
     <Validation>
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="passwordless">
-          <Text typography="h4" mb={3} color="text.main">
-            Set up Passwordless Authentication
-          </Text>
+          <H2 mb={3}>Set up Passwordless Authentication</H2>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}

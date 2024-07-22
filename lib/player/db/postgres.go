@@ -98,7 +98,18 @@ func (p *PostgresTranslator) TranslateEvent(evt events.AuditEvent) *events.Sessi
 const lineBreak = "\r\n"
 
 func (p *PostgresTranslator) generateCommandPrint(metadata events.DatabaseMetadata, command string) string {
-	return lineBreak + fmt.Sprintf("%s=> %s", metadata.DatabaseName, command) + lineBreak
+	lead := metadata.DatabaseName + "=> "
+	leadSpacing := strings.Repeat(" ", len(lead))
+
+	var sb strings.Builder
+	commandLines := strings.Split(command, "\n")
+	sb.WriteString(lead + strings.TrimSpace(commandLines[0]) + lineBreak)
+
+	for i := 1; i < len(commandLines); i++ {
+		sb.WriteString(leadSpacing + strings.TrimSpace(commandLines[i]) + lineBreak)
+	}
+
+	return lineBreak + sb.String()
 }
 
 func (p *PostgresTranslator) generatePreparedStatementPrint(metadata events.Metadata, databaseMetadata events.DatabaseMetadata, portalName string) *events.SessionPrint {

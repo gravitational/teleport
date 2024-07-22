@@ -23,9 +23,11 @@
 package config
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -68,6 +70,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+const (
+	// logFileDefaultMode is the preferred permissions mode for log file.
+	logFileDefaultMode fs.FileMode = 0o644
+	// logFileDefaultFlag is the preferred flags set to log file.
+	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -757,12 +766,12 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	var w io.Writer
 	switch loggerConfig.Output {
 	case "":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 	case "stderr", "error", "2":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
-		w = os.Stdout
+		w = logutils.NewSharedWriter(os.Stdout)
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		w = os.Stderr
@@ -780,14 +789,20 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
+		// If syslog output has been configured and is supported by the operating system,
+		// then the shared writer is not needed because the syslog writer is already
+		// protected with a mutex.
 		w = sw
 	default:
-		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		// Assume this is a file path.
+		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
+			return trace.Wrap(err, "failed to init the log file shared writer")
 		}
-		w = logFile
+		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
+		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	level := new(slog.LevelVar)
@@ -816,12 +831,6 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// If syslog output has been configured and is supported by the operating system,
-	// then the shared writer is not needed because the syslog writer is already
-	// protected with a mutex.
-	if len(logger.Hooks) == 0 {
-		w = logutils.NewSharedWriter(w)
-	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
