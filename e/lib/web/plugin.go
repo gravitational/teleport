@@ -344,7 +344,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.DELETE("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.deleteAccessMonitoringRule))
 
 	h.POST("/webapi/sites/:site/integration/externalauditstorage/generate", h.WithClusterAuth(externalAuditStorageGenerate))
-	h.GET("/webapi/scripts/integration/externalauditstorage-bootstrap.sh", h.WithLimiter(getExternalAuditStorageBootstrapScript))
+	h.GET("/webapi/scripts/integration/externalauditstorage-bootstrap.sh", h.WithLimiter(p.getExternalAuditStorageBootstrapScript))
 	h.POST("/webapi/sites/:site/integration/externalauditstorage/promote", h.WithClusterAuth(p.externalAuditStoragePromote))
 	h.GET("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalAuditStorageGetCluster))
 	h.GET("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalAuditStorageGetDraft))

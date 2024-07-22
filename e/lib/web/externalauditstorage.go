@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -51,6 +52,14 @@ type externalAuditStorageBootstrapArg struct {
 	validate   func(string) error
 }
 
+func notEmpty(s string) error {
+	if len(s) > 0 {
+		return nil
+	}
+
+	return trace.BadParameter("must not be empty")
+}
+
 // Some of the query params use shorter names to keep the URL a somewhat
 // manageable length while still being readable.
 var ecaBootstrapArgs = []externalAuditStorageBootstrapArg{
@@ -58,6 +67,11 @@ var ecaBootstrapArgs = []externalAuditStorageBootstrapArg{
 		queryParam: "region",
 		cliFlag:    "aws-region",
 		validate:   aws.IsValidRegion,
+	},
+	{
+		queryParam: "integration",
+		cliFlag:    "integration",
+		validate:   notEmpty,
 	},
 	{
 		queryParam: "role",
@@ -107,12 +121,13 @@ var ecaBootstrapArgs = []externalAuditStorageBootstrapArg{
 	},
 }
 
-func readExternalAuditStorageBootstrapArgsFromQuery(query url.Values) ([]string, error) {
+func readExternalAuditStorageBootstrapArgsFromQuery(query url.Values, clusterName string) ([]string, error) {
 	cliArgs := []string{
 		"integration",
 		"configure",
 		"externalauditstorage",
 		"--bootstrap",
+		fmt.Sprintf("--cluster-name=%s", shsprintf.EscapeDefaultContext(clusterName)),
 	}
 	for _, arg := range ecaBootstrapArgs {
 		value := query.Get(arg.queryParam)
@@ -134,8 +149,10 @@ func readExternalAuditStorageBootstrapArgsFromQuery(query url.Values) ([]string,
 	return cliArgs, nil
 }
 
-func getExternalAuditStorageBootstrapScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	cliArgs, err := readExternalAuditStorageBootstrapArgsFromQuery(r.URL.Query())
+func (h *Plugin) getExternalAuditStorageBootstrapScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	clusterName := h.authMiddleware.ClusterName
+
+	cliArgs, err := readExternalAuditStorageBootstrapArgsFromQuery(r.URL.Query(), clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

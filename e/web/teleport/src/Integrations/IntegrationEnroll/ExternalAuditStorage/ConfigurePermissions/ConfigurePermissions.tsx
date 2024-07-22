@@ -180,6 +180,7 @@ function getBootstrapScript(
   query.set('recordings', externalAuditStorage.sessionsRecordingsURI);
   query.set('events', externalAuditStorage.auditEventsLongTermURI);
   query.set('results', externalAuditStorage.athenaResultsURI);
+  query.set('integration', externalAuditStorage.integrationName);
   query.set('workgroup', externalAuditStorage.athenaWorkgroup);
   query.set('db', externalAuditStorage.glueDatabase);
   query.set('table', externalAuditStorage.glueTable);
