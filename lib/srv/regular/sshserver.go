@@ -1202,7 +1202,10 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	processCloser := utils.CloseFunc(func() error {
 		// Set flag indicating that the exit of the child is expected (changes logging behavior).
 		explicitlyClosed.Store(true)
-		localConn.Close()
+
+		// We use an interrupt signal because the main control socket is not connection oriented,
+		// meaning reading from the child side won't unblock with the parent closes it.
+		cmd.Process.Signal(os.Interrupt)
 
 		// We expect closing the conn to cause the child process to exit, but it's
 		// best to verify.

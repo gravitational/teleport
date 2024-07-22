@@ -657,6 +657,16 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// parentConn is a datagram Unix socket, which is not connection oriented
+	// and thus won't unblock when the parent closes its side of the connection.
+	// Instead we use an interrupt signal from the parent process to unblock.
+	intC := make(chan os.Signal, 1)
+	signal.Notify(intC, os.Interrupt)
+	go func() {
+		<-intC
+		parentConn.Close()
+	}()
+
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
