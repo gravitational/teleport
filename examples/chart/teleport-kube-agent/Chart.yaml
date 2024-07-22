@@ -1,4 +1,4 @@
-.version: &version "15.4.9-cloud.1.igs"
+.version: &version "15.4.9-cloud.2.igs"
 
 name: teleport-kube-agent
 apiVersion: v2
