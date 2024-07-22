@@ -201,7 +201,6 @@ jobs:
           PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
-          aws s3 cp . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION}/" \
+          aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION}/" \
             --no-progress \
-            --recursive \
             --exclude '*unsigned*'
