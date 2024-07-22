@@ -2802,6 +2802,11 @@
     	"source": "/database-access/guides/snowflake/",
     	"destination": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
     	"permanent": true
+    },
+    {
+    	"source": "/get-started/",
+    	"destination": "/deploy-a-cluster/linux-demo/",
+    	"permanent": true
     }
   ]
 }
