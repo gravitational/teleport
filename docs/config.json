@@ -2572,6 +2572,106 @@
       "source": "/application-access/okta/guide/",
       "destination": "/enroll-resources/application-access/okta/",
       "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rds/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rdsproxy/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-redshift-serverless/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-opensearch/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/aws-opensearch/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty/",
+      "destination": "/connect-your-client/putty-winscp/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/jenkins/",
+      "destination": "/enroll-resources/machine-id/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/databases/",
+      "destination": "/enroll-resources/machine-id/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/host-certificate/",
+      "destination": "/enroll-resources/machine-id/access-guides/ssh/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/applications/",
+      "destination": "/enroll-resources/machine-id/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/kubernetes/",
+      "destination": "/enroll-resources/machine-id/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/upgrading/",
+      "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/networking/",
+      "destination": "/reference/networking/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/backends/",
+      "destination": "/reference/backends/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/backup-restore/",
+      "destination": "/management/operations/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ec2-discovery/",
+      "destination": "/enroll-resources/auto-discovery/servers/ec2-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/introduction/",
+      "destination": "/api/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/getting-started/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/architecture/",
+      "destination": "/api/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/u2f/",
+      "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/user-manual/",
+      "destination": "/",
+      "permanent": true
     }
   ]
 }
