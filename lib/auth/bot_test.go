@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -47,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -59,23 +57,25 @@ func renewBotCerts(
 	srv *TestTLSServer,
 	tlsCert tls.Certificate,
 	botUser string,
-	publicKey []byte,
-	privateKey []byte,
+	sshPublicKey []byte,
+	tlsPublicKey []byte,
+	tlsPrivateKey []byte,
 ) (*authclient.Client, *proto.Certs, tls.Certificate, error) {
 	fakeClock := srv.Clock().(clockwork.FakeClock)
 	client := srv.NewClientWithCert(tlsCert)
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: publicKey,
-		Username:  botUser,
-		Expires:   fakeClock.Now().Add(time.Hour),
+		SSHPublicKey: sshPublicKey,
+		TLSPublicKey: tlsPublicKey,
+		Username:     botUser,
+		Expires:      fakeClock.Now().Add(time.Hour),
 	})
 	if err != nil {
 		return nil, nil, tls.Certificate{}, trace.Wrap(err)
 	}
 
 	// Make sure to overwrite tlsCert with the new certs.
-	tlsCert, err = tls.X509KeyPair(certs.TLS, privateKey)
+	tlsCert, err = tls.X509KeyPair(certs.TLS, tlsPrivateKey)
 	if err != nil {
 		return nil, nil, tls.Certificate{}, trace.Wrap(err)
 	}
@@ -124,12 +124,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
+	_, sshPublicKey, tlsPrivateKey, tlsPublicKey := newSSHAndTLSKeyPairs(t)
 
 	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: token.GetName(),
@@ -138,7 +133,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
 		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
+		PublicSSHKey: sshPublicKey,
 	})
 	require.NoError(t, err)
 	checkCertLoginIP(t, certs.TLS, "127.0.0.1")
@@ -152,7 +147,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.Equal(t, "test", initialIdent.BotName)
 	require.NotEmpty(t, initialIdent.BotInstanceID)
 
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	tlsCert, err := tls.X509KeyPair(certs.TLS, tlsPrivateKey)
 	require.NoError(t, err)
 
 	// Renew the cert a bunch of times.
@@ -174,7 +169,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		// Advance the clock a bit.
 		fakeClock.Advance(time.Minute)
 
-		_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+		_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, sshPublicKey, tlsPublicKey, tlsPrivateKey)
 		require.NoError(t, err)
 
 		// Parse the Identity
@@ -242,21 +237,15 @@ func TestRegisterBotInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
+		PublicSSHKey: sshPubKey,
+		PublicTLSKey: tlsPubKey,
 	})
 	require.NoError(t, err)
 
@@ -320,29 +309,23 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
+	_, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
+		PublicSSHKey: sshPubKey,
+		PublicTLSKey: tlsPubKey,
 	})
 	require.NoError(t, err)
 
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	tlsCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
 	require.NoError(t, err)
 
 	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, _, err := renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	_, certsReal, _, err := renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, sshPubKey, tlsPubKey, tlsPrivKey)
 	require.NoError(t, err)
 
 	// Check the generation, it should be 2.
@@ -353,7 +336,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Equal(t, uint64(2), impersonatedIdent.Generation)
 
 	// Meanwhile, the initial set of certs was stolen. Let's try to renew those.
-	_, _, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	_, _, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, sshPubKey, tlsPubKey, tlsPrivKey)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -396,29 +379,23 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
+	_, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
+		PublicSSHKey: sshPubKey,
+		PublicTLSKey: tlsPubKey,
 	})
 	require.NoError(t, err)
 	checkCertLoginIP(t, certs.TLS, "127.0.0.1")
 
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	tlsCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
 	require.NoError(t, err)
 
-	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, sshPubKey, tlsPubKey, tlsPrivKey)
 	require.NoError(t, err)
 
 	// Parse the Identity
@@ -447,11 +424,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	require.NoError(t, err)
 	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
-	require.NoError(t, err)
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	roleName := "test-role"
 	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
@@ -508,8 +481,8 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 					Token:        awsTokenName,
 					HostID:       "test-bot",
 					Role:         types.RoleBot,
-					PublicSSHKey: sshPublicKey,
-					PublicTLSKey: tlsPublicKey,
+					PublicSSHKey: sshPubKey,
+					PublicTLSKey: tlsPubKey,
 					RemoteAddr:   "42.42.42.42:42",
 				},
 				StsIdentityRequest: identityRequest.Bytes(),
@@ -583,8 +556,8 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 					Token:        azureTokenName,
 					HostID:       "test-node",
 					Role:         types.RoleBot,
-					PublicSSHKey: sshPublicKey,
-					PublicTLSKey: tlsPublicKey,
+					PublicSSHKey: sshPubKey,
+					PublicTLSKey: tlsPubKey,
 					RemoteAddr:   remoteAddr,
 				},
 				AttestedData: signedADBytes,

@@ -302,7 +302,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		return trace.Wrap(err)
 	}
 
-	var key *client.Key
+	var key *client.KeyRing
 	// Identity files themselves act as the database credentials (if any), so
 	// don't bother fetching new certs.
 	if profile.IsVirtual {

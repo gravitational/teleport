@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1944,7 +1943,7 @@ func (c *testContext) cassandraClientWithAddr(ctx context.Context, proxyAddress,
 
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
-	key, err := client.GenerateRSAKey()
+	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

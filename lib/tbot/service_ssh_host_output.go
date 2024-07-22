@@ -129,7 +129,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.MarshalSSHPublicKey(),
+		Key:         key.PrivateKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  s.cfg.Principals,

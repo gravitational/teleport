@@ -34,8 +34,10 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // KubeConnectionTesterConfig defines the config fields for KubeConnectionTester.
@@ -155,13 +157,23 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 // genKubeRestTLSClientConfig creates the Teleport user credentials to access
 // the given Kubernetes cluster name.
 func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, mfaResponse *proto.MFAAuthenticateResponse, connectionDiagnosticID, clusterName, userName string) (rest.TLSClientConfig, error) {
-	key, err := client.GenerateRSAKey()
+	// TODO(nklaassen): support configurable key algorithms.
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	if err != nil {
+		return rest.TLSClientConfig{}, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return rest.TLSClientConfig{}, trace.Wrap(err)
+	}
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
 
 	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:              key.MarshalSSHPublicKey(),
+		TLSPublicKey:           publicKeyPEM,
 		Username:               userName,
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
@@ -172,8 +184,6 @@ func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, mf
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
 
-	key.TLSCert = certs.TLS
-
 	ca, err := s.cfg.UserClient.GetClusterCACert(ctx)
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
@@ -181,8 +191,8 @@ func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, mf
 
 	return rest.TLSClientConfig{
 		CAData:   ca.TLSCA,
-		CertData: key.TLSCert,
-		KeyData:  key.PrivateKeyPEM(),
+		CertData: certs.TLS,
+		KeyData:  privateKeyPEM,
 	}, nil
 }
 
