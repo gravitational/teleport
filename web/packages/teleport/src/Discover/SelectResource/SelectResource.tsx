@@ -32,7 +32,6 @@ import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
 import {
-  Header,
   HeaderSubtitle,
   PermissionsErrorMessage,
   ResourceKind,
@@ -47,6 +46,8 @@ import { storageService } from 'teleport/services/storageService';
 import cfg from 'teleport/config';
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
+
+import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 
 import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { DiscoverIcon } from './icons';
@@ -149,8 +150,10 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   }, []);
 
   return (
-    <Box mt={4}>
-      <Header>Select Resource To Add</Header>
+    <Box>
+      <FeatureHeader>
+        <FeatureHeaderTitle>Select Resource To Add</FeatureHeaderTitle>
+      </FeatureHeader>
       <HeaderSubtitle>
         Teleport can integrate into most, if not all of your infrastructure.
         Search for what resource you want to add.

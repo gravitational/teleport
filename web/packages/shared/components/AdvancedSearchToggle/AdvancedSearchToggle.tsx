@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { Text, Toggle, Link, Flex } from 'design';
+import { Text, Toggle, Link, Flex, H2 } from 'design';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
@@ -71,9 +71,9 @@ function PredicateDocumentation() {
           <code>||</code>
         </Text>
       </Text>
-      <Text typography="h4" mt={2} mb={1}>
+      <H2 mt={2} mb={1}>
         Usage Examples
-      </Text>
+      </H2>
       <Text typography="paragraph2">
         Label Matching:{' '}
         <Text ml={1} as="span" bold>

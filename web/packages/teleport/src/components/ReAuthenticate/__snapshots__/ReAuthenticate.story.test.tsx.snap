@@ -177,15 +177,21 @@ exports[`render failed state for re-authentication dialog 1`] = `
   cursor: auto;
 }
 
+.c15 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c7 {
@@ -194,14 +200,6 @@ exports[`render failed state for re-authentication dialog 1`] = `
   margin: 0;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
-}
-
-.c15 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c5 {
@@ -453,12 +451,11 @@ exports[`render failed state for re-authentication dialog 1`] = `
           class="c4 c5"
           style="flex-direction: column;"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
             Verify your identity
-          </div>
+          </h2>
           <div
             class="c7"
             color="text.slightlyMuted"
@@ -729,15 +726,21 @@ exports[`render re-authentication dialog 1`] = `
   cursor: auto;
 }
 
+.c14 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c7 {
@@ -746,14 +749,6 @@ exports[`render re-authentication dialog 1`] = `
   margin: 0;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
-}
-
-.c14 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c5 {
@@ -1005,12 +1000,11 @@ exports[`render re-authentication dialog 1`] = `
           class="c4 c5"
           style="flex-direction: column;"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
             Verify your identity
-          </div>
+          </h2>
           <div
             class="c7"
             color="text.slightlyMuted"

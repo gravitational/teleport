@@ -373,7 +373,7 @@ const EmptyIndicator = ({
           justifyContent="center"
         >
           <Flex
-            gap={2}
+            gap={3}
             flexWrap="nowrap"
             alignItems="flex-start"
             justifyContent="center"
@@ -387,12 +387,7 @@ const EmptyIndicator = ({
                 height: 32px;
               `}
             />
-            <Text
-              textAlign="center"
-              typography="paragraph"
-              m="0"
-              color="text.main"
-            >
+            <Text textAlign="center" typography="h1" m="0" color="text.main">
               {emptyText}
             </Text>
           </Flex>

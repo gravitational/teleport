@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -182,7 +182,7 @@ type TestClientConfig struct {
 // MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
-	key, err := client.GenerateRSAKey()
+	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

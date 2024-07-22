@@ -18,7 +18,7 @@ import styled from 'styled-components';
 import React from 'react';
 
 import * as Icons from 'design/Icon';
-import { Flex, Text } from 'design';
+import { Flex, H2, Text } from 'design';
 import { TeleportGearIcon } from 'design/SVGIcon';
 
 import { DocumentSsh } from 'teleport/Console/stores';
@@ -98,9 +98,7 @@ export function LatencyDiagnostic({
     <MenuIcon Icon={Icons.Wifi} buttonIconProps={{ color: colors.total }}>
       <Container>
         <Flex gap={5} flexDirection="column">
-          <Text textAlign="left" typography="h3">
-            Network Connection
-          </Text>
+          <H2>Network Connection</H2>
 
           <Flex alignItems="center">
             <IconContainer

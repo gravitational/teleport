@@ -187,7 +187,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	var key *Key
+	var key *KeyRing
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		dbCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,
@@ -253,7 +253,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	var key *Key
+	var key *KeyRing
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		appCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,

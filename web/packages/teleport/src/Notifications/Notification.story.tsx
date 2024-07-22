@@ -22,7 +22,7 @@ import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
-import { Flex, Text } from 'design';
+import { Flex, H2 } from 'design';
 
 import {
   NotificationSubKind,
@@ -62,9 +62,9 @@ export const NotificationCard = () => {
           `}
         >
           <Flex flexDirection="column">
-            <Text typography="h4" textAlign="center" mb={1}>
+            <H2 textAlign="center" mb={2}>
               Visited: Yes
-            </Text>
+            </H2>
             <Notification
               notification={mockNotifications[5]}
               closeNotificationsList={() => null}
@@ -73,9 +73,9 @@ export const NotificationCard = () => {
             />
           </Flex>
           <Flex flexDirection="column">
-            <Text typography="h4" textAlign="center" mb={1}>
+            <H2 textAlign="center" mb={2}>
               Visited: No
-            </Text>
+            </H2>
             <Notification
               notification={{
                 ...mockNotifications[5],

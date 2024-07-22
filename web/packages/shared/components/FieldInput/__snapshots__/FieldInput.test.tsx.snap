@@ -12,12 +12,6 @@ exports[`snapshot tests 1`] = `
   justify-content: center;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-}
-
 .c3 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
@@ -72,6 +66,12 @@ exports[`snapshot tests 1`] = `
   width: 100%;
   margin-bottom: 4px;
   margin-bottom: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
 }
 
 .c7 {

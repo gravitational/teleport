@@ -1,0 +1,29 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "OpenSearchCheckDomainURL",
+            "Effect": "Allow",
+            "Action": "es:DescribeDomains",
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "OpenSearchConnectAsIAMRole",
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": [
+                "arn:aws:iam::<Var name="aws-account-id"/>:role/{{ dbUserRole }}"
+            ]
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`OpenSearchCheckDomainURL` | Validate a domain's URL if it was auto-discovered by the Discovery Service. |
+|`OpenSearchConnectAsIAMRole` | Assume an IAM role to forward requests to OpenSearch. |
+

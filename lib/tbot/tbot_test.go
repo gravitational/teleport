@@ -86,6 +86,9 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
+			}
 		})(o)
 	}
 }

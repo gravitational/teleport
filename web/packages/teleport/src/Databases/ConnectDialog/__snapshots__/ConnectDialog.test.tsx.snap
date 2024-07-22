@@ -165,15 +165,21 @@ exports[`render dialog with instructions to connect to database 1`] = `
   cursor: auto;
 }
 
+.c18 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c11 {
@@ -181,14 +187,6 @@ exports[`render dialog with instructions to connect to database 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
-}
-
-.c18 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
 }
 
 .c5 {
@@ -281,12 +279,11 @@ exports[`render dialog with instructions to connect to database 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Connect To Database
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -558,15 +555,21 @@ exports[`render dialog with instructions to connect to database with requestId 1
   cursor: auto;
 }
 
+.c18 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c11 {
@@ -574,14 +577,6 @@ exports[`render dialog with instructions to connect to database with requestId 1
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
-}
-
-.c18 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
 }
 
 .c5 {
@@ -676,12 +671,11 @@ exports[`render dialog with instructions to connect to database with requestId 1
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
             Connect To Database
-          </div>
+          </h2>
         </div>
         <div
           class="c7 c8 c9"

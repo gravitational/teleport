@@ -21,6 +21,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
@@ -163,13 +164,13 @@ func (h *Handler) createDesktopConnection(
 	})
 
 	// Parse the private key of the user from the session context.
-	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
 		return sendTDPError(err)
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk, desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk.Public(), desktopName, username)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -252,24 +253,23 @@ const (
 
 func createUserCertsRequest(
 	sctx *SessionContext,
-	pk *keys.PrivateKey,
+	publicKey crypto.PublicKey,
 	desktopName,
 	username,
 	siteName string,
 ) (*proto.UserCertsRequest, error) {
-	key := &client.Key{
-		PrivateKey: pk,
-		Cert:       sctx.cfg.Session.GetPub(),
-		TLSCert:    sctx.cfg.Session.GetTLSCert(),
+	tlsCert, err := sctx.GetX509Certificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	tlsCert, err := key.TeleportTLSCertificate()
+	publicKeyPEM, err := keys.MarshalPublicKey(publicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	certsReq := proto.UserCertsRequest{
-		PublicKey:      key.MarshalSSHPublicKey(),
+		TLSPublicKey:   publicKeyPEM,
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
@@ -289,7 +289,7 @@ func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-	pk *keys.PrivateKey,
+	publicKey crypto.PublicKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
@@ -303,7 +303,7 @@ func (h *Handler) prepareForCertIssuance(
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, pk, desktopName, username, site.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, site.GetName())
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}

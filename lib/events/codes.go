@@ -631,6 +631,13 @@ const (
 	// DiscoveryConfigDeleteAllCode is the discovery config delete all event code.
 	DiscoveryConfigDeleteAllCode = "DC004I"
 
+	// IntegrationCreateCode is the integration resource create event code.
+	IntegrationCreateCode = "IG001I"
+	// IntegrationUpdateCode is the integration resource update event code.
+	IntegrationUpdateCode = "IG002I"
+	// IntegrationDeleteCode is the integration resource delete event code.
+	IntegrationDeleteCode = "IG003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
