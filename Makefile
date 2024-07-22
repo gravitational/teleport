@@ -878,6 +878,15 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| gotestsum --raw-command -- cat
 endif
 
+# Runs benchmarks once to make sure they pass.
+# This is intended to run in CI during unit testing to make sure benchmarks don't break.
+# To limit noise and improve speed this will only run on packages that have benchmarks.
+# Race detection is not enabled because it significantly slows down benchmarks.
+.PHONY: test-go-bench-ci
+test-go-bench-ci: PACKAGES = $(shell find ./lib -iname "*_test.go" -exec grep -l testing.B {} \; | xargs dirname | xargs go list)
+test-go-bench-ci:
+	go test -run ^$$ -bench . -benchtime 1x $(PACKAGES)
+
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
 test-go-vnet-daemon: FLAGS ?= -race -shuffle on

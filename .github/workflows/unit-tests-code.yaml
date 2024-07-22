@@ -70,4 +70,8 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api FLAGS="-race -shuffle on -bench . -benchtime 1x"
+        run: make -j"$(nproc)" test-go test-sh test-api"
+      
+      - name: Run Benchmarks Once
+        timeout-minutes: 5
+        run: make -j"$(nproc)" test-go-bench-ci
