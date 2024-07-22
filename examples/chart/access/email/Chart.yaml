@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev"
+.version: &version "17.0.0-dev.noah.kwa.1"
 
 apiVersion: v2
 name: teleport-plugin-email
