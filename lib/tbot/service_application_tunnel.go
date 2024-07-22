@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 
 	"github.com/gravitational/trace"
 
@@ -143,7 +144,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
 	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy, _ net.Conn) error {
 			ctx, span := tracer.Start(ctx, "ApplicationTunnelService/OnNewConnection")
 			defer span.End()
 
@@ -153,7 +154,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
 				}
-				lp.SetCert(*cert)
+				lp.SetCerts([]tls.Certificate{*cert})
 			}
 			return nil
 		},
@@ -165,7 +166,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		RemoteProxyAddr:    proxyAddr,
 		ParentContext:      ctx,
 		Protocols:          []common.Protocol{alpnProtocolForApp(app)},
-		Cert:               *appCert,
+		Certs:              []tls.Certificate{*appCert},
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
 	if client.IsALPNConnUpgradeRequired(
