@@ -811,10 +811,10 @@ func TestParties(t *testing.T) {
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil)
-	scx.setSession(sess)
+	sshChanOpen := newMockSSHChannel()
+	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
 	go func() {
 		// Consume stdout sent to the channel
 		io.ReadAll(sshChanOpen)

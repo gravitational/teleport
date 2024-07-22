@@ -20,6 +20,7 @@ package srv
 
 import (
 	"bytes"
+	"context"
 	"os/user"
 	"testing"
 
@@ -34,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // TestDecodeChildError ensures that child error message marshaling
@@ -301,4 +304,76 @@ type fixedRolesChecker struct {
 
 func (c *fixedRolesChecker) RoleNames() []string {
 	return c.roleNames
+}
+
+func TestCreateOrJoinSession(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	registry, err := NewSessionRegistry(SessionRegistryConfig{
+		clock:                 srv.clock,
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+
+	runningSessionID := rsession.NewID()
+	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil), newMockSSHChannel(), sessionTypeInteractive)
+	require.NoError(t, err)
+	registry.sessions[runningSessionID] = sess
+
+	tests := []struct {
+		name              string
+		sessionID         string
+		wantSameSessionID bool
+	}{
+		{
+			name:              "no session ID",
+			wantSameSessionID: false,
+		},
+		// TODO(capnspacehook): Check that an error is returned in v17
+		{
+			name:              "new session ID",
+			sessionID:         string(rsession.NewID()),
+			wantSameSessionID: false,
+		},
+		{
+			name:              "existing session ID",
+			sessionID:         runningSessionID.String(),
+			wantSameSessionID: true,
+		},
+		{
+			name:              "existing session ID in Windows format",
+			sessionID:         "{" + runningSessionID.String() + "}",
+			wantSameSessionID: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsedSessionID := new(rsession.ID)
+			var err error
+			if tt.sessionID != "" {
+				parsedSessionID, err = rsession.ParseID(tt.sessionID)
+				require.NoError(t, err)
+			}
+
+			ctx := newTestServerContext(t, srv, nil)
+			if tt.sessionID != "" {
+				ctx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
+			}
+
+			err = ctx.CreateOrJoinSession(registry)
+			require.NoError(t, err)
+			require.False(t, ctx.sessionID.IsZero())
+			if tt.wantSameSessionID {
+				require.Equal(t, parsedSessionID.String(), ctx.sessionID.String())
+			} else {
+				require.NotEqual(t, parsedSessionID.String(), ctx.sessionID.String())
+			}
+		})
+	}
 }

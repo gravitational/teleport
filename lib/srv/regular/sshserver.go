@@ -1413,6 +1413,13 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
 			}
 		}
+	case teleport.SessionIDQueryRequest:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions
+		if err := r.Reply(true, nil); err != nil {
+			s.Logger.WithError(err).Warnf("Failed to reply to session ID query request")
+		}
+		return
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {

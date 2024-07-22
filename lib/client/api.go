@@ -489,6 +489,10 @@ type Config struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -767,6 +771,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.PIVSlot = profile.PIVSlot
+	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -815,6 +820,7 @@ func (c *Config) Profile() *profile.Profile {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 		PIVSlot:                       c.PIVSlot,
+		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 	}
 }
 
@@ -1076,6 +1082,10 @@ type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 type TeleportClient struct {
 	Config
 	localAgent *LocalKeyAgent
+
+	// OnChannelRequest gets called when SSH channel requests are
+	// received. It's safe to keep it nil.
+	OnChannelRequest tracessh.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -1342,40 +1352,39 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetReso
 		}, nil
 	}
 
-	// use the target node that was explicitly provided if valid
-	if len(tc.Labels) == 0 {
-		// detect the common error when users use host:port address format
-		_, port, err := net.SplitHostPort(tc.Host)
-		// client has used host:port notation
-		if err == nil {
-			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
+	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
+		nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
-		return []targetNode{
-			{
-				hostname: tc.Host,
-				addr:     addr,
-			},
-		}, nil
+		retval := make([]targetNode, 0, len(nodes))
+		for _, resource := range nodes {
+			// always dial nodes by UUID
+			retval = append(retval, targetNode{
+				hostname: resource.GetHostname(),
+				addr:     fmt.Sprintf("%s:0", resource.GetName()),
+			})
+		}
+
+		return retval, nil
 	}
 
-	// find the nodes matching the labels that were provided
-	nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 	}
 
-	retval := make([]targetNode, 0, len(nodes))
-	for _, resource := range nodes {
-		// always dial nodes by UUID
-		retval = append(retval, targetNode{
-			hostname: resource.GetHostname(),
-			addr:     fmt.Sprintf("%s:0", resource.GetName()),
-		})
-	}
-
-	return retval, nil
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+	return []targetNode{
+		{
+			hostname: tc.Host,
+			addr:     addr,
+		},
+	}, nil
 }
 
 // ReissueUserCerts issues new user certs based on params and stores them in
@@ -1916,7 +1925,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []targetNode, command []string) error {
@@ -2075,12 +2084,12 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
 	return trace.Wrap(err)
 }
 
 // Play replays the recorded session.
-func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed float64) error {
+func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed float64, skipIdleTime bool) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Play",
@@ -2091,13 +2100,13 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return playSession(ctx, sessionID, speed, proxyClient.CurrentCluster())
+	return playSession(ctx, sessionID, speed, clusterClient.AuthClient, skipIdleTime)
 }
 
 const (
@@ -2110,7 +2119,7 @@ const (
 	keyDown  = 66
 )
 
-func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
+func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer, skipIdleTime bool) error {
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2134,8 +2143,9 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 	term.SetCursorPos(1, 1)
 
 	player, err := player.New(&player.Config{
-		SessionID: *sid,
-		Streamer:  streamer,
+		SessionID:    *sid,
+		Streamer:     streamer,
+		SkipIdleTime: skipIdleTime,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2224,9 +2234,9 @@ func setTermSize(w io.Writer, size string) error {
 }
 
 // PlayFile plays the recorded session from a file.
-func PlayFile(ctx context.Context, filename, sid string, speed float64) error {
+func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdleTime bool) error {
 	streamer := &playFromFileStreamer{filename: filename}
-	return playSession(ctx, sid, speed, streamer)
+	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP
@@ -4329,6 +4339,10 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 	}
 	proxyVersion := semver.New(pr.ServerVersion)
 
+	if protocol == constants.SAML && pr.Auth.SAML != nil {
+		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+	}
+
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
 		SSHLogin:                      sshLogin,
@@ -4342,6 +4356,38 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
 	}, nil)
 	return response, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {
+	user, err := clt.AuthClient.GetUser(ctx, profile.Username, false)
+	if err != nil {
+		return "", trace.WrapWithMessage(err, "Failed to retrieve user details for user %s, SAML single logout will be skipped.", profile.Username)
+	}
+
+	var SAMLSingleLogoutURL string
+	if len(user.GetSAMLIdentities()) > 0 {
+		SAMLSingleLogoutURL = user.GetSAMLIdentities()[0].SAMLSingleLogoutURL
+	}
+
+	return SAMLSingleLogoutURL, nil
+}
+
+// SAMLSingleLogout initiates SAML SLO (single logout) by opening the IdP's SLO URL in the user's browser.
+func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogoutURL string) error {
+	parsed, err := url.Parse(SAMLSingleLogoutURL)
+	if err != nil {
+		return trace.Wrap(err, "Failed to parse SAML single logout URL.")
+	}
+	relayState := parsed.Query().Get("RelayState")
+	_, connectorName, _ := strings.Cut(relayState, ",")
+
+	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	// If no browser was opened.
+	if err != nil || tc.Browser == teleport.BrowserNone {
+		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
+	}
+
+	return nil
 }
 
 // ConnectToRootCluster activates the provided key and connects to the

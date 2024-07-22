@@ -75,8 +75,7 @@ type defaultBotConfigOpts struct {
 	// Makes the bot connect via the Auth Server instead of the Proxy server.
 	useAuthServer bool
 	// Makes the bot accept an insecure auth or proxy server
-	insecure       bool
-	serviceConfigs config.ServiceConfigs
+	insecure bool
 }
 
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
@@ -86,6 +85,9 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)
 	}
@@ -137,7 +139,7 @@ func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
 	onboarding *config.OnboardingConfig,
-	outputs []config.Output,
+	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {
 	t.Helper()
@@ -154,11 +156,10 @@ func defaultBotConfig(
 			Destination: &config.DestinationMemory{},
 		},
 		Oneshot: true,
-		Outputs: outputs,
 		// Set insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.insecure,
-		Services: opts.serviceConfigs,
+		Services: serviceConfigs,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -340,7 +341,7 @@ func TestBot(t *testing.T) {
 		Principals:  []string{hostPrincipal},
 	}
 	botConfig := defaultBotConfig(
-		t, process, botParams, []config.Output{
+		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
 			identityOutputWithRoles,
 			appOutput,
@@ -522,7 +523,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			insecure:      true,
@@ -566,7 +567,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
 		defaultBotConfigOpts{
 			useAuthServer: false,
 			insecure:      true,
@@ -760,43 +761,38 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.SPIFFEWorkloadAPIService{
-					Listen: socketPath,
-					SVIDs: []config.SVIDRequestWithRules{
-						// Intentionally unmatching PID to ensure this SVID
-						// is not issued.
-						{
-							SVIDRequest: config.SVIDRequest{
-								Path: "/bar",
-							},
-							Rules: []config.SVIDRequestRule{
-								{
-									Unix: config.SVIDRequestRuleUnix{
-										PID: ptr(0),
-									},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.SPIFFEWorkloadAPIService{
+				Listen: socketPath,
+				SVIDs: []config.SVIDRequestWithRules{
+					// Intentionally unmatching PID to ensure this SVID
+					// is not issued.
+					{
+						SVIDRequest: config.SVIDRequest{
+							Path: "/bar",
+						},
+						Rules: []config.SVIDRequestRule{
+							{
+								Unix: config.SVIDRequestRuleUnix{
+									PID: ptr(0),
 								},
 							},
 						},
-						// SVID with rule that matches on PID.
-						{
-							SVIDRequest: config.SVIDRequest{
-								Path: "/foo",
-								Hint: "hint",
-								SANS: config.SVIDRequestSANs{
-									DNS: []string{"example.com"},
-									IP:  []string{"10.0.0.1"},
-								},
+					},
+					// SVID with rule that matches on PID.
+					{
+						SVIDRequest: config.SVIDRequest{
+							Path: "/foo",
+							Hint: "hint",
+							SANS: config.SVIDRequestSANs{
+								DNS: []string{"example.com"},
+								IP:  []string{"10.0.0.1"},
 							},
-							Rules: []config.SVIDRequestRule{
-								{
-									Unix: config.SVIDRequestRuleUnix{
-										PID: &pid,
-									},
+						},
+						Rules: []config.SVIDRequestRule{
+							{
+								Unix: config.SVIDRequestRuleUnix{
+									PID: &pid,
 								},
 							},
 						},
@@ -804,16 +800,29 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 				},
 			},
 		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
 	)
 	botConfig.Oneshot = false
 	b := New(botConfig, log)
 
 	// Spin up goroutine for bot to run in
 	botCtx, cancelBot := context.WithCancel(ctx)
-	botCh := make(chan error, 1)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		botCh <- b.Run(botCtx)
+		defer wg.Done()
+		err := b.Run(botCtx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancelBot()
 	}()
+	t.Cleanup(func() {
+		// Shut down bot and make sure it exits.
+		cancelBot()
+		wg.Wait()
+	})
 
 	// This has a little flexibility internally in terms of waiting for the
 	// socket to come up, so we don't need a manual sleep/retry here.
@@ -839,10 +848,6 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 		cert.NotBefore.Add(time.Hour-time.Minute),
 		cert.NotBefore.Add(time.Hour+time.Minute),
 	)
-
-	// Shut down bot and make sure it exits cleanly.
-	cancelBot()
-	require.NoError(t, <-botCh)
 }
 
 func TestBotDatabaseTunnel(t *testing.T) {
@@ -899,20 +904,19 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.DatabaseTunnelService{
+				Listener: botListener,
+				Service:  "test-database",
+				Database: "mydb",
+				Username: "llama",
+			},
+		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			// insecure required as the db tunnel will connect to proxies
 			// self-signed.
 			insecure: true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.DatabaseTunnelService{
-					Listener: botListener,
-					Service:  "test-database",
-					Database: "mydb",
-					Username: "llama",
-				},
-			},
 		},
 	)
 	botConfig.Oneshot = false
@@ -994,17 +998,16 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.SSHMultiplexerService{
+				Destination: &config.DestinationDirectory{
+					Path: tmpDir,
+				},
+			},
+		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			insecure:      true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.SSHMultiplexerService{
-					Destination: &config.DestinationDirectory{
-						Path: tmpDir,
-					},
-				},
-			},
 		},
 	)
 	botConfig.Oneshot = false
@@ -1037,40 +1040,51 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		agentConn.Close()
-	})
-	agentClient := agent.NewClient(agentConn)
-	callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
-	require.NoError(t, err)
-	sshConfig := &ssh.ClientConfig{
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(agentClient.Signers),
-		},
-		User:            currentUser.Username,
-		HostKeyCallback: callback,
+	targets := []string{
+		"server01.root:0\x00",      // Old style target without cluster
+		"server01.root:0|root\x00", // New style target with cluster
 	}
-	conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		conn.Close()
-	})
-	_, err = fmt.Fprint(conn, "server01.root:0\x00")
-	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
-	require.NoError(t, err)
-	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
-	t.Cleanup(func() {
-		sshClient.Close()
-	})
-	sshSess, err := sshClient.NewSession()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sshSess.Close()
-	})
-	out, err := sshSess.CombinedOutput("echo hello")
-	require.NoError(t, err)
-	require.Equal(t, "hello\n", string(out))
+	for _, target := range targets {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+
+			agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				agentConn.Close()
+			})
+			agentClient := agent.NewClient(agentConn)
+			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
+			require.NoError(t, err)
+			sshConfig := &ssh.ClientConfig{
+				Auth: []ssh.AuthMethod{
+					ssh.PublicKeysCallback(agentClient.Signers),
+				},
+				User:            currentUser.Username,
+				HostKeyCallback: callback,
+			}
+			conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				conn.Close()
+			})
+			_, err = fmt.Fprint(conn, target)
+			require.NoError(t, err)
+			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
+			require.NoError(t, err)
+			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
+			t.Cleanup(func() {
+				sshClient.Close()
+			})
+			sshSess, err := sshClient.NewSession()
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				sshSess.Close()
+			})
+			out, err := sshSess.CombinedOutput("echo hello")
+			require.NoError(t, err)
+			require.Equal(t, "hello\n", string(out))
+		})
+	}
 }

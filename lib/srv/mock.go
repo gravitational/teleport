@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,16 +66,16 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
+	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Entry: logrus.NewEntry(logrus.StandardLogger()),
-		ConnectionContext: &sshutils.ConnectionContext{
-			ServerConn: &ssh.ServerConn{Conn: sshConn},
-		},
+		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
+		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
+		sessionID:              rsession.NewID(),
 		Identity: IdentityContext{
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",
@@ -127,12 +128,16 @@ func newMockServer(t *testing.T) *mockServer {
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, bk.Close())
+	})
 
 	authCfg := &auth.InitConfig{
-		Backend:      bk,
-		Authority:    testauthority.New(),
-		ClusterName:  clusterName,
-		StaticTokens: staticTokens,
+		Backend:        bk,
+		VersionStorage: auth.NewFakeTeleportVersion(),
+		Authority:      testauthority.New(),
+		ClusterName:    clusterName,
+		StaticTokens:   staticTokens,
 		KeyStoreConfig: keystore.Config{
 			Software: keystore.SoftwareConfig{
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,

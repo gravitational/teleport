@@ -164,27 +164,6 @@ function Enable-Node {
     }
 }
 
-function Format-FileHashes {
-    <#
-    .SYNOPSIS
-        Finds each file matching the supplied path glob and creates a sidecar
-        `*.sha256` file containing the file's hash
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $PathGlob
-    )
-    begin {
-        foreach ($file in $(Get-ChildItem $PathGlob)) {
-            Write-Output "Hashing  $($file.Name)"
-            $Hash = (Get-FileHash $file.FullName).Hash
-            "$($Hash.ToLower()) $($file.Name)" `
-            | Out-File -Encoding ASCII -FilePath "$($file.FullName).sha256"
-        }
-    }
-}
-
 function Get-Relcli {
     <#
     .SYNOPSIS
@@ -195,45 +174,53 @@ function Get-Relcli {
         [Parameter(Mandatory)]
         [string] $Url,
         [Parameter(Mandatory)]
-        [string] $Sha256,
-        [Parameter(Mandatory)]
         [string] $Workspace
     )
     begin {
         New-Item -Path "$Workspace" -ItemType Directory -Force | Out-Null
         Invoke-WebRequest $url -UseBasicParsing -OutFile "$Workspace\relcli.exe"
-        $gotSha256 = (Get-FileHash "$Workspace\relcli.exe").hash
-        if ($gotSha256 -ne $Sha256) {
-            Write-Output "sha256 mismatch: $gotSha256 != $Sha256"
-        }
     }
 }
 
-function Register-Artifacts {
+function Generate-Artifacts {
     <#
     .SYNOPSIS
-        Invokes relcli to automatically upload built artifacts
+        Invokes relcli to automatically generate manfiests for built artifacts
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $Workspace,
         [Parameter(Mandatory)]
-        [string] $OutputsDir,
-        [string] $ReleaseRepo = $env:RELEASE_REPO,
-        [string] $ArtifactVersion = $env:ARTIFACT_VERSION
+        [string] $ArtifactDirectory
     )
-    begin {
-        $certPath = "$Workspace\releases.crt"
-        Out-File -FilePath $certPath -Encoding ascii -InputObject "$env:RELEASES_CERT"
-        $keyPath = "$Workspace\releases.key"
-        Out-File -FilePath $keyPath -Encoding ascii -InputObject "$env:RELEASES_KEY"
 
-        # These must be set for the `auto_upload` command
-        $env:DRONE_REPO = "$ReleaseRepo"
-        $env:DRONE_TAG = "$ArtifactVersion"
+    $SearchPath = Join-Path -Path $ArtifactDirectory -ChildPath *
+    Get-ChildItem -Path $SearchPath -Include "*.exe","*.zip" | ForEach-Object {
+        switch -Wildcard ($_.Name) {
+            "Teleport Connect Setup*.exe" {
+                $description = "Teleport Connect"
+                Break
+            }
+            "teleport-windows-auth-setup*.exe" {
+                $description = "Teleport Authentication Package"
+                Break
+            }
+            "teleport*.zip" {
+                $description = "Windows (64-bit, tsh client only)"
+                Break
+            }
+            "*" {
+                # Unmatched file, skip it
+                Write-Host "Skipping $_"
+                return
+            }
+        }
 
-        & "$Workspace\relcli.exe" --cert $certPath --key $keyPath auto_upload -f -v 6 $OutputsDir
+        & "$Workspace\relcli.exe" generate-manifest --path $_.FullName `
+            --products teleport --products teleport-ent `
+            --os "windows" --architecture "amd64" `
+            --description $description
     }
 }
 
@@ -288,13 +275,18 @@ function Invoke-SignBinary {
     <#
     .SYNOPSIS
     Signs the provided binary with the base64-encoded certificate listed in "$WINDOWS_SIGNING_CERT"
+    .PARAMETER UnsignedBinaryPath
+    The path to the unsigned binary.
+    .PARAMETER SignedBinaryPath
+    The path where the signed binary should be written. If not provided, then the signed binary will
+    be written to a temporary path, and then moved to the unsigned binary path.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $UnsignedBinaryPath,
 
-        [Parameter(Mandatory)]
+        [Parameter()]
         [string] $SignedBinaryPath
     )
 
@@ -356,7 +348,7 @@ function Build-Tsh {
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
         go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
-           exit $LastExitCode
+            exit $LastExitCode
         }
         Write-Host "::endgroup::"
 
@@ -494,11 +486,6 @@ function Build-Artifacts {
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
-
-    # Copy artifacts to output directory
-    Write-Host "::group::Generating artifact checksums..."
-    Format-FileHashes -PathGlob "$ArtifactDirectory\*"
-    Write-Host "::endgroup::"
 
     Write-Host "Build complete"
 }

@@ -191,7 +191,6 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 				MuxSocketPath:   "/opt/machine-id/v1.sock",
 				AgentSocketPath: "/opt/machine-id/agent.sock",
 				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
-				Data:            `%h:%p`,
 			},
 		},
 		{
@@ -204,7 +203,6 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 				MuxSocketPath:   "/opt/machine-id/v1.sock",
 				AgentSocketPath: "/opt/machine-id/agent.sock",
 				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
-				Data:            `%h:%p`,
 			},
 		},
 		{
@@ -217,7 +215,6 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 				MuxSocketPath:   "/opt/machine-id/v1.sock",
 				AgentSocketPath: "/opt/machine-id/agent.sock",
 				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
-				Data:            `%h:%p`,
 			},
 		},
 	}

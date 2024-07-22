@@ -1,3 +1,4 @@
+---
 name: Update AMI IDs
 
 on:
@@ -47,10 +48,12 @@ jobs:
           role-session-name: "gha-update-ami-ids-${{ github.run_number }}"
 
       - name: Update AMI IDs and create PR
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          VERSION: ${{ inputs.version }}
+          PR_REVIEWER: ${{ github.event.release.author.login }}
         run: |
           git config --global user.email "noreply@github.com"
           git config --global user.name "GitHub"
-          TELEPORT_VERSION=${{ inputs.version }} AMI_PR_REVIEWER=${{ github.event.release.author.login }} make -C assets/aws create-update-pr
+          make -C assets/aws create-update-pr "TELEPORT_VERSION=${VERSION}" "AMI_PR_REVIEWER=${PR_REVIEWER}"
           echo "AMI PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
-        env:
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

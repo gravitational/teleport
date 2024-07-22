@@ -87,9 +87,11 @@ type WSStream struct {
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
 
-	// mu protects writes to ws
-	mu sync.Mutex
-	// ws the connection to the UI
+	// readMu protects reads to WSConn
+	readMu sync.Mutex
+	// writeMu protects writes to WSConn
+	writeMu sync.Mutex
+	// WSConn the connection to the UI
 	WSConn
 
 	// log holds the structured logger.
@@ -98,6 +100,18 @@ type WSStream struct {
 
 // Replace \n with \r\n so the message is correctly aligned.
 var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
+
+func (t *WSStream) ReadMessage() (messageType int, p []byte, err error) {
+	t.readMu.Lock()
+	defer t.readMu.Unlock()
+	return t.WSConn.ReadMessage()
+}
+
+func (t *WSStream) WriteMessage(messageType int, data []byte) error {
+	t.writeMu.Lock()
+	defer t.writeMu.Unlock()
+	return t.WSConn.WriteMessage(messageType, data)
+}
 
 // WriteError displays an error in the terminal window.
 func (t *WSStream) WriteError(msg string) {
@@ -214,9 +228,7 @@ func (t *WSStream) WriteChallenge(challenge *client.MFAAuthenticateChallenge, co
 		return trace.Wrap(err)
 	}
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.Wrap(t.WSConn.WriteMessage(websocket.BinaryMessage, msg))
+	return trace.Wrap(t.WriteMessage(websocket.BinaryMessage, msg))
 }
 
 // ReadChallengeResponse reads and decodes the challenge response from the
@@ -262,9 +274,7 @@ func (t *WSStream) WriteAuditEvent(event []byte) error {
 	}
 
 	// Send bytes over the websocket to the web client.
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.Wrap(t.WSConn.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+	return trace.Wrap(t.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 }
 
 // SSHSessionLatencyStats contain latency measurements for both
@@ -302,9 +312,7 @@ func (t *WSStream) WriteLatency(latency SSHSessionLatencyStats) error {
 	}
 
 	// Send bytes over the websocket to the web client.
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.Wrap(t.WSConn.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+	return trace.Wrap(t.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 }
 
 // Write wraps the data bytes in a raw envelope and sends.
@@ -325,9 +333,7 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 	}
 
 	// Send bytes over the websocket to the web client.
-	t.mu.Lock()
-	err = t.WSConn.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	t.mu.Unlock()
+	err = t.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -391,9 +397,7 @@ func (t *WSStream) SendCloseMessage(id string) error {
 		return trace.Wrap(err)
 	}
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.Wrap(t.WSConn.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+	return trace.Wrap(t.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 }
 
 func (t *WSStream) close() {

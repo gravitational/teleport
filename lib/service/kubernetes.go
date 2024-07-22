@@ -151,7 +151,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if len(cfg.Kube.DynamicLabels) != 0 {
 		dynLabels, err = labels.NewDynamic(process.ExitContext(), &labels.DynamicConfig{
 			Labels: cfg.Kube.DynamicLabels,
-			Log:    process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)

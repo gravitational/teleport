@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -237,19 +238,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			),
 		})
 	}
-	services = append(services, &outputsService{
-		authPingCache:    authPingCache,
-		proxyPingCache:   proxyPingCache,
-		alpnUpgradeCache: alpnUpgradeCache,
-		getBotIdentity:   b.botIdentitySvc.GetIdentity,
-		botClient:        b.botIdentitySvc.GetClient(),
-		cfg:              b.cfg,
-		resolver:         resolver,
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
-		),
-		reloadBroadcaster: reloadBroadcaster,
-	})
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
 		botClient:      b.botIdentitySvc.GetClient(),
@@ -264,14 +252,24 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
-			// Create a credential output for the SPIFFE Workload API service to
-			// use as a source of an impersonated identity.
-			svcIdentity := &config.UnstableClientCredentialOutput{}
-			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+			clientCredential := &config.UnstableClientCredentialOutput{}
+			svcIdentity := &ClientCredentialOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               clientCredential,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+			}
+			svcIdentity.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(
+					componentTBot, "svc", svcIdentity.String(),
+				),
+			)
+			services = append(services, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
 				botClient:             b.botIdentitySvc.GetClient(),
-				svcIdentity:           svcIdentity,
+				svcIdentity:           clientCredential,
 				botCfg:                b.cfg,
 				cfg:                   svcCfg,
 				resolver:              resolver,
@@ -311,6 +309,115 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				proxyPingCache:    proxyPingCache,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.KubernetesOutput:
+			svc := &KubernetesOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.SPIFFESVIDOutput:
+			svc := &SPIFFESVIDOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.SSHHostOutput:
+			svc := &SSHHostOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.ApplicationOutput:
+			svc := &ApplicationOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.DatabaseOutput:
+			svc := &DatabaseOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.IdentityOutput:
+			svc := &IdentityOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
+				getEnv:            os.Getenv,
+				alpnUpgradeCache:  alpnUpgradeCache,
+				proxyPingCache:    proxyPingCache,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.UnstableClientCredentialOutput:
+			svc := &ClientCredentialOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.ApplicationTunnelService:
+			svc := &ApplicationTunnelService{
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				proxyPingCache: proxyPingCache,
+				botClient:      b.botIdentitySvc.GetClient(),
+				resolver:       resolver,
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -439,8 +546,8 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	// TODO: consider warning if ownership of all destinations is not expected.
-	for _, output := range cfg.Outputs {
-		if err := output.Init(ctx); err != nil {
+	for _, initable := range cfg.GetInitables() {
+		if err := initable.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
