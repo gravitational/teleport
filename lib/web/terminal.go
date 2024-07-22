@@ -571,7 +571,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	}
 	expires := time.Unix(int64(sshCert.ValidBefore), 0)
 	certsReq := &authproto.UserCertsRequest{
-		PublicKey:      pk.MarshalSSHPublicKey(),
+		SSHPublicKey:   pk.MarshalSSHPublicKey(),
 		Username:       sshCert.KeyId, // SSH cert KeyId is set to teleport username.
 		Expires:        expires,
 		RouteToCluster: t.sessionData.ClusterName,

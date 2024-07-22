@@ -110,8 +110,6 @@ If you wish to deploy Teleport inside a Docker container see the
 
 ### For Local Testing and Development
 
-Follow the instructions in the [docker/README](docker/README.md) file.
-
 To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
 
 ## Building Teleport

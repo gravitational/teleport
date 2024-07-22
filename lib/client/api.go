@@ -1449,7 +1449,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*Key, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*KeyRing, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -3223,7 +3223,7 @@ func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfi
 // If the initial login fails due to a private key policy not being met, Login
 // will automatically retry login with a private key that meets the required policy.
 // This will initiate the same login flow again, aka prompt for password/otp/sso/mfa.
-func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Login",
@@ -3311,7 +3311,7 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 // successful, as skipping the ceremony is valid for various reasons (Teleport
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
-func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, rootAuthClient authclient.ClientI) error {
+func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *KeyRing, rootAuthClient authclient.ClientI) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/AttemptDeviceLogin",
@@ -3662,7 +3662,7 @@ type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginR
 
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
-func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFunc) (*Key, error) {
+func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFunc) (*KeyRing, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SSHLogin",
@@ -4048,7 +4048,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, authclient.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *KeyRing) (*ClusterClient, authclient.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4079,7 +4079,7 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*
 
 // activateKey saves the target session cert into the local
 // keystore (and into the ssh-agent) for future use.
-func (tc *TeleportClient) activateKey(ctx context.Context, key *Key) error {
+func (tc *TeleportClient) activateKey(ctx context.Context, key *KeyRing) error {
 	_, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/activateKey",
@@ -4473,7 +4473,7 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 }
 
 // AddKey adds a key to the client's local agent, used in tests.
-func (tc *TeleportClient) AddKey(key *Key) error {
+func (tc *TeleportClient) AddKey(key *KeyRing) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
 	}
@@ -4847,7 +4847,7 @@ func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
 }
 
-func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
+func findActiveDatabases(key *KeyRing) ([]tlsca.RouteToDatabase, error) {
 	dbCerts, err := key.DBTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4870,7 +4870,7 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 	return databases, nil
 }
 
-func findActiveApps(key *Key) ([]tlsca.RouteToApp, error) {
+func findActiveApps(key *KeyRing) ([]tlsca.RouteToApp, error) {
 	appCerts, err := key.AppTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
