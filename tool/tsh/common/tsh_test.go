@@ -2976,7 +2976,7 @@ func TestEnvFlags(t *testing.T) {
 func TestKubeConfigUpdate(t *testing.T) {
 	t.Parallel()
 	// don't need real creds for this test, just something to compare against
-	creds := &client.Key{KeyIndex: client.KeyIndex{ProxyHost: "a.example.com"}}
+	creds := &client.KeyRing{KeyIndex: client.KeyIndex{ProxyHost: "a.example.com"}}
 	tests := []struct {
 		desc           string
 		cf             *CLIConf
@@ -5369,7 +5369,7 @@ func TestLogout(t *testing.T) {
 	require.NoError(t, err)
 	privateKey, err := keys.NewPrivateKey(key, privPEM)
 	require.NoError(t, err)
-	clientKey := &client.Key{
+	clientKey := &client.KeyRing{
 		KeyIndex: client.KeyIndex{
 			ProxyHost:   "proxy",
 			Username:    "user",

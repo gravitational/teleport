@@ -258,7 +258,7 @@ type profileOptions struct {
 }
 
 // profileFromkey returns a ProfileStatus for the given key and options.
-func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error) {
+func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, error) {
 	sshCert, err := key.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)

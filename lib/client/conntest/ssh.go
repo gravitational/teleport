@@ -113,7 +113,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	publicKeyPEM, err := keys.MarshalPublicKey(key.PrivateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,7 +129,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey:           key.MarshalSSHPublicKey(),
+		SSHPublicKey:           key.PrivateKey.MarshalSSHPublicKey(),
 		TLSPublicKey:           publicKeyPEM,
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),

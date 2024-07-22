@@ -96,7 +96,7 @@ func appLogin(
 	clusterClient *client.ClusterClient,
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
-) (*client.Key, error) {
+) (*client.KeyRing, error) {
 	// TODO (Joerger): DELETE IN v17.0.0
 	var err error
 	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, tc.Username, appCertParams.RouteToApp)
