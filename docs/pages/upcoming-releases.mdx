@@ -7,22 +7,43 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-| Version | Date           |
-|---------|----------------|
-| 16.1.0  | July 15, 2024  |
-| 16.2.0  | August 15, 2024 |
-
-### 16.1.0
-
-#### Database Access session replay
-
-Database Access users will be able to watch PostgreSQL query replays in the web UI or with `tsh`.
+| Version | Date             |
+|---------|------------------|
+| 16.2.0  | August 15, 2024  |
+| 17.0.0  | October 13, 2024 |
 
 ### 16.2.0
 
-#### Nested access lists
+#### Nested Access Lists
 
-Teleport admins and access list owners will be able to add access lists as members in other access lists.
+Teleport admins and Access List owners will be able to add Access Lists as
+members in other Access Lists.
+
+#### NLA Support
+
+Teleport will support Network Level Authentication (NLA) when connecting to
+Windows hosts that are part of an Active Directory domain, eliminating the need
+for administrators to disable NLA when setting up Teleport.
+
+#### DocumentDB IAM authentication support
+
+Teleport will support authenticating to DocumentDB with IAM users and roles
+[recently released](https://aws.amazon.com/about-aws/whats-new/2024/06/amazon-documentdb-iam-database-authentication/)
+by AWS.
+
+### 17.0.0
+
+#### Modern Signature Algorithms
+
+Teleport admins will have to option to use elliptic curve cryptography for the
+majority of user, host, and certificate authority key material.  This includes
+Ed25519 SSH keys and ECDSA TLS keys, replacing the RSA keys used today.
+
+#### AWS Identity Center integration
+
+Teleport will integrate with AWS Identity Center to allow users to sync and
+manage AWS IC group and their members and allow them to request access to AWS
+IC permission sets.
 
 ## Teleport Cloud
 
