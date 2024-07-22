@@ -5743,8 +5743,13 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
 
-	// populate context values
-	if len(process.getForkedPIDs()) > 0 {
+	if len(process.getForkedPIDs()) == 0 {
+		if process.inventoryHandle != nil {
+			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
+				process.log.WithError(err).Warn("Failed sending inventory goodbye during shutdown")
+			}
+		}
+	} else {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 

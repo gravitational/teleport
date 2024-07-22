@@ -3206,6 +3206,55 @@ export const events = [
     time: '2024-04-08T17:33:48.877Z',
     uid: '2bc5e2cb-5ba1-47d7-a7ae-381cf323ae7f',
   },
+  {
+    code: 'DC001I',
+    event: 'discovery_config.create',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'DC002I',
+    event: 'discovery_config.update',
+    time: '2023-05-08T19:21:37.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'DC003I',
+    event: 'discovery_config.delete',
+    time: '2023-05-08T19:21:38.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'DC004I',
+    event: 'discovery_config.delete_all',
+    time: '2023-05-08T19:21:39.144Z',
+    name: 'discovery-config',
+    updated_by: 'joe',
+  },
+  {
+    code: 'IG001I',
+    event: 'integration.create',
+    time: '2023-05-09T19:21:36.144Z',
+    name: 'integration',
+    updated_by: 'joe',
+  },
+  {
+    code: 'IG002I',
+    event: 'integration.update',
+    time: '2023-05-09T19:21:37.144Z',
+    name: 'integration',
+    updated_by: 'joe',
+  },
+  {
+    code: 'IG003I',
+    event: 'integration.delete',
+    time: '2023-05-09T19:21:38.144Z',
+    name: 'integration',
+    updated_by: 'joe',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

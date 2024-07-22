@@ -40,6 +40,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -363,9 +364,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
 
+	// Explicitly send a heartbeat for any statically defined apps.
 	for _, app := range apps {
-		_, err := s.authServer.AuthServer.UpsertApplicationServer(s.closeContext, s.appServer.getServerInfo(app))
-		require.NoError(t, err)
+		select {
+		case sender := <-inventoryHandle.Sender():
+			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
+				AppServer: s.appServer.getServerInfo(app),
+			}))
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for inventory handle sender")
+		}
 	}
 
 	t.Cleanup(func() {
@@ -407,14 +415,23 @@ func TestStart(t *testing.T) {
 	s := SetUpSuite(t)
 
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
-	require.NoError(t, err)
+	var servers []types.AppServer
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		if !assert.Len(t, apps, 2) {
+			return
+		}
+		servers = apps
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
 	appFoo := s.appFoo.Copy()
 	appAWS := s.appAWS.Copy()
-
 	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
 		dynamicLabelName: &types.CommandLabelV2{
 			Period:  dynamicLabelPeriod,
@@ -422,16 +439,13 @@ func TestStart(t *testing.T) {
 			Result:  "4",
 		},
 	})
-
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
-
 	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
-
 	// Check the expiry time is correct.
 	for _, server := range servers {
 		require.True(t, s.clock.Now().Before(server.Expiry()))
@@ -494,31 +508,47 @@ func TestShutdown(t *testing.T) {
 				Apps: types.Apps{app0},
 			})
 
-			// Validate heartbeat is present after start.
-			_, err = s.authServer.AuthServer.UpsertApplicationServer(ctx, s.appServer.getServerInfo(app0))
-			require.NoError(t, err)
-
-			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
-			require.NoError(t, err)
-			require.Len(t, appServers, 1)
-			require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
+			// Validate that the heartbeat is eventually emitted and that
+			// the configured applications exist in the inventory.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, appServers, 1) {
+					return
+				}
+				if !assert.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+					return
+				}
+			}, 10*time.Second, 100*time.Millisecond)
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-			t.Cleanup(cancel)
-			if test.hasForkedChild {
-				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
-			}
+			require.NoError(t, s.appServer.Shutdown(ctx))
 
-			require.NoError(t, s.appServer.Shutdown(shutdownCtx))
+			// Send a Goodbye to simulate process shutdown.
+			if !test.hasForkedChild {
+				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
+			}
+			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.
-			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
-			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
-				require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, appServersAfterShutdown, 1)
+				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
-				require.Empty(t, appServersAfterShutdown)
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if !assert.Empty(t, appServersAfterShutdown) {
+						return
+					}
+				}, 10*time.Second, 100*time.Millisecond)
+
 			}
 		})
 	}
