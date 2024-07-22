@@ -282,7 +282,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
           echo ""
-          count="$(find . -mindepth 1 -maxdepth1 -print | wc -l)"
+          count="$(find . -mindepth 1 -maxdepth 1 -print | wc -l)"
           if (( count > 0 )); then
               echo "Found $count artifacts for $ARTIFACT_DOWNLOAD_VERSION"
           else
