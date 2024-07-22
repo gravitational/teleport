@@ -60,6 +60,13 @@ ARCH ?= $(GO_ENV_ARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# If we're building inside the cross-compiling buildbox, include the
+# cross compilation definitions so we select the correct compilers and
+# libraries.
+ifeq ($(BUILDBOX_MODE),cross)
+include build.assets/buildbox/cross-compile.mk
+endif
+
 # Include common makefile shared between OSS and Ent.
 include common.mk
 
@@ -251,13 +258,6 @@ TEST_KUBE ?=
 export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
-
-# If we're building inside the cross-compiling buildbox, include the
-# cross compilation definitions so we select the correct compilers and
-# libraries.
-ifeq ($(BUILDBOX_MODE),cross)
-include build.assets/buildbox/cross-compile.mk
-endif
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
