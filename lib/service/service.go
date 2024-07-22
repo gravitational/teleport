@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -1074,6 +1075,37 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if upgraderKind != "" {
 		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
 			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
+		}
+
+		if upgraderKind == "unit" {
+			process.RegisterFunc("autoupdates.endpoint.export", func() error {
+				component := teleport.Component("autoupdates:endpoint:export", process.id)
+				logger := process.log.WithFields(logrus.Fields{
+					trace.Component: component,
+				})
+				conn, err := waitForInstanceConnector(process, logger)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if conn == nil {
+					return trace.BadParameter("process exiting and Instance connector never became available")
+				}
+
+				resp, err := conn.Client.Ping(process.ExitContext())
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !resp.GetServerFeatures().GetCloud() {
+					return nil
+				}
+
+				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
+					logger.Warnf("Failed to export and validate autoupdates endpoint (addr=%s): %v", resolverAddr.String(), err)
+					return trace.Wrap(err)
+				}
+				logger.Infof("Exported autoupdates endpoint (addr=%s).", resolverAddr.String())
+				return nil
+			})
 		}
 
 		driver, err := uw.NewDriver(upgraderKind)
