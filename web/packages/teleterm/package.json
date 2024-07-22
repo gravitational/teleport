@@ -28,10 +28,12 @@
   "homepage": "https://goteleport.com",
   "dependencies": {
     "@types/tar-fs": "^2.0.1",
+    "@types/which": "^3.0.4",
     "emittery": "^1.0.1",
     "node-pty": "1.1.0-beta14",
     "strip-ansi": "^7.1.0",
-    "tar-fs": "^3.0.3"
+    "tar-fs": "^3.0.3",
+    "which": "^4.0.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
