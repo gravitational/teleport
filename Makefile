@@ -98,7 +98,7 @@ CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
 # Check if pnpm is enabled before using it
-CHECK_PNPM := $(shell pnpm --version 2>/dev/null)
+CHECK_PNPM := $(shell COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --version 2>/dev/null)
 # Check if Corepack is installed before using it
 CHECK_COREPACK := $(shell corepack --version 2>/dev/null)
 
