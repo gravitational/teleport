@@ -114,6 +114,7 @@ func (p *Process) Dial(ctx context.Context, network string, addr string) (net.Co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer connFD.Close()
 
 	conn, err := net.FileConn(connFD)
 	return conn, trace.Wrap(err)
@@ -129,13 +130,22 @@ func (p *Process) Listen(ctx context.Context, network string, addr string) (net.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer listenerFD.Close()
 
 	if err := validateListenerSocket(listenerFD); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	listener, err := net.FileListener(listenerFD)
-	return listener, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(true)
+	}
+
+	return listener, nil
 }
 
 // ListenAgent requests a local ssh-agent listener from the networking subprocess.
@@ -146,6 +156,7 @@ func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer listenerFD.Close()
 
 	listener, err := net.FileListener(listenerFD)
 	if err != nil {
@@ -161,7 +172,7 @@ func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 	return unixListener, nil
 }
 
-// ListenAgent requests a local ssh-agent listener from the networking subprocess.
+// ListenX11 requests a local XServer listener from the networking subprocess.
 func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListener, error) {
 	listenerFD, err := p.sendRequest(ctx, Request{
 		Operation:  NetworkingOperationListenX11,
@@ -170,6 +181,7 @@ func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer listenerFD.Close()
 
 	listener, err := net.FileListener(listenerFD)
 	if err != nil {
@@ -185,6 +197,9 @@ func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListe
 	return unixListener, nil
 }
 
+// requestBufferSize is the maximum amount of data we're comfortable writing at
+// once through a default unix datagram socket. Should fit comfortably in both
+// linux and darwin with default settings.
 const requestBufferSize = 1024
 
 // sendRequest sends a networking request to the networking process and waits
@@ -193,7 +208,7 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	slog.With("request", req).Debug("Sending networking request to child process")
+	slog.DebugContext(ctx, "Sending networking request to child process", "request", req)
 
 	jsonReq, err := json.Marshal(req)
 	if err != nil {
@@ -207,11 +222,10 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 	context.AfterFunc(ctx, func() { localConn.Close() })
 
 	remoteFD, err := remoteConn.File()
+	remoteConn.Close()
 	if err != nil {
-		remoteConn.Close()
 		return nil, trace.Wrap(err)
 	}
-	remoteConn.Close()
 
 	if _, _, err = uds.WriteWithFDs(p.Conn, jsonReq, []*os.File{remoteFD}); err != nil {
 		remoteFD.Close()
