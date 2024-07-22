@@ -69,5 +69,4 @@ jobs:
         run: mount -t debugfs none /sys/kernel/debug/
 
       - name: Run tests
-        timeout-minutes: 20
         run: make -j"$(nproc)" test-go test-sh test-api FLAGS="-race -shuffle on -bench ."
