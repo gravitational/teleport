@@ -19,16 +19,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 
-import { Box, ButtonPrimary, Text } from 'design';
+import { Box, ButtonPrimary, Mark, Text } from 'design';
 
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-import {
-  Header,
-  Mark,
-  ResourceKind,
-  useShowHint,
-} from 'teleport/Discover/Shared';
+import { Header, ResourceKind, useShowHint } from 'teleport/Discover/Shared';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
