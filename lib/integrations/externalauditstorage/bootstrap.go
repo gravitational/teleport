@@ -228,6 +228,8 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		return trace.Wrap(awsutil.ConvertS3Error(err))
 	}
 
+	// s3:CreateBucket doesn't support tags, so the best we can do is
+	// to tag the bucket shortly after creating it
 	if _, err := clt.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
 		Bucket:  &bucketName,
 		Tagging: &s3types.Tagging{TagSet: ownershipTags},
