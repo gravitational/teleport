@@ -1079,7 +1079,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		if upgraderKind == "unit" {
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
-				component := teleport.Component("autoupdates:endpoint:export", "", process.id)
+				component := teleport.Component("autoupdates:endpoint:export", process.id)
 				logger := process.log.WithFields(logrus.Fields{
 					trace.Component: component,
 				})
