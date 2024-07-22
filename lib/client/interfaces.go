@@ -20,6 +20,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -41,12 +42,15 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// KeyIndex helps to identify a key in the store.
+// KeyIndex identifies a KeyRing in the store.
+// TODO(nklaassen): rename to KeyRingIndex because it identifies an entire
+// KeyRing in a KeyStore.
 type KeyIndex struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
 	ProxyHost string
@@ -80,14 +84,26 @@ func (idx KeyIndex) Match(matchKey KeyIndex) bool {
 		(matchKey.Username == "" || matchKey.Username == idx.Username)
 }
 
-// KeyRing describes a set of client keys and certifcates for a specific cluster.
+type TLSCredential struct {
+	PrivateKey *keys.PrivateKey
+	Cert       []byte
+}
+
+// TLSCertificate returns a valid [tls.Certificate] ready to be used in a TLS
+// handshake.
+func (c *TLSCredential) TLSCertificate() (tls.Certificate, error) {
+	cert, err := c.PrivateKey.TLSCertificate(c.Cert)
+	return cert, trace.Wrap(err)
+}
+
+// KeyRing describes a set of client keys and certificates for a specific cluster.
 type KeyRing struct {
 	KeyIndex
 
-	// PrivateKey represents the single cryptographic key associated with all
-	// certificates in the KeyRing. This will soon be deprecated and replaced
-	// with unique keys for each certificate, as part of the implementation of
-	// RFD 136.
+	// PrivateKey used to represent the single cryptographic key associated with all
+	// certificates in the KeyRing. This is in the process of being deprecated
+	// and replaced with unique keys for each certificate, as part of the
+	// implementation of RFD 136.
 	PrivateKey *keys.PrivateKey
 
 	// Cert is an SSH client certificate
@@ -101,9 +117,9 @@ type KeyRing struct {
 	// DBTLSCerts are PEM-encoded TLS certificates for database access.
 	// Map key is the database service name.
 	DBTLSCerts map[string][]byte `json:"DBCerts,omitempty"`
-	// AppTLSCerts are TLS certificates for application access.
+	// AppTLSCredetials are TLS credentials for application access.
 	// Map key is the application name.
-	AppTLSCerts map[string][]byte `json:"AppCerts,omitempty"`
+	AppTLSCredentials map[string]TLSCredential
 	// WindowsDesktopCerts are TLS certificates for Windows Desktop access.
 	// Map key is the desktop server name.
 	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
@@ -120,22 +136,51 @@ func (k *KeyRing) Copy() *KeyRing {
 	return &copy
 }
 
+// GenerateKey returns a new private key with the appropriate algorithm for
+// [purpose]. If this KeyRing uses a PIV/hardware key, it will always return
+// that hardware key.
+func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
+	if k.PrivateKey.IsHardware() {
+		// We always use the same hardware key.
+		return k.PrivateKey, nil
+	}
+
+	// Ping is cached if called more than once on [tc].
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := cryptosuites.GenerateKeyWithSuite(ctx, pingResp.Auth.SignatureAlgorithmSuite, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	priv, err := keys.NewPrivateKey(key, privateKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return priv, nil
+}
+
 // GenerateRSAKey generates a new unsigned key.
 func GenerateRSAKey() (*KeyRing, error) {
 	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewKey(priv), nil
+	return NewKeyRing(priv), nil
 }
 
-// NewKey creates a new Key for the given private key.
-func NewKey(priv *keys.PrivateKey) *KeyRing {
+// NewKeyRing creates a new KeyRing for the given private key.
+func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
 		PrivateKey:          priv,
 		KubeTLSCerts:        make(map[string][]byte),
 		DBTLSCerts:          make(map[string][]byte),
-		AppTLSCerts:         make(map[string][]byte),
+		AppTLSCredentials:   make(map[string]TLSCredential),
 		WindowsDesktopCerts: make(map[string][]byte),
 	}
 }
@@ -464,21 +509,17 @@ func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
 
 // AppTLSCert returns the tls.Certificate for authentication against a named app.
 func (k *KeyRing) AppTLSCert(appName string) (tls.Certificate, error) {
-	certPem, ok := k.AppTLSCerts[appName]
+	cred, ok := k.AppTLSCredentials[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return tlsCert, nil
+	return cred.TLSCertificate()
 }
 
 // AppTLSCertificates returns all parsed x509 app access certificates.
 func (k *KeyRing) AppTLSCertificates() (certs []x509.Certificate, err error) {
-	for _, bytes := range k.AppTLSCerts {
-		cert, err := tlsca.ParseCertificatePEM(bytes)
+	for _, cred := range k.AppTLSCredentials {
+		cert, err := tlsca.ParseCertificatePEM(cred.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

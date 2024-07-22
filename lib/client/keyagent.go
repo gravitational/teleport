@@ -522,9 +522,9 @@ func (a *LocalKeyAgent) AddKubeKey(key *KeyRing) error {
 }
 
 // AddAppKey activates a new signed app key by adding it into the keystore.
-// key must contain at least one app cert. ssh cert is not required.
+// key must contain at least one app credential. ssh cert is not required.
 func (a *LocalKeyAgent) AddAppKey(key *KeyRing) error {
-	if len(key.AppTLSCerts) == 0 {
+	if len(key.AppTLSCredentials) == 0 {
 		return trace.BadParameter("key must contains at least one App access certificate")
 	}
 	return a.addKey(key)

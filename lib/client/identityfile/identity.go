@@ -724,8 +724,8 @@ func checkOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths 
 	return nil
 }
 
-// KeyFromIdentityFile loads client key from identity file.
-func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.KeyRing, error) {
+// KeyRingFromIdentityFile loads client key ring from an identity file.
+func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.KeyRing, error) {
 	if proxyHost == "" {
 		return nil, trace.BadParameter("proxyHost must be provided to parse identity file")
 	}
@@ -739,10 +739,10 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 		return nil, trace.Wrap(err)
 	}
 
-	key := client.NewKey(priv)
-	key.Cert = ident.Certs.SSH
-	key.TLSCert = ident.Certs.TLS
-	key.KeyIndex = client.KeyIndex{
+	keyRing := client.NewKeyRing(priv)
+	keyRing.Cert = ident.Certs.SSH
+	keyRing.TLSCert = ident.Certs.TLS
+	keyRing.KeyIndex = client.KeyIndex{
 		ProxyHost:   proxyHost,
 		ClusterName: clusterName,
 	}
@@ -755,33 +755,38 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 			return nil, trace.Wrap(err)
 		}
 
-		if key.ClusterName == "" {
-			key.ClusterName = cert.Issuer.CommonName
+		if keyRing.ClusterName == "" {
+			keyRing.ClusterName = cert.Issuer.CommonName
 		}
 
 		parsedIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		key.Username = parsedIdent.Username
+		keyRing.Username = parsedIdent.Username
 
 		// If this identity file has any database certs, copy it into the DBTLSCerts map.
 		if parsedIdent.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+			keyRing.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
 		}
 
 		// Similarly, if this identity has any app certs, copy them in.
 		if parsedIdent.RouteToApp.Name != "" {
-			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+			keyRing.AppTLSCredentials[parsedIdent.RouteToApp.Name] = client.TLSCredential{
+				// Identity files only have room for one private key and TLS
+				// cert, it must match the app cert.
+				PrivateKey: priv,
+				Cert:       ident.Certs.TLS,
+			}
 		}
 
 		// If this identity file has any kubernetes certs, copy it into the
 		// KubeTLSCerts map.
 		if parsedIdent.KubernetesCluster != "" {
-			key.KubeTLSCerts[parsedIdent.KubernetesCluster] = ident.Certs.TLS
+			keyRing.KubeTLSCerts[parsedIdent.KubernetesCluster] = ident.Certs.TLS
 		}
 	} else {
-		key.Username, err = key.CertUsername()
+		keyRing.Username, err = keyRing.CertUsername()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -793,12 +798,12 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 	}
 
 	// Use all Trusted certs found in the identity file.
-	key.TrustedCerts, err = client.TrustedCertsFromCACerts(ident.CACerts.TLS, knownHosts)
+	keyRing.TrustedCerts, err = client.TrustedCertsFromCACerts(ident.CACerts.TLS, knownHosts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return key, nil
+	return keyRing, nil
 }
 
 // NewClientStoreFromIdentityFile initializes a new in-memory client store
@@ -830,7 +835,7 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 		return trace.Wrap(err)
 	}
 
-	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
+	key, err := KeyRingFromIdentityFile(identityFile, proxyHost, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

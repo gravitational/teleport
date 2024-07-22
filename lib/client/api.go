@@ -526,7 +526,7 @@ const (
 	VirtualPathKey        VirtualPathKind = "KEY"
 	VirtualPathCA         VirtualPathKind = "CA"
 	VirtualPathDatabase   VirtualPathKind = "DB"
-	VirtualPathApp        VirtualPathKind = "APP"
+	VirtualPathAppCert    VirtualPathKind = "APP"
 	VirtualPathKubernetes VirtualPathKind = "KUBE"
 )
 
@@ -550,9 +550,14 @@ func VirtualPathDatabaseParams(databaseName string) VirtualPathParams {
 	return VirtualPathParams{databaseName}
 }
 
-// VirtualPathAppParams returns parameters for selecting specific apps by name.
-func VirtualPathAppParams(appName string) VirtualPathParams {
+// VirtualPathAppCertParams returns parameters for selecting specific app cert by name.
+func VirtualPathAppCertParams(appName string) VirtualPathParams {
 	return VirtualPathParams{appName}
+}
+
+// VirtualPathAppKeyParams returns parameters for selecting specific app key by name.
+func VirtualPathAppKeyParams(appName string) VirtualPathParams {
+	return VirtualPathParams{"APP", appName}
 }
 
 // VirtualPathKubernetesParams returns parameters for selecting k8s clusters by
@@ -3149,7 +3154,7 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithDBCerts{dbName})
 }
 
-// LogoutApp removes certificate for the specified app.
+// LogoutApp removes key and cert for the specified app.
 func (tc *TeleportClient) LogoutApp(appName string) error {
 	if tc.localAgent == nil {
 		return nil
@@ -3161,6 +3166,17 @@ func (tc *TeleportClient) LogoutApp(appName string) error {
 		return trace.BadParameter("please specify app name to log out of")
 	}
 	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{appName})
+}
+
+// LogoutAllApps removes keys and certs for all apps in the cluster.
+func (tc *TeleportClient) LogoutAllApps() error {
+	if tc.localAgent == nil {
+		return nil
+	}
+	if tc.SiteName == "" {
+		return trace.BadParameter("cluster name must be set for app logout")
+	}
+	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{})
 }
 
 // LogoutAll removes all certificates for all users from the filesystem
@@ -3686,7 +3702,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	// extract the new certificate out of the response
-	key := NewKey(priv)
+	key := NewKeyRing(priv)
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
 	key.TrustedCerts = response.HostSigners
@@ -4882,7 +4898,7 @@ func findActiveApps(key *KeyRing) ([]tlsca.RouteToApp, error) {
 			return nil, trace.Wrap(err)
 		}
 		// If the cert expiration time is less than 5s consider cert as expired and don't add
-		// it to the user profile as an active database.
+		// it to the user profile as an active app.
 		if time.Until(cert.NotAfter) < 5*time.Second {
 			continue
 		}

@@ -235,6 +235,7 @@ func TestAppCommands(t *testing.T) {
 								err = Run(ctx, []string{
 									"app",
 									"login",
+									"--insecure",
 									app.name,
 									"--cluster", app.cluster,
 								}, setHomePath(loginPath), webauthnLoginOpt)
@@ -360,8 +361,8 @@ func TestFormatAppConfig(t *testing.T) {
 		{"Name:     ", testAppName},
 		{"URI:", "https://test-app.example.com:8443"},
 		{"CA:", "/test/dir/keys/cas/root.pem"},
-		{"Cert:", "/test/dir/keys/alice-app/root/test-app-x509.pem"},
-		{"Key:", "/test/dir/keys/alice"},
+		{"Cert:", "/test/dir/keys/alice-app/root/test-app.crt"},
+		{"Key:", "/test/dir/keys/alice-app/root/test-app.key"},
 	}
 
 	defaultFormatTable := asciitable.MakeTable(make([]string, 2), asciiRows...)
@@ -406,21 +407,21 @@ func TestFormatAppConfig(t *testing.T) {
 			name:     "format cert",
 			tc:       defaultTc,
 			format:   appFormatCert,
-			expected: "/test/dir/keys/alice-app/root/test-app-x509.pem",
+			expected: "/test/dir/keys/alice-app/root/test-app.crt",
 		},
 		{
 			name:     "format key",
 			tc:       defaultTc,
 			format:   appFormatKey,
-			expected: "/test/dir/keys/alice",
+			expected: "/test/dir/keys/alice-app/root/test-app.key",
 		},
 		{
 			name:   "format curl standard non-standard HTTPS port",
 			tc:     defaultTc,
 			format: appFormatCURL,
 			expected: `curl \
-  --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
-  --key "/test/dir/keys/alice" \
+  --cert "/test/dir/keys/alice-app/root/test-app.crt" \
+  --key "/test/dir/keys/alice-app/root/test-app.key" \
   https://test-app.example.com:8443`,
 		},
 		{
@@ -429,8 +430,8 @@ func TestFormatAppConfig(t *testing.T) {
 			format:   appFormatCURL,
 			insecure: true,
 			expected: `curl --insecure \
-  --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
-  --key "/test/dir/keys/alice" \
+  --cert "/test/dir/keys/alice-app/root/test-app.crt" \
+  --key "/test/dir/keys/alice-app/root/test-app.key" \
   https://test-app.example.com:8443`,
 		},
 		{
@@ -441,9 +442,9 @@ func TestFormatAppConfig(t *testing.T) {
   "name": "test-app",
   "uri": "https://test-app.example.com:8443",
   "ca": "/test/dir/keys/cas/root.pem",
-  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
-  "key": "/test/dir/keys/alice",
-  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443"
+  "cert": "/test/dir/keys/alice-app/root/test-app.crt",
+  "key": "/test/dir/keys/alice-app/root/test-app.key",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app.crt\" \\\n  --key \"/test/dir/keys/alice-app/root/test-app.key\" \\\n  https://test-app.example.com:8443"
 }
 `,
 		},
@@ -452,13 +453,13 @@ func TestFormatAppConfig(t *testing.T) {
 			tc:     defaultTc,
 			format: appFormatYAML,
 			expected: `ca: /test/dir/keys/cas/root.pem
-cert: /test/dir/keys/alice-app/root/test-app-x509.pem
+cert: /test/dir/keys/alice-app/root/test-app.crt
 curl: |-
   curl \
-    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
-    --key "/test/dir/keys/alice" \
+    --cert "/test/dir/keys/alice-app/root/test-app.crt" \
+    --key "/test/dir/keys/alice-app/root/test-app.key" \
     https://test-app.example.com:8443
-key: /test/dir/keys/alice
+key: /test/dir/keys/alice-app/root/test-app.key
 name: test-app
 uri: https://test-app.example.com:8443
 `,
@@ -498,9 +499,9 @@ uri: https://test-app.example.com:8443
   "name": "test-app",
   "uri": "https://test-app.example.com:8443",
   "ca": "/test/dir/keys/cas/root.pem",
-  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
-  "key": "/test/dir/keys/alice",
-  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443",
+  "cert": "/test/dir/keys/alice-app/root/test-app.crt",
+  "key": "/test/dir/keys/alice-app/root/test-app.key",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app.crt\" \\\n  --key \"/test/dir/keys/alice-app/root/test-app.key\" \\\n  https://test-app.example.com:8443",
   "azure_identity": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
 }
 `,
@@ -512,13 +513,13 @@ uri: https://test-app.example.com:8443
 			format:        appFormatYAML,
 			expected: `azure_identity: /subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
 ca: /test/dir/keys/cas/root.pem
-cert: /test/dir/keys/alice-app/root/test-app-x509.pem
+cert: /test/dir/keys/alice-app/root/test-app.crt
 curl: |-
   curl \
-    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
-    --key "/test/dir/keys/alice" \
+    --cert "/test/dir/keys/alice-app/root/test-app.crt" \
+    --key "/test/dir/keys/alice-app/root/test-app.key" \
     https://test-app.example.com:8443
-key: /test/dir/keys/alice
+key: /test/dir/keys/alice-app/root/test-app.key
 name: test-app
 uri: https://test-app.example.com:8443
 `,
@@ -540,9 +541,9 @@ uri: https://test-app.example.com:8443
   "name": "test-app",
   "uri": "https://test-app.example.com:8443",
   "ca": "/test/dir/keys/cas/root.pem",
-  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
-  "key": "/test/dir/keys/alice",
-  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443",
+  "cert": "/test/dir/keys/alice-app/root/test-app.crt",
+  "key": "/test/dir/keys/alice-app/root/test-app.key",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app.crt\" \\\n  --key \"/test/dir/keys/alice-app/root/test-app.key\" \\\n  https://test-app.example.com:8443",
   "gcp_service_account": "dev@example-123456.iam.gserviceaccount.com"
 }
 `,
@@ -553,14 +554,14 @@ uri: https://test-app.example.com:8443
 			gcpServiceAccount: "dev@example-123456.iam.gserviceaccount.com",
 			format:            appFormatYAML,
 			expected: `ca: /test/dir/keys/cas/root.pem
-cert: /test/dir/keys/alice-app/root/test-app-x509.pem
+cert: /test/dir/keys/alice-app/root/test-app.crt
 curl: |-
   curl \
-    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
-    --key "/test/dir/keys/alice" \
+    --cert "/test/dir/keys/alice-app/root/test-app.crt" \
+    --key "/test/dir/keys/alice-app/root/test-app.key" \
     https://test-app.example.com:8443
 gcp_service_account: dev@example-123456.iam.gserviceaccount.com
-key: /test/dir/keys/alice
+key: /test/dir/keys/alice-app/root/test-app.key
 name: test-app
 uri: https://test-app.example.com:8443
 `,
