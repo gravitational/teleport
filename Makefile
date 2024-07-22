@@ -678,16 +678,16 @@ release-windows: release-windows-unsigned
 # Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
 #
 # Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
-# should be defined for the `yarn package-term` command to succeed. CI sets
+# should be defined for the `pnpm package-term` command to succeed. CI sets
 # this appropriately depending on whether a push build is running, or a
 # proper release (a proper release needs the APP_PATH as that points to
 # the complete signed package). See web/packages/teleterm/README.md for
 # details.
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	yarn install --frozen-lockfile
-	yarn build-term
-	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	pnpm install --frozen-lockfile
+	pnpm build-term
+	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
 	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
@@ -1631,6 +1631,26 @@ ensure-webassets-e:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/teleport/index.html webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
+# Enables the pnpm package manager if it is not already enabled and Corepack
+# is available.
+# We check if pnpm is enabled, as the user may not have permission to
+# enable it, but it may already be available.
+# Enabling it merely installs a shim which then needs to be downloaded before first use.
+# Corepack typically prompts before downloading a package manager. We work around that
+# by issuing a bogus pnpm call with an env var that skips the prompt.
+.PHONY: ensure-js-package-manager
+ensure-js-package-manager:
+	@if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
+		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
+			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
+			corepack enable pnpm; \
+			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
+		else \
+			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
+			exit 1; \
+		fi; \
+	fi
+
 .PHONY: init-submodules-e
 init-submodules-e:
 	git submodule init e
@@ -1645,15 +1665,15 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else yarn install --ignore-scripts; fi
+	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
 docker-ui:

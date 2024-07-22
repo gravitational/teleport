@@ -141,7 +141,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 // CreateAgent creates a SSH agent with the passed in private key and
 // certificate that can be used in tests. This is useful so tests don't
 // clobber your system agent.
-func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
+func CreateAgent(me *user.User, key *client.KeyRing) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
@@ -189,13 +189,13 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.Key {
+func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
 	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            key.MarshalSSHPublicKey(),
+		Key:            key.PrivateKey.MarshalSSHPublicKey(),
 		Username:       username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,

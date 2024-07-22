@@ -213,7 +213,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		req := client.SSHLoginPasswordless{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         tc.WebProxyAddr,
-				PubKey:            key.MarshalSSHPublicKey(),
+				PubKey:            key.PrivateKey.MarshalSSHPublicKey(),
 				TTL:               tc.KeyTTL,
 				Insecure:          tc.InsecureSkipVerify,
 				Compatibility:     tc.CertificateFormat,

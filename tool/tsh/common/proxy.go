@@ -616,7 +616,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient
 	}
 }
 
-func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(key *libclient.KeyRing, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -626,7 +626,7 @@ func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStat
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      key,
+		Signer:      key.PrivateKey.Signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,

@@ -191,7 +191,9 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 				GlueDatabase:           params.GlueDatabase,
 				GlueTable:              params.GlueTable,
 			},
-			Region: params.Region,
+			Region:          params.Region,
+			ClusterName:     params.ClusterName,
+			IntegrationName: params.IntegrationName,
 		})
 		if err != nil {
 			return trace.Wrap(err)

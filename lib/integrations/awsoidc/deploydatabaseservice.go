@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // DeployDatabaseServiceRequest contains the required fields to deploy multiple Teleport Databases Services.
@@ -58,7 +59,7 @@ type DeployDatabaseServiceRequest struct {
 	TeleportVersionTag string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 
 	// DeploymentJoinTokenName is the Teleport IAM Join Token name that the deployed service must use to join the cluster.
 	DeploymentJoinTokenName string
@@ -115,7 +116,7 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	r.ecsClusterName = normalizeECSClusterName(r.TeleportClusterName)
