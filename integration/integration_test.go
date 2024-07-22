@@ -4679,13 +4679,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// Create a fake client XServer listener.
-	clientDisplay := x11.Display{
-		HostName:      "localhost",
-		DisplayNumber: 0,
-	}
-	displayAddr, err := clientDisplay.GetNetAddr()
-	require.NoError(t, err)
-	clientXServer, err := net.Listen(displayAddr.Network(), displayAddr.String())
+	clientXServer, clientDisplay, err := x11.OpenNewXServerListener(x11.DefaultDisplayOffset, x11.DefaultMaxDisplays, 0)
 	require.NoError(t, err)
 	go func() {
 		for {
@@ -4750,7 +4744,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 					}
 
 					// Create and run an exec command twice. When ControlPath is set, this will cause
-					// re-use of the connection and creation of two sessions within  the connection.
+					// re-use of the connection and creation of two sessions within the connection.
 					for i := 0; i < 2; i++ {
 						execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 							ForcePTY:      true,

@@ -1203,12 +1203,11 @@ func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
 	msg := "msg"
 	_, err = conn.Write([]byte(msg))
 	require.NoError(t, err)
-	err = conn.Close()
-	require.NoError(t, err)
 
-	echo, err := io.ReadAll(conn)
+	buf := make([]byte, 3)
+	_, err = conn.Read(buf)
 	require.NoError(t, err)
-	require.Equal(t, msg, string(echo))
+	require.Equal(t, msg, string(buf))
 }
 
 func TestAllowedUsers(t *testing.T) {

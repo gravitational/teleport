@@ -602,20 +602,23 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	if !cred.NoSetGroups {
-		groups := make([]int, len(cred.Groups))
-		for i, g := range cred.Groups {
-			groups[i] = int(g)
+
+	if os.Getuid() != int(cred.Uid) || os.Getgid() != int(cred.Gid) {
+		if !cred.NoSetGroups {
+			groups := make([]int, len(cred.Groups))
+			for i, g := range cred.Groups {
+				groups[i] = int(g)
+			}
+			if err := unix.Setgroups(groups); err != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+			}
 		}
-		if err := unix.Setgroups(groups); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+		if err := unix.Setgid(int(cred.Gid)); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
 		}
-	}
-	if err := unix.Setgid(int(cred.Gid)); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
-	}
-	if err := unix.Setuid(int(cred.Uid)); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+		if err := unix.Setuid(int(cred.Uid)); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+		}
 	}
 
 	// Create a minimal default environment for the user.
@@ -711,7 +714,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 					if cleanup != nil {
 						context.AfterFunc(ctx, func() {
 							if err := cleanup(); err != nil {
-								slog.Debug("Failed to clean up networking request resources", "request", req, "error", err)
+								slog.DebugContext(ctx, "Failed to clean up networking request resources", "request", req, "error", err)
 							}
 						})
 					}
@@ -725,7 +728,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 				if cleanup != nil {
 					defer func() {
 						if err := cleanup(); err != nil {
-							slog.Debug("Failed to clean up networking request resources", "request", req, "error", err)
+							slog.DebugContext(ctx, "Failed to clean up networking request resources", "request", req, "error", err)
 						}
 					}()
 				}
@@ -738,7 +741,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			if cleanup != nil {
 				defer func() {
 					if err := cleanup(); err != nil {
-						slog.Debug("Failed to clean up networking request resources", "request", req, "error", err)
+						slog.DebugContext(ctx, "Failed to clean up networking request resources", "request", req, "error", err)
 					}
 				}()
 			}
@@ -757,7 +760,7 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 	}()
 
 	log := slog.With("request", req)
-	log.Debug("Handling networking request")
+	log.DebugContext(ctx, "Handling networking request")
 
 	netFile, cleanup, err := createNetworkingFile(ctx, req)
 	if err != nil {
