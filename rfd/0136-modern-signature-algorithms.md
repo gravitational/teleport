@@ -145,9 +145,13 @@ The following key types will be used when the configured algorithm suite is
   * host CA
     * SSH: Ed25519
     * TLS: ECDSA with NIST P-256
+  * database client CA
+    * TLS: 2048-bit RSA
+      * some databases (snowflake) can only trust RSA CAs.
   * database CA
     * TLS: 2048-bit RSA
-      * it's necessary to use RSA for our Snowflake integration, maybe others
+      * not clear if all our supported databases can load certs signed by an
+        ECDSA CA - with testing maybe we can update this.
   * OpenSSH CA
     * SSH: Ed25519
   * JWT CA
@@ -175,10 +179,16 @@ The following key types will be used when the configured algorithm suite is
     * ECDSA with NIST P-256 (X.509 cert signed by Host CA)
   * database agent -> self-hosted database
     * 2048-bit RSA (X.509 cert signed by Database Client CA)
-    * for Snowflake access this is a JWT signed by the Database Client CA
-    * maybe we could choose the subject key algorithm per-database
+      * not clear if all our supported databases can support ECDSA client - with
+        testing maybe we can update this.
+      * we could potentially switch to ECDSA by default and special case RSA only for specific databases.
+      * for Snowflake access this is a JWT signed by the Database Client CA and
+        there is no subject key.
   * self-hosted database
     * 2048-bit RSA (X.509 cert signed by Database CA)
+      * not clear if all our supported databases can load ECDSA keys - with
+        testing maybe we can update this.
+      * we could potentially switch to ECDSA by default and special case RSA only for specific databases.
   * windows desktop service -> RDP server
     * 2048-bit RSA (X.509 cert signed by user CA)
     * this is a current limitation of our rdpclient implementation, we could
@@ -285,6 +295,7 @@ uses:
 * signs host ssh certs
 * signs host tls certs
 * ssh clients trust this CA
+* signs short-lived cert used to authenticate proxy to database service
 
 * current/`legacy` SSH key type: 2048-bit RSA
 * proposed `balanced-v1` key type: Ed25519
@@ -313,15 +324,15 @@ keys: tls
 uses:
 
 * signs (often) long-lived db cert used to authenticate db to database service
-* signs short-lived proxy cert used to authenticate proxy to database service
 
 * current/`legacy` TLS key type: 2048-bit RSA
 * proposed `balanced-v1` key type: 2048-bit RSA
 * proposed `fips-v1` key type: 2048-bit RSA
 * proposed `hsm-v1` key type: 2048-bit RSA
 * reasoning:
-  * some database protocols still require RSA, reduce friction by keeping it as
-    the default
+  * not clear if all our supported databases can load certs signed by an ECDSA
+    CA - with testing maybe we can update this.
+  * we could potentially switch to ECDSA by default and special case RSA only for specific databases.
 
 #### Database Client CA
 
@@ -338,8 +349,7 @@ uses:
 * proposed `fips-v1` key type: 2048-bit RSA
 * proposed `hsm-v1` key type: 2048-bit RSA
 * reasoning:
-  * some database protocols still require RSA, reduce friction by keeping it as
-    the default
+  * Snowflake only supports RSA JWTs
 
 #### OpenSSH CA
 
@@ -407,12 +417,21 @@ uses: signing SAML assertions as a SAML provider.
 
 ### Splitting user SSH and TLS private keys
 
-In order to support the use of different key types for SSH and TLS, as well as
-possible a different algorithm for some protocols (DB access will use RSA)
-we will begin to use a brand new key for each certificate generated instead of
+Our goals include using Ed25519 for SSH and ECDSA for TLS, with the potential to
+use a different algorithm for some specific protocols including database
+access.
+This is incompatible with the way clients currently use a single RSA keypair
+associated with every certificate they are issued.
+We will begin to use a brand new key unique key for most certificates instead of
 reusing a single private key for all.
 
-This will change the disk layout of the ~/.tsh directory:
+RPCs such as `GenerateUserCerts` will need to change to support passing both the
+SSH and TLS public keys, along with attestation statements if hardware keys are
+being used.
+These will remain backward compatible by continuing to use the single public key
+for both protocols if both are not passed.
+
+We will also have to change the disk layout of the ~/.tsh directory:
 
 ```diff
   ~/.tsh/                             --> default base directory
@@ -430,8 +449,8 @@ This will change the disk layout of the ~/.tsh directory:
      │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
      │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
 -    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
-+    │   ├── foo-privkey.pem          --> TLS client private key
-+    │   ├── foo-cert.pem             --> TLS client certificate for Auth Server
++    │   ├── foo.key                  --> TLS client private key
++    │   ├── foo.crt                  --> TLS client certificate for Auth Server
      │   ├── foo-ssh                  --> SSH certs for user "foo"
      │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
      │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
@@ -439,40 +458,40 @@ This will change the disk layout of the ~/.tsh directory:
      │   │   ├── root                 --> App access certs for cluster "root"
 -    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
 -    │   │   │   ├── appB-x509.pem    --> TLS cert for app service "appB"
-+    │   │   │   ├── appA-privkey.pem --> TLS private key for app service "appA"
-+    │   │   │   ├── appA-cert.pem    --> TLS cert for app service "appA"
-+    │   │   │   ├── appB-privkey.pem --> TLS private key for app service "appB"
-+    │   │   │   └── appB-cert.pem    --> TLS cert for app service "appB"
++    │   │   │   ├── appA.key         --> TLS private key for app service "appA"
++    │   │   │   ├── appA.crt         --> TLS cert for app service "appA"
++    │   │   │   ├── appB.key         --> TLS private key for app service "appB"
++    │   │   │   └── appB.crt         --> TLS cert for app service "appB"
      │   │   └── leaf                 --> App access certs for cluster "leaf"
 -    │   │       ├── appC-x509.pem    --> TLS cert for app service "appC"
-+    │   │       ├── appC-privkey.pem --> TLS private key for app service "appC"
-+    │   │       └── appC-cert.pem    --> TLS cert for app service "appC"
++    │   │       ├── appC.key         --> TLS private key for app service "appC"
++    │   │       └── appC.crt         --> TLS cert for app service "appC"
      │   ├── foo-db                   --> Database access certs for user "foo"
      │   │   ├── root                 --> Database access certs for cluster "root"
 -    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
 -    │   │   │   ├── dbB-x509.pem     --> TLS cert for database service "dbB"
-+    │   │   │   ├── dbA-privkey.pem  --> TLS private key for database service "dbA"
-+    │   │   │   ├── dbA-cert.pem     --> TLS cert for database service "dbA"
-+    │   │   │   ├── dbB-privkey.pem  --> TLS private key for database service "dbB"
-+    │   │   │   ├── dbB-cert.pem     --> TLS cert for database service "dbA"
++    │   │   │   ├── dbA.key          --> TLS private key for database service "dbA"
++    │   │   │   ├── dbA.crt          --> TLS cert for database service "dbA"
++    │   │   │   ├── dbB.key          --> TLS private key for database service "dbB"
++    │   │   │   ├── dbB.crt          --> TLS cert for database service "dbA"
      │   │   │   └── dbC-wallet       --> Oracle Client wallet Configuration directory.
      │   │   ├── leaf                 --> Database access certs for cluster "leaf"
 -    │   │   │   ├── dbC-x509.pem     --> TLS cert for database service "dbC"
-+    │   │   │   ├── dbC-privkey.pem  --> TLS private key for database service "dbC"
-+    │   │   │   └── dbC-cert.pem     --> TLS cert for database service "dbC"
++    │   │   │   ├── dbC.key          --> TLS private key for database service "dbC"
++    │   │   │   └── dbC.crt          --> TLS cert for database service "dbC"
      │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
      │   ├── foo-kube                 --> Kubernetes certs for user "foo"
      │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
      │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
 -    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
-+    │   |    │   ├── kubeA-privkey.pem --> TLS private key for Kubernetes cluster "kubeA"
-+    │   |    │   ├── kubeA-cert.pem   --> TLS cert for Kubernetes cluster "kubeA"
++    │   |    │   ├── kubeA.key        --> TLS private key for Kubernetes cluster "kubeA"
++    │   |    │   ├── kubeA.crt        --> TLS cert for Kubernetes cluster "kubeA"
      │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
      │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
      │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
--    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
-+    │   |        └── kubeC-privkey.pem --> TLS cert for Kubernetes cluster "kubeC"
-+    │   |        └── kubeC-cert.pem --> TLS cert for Kubernetes cluster "kubeC"
+-    │   |        ├── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
++    │   |        ├── kubeC.key        --> TLS cert for Kubernetes cluster "kubeC"
++    │   |        └── kubeC.crt        --> TLS cert for Kubernetes cluster "kubeC"
      |   └── cas                       --> Trusted clusters certificates
      |        ├── root.pem             --> TLS CA for teleport cluster "root"
      |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -489,26 +508,44 @@ the TLS cert held in `foo-x509.pem`.
 App, Database, and K8s certs use the same private key and are held under the
 `foo-app`, `foo-db`, and `foo-kube` directories.
 
-To avoid breaking user OpenSSH config files that rely on the location of the ssh
-keys, they will not be moved.
-The TLS keys and certs are often used automatically by `tsh` e.g. in `tsh proxy
-app`, `tsh db connect`, `tsh kube login`, so it is less likely for users to have
-to make a manual fix if we move the TLS files.
+#### SSH
 
-The main TLS private key will now be held in
-`~/.tsh/keys/one.example.com/foo-privkey.pem`
+Because the private key, SSH public key, and SSH cert (`foo`, `foo.pub`, and `foo-ssh/root-cert.pub`)
+are all currently in formats compatible with SSH tools, these same file names
+will still be used for the SSH keys and certs.
+Third party SSH client configurations referencing these files will continue to
+work (OpenSSH client usage is relatively common).
+
+We will continue to use a single private key for root and leaf cluster SSH
+certs.
+Because they are all SSH certs we don't need to worry about differentiating the
+algorithm by protocol, and keeping the same private key avoids a breaking
+change.
+
+#### TLS
+
+We are forced to make a breaking change to the TLS file paths because each cert
+must be associated with a new unique key.
+The TLS keys and certs are often used automatically by `tsh` e.g. in `tsh proxy
+app`, `tsh db connect`, `tsh kube login`, and VNet, so it's possible that users won't
+notice this change.
+They will notice it if they have statically configured any third party tools to
+reference the current key/cert paths, this is likely to apply to database
+clients.
+The `tsh db config` and `tsh app config` commands can be used to print the
+correct paths to these files in various formats.
+If users saved the output of this somewhere, they will need to update it by
+re-running the command so that it prints the correct updated paths.
+
+The main TLS private key used to authenticate to cluster APIs will now be held
+in `~/.tsh/keys/one.example.com/foo.key`.
 
 All TLS x509 cert files will be renamed from `<name>-x509.pem` to
-`<name>-cert.pem` so that any software trying to use the old `<name>-x509.pem`
-along with the outdated private key location will fail to load both files,
-instead of successfully opening the files but failing with some confusing error
-when the private key does not match the certificate.
-
-RPCs such as `GenerateUserCerts` will also need to change to support passing
-both the SSH and TLS public keys along, possibly along with attestation
-statements if hardware keys are being used.
-These will remain backward compatible by continuing to use the single public key
-for both protocols if both are not passed.
+`<name>.crt`.
+This may seem like an unecessary breaking change, but it has a benefit that any
+software trying to use the old `<name>-x509.pem` along with the outdated private
+key location will fail to load both files, instead of successfully opening the
+cert but failing with some confusing error when the private key does not match.
 
 ### HSMs and KMS
 
