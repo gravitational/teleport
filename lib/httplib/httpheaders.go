@@ -106,11 +106,11 @@ func combineCSPMaps(cspMaps ...cspMap) cspMap {
 	return combinedMap
 }
 
-// getContentSecurityPolicyString combines multiple CSP maps into a single
+// GetContentSecurityPolicyString combines multiple CSP maps into a single
 // CSP string, alphabetically sorted by the directive key.
 // When multiple of the input cspMaps have the same key, their
 // respective lists are concatenated.
-func getContentSecurityPolicyString(cspMaps ...cspMap) string {
+func GetContentSecurityPolicyString(cspMaps ...cspMap) string {
 	combined := combineCSPMaps(cspMaps...)
 
 	keys := make([]string, 0, len(combined))
@@ -209,7 +209,7 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 
 	// Nothing found in cache, calculate regex and result
 	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath)
-	cspString := getContentSecurityPolicyString(
+	cspString := GetContentSecurityPolicyString(
 		getIndexContentSecurityPolicy(withStripe, withWasm),
 	)
 	// Add result to cache
@@ -231,7 +231,7 @@ func getRedirectPageContentSecurityPolicyString(scriptSrc string) string {
 		return cspString
 	}
 
-	cspString := getContentSecurityPolicyString(
+	cspString := GetContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		cspMap{
 			"script-src": {"'" + scriptSrc + "'"},
