@@ -104,13 +104,13 @@ func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
 var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
 // NewClientKey returns a sane client.Key for the given bot identity.
-func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
+func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &client.Key{
+	return &client.KeyRing{
 		KeyIndex: client.KeyIndex{
 			ClusterName: ident.ClusterName,
 		},
@@ -128,7 +128,7 @@ func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*cli
 }
 
 func writeIdentityFile(
-	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, key *client.KeyRing, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -160,7 +160,7 @@ func writeIdentityFile(
 // useful when writing out TLS certificates with alternative prefix and file
 // extensions for application compatibility reasons.
 func writeIdentityFileTLS(
-	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, key *client.KeyRing, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,

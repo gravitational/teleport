@@ -120,7 +120,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	publicKeyPEM, err := keys.MarshalPublicKey(key.PrivateKey.Public())
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -142,7 +142,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
+	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKey.PrivateKeyPEM())
 	if err != nil {
 		return tls.Certificate{}, trace.BadParameter("failed to parse private key: %v", err)
 	}

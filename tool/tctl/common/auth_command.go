@@ -364,7 +364,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath: a.output,
-		Key: &client.Key{
+		Key: &client.KeyRing{
 			// the godocs say the map key is the desktop server name,
 			// but in this case we're just generating a cert that's not
 			// specific to a particular desktop
@@ -508,7 +508,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	clusterName := cn.GetClusterName()
 
 	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.MarshalSSHPublicKey(),
+		Key:         key.PrivateKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  principals,
@@ -561,7 +561,7 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI certi
 
 // generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
 // for database access.
-func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI certificateSigner, key *client.Key) error {
+func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI certificateSigner, key *client.KeyRing) error {
 	principals := strings.Split(a.genHost, ",")
 
 	dbCertReq := db.GenerateDatabaseCertificatesRequest{
@@ -921,8 +921,8 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		certUsage = proto.UserCertsRequest_Database
 	}
 
-	sshPublicKey := key.MarshalSSHPublicKey()
-	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
+	sshPublicKey := key.PrivateKey.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(key.PrivateKey.Public())
 	if err != nil {
 		return trace.Wrap(err)
 	}
