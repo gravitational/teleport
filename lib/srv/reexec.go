@@ -787,7 +787,7 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		return connFD, nil, trace.Wrap(err)
 
 	case networking.NetworkingOperationListen:
-		listener, err := newListener(ctx, req.Network, req.Address)
+		listener, err := net.Listen(req.Network, req.Address)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -817,7 +817,7 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 
 		socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
 
-		listener, err := newListener(ctx, "unix", socketPath)
+		listener, err := net.Listen("unix", socketPath)
 		if err != nil {
 			cleanupDir()
 			return nil, nil, trace.Wrap(err)
@@ -892,23 +892,6 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 	default:
 		return nil, trace.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
 	}
-}
-
-// newListener creates a new network listener with address reuse disabled.
-func newListener(ctx context.Context, network string, addr string) (net.Listener, error) {
-	lc := net.ListenConfig{
-		Control: func(network, addr string, conn syscall.RawConn) error {
-			var err error
-			err2 := conn.Control(func(descriptor uintptr) {
-				// Disable address reuse to prevent socket replacement.
-				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
-			})
-			return trace.NewAggregate(err2, err)
-		},
-	}
-
-	listener, err := lc.Listen(ctx, network, addr)
-	return listener, trace.Wrap(err)
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.

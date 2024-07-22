@@ -132,10 +132,6 @@ func (p *Process) Listen(ctx context.Context, network string, addr string) (net.
 	}
 	defer listenerFD.Close()
 
-	if err := validateListenerSocket(listenerFD); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	listener, err := net.FileListener(listenerFD)
 	if err != nil {
 		return nil, trace.Wrap(err)
