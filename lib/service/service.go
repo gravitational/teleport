@@ -440,37 +440,16 @@ func (c *Connector) ClientIdentityString() string {
 	return c.clientState.Load().identity.String()
 }
 
-// Deprecated: use ServerTLSConfigTemplate instead.
-// func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-// 	return c.ServerTLSConfigTemplate(cipherSuites)
-// }
-
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	conf := utils.TLSConfig(cipherSuites)
-	conf.GetCertificate = func(cri *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		tlsCert := c.clientState.Load().tlsCert
+	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		tlsCert := c.serverState.Load().tlsCert
 		if tlsCert == nil {
 			return nil, trace.NotFound("no TLS credentials setup for this identity")
 		}
 		return tlsCert, nil
 	}
 	return conf, nil
-}
-
-func (c *Connector) ServerGetCertificate() (*tls.Certificate, error) {
-	tlsCert := c.serverState.Load().tlsCert
-	if tlsCert == nil {
-		return nil, trace.NotFound("no TLS credentials setup for this identity")
-	}
-	return tlsCert, nil
-}
-
-func (c *Connector) ServerGetPool() (*x509.CertPool, error) {
-	roots := c.serverState.Load().pool
-	if roots == nil {
-		return nil, trace.NotFound("no TLS credentials setup for this identity")
-	}
-	return roots, nil
 }
 
 func (c *Connector) ServerGetHostSigners() []ssh.Signer {
@@ -2355,7 +2334,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	// Register TLS endpoint of the auth service
-	tlsConfigTemplate, err := connector.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := connector.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2403,7 +2382,7 @@ func (process *TeleportProcess) initAuthService() error {
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
 	tlsServer, err := auth.NewTLSServer(process.ExitContext(), auth.TLSServerConfig{
-		TLS:                  tlsConfigTemplate,
+		TLS:                  tlsConfig,
 		GetClientCertificate: connector.ClientGetCertificate,
 
 		APIConfig:     *apiConf,
