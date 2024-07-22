@@ -129,23 +129,39 @@ jobs:
       DOWNLOAD_DIRECTORY: /tmp/artifacts
       GNUPGHOME: /tmp/gnupg
       CACHE_PATH: /mnt/oprt-cache
+      REPO_TYPE: ${{ inputs.repo-type }}
+      VERSION_CHANNEL: ${{ inputs.version-channel }}
+      RELEASE_CHANNEL: ${{ inputs.release-channel }}
     steps:
       - name: Derive and set repo type-specific variables for APT
         if: inputs.repo-type == 'apt'
+        env:
+          APT_S3_BUCKET: ${{ vars.APT_S3_BUCKET }}
+          APT_DEPLOYMENT_AWS_ROLE: ${{ vars.APT_DEPLOYMENT_AWS_ROLE }}
+          APT_CLOUDFRONT_DISTRIBUTION: ${{ vars.APT_CLOUDFRONT_DISTRIBUTION }}
         run: |
-          echo "PACKAGE_TYPE=deb" >> "$GITHUB_ENV"
-          echo "BUCKET_NAME=${{ vars.APT_S3_BUCKET }}" >> "$GITHUB_ENV"
-          echo "TOOL_ARGUMENTS=-aptly-root-dir $CACHE_PATH/aptly" >> "$GITHUB_ENV"
-          echo "DEPLOYMENT_AWS_ROLE=${{ vars.APT_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
-          echo "CLOUDFRONT_DISTRIBUTION=${{ vars.APT_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
+          {
+            echo "PACKAGE_TYPE=deb"
+            echo "BUCKET_NAME=$APT_S3_BUCKET"
+            echo "TOOL_ARGUMENTS=-aptly-root-dir $CACHE_PATH/aptly"
+            echo "DEPLOYMENT_AWS_ROLE=$APT_DEPLOYMENT_AWS_ROLE"
+            echo "CLOUDFRONT_DISTRIBUTION=$APT_CLOUDFRONT_DISTRIBUTION"
+          } >> "$GITHUB_ENV"
       - name: Derive and set repo type-specific variables for YUM
         if: inputs.repo-type == 'yum'
+        env:
+          YUM_S3_BUCKET: ${{ vars.YUM_S3_BUCKET }}
+          YUM_REPO_BASE_DOMAIN_NAME: ${{ vars.YUM_REPO_BASE_DOMAIN_NAME }}
+          YUM_DEPLOYMENT_AWS_ROLE: ${{ vars.YUM_DEPLOYMENT_AWS_ROLE }}
+          YUM_CLOUDFRONT_DISTRIBUTION: ${{ vars.YUM_CLOUDFRONT_DISTRIBUTION }}
         run: |
-          echo "PACKAGE_TYPE=rpm" >> "$GITHUB_ENV"
-          echo "BUCKET_NAME=${{ vars.YUM_S3_BUCKET }}" >> "$GITHUB_ENV"
-          echo "TOOL_ARGUMENTS=-cache-dir $CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_BASE_DOMAIN_NAME }}" >> "$GITHUB_ENV"
-          echo "DEPLOYMENT_AWS_ROLE=${{ vars.YUM_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
-          echo "CLOUDFRONT_DISTRIBUTION=${{ vars.YUM_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
+          {
+            echo "PACKAGE_TYPE=rpm"
+            echo "BUCKET_NAME=$YUM_S3_BUCKET"
+            echo "TOOL_ARGUMENTS=-cache-dir $CACHE_PATH/createrepo -repo-domain-name $YUM_REPO_BASE_DOMAIN_NAME"
+            echo "DEPLOYMENT_AWS_ROLE=$YUM_DEPLOYMENT_AWS_ROLE"
+            echo "CLOUDFRONT_DISTRIBUTION=$YUM_CLOUDFRONT_DISTRIBUTION"
+          } >> "$GITHUB_ENV"
       - name: Log set variables
         run: |
           echo "Set variables:"
@@ -234,17 +250,22 @@ jobs:
           role-session-name: "gha-oprt-artifact-download-${{ github.run_number }}"
           role-duration-seconds: 900
       - name: Define the version number used in the artifact download key
+        env:
+          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
           echo "Setting artifact download version..."
-          FULL_TAG="${{ inputs.artifact-tag }}"
+          FULL_TAG="${ARTIFACT_TAG}"
           echo "ARTIFACT_DOWNLOAD_VERSION=${FULL_TAG#v}" | tee -a "$GITHUB_ENV"
       - name: Download artifacts to the download directory
+        env:
+          PACKAGE_NAME_FILTER: ${{ inputs.package-name-filter }}
+          ARTIFACT_SOURCE_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
           echo "Creating download directory..."
           mkdir -pv "$DOWNLOAD_DIRECTORY"
 
-          FILTER="${{ inputs.package-name-filter }}.${PACKAGE_TYPE}*"
-          S3_PATH="s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${ARTIFACT_DOWNLOAD_VERSION}/"
+          FILTER="${PACKAGE_NAME_FILTER}.${PACKAGE_TYPE}*"
+          S3_PATH="s3://${ARTIFACT_SOURCE_BUCKET}/teleport/tag/${ARTIFACT_DOWNLOAD_VERSION}/"
           echo
           echo "Downloading files matching '$FILTER' from '$S3_PATH' to '$DOWNLOAD_DIRECTORY'..."
           aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" "$S3_PATH" "$DOWNLOAD_DIRECTORY"
@@ -254,12 +275,20 @@ jobs:
           ls -lAht "$DOWNLOAD_DIRECTORY"
 
           # Record packages for job summary
-          echo "PACKAGES<<EOF" >> "$GITHUB_ENV"
-          ls "$DOWNLOAD_DIRECTORY"/*.${PACKAGE_TYPE} >> "$GITHUB_ENV"
-          echo "EOF" >> "$GITHUB_ENV"
+          {
+            echo "PACKAGES<<EOF"
+            ls "$DOWNLOAD_DIRECTORY"/*."${PACKAGE_TYPE}"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
           echo ""
-          [ "$(ls -A "$DOWNLOAD_DIRECTORY")" ] && echo "Found $(ls -lA | wc -l) artifacts for $ARTIFACT_DOWNLOAD_VERSION" || (echo "No artifacts found for $ARTIFACT_DOWNLOAD_VERSION!"; exit 1)
+          count="$(find . -mindepth 1 -maxdepth1 -print | wc -l)"
+          if (( count > 0 )); then
+              echo "Found $count artifacts for $ARTIFACT_DOWNLOAD_VERSION"
+          else
+              echo "No artifacts found for $ARTIFACT_DOWNLOAD_VERSION"
+              exit 1
+          fi
       # Publish the package
       - name: Assume AWS role for deploying ${{ inputs.repo-type }} artifacts
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -280,7 +309,8 @@ jobs:
         run: |
           OWNER="$(id -un):$(id -gn)"
           echo "Creating the $ENVIRONMENT_NAME environment cache path at $CACHE_PATH, owned by $OWNER"
-          mkdir -pv -m0770 "$CACHE_PATH"
+          mkdir -pv "$CACHE_PATH"
+          chmod 0770 "$CACHE_PATH"
           sudo chown -v "$OWNER" "$CACHE_PATH"
 
           # Clear out files to trigger DR
@@ -289,15 +319,16 @@ jobs:
       - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
         env:
           LOG_LEVEL: 6
-        run: >
-            "./$TOOL_BINARY_PATH" ${{ inputs.repo-type }}
-            -bucket "$BUCKET_NAME"
-            -local-bucket-path "$CACHE_PATH/bucket-contents"
-            -version-channel "${{ inputs.version-channel }}"
-            -release-channel "${{ inputs.release-channel }}"
-            -artifact-path "$DOWNLOAD_DIRECTORY"
-            -log-level "$LOG_LEVEL"
-            $TOOL_ARGUMENTS # This is not quoted as it should be expanded by the shell
+        run: |
+            IFS=' ' read -r -a tool_arguments_array <<< "$TOOL_ARGUMENTS"
+            "./$TOOL_BINARY_PATH" "${REPO_TYPE}" \
+            -bucket "$BUCKET_NAME" \
+            -local-bucket-path "$CACHE_PATH/bucket-contents" \
+            -version-channel "${VERSION_CHANNEL}" \
+            -release-channel "${RELEASE_CHANNEL}" \
+            -artifact-path "$DOWNLOAD_DIRECTORY" \
+            -log-level "$LOG_LEVEL" \
+            "${tool_arguments_array[@]}"
       - name: Log runner state post-job
         run: |
           # Log information that may have changed during job execution so that we can catch future issues before they happen
@@ -305,10 +336,13 @@ jobs:
           df -hT
       - name: Set job summary
         run: |
-          PACKAGES=($PACKAGES)  # Turn into an array
-          echo "### Uploaded ${#PACKAGES[@]} packages uploaded to ${{ inputs.release-channel }}/${{ inputs.version-channel }} \
-            in ${{ inputs.repo-type }} repo stored in S3 bucket at $BUCKET_NAME" | tee -a "$GITHUB_STEP_SUMMARY"
-          for package in "${PACKAGES[@]}"
+          package_array=()
+          while IFS= read -r package; do
+            package_array+=("$package")
+          done <<< "$PACKAGES"
+          echo "### Uploaded ${#package_array[@]} packages uploaded to ${RELEASE_CHANNEL}/${VERSION_CHANNEL} \
+            in ${REPO_TYPE} repo stored in S3 bucket at $BUCKET_NAME" | tee -a "$GITHUB_STEP_SUMMARY"
+          for package in "${package_array[@]}"
           do
             echo "* $(basename "$package")" | tee -a "$GITHUB_STEP_SUMMARY"
           done
