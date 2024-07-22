@@ -1079,7 +1079,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		if upgraderKind == "unit" {
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
-				conn, err := waitForInstanceConnector(process, process.logger)
+				component := teleport.Component("autoupdates:endpoint:export", "", process.id)
+				logger := process.log.WithFields(logrus.Fields{
+					trace.Component: component,
+				})
+				conn, err := waitForInstanceConnector(process, logger)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1096,13 +1100,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 				}
 
 				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
-					process.logger.WarnContext(process.ExitContext(),
-						"Failed to export and validate autoupdates endpoint.",
-						"addr", resolverAddr.String(),
-						"error", err)
+					logger.Warnf("Failed to export and validate autoupdates endpoint (addr=%s): %v", resolverAddr.String(), err)
 					return trace.Wrap(err)
 				}
-				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
+				logger.Infof("Exported autoupdates endpoint (addr=%s).", resolverAddr.String())
 				return nil
 			})
 		}
