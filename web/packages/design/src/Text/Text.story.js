@@ -18,7 +18,9 @@
 
 import React from 'react';
 
-import Text from '../Text';
+import Text, { H1 } from '../Text';
+
+import { H2 } from './Text';
 
 export default {
   title: 'Design/Text',
@@ -26,12 +28,8 @@ export default {
 
 export const FontSizes = () => (
   <>
-    <Text as="h1" typography="h1">
-      h1
-    </Text>
-    <Text as="h2" typography="h2">
-      h2
-    </Text>
+    <H1>H1 Heading</H1>
+    <H2>H2 Heading</H2>
     <Text as="h3" typography="h3">
       h3
     </Text>

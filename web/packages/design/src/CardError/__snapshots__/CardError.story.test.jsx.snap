@@ -14,8 +14,8 @@ exports[`rendering of Error Cards 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  margin-bottom: 24px;
   margin-top: 8px;
+  margin-bottom: 24px;
   background: #FF6257;
   color: #000000;
 }
@@ -45,10 +45,10 @@ exports[`rendering of Error Cards 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 24px;
   text-align: center;
 }
@@ -58,11 +58,11 @@ exports[`rendering of Error Cards 1`] = `
   color="text.main"
   width="540px"
 >
-  <div
+  <h1
     class="c2"
   >
     404 Not Found
-  </div>
+  </h1>
   <div
     class="c3"
     kind="danger"

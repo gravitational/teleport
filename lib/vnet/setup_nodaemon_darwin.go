@@ -23,8 +23,14 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-func execAdminProcess(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
-	return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
+func execAdminProcess(ctx context.Context, config daemon.Config) error {
+	return trace.Wrap(execAdminSubcommand(ctx, config))
+}
+
+func DaemonSubcommand(ctx context.Context) error {
+	return trace.NotImplemented("tsh was built without support for VNet daemon")
 }

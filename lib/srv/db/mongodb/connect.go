@@ -163,7 +163,8 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 }
 
 func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
-	isAtlasDB := sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas
+	dbType := sessionCtx.Database.GetType()
+	isAtlasDB := dbType == types.DatabaseTypeMongoAtlas
 
 	// Currently, the MongoDB Atlas IAM Authentication doesn't work with IAM
 	// users. Here we provide a better error message to the users.
@@ -173,6 +174,9 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 
 	switch {
 	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
+		return e.getAWSAuthenticator(ctx, sessionCtx)
+	case dbType == types.DatabaseTypeDocumentDB:
+		// DocumentDB uses the same the IAM authenticator as MongoDB Atlas.
 		return e.getAWSAuthenticator(ctx, sessionCtx)
 	default:
 		e.Log.DebugContext(e.Context, "Authenticating to database using certificates.")

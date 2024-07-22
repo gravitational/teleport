@@ -344,6 +344,67 @@ func TestPostgresRecording(t *testing.T) {
 				nil,
 			},
 		},
+		"queries with line spacing": {
+			events: []events.AuditEvent{
+				&events.DatabaseSessionQuery{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					DatabaseQuery:    "SELECT \n1;",
+				},
+				&events.DatabaseSessionCommandResult{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					Status:           events.Status{Success: true},
+					AffectedRecords:  1,
+				},
+				&events.DatabaseSessionQuery{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					DatabaseQuery:    "SELECT *\nfrom events\nlimit 1;",
+				},
+				&events.DatabaseSessionCommandResult{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					Status:           events.Status{Success: true},
+					AffectedRecords:  1,
+				},
+				&events.DatabaseSessionQuery{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					DatabaseQuery:    "SELECT *\r\nfrom events\r\nlimit 1;",
+				},
+				&events.DatabaseSessionCommandResult{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					Status:           events.Status{Success: true},
+					AffectedRecords:  1,
+				},
+				&events.DatabaseSessionQuery{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					DatabaseQuery:    "SELECT *\r\nfrom events\r\nlimit 1;",
+				},
+				&events.DatabaseSessionCommandResult{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					Status:           events.Status{Success: true},
+					AffectedRecords:  1,
+				},
+				&events.DatabaseSessionQuery{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					DatabaseQuery:    "SELECT *\t\r\n   from events\t\r\n    limit 1;",
+				},
+				&events.DatabaseSessionCommandResult{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					Status:           events.Status{Success: true},
+					AffectedRecords:  1,
+				},
+			},
+			expectedPrints: [][]byte{
+				[]byte("\r\ntest=> SELECT\r\n       1;\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT *\r\n       from events\r\n       limit 1;\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT *\r\n       from events\r\n       limit 1;\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT *\r\n       from events\r\n       limit 1;\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT *\r\n       from events\r\n       limit 1;\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			translator := NewPostgresTranslator()

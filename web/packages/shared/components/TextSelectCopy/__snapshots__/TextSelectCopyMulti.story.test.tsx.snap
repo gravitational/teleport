@@ -3,10 +3,10 @@
 exports[`render multi bash texts 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -20,8 +20,8 @@ exports[`render multi bash texts 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 8px;
   padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .c5 {
@@ -35,8 +35,8 @@ exports[`render multi bash texts 1`] = `
 
 .c14 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c10 {
@@ -420,10 +420,10 @@ exports[`render multi bash texts 1`] = `
 exports[`render multi bash texts with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -437,8 +437,8 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 8px;
   padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .c6 {
@@ -452,8 +452,8 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c15 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c11 {
@@ -858,10 +858,10 @@ https://apt.releases.teleport.dev/stable/v10" \\
 exports[`render non bash single text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -875,8 +875,8 @@ exports[`render non bash single text 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c5 {
@@ -1108,10 +1108,10 @@ exports[`render non bash single text 1`] = `
 exports[`render single bash text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -1125,8 +1125,8 @@ exports[`render single bash text 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c5 {
@@ -1363,10 +1363,10 @@ exports[`render single bash text 1`] = `
 exports[`render single bash text with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -1380,8 +1380,8 @@ exports[`render single bash text with comment 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c6 {

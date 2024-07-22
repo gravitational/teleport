@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -988,7 +987,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authcli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetPriv())
+	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -1168,12 +1167,22 @@ func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.V
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1183,14 +1192,14 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*stat
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
-			PublicTLSKey: publicTLS,
-			PublicSSHKey: pub,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return state.ReadIdentityFromKeyPair(priv, certs)
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
 }
 
 // clt limits required interface to the necessary methods

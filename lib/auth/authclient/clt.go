@@ -794,6 +794,31 @@ func (c *Client) UpsertUserNotification(ctx context.Context, notification *notif
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// GetAccessGraphSettings gets the access graph settings from the backend.
+func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateAccessGraphSettings creates the access graph settings in the backend.
+func (c *Client) CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateAccessGraphSettings updates the access graph settings in the backend.
+func (c *Client) UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
+func (c *Client) UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAccessGraphSettings deletes the access graph settings from the backend.
+func (c *Client) DeleteAccessGraphSettings(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -1333,6 +1358,8 @@ type SSHLoginResponse struct {
 	TLSCert []byte `json:"tls_cert"`
 	// HostSigners is a list of signing host public keys trusted by proxy
 	HostSigners []TrustedCerts `json:"host_signers"`
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
+	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility

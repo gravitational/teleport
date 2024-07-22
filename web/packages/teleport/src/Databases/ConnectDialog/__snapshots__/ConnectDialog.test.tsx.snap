@@ -9,26 +9,25 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
   min-height: 240px;
   flex: 0 0 auto;
 }
 
-.c9 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
-  margin-top: 8px;
   padding: 8px;
-  color: #FFFFFF;
+  margin-top: 8px;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   margin-right: 8px;
 }
@@ -166,30 +165,28 @@ exports[`render dialog with instructions to connect to database 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
 .c18 {
   color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
 }
 
 .c5 {
@@ -199,17 +196,12 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c14 {
-  display: flex;
 }
 
 .c1 {
@@ -261,6 +253,13 @@ exports[`render dialog with instructions to connect to database 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -280,31 +279,30 @@ exports[`render dialog with instructions to connect to database 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Connect To Database
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           <span
-            class="c10"
+            class="c11"
           >
             Step 1
           </span>
            - Login to Teleport
           <div
-            class="c11 c12"
+            class="c12 c13"
             color="light"
           >
             <div
-              class="c13 c14"
+              class="c14 c8"
               style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               <div
@@ -327,20 +325,20 @@ exports[`render dialog with instructions to connect to database 1`] = `
           </div>
         </div>
         <div
-          class="c9"
+          class="c10"
         >
           <span
-            class="c10"
+            class="c11"
           >
             Step 2
           </span>
            - Connect to the database
           <div
-            class="c11 c12"
+            class="c12 c13"
             color="light"
           >
             <div
-              class="c13 c14"
+              class="c14 c8"
               style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               <div
@@ -401,26 +399,25 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
   min-height: 240px;
   flex: 0 0 auto;
 }
 
-.c9 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
-  margin-top: 8px;
   padding: 8px;
-  color: #FFFFFF;
+  margin-top: 8px;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   margin-right: 8px;
 }
@@ -558,30 +555,28 @@ exports[`render dialog with instructions to connect to database with requestId 1
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
 .c18 {
   color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
 }
 
 .c5 {
@@ -591,17 +586,12 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c14 {
-  display: flex;
 }
 
 .c1 {
@@ -653,6 +643,13 @@ exports[`render dialog with instructions to connect to database with requestId 1
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
 <body>
   <div />
   <div
@@ -674,31 +671,30 @@ exports[`render dialog with instructions to connect to database with requestId 1
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
             Connect To Database
-          </div>
+          </h2>
         </div>
         <div
-          class="c7 c8"
+          class="c7 c8 c9"
         >
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c10"
+              class="c11"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c11 c12"
+              class="c12 c13"
               color="light"
             >
               <div
-                class="c13 c14"
+                class="c14 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -721,20 +717,20 @@ exports[`render dialog with instructions to connect to database with requestId 1
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c10"
+              class="c11"
             >
               Step 2
             </span>
              - Connect to the database
             <div
-              class="c11 c12"
+              class="c12 c13"
               color="light"
             >
               <div
-                class="c13 c14"
+                class="c14 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -757,20 +753,20 @@ exports[`render dialog with instructions to connect to database with requestId 1
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c10"
+              class="c11"
             >
               Step 3 (Optional)
             </span>
              - When finished, drop the assumed role
             <div
-              class="c11 c12"
+              class="c12 c13"
               color="light"
             >
               <div
-                class="c13 c14"
+                class="c14 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div

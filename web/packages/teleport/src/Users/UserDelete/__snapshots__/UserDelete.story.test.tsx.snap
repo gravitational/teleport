@@ -9,12 +9,6 @@ exports[`confirm state 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c11 {
-  box-sizing: border-box;
 }
 
 .c12 {
@@ -145,26 +139,24 @@ exports[`confirm state 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 24px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c5 {
@@ -174,7 +166,6 @@ exports[`confirm state 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -226,6 +217,12 @@ exports[`confirm state 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -245,22 +242,21 @@ exports[`confirm state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete User?
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           You are about to delete user
           <span
-            class="c10"
+            class="c11"
           >
              somename
           </span>
@@ -268,7 +264,7 @@ exports[`confirm state 1`] = `
         </div>
       </div>
       <div
-        class="c11"
+        class="c7"
       >
         <button
           class="c12"
@@ -289,7 +285,7 @@ exports[`confirm state 1`] = `
 `;
 
 exports[`failed state 1`] = `
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -306,7 +302,7 @@ exports[`failed state 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
@@ -317,12 +313,6 @@ exports[`failed state 1`] = `
 }
 
 .c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c12 {
   box-sizing: border-box;
 }
 
@@ -454,26 +444,24 @@ exports[`failed state 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 24px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c5 {
@@ -483,7 +471,6 @@ exports[`failed state 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -535,6 +522,12 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -554,28 +547,27 @@ exports[`failed state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete User?
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="danger"
         >
           server error
         </div>
         <div
-          class="c10"
+          class="c11"
         >
           You are about to delete user
           <span
-            class="c11"
+            class="c12"
           >
              somename
           </span>
@@ -583,7 +575,7 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="c12"
+        class="c7"
       >
         <button
           class="c13"
@@ -611,12 +603,6 @@ exports[`processing state 1`] = `
 }
 
 .c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c11 {
   box-sizing: border-box;
 }
 
@@ -748,26 +734,24 @@ exports[`processing state 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 24px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c5 {
@@ -777,7 +761,6 @@ exports[`processing state 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -829,6 +812,12 @@ exports[`processing state 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -848,22 +837,21 @@ exports[`processing state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete User?
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           You are about to delete user
           <span
-            class="c10"
+            class="c11"
           >
              somename
           </span>
@@ -871,7 +859,7 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="c11"
+        class="c7"
       >
         <button
           class="c12"

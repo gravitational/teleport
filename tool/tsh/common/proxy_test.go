@@ -1520,7 +1520,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	// which are not usage restricted to apps only; this is required for tsh to
 	// make other auth API calls beyond just accessing the app.
 	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            key.MarshalSSHPublicKey(),
+		Key:            key.PrivateKey.MarshalSSHPublicKey(),
 		Username:       userName,
 		TTL:            time.Hour,
 		Compatibility:  constants.CertificateFormatStandard,

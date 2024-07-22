@@ -42,19 +42,21 @@ interface FontWeightProps {
   fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
 }
 
-export interface TextProps
-  extends TypographyProps,
-    FontSizeProps,
-    SpaceProps,
-    ColorProps,
-    TextAlignProps,
-    FontWeightProps {}
+export type TextProps<E extends React.ElementType = 'div'> =
+  React.ComponentPropsWithoutRef<E> &
+    TypographyProps &
+    FontSizeProps &
+    SpaceProps &
+    ColorProps &
+    TextAlignProps &
+    FontWeightProps;
 
 const Text = styled.div.withConfig({
   shouldForwardProp: shouldForwardTypographyProp,
 })<TextProps>`
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   ${typography}
   ${fontSize}
   ${space}
@@ -65,8 +67,24 @@ const Text = styled.div.withConfig({
 
 Text.displayName = 'Text';
 
-Text.defaultProps = {
-  m: 0,
-};
-
 export default Text;
+
+/**
+ * H1 heading. Example usage: page titles and empty result set notifications.
+ *
+ * Do not use where `h1` typography is used only to make the text bigger (i.e.
+ * there's no following content that is logically tied to the heading).
+ */
+export const H1 = (props: TextProps) => (
+  <Text as="h1" typography="h1" {...props} />
+);
+
+/**
+ * H2 heading. Example usage: side panel titles, dialog titles.
+ *
+ * Do not use where `h1` typography is used only to make the text bigger (i.e.
+ * there's no following content that is logically tied to the heading).
+ */
+export const H2 = (props: TextProps) => (
+  <Text as="h2" typography="h2" {...props} />
+);

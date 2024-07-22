@@ -16,18 +16,18 @@ exports[`wrapper 1`] = `
   background-color: #222C59;
 }
 
-.c8 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
 .c12 {
   color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
 }
 
 .c2 {

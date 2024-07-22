@@ -32,13 +32,11 @@ const SideNavItemIcon = styled.svg`
   }
 
   opacity: 0.56;
+  font-size: ${props => props.theme.fontSizes[4]}px;
+  margin-right: ${props => props.theme.space[3]}px;
+  margin-left: -${props => props.theme.space[6]}px;
 `;
 
 SideNavItemIcon.displayName = 'SideNavItemIcon';
-SideNavItemIcon.defaultProps = {
-  fontSize: 4,
-  mr: 3,
-  ml: -6,
-};
 
 export default SideNavItemIcon;

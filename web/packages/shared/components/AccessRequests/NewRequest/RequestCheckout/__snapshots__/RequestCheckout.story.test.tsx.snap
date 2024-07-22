@@ -33,8 +33,8 @@ exports[`failed state 1`] = `
 
 .c13 {
   box-sizing: border-box;
-  margin-bottom: 4px;
   margin-top: 40px;
+  margin-bottom: 4px;
 }
 
 .c16 {
@@ -72,15 +72,15 @@ exports[`failed state 1`] = `
   height: 80px;
   width: 100%;
   color: #FFFFFF;
-  border: 1px solid;
   border-radius: 4px;
+  border: 1px solid;
   border-color: rgba(255, 255, 255, 0.54);
 }
 
 .c39 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   margin-top: 4px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
   height: 34px;
 }
@@ -344,37 +344,36 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c20 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c32 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 4px;
-}
-
 .c28 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.c32 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-right: 4px;
 }
 
 .c5 {
@@ -950,15 +949,14 @@ exports[`failed state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <div
@@ -1487,8 +1485,8 @@ exports[`loaded state 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  margin-bottom: 4px;
   margin-top: 40px;
+  margin-bottom: 4px;
 }
 
 .c15 {
@@ -1511,8 +1509,8 @@ exports[`loaded state 1`] = `
   padding-top: 8px;
   padding-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c30 {
@@ -1542,15 +1540,15 @@ exports[`loaded state 1`] = `
   height: 80px;
   width: 100%;
   color: #FFFFFF;
-  border: 1px solid;
   border-radius: 4px;
+  border: 1px solid;
   border-color: rgba(255, 255, 255, 0.54);
 }
 
 .c46 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   margin-top: 4px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
   height: 34px;
 }
@@ -1856,52 +1854,51 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c17 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c40 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 4px;
-}
-
 .c36 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.c28 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.c40 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-right: 4px;
 }
 
 .c5 {
@@ -2481,15 +2478,14 @@ exports[`loaded state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <table
@@ -3294,8 +3290,8 @@ exports[`success state 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 48px;
   margin-top: 8px;
+  margin-bottom: 48px;
   text-align: center;
 }
 
@@ -3337,8 +3333,8 @@ exports[`success state 1`] = `
   font-size: 14px;
   line-height: 20px;
   letter-spacing: 0.175px;
-  margin-bottom: 16px;
   margin-top: 32px;
+  margin-bottom: 16px;
   width: 100%;
 }
 
@@ -3436,31 +3432,31 @@ exports[`success state 1`] = `
   cursor: auto;
 }
 
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .c9 {
   display: block;
   outline: none;
   width: 250px;
   height: 179px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+  margin-bottom: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c8 {
@@ -3534,12 +3530,11 @@ exports[`success state 1`] = `
           <div
             class="c4"
           >
-            <div
+            <h2
               class="c5"
-              color="text.main"
             >
               Resources Requested Successfully
-            </div>
+            </h2>
             <div
               class="c6"
               color="text.slightlyMuted"

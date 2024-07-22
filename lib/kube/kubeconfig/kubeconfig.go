@@ -58,7 +58,7 @@ type Values struct {
 	ClusterAddr string
 	// Credentials are user credentials to use for authentication the
 	// ClusterAddr. Only TLS fields (key/cert/CA) from Credentials are used.
-	Credentials *client.Key
+	Credentials *client.KeyRing
 	// Exec contains optional values to use, when configuring tsh as an exec
 	// auth plugin in kubeconfig.
 	//
