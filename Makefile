@@ -1649,7 +1649,7 @@ ensure-js-package-manager:
 		if [ -n "$(CHECK_COREPACK)" ]; then \
 			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
 			corepack enable pnpm; \
-			COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v; \
+			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
 		else \
 			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
 			exit 1; \
