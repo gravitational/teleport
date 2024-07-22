@@ -189,7 +189,7 @@ func (process *TeleportProcess) connectToAuthService(role types.SystemRole, opts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.logger.DebugContext(process.ExitContext(), "Client successfully connected to cluster", "client_identity", connector.ClientIdentityString())
+	process.logger.DebugContext(process.ExitContext(), "Client successfully connected to cluster", "client_identity", connector.clientIdentityString())
 	process.addConnector(connector)
 
 	return connector, nil

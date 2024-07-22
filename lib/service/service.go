@@ -408,6 +408,8 @@ func (c *Connector) Role() types.SystemRole {
 	return c.role
 }
 
+// ClientGetCertificate returns the current credentials for outgoing TLS
+// connections to other cluster components.
 func (c *Connector) ClientGetCertificate() (*tls.Certificate, error) {
 	tlsCert := c.clientState.Load().tlsCert
 	if tlsCert == nil {
@@ -416,6 +418,8 @@ func (c *Connector) ClientGetCertificate() (*tls.Certificate, error) {
 	return tlsCert, nil
 }
 
+// ClientGetPool returns a pool with the trusted X.509/TLS signers from the host
+// CA of the local cluster, as known by the connector.
 func (c *Connector) ClientGetPool() (*x509.CertPool, error) {
 	roots := c.clientState.Load().pool
 	if roots == nil {
@@ -424,6 +428,9 @@ func (c *Connector) ClientGetPool() (*x509.CertPool, error) {
 	return roots, nil
 }
 
+// ClientAuthMethods returns the [ssh.AuthMethod]s that should be used for
+// outgoing SSH connections to other cluster components (the Proxy Service,
+// almost surely).
 func (c *Connector) ClientAuthMethods() []ssh.AuthMethod {
 	return []ssh.AuthMethod{
 		ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
@@ -436,10 +443,14 @@ func (c *Connector) ClientAuthMethods() []ssh.AuthMethod {
 	}
 }
 
-func (c *Connector) ClientIdentityString() string {
+func (c *Connector) clientIdentityString() string {
 	return c.clientState.Load().identity.String()
 }
 
+// ServerTLSConfig returns a new server-side [*tls.Config] that presents the
+// connector's credentials as its certificate. The returned tls.Config doesn't
+// request or trust any client certificates, so the caller is responsible for
+// configuring it.
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	conf := utils.TLSConfig(cipherSuites)
 	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -452,6 +463,8 @@ func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) 
 	return conf, nil
 }
 
+// ServerGetHostSigners returns the [ssh.Signer]s that should be used as host
+// keys for incoming SSH connections.
 func (c *Connector) ServerGetHostSigners() []ssh.Signer {
 	sshCertSigner := c.serverState.Load().sshCertSigner
 	if sshCertSigner == nil {
