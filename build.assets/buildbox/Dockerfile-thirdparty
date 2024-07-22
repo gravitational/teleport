@@ -1,11 +1,11 @@
-# Cross-compiling build box
+# syntax=docker/dockerfile:1
 #
-# Stage 1 builds crosstool-NG for the 4 architectures we support: arm64, amd64,
-# arm and 386, and also builds the third party C libraries that Teleport needs
-# to build, also for these architectures.
+# Cross-compiling build box.
 #
-# We also build a specific version of clang that is required for a FIPS
-# compliant build of boring ssl, used by the boring rust crate.
+# This Dockefile builds a crosstool-NG toolchain (gcc et al) for the four
+# supported Teleport architectures (amd64. arm64 386, arm), as well as the
+# C libraries needed for various Teleport features. The image is not run
+# directly. It is used as an input to the final buildbox image.
 
 ARG BASE_IMAGE=ubuntu:22.04
 
@@ -13,10 +13,9 @@ ARG BASE_IMAGE=ubuntu:22.04
 # stages, so defined here globally before the first stage.
 ARG THIRDPARTY_DIR=/opt/thirdparty
 
-# A multi-stage build is used to make it easier to do development of this
-# Dockerfile. It can be useful to build up to a particular stage so you
-# can then test run commands at that stage of the buildbox. e.g.
-#   docker build -f Dockerfile-base --target crosstoolng .
+# -----------------------------------------------------------------------------
+# Install required build tools and install crosstool-ng
+
 FROM ${BASE_IMAGE} AS crosstoolng
 
 # Bash used for some brace expansions in clean-up
@@ -34,8 +33,8 @@ ARG THIRDPARTY_DIR
 RUN install -d -m 0775 -o buildbox -g buildbox $THIRDPARTY_DIR
 
 # Non-interactive configuration of tzdata
-ENV DEBIAN_FRONTEND noninteractive
-ENV DEBCONF_NONINTERACTIVE_SEEN true
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NONINTERACTIVE_SEEN=true
 RUN { echo 'tzdata tzdata/Areas select Etc'; echo 'tzdata tzdata/Zones/Etc select UTC'; } | debconf-set-selections
 
 RUN apt-get update
@@ -78,7 +77,7 @@ COPY crosstoolng-configs crosstoolng-configs
 COPY pkgconfig pkgconfig
 COPY buildbox-common.mk crosstoolng.mk .
 
-# Build and install ct-ng
+# Build and install crosstool-ng
 ARG BUILDARCH
 ARG THIRDPARTY_DIR
 ENV THIRDPARTY_DIR=$THIRDPARTY_DIR
@@ -86,9 +85,11 @@ ENV THIRDPARTY_DIR=$THIRDPARTY_DIR
 RUN make -f crosstoolng.mk install-crosstoolng && \
 	rm -rf ${THIRDPARTY_DIR}/host/src
 
+# -----------------------------------------------------------------------------
+# Build the compilers for the four architecures
+
 FROM crosstoolng AS compilers
 
-# Build cross-compiling toolchains with ct-ng
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
 	make -f crosstoolng.mk crosstoolng-build ARCH=amd64 && \
 	rm -rf ${THIRDPARTY_DIR}/amd64/crosstoolng
@@ -101,6 +102,9 @@ RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
 	make -f crosstoolng.mk crosstoolng-build ARCH=arm && \
 	rm -rf ${THIRDPARTY_DIR}/arm/crosstoolng
+
+# -----------------------------------------------------------------------------
+# Build the third-party C libraries for the four architectures
 
 FROM compilers AS libs
 
@@ -123,6 +127,7 @@ RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/
 	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=arm && \
 	rm -rf ${THIRDPARTY_DIR}/arm/{bin,sbin,src}
 
+# -----------------------------------------------------------------------------
 # Start buildbox-thirdparty from a fresh ${BASE_IMAGE} and copy in
 # /opt/thirdparty so as to remove any layers above with the build tools. We
 # copy it into ${BASE_IMAGE} instead of scratch so that we can run the
