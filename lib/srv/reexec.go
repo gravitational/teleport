@@ -699,30 +699,56 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		}
 
 		// Some PAM modules (e.g. pam_namespace) do not behave properly in multithreaded contexts.
-		// Therefore we favor handling requests on the main PAM thread for requests that are expected
-		// to be impacted (unix socket listeners).
+		// Therefore we favor handling requests and cleanup on the main PAM thread for requests that
+		// are expected to be impacted (unix socket listeners).
 		switch req.Operation {
 		case networking.NetworkingOperationDial, networking.NetworkingOperationListen:
 			switch req.Network {
 			case "tcp":
 				// There are currently no known issues with tcp listen/dial in a multithreaded PAM context.
-				go handleNetworkingRequest(ctx, controlConn, req)
+				go func() {
+					cleanup := handleNetworkingRequest(ctx, controlConn, req)
+					if cleanup != nil {
+						context.AfterFunc(ctx, func() {
+							if err := cleanup(); err != nil {
+								slog.Debug("Failed to clean up networking request resources", "request", req, "error", err)
+							}
+						})
+					}
+				}()
 			default:
 				// Note: we don't currently support non-tcp network forwarding, so this branch is not
 				// currently reached. If in the future we add unix socket forwarding similar to OpenSSH's
 				// direct-streamlocal@openssh.com extension, we should revisit this multithreading limitation
 				// to prevent performance degradation.
-				handleNetworkingRequest(ctx, controlConn, req)
+				cleanup := handleNetworkingRequest(ctx, controlConn, req)
+				if cleanup != nil {
+					defer func() {
+						if err := cleanup(); err != nil {
+							slog.Debug("Failed to clean up networking request resources", "request", req, "error", err)
+						}
+					}()
+				}
+				defer cleanup()
 			}
 		case networking.NetworkingOperationListenAgent, networking.NetworkingOperationListenX11:
 			// Agent and X11 forwarding requests should occur very rarely, so handling
 			// them in the main thread should have negligible performance impact.
-			handleNetworkingRequest(ctx, controlConn, req)
+			cleanup := handleNetworkingRequest(ctx, controlConn, req)
+			if cleanup != nil {
+				defer func() {
+					if err := cleanup(); err != nil {
+						slog.Debug("Failed to clean up networking request resources", "request", req, "error", err)
+					}
+				}()
+			}
 		}
 	}
 }
 
-func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networking.Request) {
+type cleanupFn func() error
+
+func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networking.Request) cleanupFn {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	go func() {
@@ -733,79 +759,89 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 	log := slog.With("request", req)
 	log.Debug("Handling networking request")
 
-	netFile, err := createNetworkingFile(ctx, req)
+	netFile, cleanup, err := createNetworkingFile(ctx, req)
 	if err != nil {
 		log.With("error", err).ErrorContext(ctx, "Error creating networking file.")
 		conn.Write([]byte(err.Error()))
-		return
+		return nil
 	}
 	defer netFile.Close()
 
 	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
 		log.With("error", err.Error()).ErrorContext(ctx, "Failed to write networking file to control conn.")
 	}
+	return cleanup
 }
 
-func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File, error) {
+func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File, cleanupFn, error) {
 	switch req.Operation {
 	case networking.NetworkingOperationDial:
 		var d net.Dialer
 		conn, err := d.DialContext(ctx, req.Network, req.Address)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		defer conn.Close()
 
 		connFD, err := getConnFile(conn)
-		return connFD, trace.Wrap(err)
+		return connFD, nil, trace.Wrap(err)
 
 	case networking.NetworkingOperationListen:
 		listener, err := newListener(ctx, req.Network, req.Address)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		defer listener.Close()
 
-		listenerFD, err := getListenerFile(listener)
-		return listenerFD, trace.Wrap(err)
+		listenerFD, cleanup, err := getListenerFile(listener)
+		return listenerFD, cleanup, trace.Wrap(err)
 
 	case networking.NetworkingOperationListenAgent:
 		// Create a temp directory to hold the agent socket.
 		sockDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// Cleanup the temporary socket dir at the end of the process in case the parent
+		// process fails to due to a fileystem namespace discrepency (pam_namespace).
+		cleanupDir := func() error {
+			return os.RemoveAll(sockDir)
 		}
 
 		// Update the agent forwarding socket dir with more restrictive permissions.
 		if err = os.Chmod(sockDir, teleport.PrivateDirMode); err != nil {
-			return nil, trace.Wrap(err)
+			cleanupDir()
+			return nil, nil, trace.Wrap(err)
 		}
 
 		socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
 
 		listener, err := newListener(ctx, "unix", socketPath)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			cleanupDir()
+			return nil, nil, trace.Wrap(err)
 		}
 		defer listener.Close()
 
-		listenerFD, err := getListenerFile(listener)
+		listenerFD, _, err := getListenerFile(listener)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			cleanupDir()
+			return nil, nil, trace.Wrap(err)
 		}
 
-		return listenerFD, trace.Wrap(err)
+		return listenerFD, cleanupDir, nil
 
 	case networking.NetworkingOperationListenX11:
 		listener, display, err := x11.OpenNewXServerListener(req.X11Request.DisplayOffset, req.X11Request.MaxDisplay, req.X11Request.ScreenNumber)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		defer listener.Close()
 
 		removeCmd := x11.NewXAuthCommand(ctx, "")
 		if err := removeCmd.RemoveEntries(display); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		addCmd := x11.NewXAuthCommand(ctx, "")
@@ -814,28 +850,34 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			Proto:   req.X11Request.AuthProtocol,
 			Cookie:  req.X11Request.AuthCookie,
 		}); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
-		listenerFD, err := getListenerFile(listener)
-		return listenerFD, trace.Wrap(err)
+		listenerFD, cleanup, err := getListenerFile(listener)
+		return listenerFD, cleanup, trace.Wrap(err)
 
 	default:
-		return nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
+		return nil, nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
 	}
 }
 
-func getListenerFile(listener net.Listener) (*os.File, error) {
+func getListenerFile(listener net.Listener) (*os.File, cleanupFn, error) {
 	switch l := listener.(type) {
 	case *net.UnixListener:
+		// Unlinking the socket here will cause the parent process to open a new
+		// socket in the parent namespace, which may be inaccessible for the user.
+		// Instead we close the listener without unlinking the socket, and cleanup
+		// the socket in the child namepsace once the process is closed.
 		l.SetUnlinkOnClose(false)
+		cleanupSocket := func() error { return os.Remove(l.Addr().String()) }
+
 		listenerFD, err := l.File()
-		return listenerFD, trace.Wrap(err)
+		return listenerFD, cleanupSocket, trace.Wrap(err)
 	case *net.TCPListener:
 		listenerFD, err := l.File()
-		return listenerFD, trace.Wrap(err)
+		return listenerFD, nil, trace.Wrap(err)
 	default:
-		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
+		return nil, nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
 	}
 }
 
