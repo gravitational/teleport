@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package dynamo
+package aws
 
 import (
 	"context"
@@ -26,33 +26,37 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
 	apiRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "dynamo_requests_total",
-			Help: "Total number of requests to the DynamoDB API",
+			Namespace: teleport.MetricNamespace,
+			Name:      "aws_sdk_requests_total",
+			Help:      "Total number of requests to the AWS API",
 		},
-		[]string{"type", "operation"},
+		[]string{"service", "operation"},
 	)
 	apiRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "dynamo_requests",
-			Help: "Number of requests to the DynamoDB API by result",
+			Namespace: teleport.MetricNamespace,
+			Name:      "aws_sdk_requests",
+			Help:      "Number of requests to the AWS API by result",
 		},
-		[]string{"type", "operation", "result"},
+		[]string{"service", "operation", "result"},
 	)
 	apiRequestLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "dynamo_requests_seconds",
-			Help: "Request latency for the DynamoDB API",
+			Namespace: teleport.MetricNamespace,
+			Name:      "aws_sdk_requests_seconds",
+			Help:      "Request latency for the AWS API",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
-		[]string{"type", "operation"},
+		[]string{"service", "operation"},
 	)
 )
 
@@ -60,32 +64,22 @@ func init() {
 	_ = metrics.RegisterPrometheusCollectors(apiRequests, apiRequestsTotal, apiRequestLatencies)
 }
 
-// TableType indicates which type of table metrics are being calculated for
-type TableType string
-
-const (
-	// Backend is a table used to store backend data.
-	Backend TableType = "backend"
-	// Events is a table used to store audit events.
-	Events TableType = "events"
-)
-
 // MetricsMiddleware returns middleware that can be used to capture
-// prometheus metrics for interacting with DynamoDB.
-func MetricsMiddleware(tableType TableType) []func(stack *middleware.Stack) error {
+// prometheus metrics for interacting with the AWS API.
+func MetricsMiddleware() []func(stack *middleware.Stack) error {
 	type timestampKey struct{}
 
 	return []func(s *middleware.Stack) error{
 		func(stack *middleware.Stack) error {
 			return stack.Initialize.Add(middleware.InitializeMiddlewareFunc(
-				"DynamoMetricsBefore",
+				"AWSMetricsBefore",
 				func(ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
 					return next.HandleInitialize(context.WithValue(ctx, timestampKey{}, time.Now()), in)
 				}), middleware.Before)
 		},
 		func(stack *middleware.Stack) error {
 			return stack.Initialize.Add(middleware.InitializeMiddlewareFunc(
-				"DynamoMetricsAfter",
+				"AWSMetricsAfter",
 				func(ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
 					out, md, err := next.HandleInitialize(ctx, in)
 
@@ -95,12 +89,13 @@ func MetricsMiddleware(tableType TableType) []func(stack *middleware.Stack) erro
 					}
 
 					then := ctx.Value(timestampKey{}).(time.Time)
+					service := awsmiddleware.GetServiceID(ctx)
 					operation := awsmiddleware.GetOperationName(ctx)
 					latency := time.Since(then).Seconds()
 
-					apiRequestsTotal.WithLabelValues(string(tableType), operation).Inc()
-					apiRequestLatencies.WithLabelValues(string(tableType), operation).Observe(latency)
-					apiRequests.WithLabelValues(string(tableType), operation, result).Inc()
+					apiRequestsTotal.WithLabelValues(service, operation).Inc()
+					apiRequestLatencies.WithLabelValues(service, operation).Observe(latency)
+					apiRequests.WithLabelValues(service, operation, result).Inc()
 
 					return out, md, err
 				}), middleware.After)
