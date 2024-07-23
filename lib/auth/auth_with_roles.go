@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -602,12 +603,30 @@ func (a *ServerWithRoles) GetClusterCACert(
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+	if !isProxy || req.RemoteAddr == "" {
 		if err := setRemoteAddrFromContext(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// Similarly, do not trust bot instance IDs in the request unless from the
+	// proxy (via the join service). They will be derived from the client
+	// certificate otherwise.
+	if !isProxy && req.BotInstanceID != "" {
+		log.WithFields(logrus.Fields{
+			"bot_instance_id": req.BotInstanceID,
+		}).Warnf("Untrusted client attempted to provide a bot instance ID, this will be ignored")
+
+		req.BotInstanceID = ""
+	}
+
+	// If the identity has a BotInstanceID included, copy it onto the request -
+	// but only if one wasn't already passed along via the proxy.
+	ident := a.context.Identity.GetIdentity()
+	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -3214,7 +3233,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 		// Update the bot instance based on this authentication. This may create
 		// a new bot instance record if the identity is missing an instance ID.
-		if err := a.updateBotInstance(ctx, &certReq); err != nil {
+		if err := a.authServer.updateBotInstance(ctx, &certReq, certReq.botName, certReq.botInstanceID, nil); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
