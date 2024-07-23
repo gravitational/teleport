@@ -1,17 +1,19 @@
 ---
-title: "Deploy Teleport Agents with Terraform"
-description: "In this guide, we will show you how to deploy a pool of Teleport agents so you can apply dynamic resources to enroll your infrastructure with Teleport."
+title: "Deploy Agents with Terraform"
+description: "In this guide, we will show you how to deploy a pool of Agents so you can apply dynamic resources to enroll your infrastructure with Teleport."
 ---
+
+## How it works
 
 An agent is a Teleport instance configured to run one or more Teleport services
 in order to proxy infrastructure resources. For a brief architectural overview
 of how agents run in a Teleport cluster, read the [Introduction to Teleport
 Agents](introduction.mdx).
 
-This guide shows you how to deploy a pool of Teleport agents running on virtual
+This guide shows you how to deploy a pool of Agents running on virtual
 machines by declaring it as code using Terraform.
 
-There are several methods you can use to join a Teleport agent to your cluster,
+There are several methods you can use to join a Agents to your cluster,
 which we discuss in the [Joining Services to your
 Cluster](join-services-to-your-cluster.mdx) guide. In this guide, we will use
 the **join token** method, where the operator stores a secure token on the Auth
@@ -23,7 +25,7 @@ resources:
 - Compute instances to run Teleport services
 - A join token for each compute instance in the agent pool
 
-![A Teleport agent pool](../../../img/tf-agent-diagram.png)
+![An Agent pool](../../../img/tf-agent-diagram.png)
 
 ## Prerequisites
 
@@ -35,8 +37,8 @@ We recommend following this guide on a fresh Teleport demo cluster so you can
 see how an agent pool works. After you are familiar with the setup, apply the
 lessons from this guide to protect your infrastructure. You can get started with
 a demo cluster using:
-- A demo deployment on a [Linux server](../../index.mdx)
-- A [Teleport Enterprise Cloud trial](https://goteleport.com/signup)
+- A demo deployment on a [Linux server](../../deploy-a-cluster/linux-demo.mdx)
+- A [Teleport Enterprise (managed) trial](https://goteleport.com/signup)
 
 </Admonition>
 
@@ -77,6 +79,45 @@ a demo cluster using:
    
    </Notice>
 
+1. Fetch the Teleport code repository and copy the example Terraform
+   configuration for this project into your current working directory. Copy
+   the appropriate child module for your cloud provider into a subdirectory
+   called `cloud` and HCL configurations for Teleport resources into a
+   subdirectory called `teleport`:
+
+   <Tabs>
+   <TabItem label="AWS">
+
+   ```code
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ cp -R teleport-clone/examples/agent-pool-terraform/teleport teleport
+   $ cp -R teleport-clone/examples/agent-pool-terraform/aws cloud
+   $ rm -rf teleport-clone
+   ```
+
+   </TabItem>
+   <TabItem label="Google Cloud">
+
+   ```code
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ cp -R teleport-clone/examples/agent-pool-terraform/teleport teleport
+   $ cp -R teleport-clone/examples/agent-pool-terraform/gcp cloud
+   $ rm -rf teleport-clone
+   ```
+
+   </TabItem>
+   <TabItem label="Azure">
+
+   ```code
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ cp -R teleport-clone/examples/agent-pool-terraform/teleport teleport
+   $ cp -R teleport-clone/examples/agent-pool-terraform/azure cloud
+   $ rm -rf teleport-clone
+   ```
+
+   </TabItem>
+   </Tabs>
+
 1. Create a file called `main.tf` with the following content, which imports the
    `agent-pool-terraform` module for your cloud provider:
 
@@ -85,7 +126,7 @@ a demo cluster using:
 
 ```hcl
 module "teleport" {
-  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
+  source                = "./teleport"
   agent_count           = 2
   agent_roles           = ["Node"]
   proxy_service_address = "teleport.example.com:443"
@@ -95,7 +136,7 @@ module "teleport" {
 
 module "agents" {
   region           = ""
-  source           = "github.com/gravitational/teleport/examples/agent-pool-terraform/aws"
+  source           = "./cloud"
   subnet_id        = ""
   userdata_scripts = module.teleport.userdata_scripts
 }
@@ -106,7 +147,7 @@ module "agents" {
 
 ```hcl
 module "teleport" {
-  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
+  source                = "./teleport"
   agent_count           = 2
   agent_roles           = ["Node"]
   proxy_service_address = "teleport.example.com:443"
@@ -117,7 +158,7 @@ module "teleport" {
 module "agents" {
   gcp_zone         = "us-east1-b"
   google_project   = ""
-  source           = "github.com/gravitational/teleport/examples/agent-pool-terraform/gcp"
+  source           = "./cloud"
   subnet_id        = ""
   userdata_scripts = module.teleport.userdata_scripts
 }
@@ -128,7 +169,7 @@ module "agents" {
 
 ```hcl
 module "teleport" {
-  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
+  source                = "./teleport"
   agent_count           = 2
   agent_roles           = ["Node"]
   proxy_service_address = "teleport.example.com:443"
@@ -140,7 +181,7 @@ module "agents" {
   azure_resource_group = ""
   public_key_path      = ""
   region               = "East US"
-  source               = "github.com/gravitational/teleport/examples/agent-pool-terraform/azure"
+  source               = "./cloud"
   subnet_id            = ""
   userdata_scripts     = module.teleport.userdata_scripts
 }
@@ -281,7 +322,7 @@ provider "aws" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
   identity_file_path = "terraform-identity"
 }
@@ -317,7 +358,7 @@ provider "google" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
   identity_file_path = "terraform-identity"
 }
@@ -351,7 +392,7 @@ terraform {
 
 provider "teleport" {
   identity_file_path = "terraform-identity"
-  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 
@@ -490,7 +531,7 @@ In this section, we explain the resources configured in the
 ### Join token
 
 The `agent-pool-terraform` module deploys one virtual machine instance for each
-Teleport agent. Each agent joins the cluster using a token. We create each token
+Agent. Each agent joins the cluster using a token. We create each token
 using the `teleport_provision_token` Terraform resource, specifying the token's
 value with a `random_string` resource:
 
@@ -503,7 +544,7 @@ provider creates them on the Teleport Auth Service backend.
 
 ### User data script
 
-Each Teleport agent deployed by the `agent-pool-terraform` module loads a user
+Each Agent deployed by the `agent-pool-terraform` module loads a user
 data script that creates a Teleport configuration file for the agent. The
 services enabled by the configuration file depend on the value of the
 `agent_roles` input variable:
@@ -555,5 +596,4 @@ instances:
 
 </TabItem>
 </Tabs>
-
 

@@ -434,7 +434,7 @@ Optional:
 - `create_host_user_mode` (Number) CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop".
 - `desktop_clipboard` (Boolean)
 - `desktop_directory_sharing` (Boolean)
-- `device_trust_mode` (String) DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport.
+- `device_trust_mode` (String) DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.
 - `disconnect_expired_cert` (Boolean) DisconnectExpiredCert sets disconnect clients on expired certificates.
 - `enhanced_recording` (List of String) BPF defines what events to record for the BPF-based session recorder.
 - `forward_agent` (Boolean) ForwardAgent is SSH agent forwarding.
@@ -448,7 +448,7 @@ Optional:
 - `pin_source_ip` (Boolean) PinSourceIP forces the same client IP for certificate generation and usage
 - `port_forwarding` (Boolean)
 - `record_session` (Attributes) RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false. (see [below for nested schema](#nested-schema-for-specoptionsrecord_session))
-- `request_access` (String) RequestAccess defines the access request strategy (optional|note|always) where optional is the default.
+- `request_access` (String) RequestAccess defines the request strategy (optional|note|always) where optional is the default.
 - `request_prompt` (String) RequestPrompt is an optional message which tells users what they aught to request.
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean)

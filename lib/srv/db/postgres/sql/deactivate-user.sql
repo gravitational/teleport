@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE teleport_deactivate_user(username varchar)
+CREATE OR REPLACE PROCEDURE pg_temp.teleport_deactivate_user(username varchar)
 LANGUAGE plpgsql
 AS $$
 DECLARE

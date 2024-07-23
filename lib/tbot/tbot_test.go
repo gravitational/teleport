@@ -86,6 +86,9 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
+			}
 		})(o)
 	}
 }
@@ -495,11 +498,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 	require.NoError(t, err)
 	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
 	require.NoError(t, err)
-	_, x509Cert, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
-	require.NoError(t, err)
-	tlsIdent, err := tlsca.FromSubject(
-		x509Cert.Subject, x509Cert.NotAfter,
-	)
+	_, tlsIdent, _, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
 	require.NoError(t, err)
 	return tlsIdent
 }

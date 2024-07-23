@@ -18,28 +18,20 @@ package join
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"log/slog"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
-	"golang.org/x/net/http2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -47,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/circleci"
+	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -54,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -82,8 +74,10 @@ type RegisterParams struct {
 	// ID is identity ID
 	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
+	// Ignored if AuthClient is provided.
 	AuthServers []utils.NetAddr
 	// ProxyServer is a proxy server to dial
+	// Ignored if AuthClient is provided.
 	ProxyServer utils.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
@@ -94,12 +88,16 @@ type RegisterParams struct {
 	// PublicSSHKey is a server's public SSH key to sign
 	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
+	// Ignored if AuthClient is provided.
 	CipherSuites []uint16
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	// Ignored if AuthClient is provided.
 	CAPins []string
 	// CAPath is the path to the CA file.
+	// Ignored if AuthClient is provided.
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
+	// Ignored if AuthClient is provided.
 	GetHostCredentials HostCredentials
 	// Clock specifies the time provider. Will be used to override the time anchor
 	// for TLS certificate verification.
@@ -113,8 +111,10 @@ type RegisterParams struct {
 	// AzureParams is the parameters specific to the azure join method.
 	AzureParams AzureParams
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
+	// Ignored if AuthClient is provided.
 	CircuitBreakerConfig breaker.Config
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// Ignored if AuthClient is provided.
 	FIPS bool
 	// IDToken is a token retrieved from a workload identity provider for
 	// certain join types e.g GitHub, Google.
@@ -124,7 +124,13 @@ type RegisterParams struct {
 	// It should not be specified for non-bot registrations.
 	Expires *time.Time
 	// Insecure trusts the certificates from the Auth Server or Proxy during registration without verification.
+	// Ignored if AuthClient is provided.
 	Insecure bool
+	// AuthClient allows an existing client with a connection to the auth
+	// server to be used for the registration process. If specified, then the
+	// Register method will not attempt to dial, and many other parameters
+	// may be ignored.
+	AuthClient AuthJoinClient
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -140,6 +146,11 @@ func (r *RegisterParams) checkAndSetDefaults() error {
 }
 
 func (r *RegisterParams) verifyAuthOrProxyAddress() error {
+	// If AuthClient is provided we do not need addresses to dial with.
+	if r.AuthClient != nil {
+		return nil
+	}
+
 	haveAuthServers := len(r.AuthServers) > 0
 	haveProxyServer := !r.ProxyServer.IsEmpty()
 
@@ -218,6 +229,19 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 		}
 	}
 
+	// If an explicit AuthClient has been provided, we want to go straight to
+	// using that rather than trying both proxy and auth dialing.
+	if params.AuthClient != nil {
+		log.Info("Attempting registration with existing auth client.")
+		certs, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		if err != nil {
+			log.WithError(err).Error("Registration with existing auth client failed.")
+			return nil, trace.Wrap(err)
+		}
+		log.Info("Successfully registered with existing auth client.")
+		return certs, nil
+	}
+
 	type registerMethod struct {
 		call func(ctx context.Context, token string, params RegisterParams) (*proto.Certs, error)
 		desc string
@@ -292,7 +316,16 @@ func registerThroughProxy(
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
 		// IAM and Azure join methods require gRPC client
-		conn, err := proxyJoinServiceConn(ctx, params, params.Insecure)
+		conn, err := proxyinsecureclient.NewConnection(
+			ctx,
+			proxyinsecureclient.ConnectionConfig{
+				ProxyServer:  getHostAddresses(params)[0],
+				CipherSuites: params.CipherSuites,
+				Clock:        params.Clock,
+				Insecure:     params.Insecure,
+				Log:          slog.Default(),
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -371,6 +404,26 @@ func registerThroughAuth(
 	}
 	defer client.Close()
 
+	certs, err = registerThroughAuthClient(ctx, token, params, client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs, nil
+}
+
+// AuthJoinClient is a client that allows access to the Auth Servers join
+// service and RegisterUsingToken method for the purposes of joining.
+type AuthJoinClient interface {
+	joinServiceClient
+	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+}
+
+func registerThroughAuthClient(
+	ctx context.Context,
+	token string,
+	params RegisterParams,
+	client AuthJoinClient,
+) (certs *proto.Certs, err error) {
 	switch params.JoinMethod {
 	// IAM and Azure methods use unique gRPC endpoints
 	case types.JoinMethodIAM:
@@ -401,81 +454,12 @@ func registerThroughAuth(
 	return certs, trace.Wrap(err)
 }
 
-// proxyJoinServiceConn attempts to connect to the join service running on the
-// proxy. The Proxy's TLS cert will be verified using the host's root CA pool
-// (PKI) unless the --insecure flag was passed.
-func proxyJoinServiceConn(
-	ctx context.Context, params RegisterParams, insecure bool,
-) (*grpc.ClientConn, error) {
-	tlsConfig := utils.TLSConfig(params.CipherSuites)
-	tlsConfig.Time = params.Clock.Now
-	// set NextProtos for TLS routing, the actual protocol will be h2
-	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure), http2.NextProtoTLS}
-
-	if insecure {
-		tlsConfig.InsecureSkipVerify = true
-		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
-	}
-
-	// Check if proxy is behind a load balancer. If so, the connection upgrade
-	// will verify the load balancer's cert using system cert pool. This
-	// provides the same level of security as the client only verifies Proxy's
-	// web cert against system cert pool when connection upgrade is not
-	// required.
-	//
-	// With the ALPN connection upgrade, the tunneled TLS Routing request will
-	// skip verify as the Proxy server will present its host cert which is not
-	// fully verifiable at this point since the client does not have the host
-	// CAs yet before completing registration.
-	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(ctx, getHostAddresses(params)[0], insecure)
-	if alpnConnUpgrade && !insecure {
-		tlsConfig.InsecureSkipVerify = true
-		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)
-	}
-
-	dialer := client.NewDialer(
-		ctx,
-		apidefaults.DefaultIdleTimeout,
-		apidefaults.DefaultIOTimeout,
-		client.WithInsecureSkipVerify(insecure),
-		client.WithALPNConnUpgrade(alpnConnUpgrade),
-	)
-
-	conn, err := grpc.Dial(
-		getHostAddresses(params)[0],
-		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
-		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-	)
-	return conn, trace.Wrap(err)
-}
-
 func getHostAddresses(params RegisterParams) []string {
 	if !params.ProxyServer.IsEmpty() {
 		return []string{params.ProxyServer.String()}
 	}
 
 	return utils.NetAddrsToStrings(params.AuthServers)
-}
-
-// verifyALPNUpgradedConn is a tls.Config.VerifyConnection callback function
-// used by the tunneled TLS Routing request to verify the host cert of a Proxy
-// behind a L7 load balancer.
-//
-// Since the client has not obtained the cluster CAs at this point, the
-// presented cert cannot be fully verified yet. For now, this function only
-// checks if "teleport.cluster.local" is present as one of the DNS names and
-// verifies the cert is not expired.
-func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) error {
-	return func(server tls.ConnectionState) error {
-		for _, cert := range server.PeerCertificates {
-			if slices.Contains(cert.DNSNames, constants.APIDomain) && clock.Now().Before(cert.NotAfter) {
-				return nil
-			}
-		}
-		return trace.AccessDenied("server is not a Teleport proxy or server certificate is expired")
-	}
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
