@@ -2416,7 +2416,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"request_access": {
-							Description: "RequestAccess defines the access request strategy (optional|note|always) where optional is the default.",
+							Description: "RequestAccess defines the request strategy (optional|note|always) where optional is the default.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
