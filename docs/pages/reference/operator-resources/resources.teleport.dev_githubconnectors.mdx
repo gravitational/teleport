@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|GithubConnector resource definition v3 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -30,7 +29,7 @@ the Teleport Kubernetes operator.
 |---|---|---|
 |api_endpoint_url|string|APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.|
 |client_id|string|ClientID is the Github OAuth app client ID.|
-|client_redirect_settings|[object](#client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
+|client_redirect_settings|[object](#`spec`client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is the Github OAuth app client secret.|
 |display|string|Display is the connector display name.|
 |endpoint_url|string|EndpointURL is the URL of the GitHub instance this connector is for.|
@@ -50,10 +49,4 @@ the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 

@@ -243,7 +243,7 @@ func Test_propertyTable(t *testing.T) {
 			},
 		},
 		{
-			description: "scalar and conditions",
+			description: "scalar and status with conditions",
 			input: apiextv1.JSONSchemaProps{
 				Type:        "object",
 				Description: "Attributes of the server",
@@ -252,14 +252,19 @@ func Test_propertyTable(t *testing.T) {
 						Type:        "string",
 						Description: "The name of the server",
 					},
-					"conditions": apiextv1.JSONSchemaProps{
-						Type:        "array",
-						Description: "Conditions represent the latest available observations of an object's state",
-						Items: &apiextv1.JSONSchemaPropsOrArray{
-							Schema: &apiextv1.JSONSchemaProps{
-								Description: `"Condition contains details for one aspect of the current
+					"status": apiextv1.JSONSchemaProps{
+						Description: "Status defines the observed state of the Teleport resource",
+						Properties: map[string]apiextv1.JSONSchemaProps{
+							"conditions": apiextv1.JSONSchemaProps{
+								Type:        "array",
+								Description: "Conditions represent the latest available observations of an object's state",
+								Items: &apiextv1.JSONSchemaPropsOrArray{
+									Schema: &apiextv1.JSONSchemaProps{
+										Description: `"Condition contains details for one aspect of the current
 state of this API Resource.\n---\nThis struct is intended for direct use as an array at the field path .status.conditions.`,
-								Type: "object",
+										Type: "object",
+									},
+								},
 							},
 						},
 					},
@@ -273,6 +278,32 @@ state of this API Resource.\n---\nThis struct is intended for direct use as an a
 							Name:        "name",
 							Type:        "string",
 							Description: "The name of the server",
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "int or string enum",
+			input: apiextv1.JSONSchemaProps{
+				Type:        "object",
+				Description: "Attributes of the server",
+				Properties: map[string]apiextv1.JSONSchemaProps{
+					"host_user_creation_mode": apiextv1.JSONSchemaProps{
+						Type:         "",
+						Description:  "Host user creation mode. 1 is \"drop\", 2 is \"keep\"",
+						XIntOrString: true,
+					},
+				},
+			},
+			expected: []PropertyTable{
+				{
+					Name: "",
+					Fields: []PropertyTableField{
+						{
+							Name:        "host_user_creation_mode",
+							Type:        "string or integer",
+							Description: "Host user creation mode. 1 is \"drop\", 2 is \"keep\". Can be either the string or the integer representation of each option.",
 						},
 					},
 				},

@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|User resource definition v2 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -34,6 +33,14 @@ the Teleport Kubernetes operator.
 |saml_identities|[][object](#saml_identities-values)|SAMLIdentities lists associated SAML identities that let user log in using externally verified identity|
 |traits|object|Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|
 |trusted_device_ids|[]string|TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user. Managed by the Device Trust subsystem, avoid manual edits.|
+
+### `oidc_identities` values
+
+|Field|Type|Description|
+|---|---|---|
+|connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
+|samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
+|username|string|Username is username supplied by external identity provider|
 
 ### `saml_identities` values
 
@@ -50,18 +57,4 @@ the Teleport Kubernetes operator.
 |connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
 |samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
 |username|string|Username is username supplied by external identity provider|
-
-### `oidc_identities` values
-
-|Field|Type|Description|
-|---|---|---|
-|connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
-|samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
-|username|string|Username is username supplied by external identity provider|
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 

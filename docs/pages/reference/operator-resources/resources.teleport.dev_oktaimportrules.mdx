@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|OktaImportRule resource definition v1 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -35,7 +34,7 @@ the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|add_labels|[object](#add_labels)|AddLabels specifies which labels to add if any of the previous matches match.|
+|add_labels|[object](#`mappings` valuesadd_labels)|AddLabels specifies which labels to add if any of the previous matches match.|
 |match|[][object](#match-values)|Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.|
 
 ### `match` values
@@ -53,10 +52,4 @@ the Teleport Kubernetes operator.
 |---|---|---|
 |key|string||
 |value|string||
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 

@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|OIDCConnector resource definition v3 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -32,7 +31,7 @@ the Teleport Kubernetes operator.
 |allow_unverified_email|boolean|AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.|
 |claims_to_roles|[][object](#claims_to_roles-values)|ClaimsToRoles specifies a dynamic mapping from claims to roles.|
 |client_id|string|ClientID is the id of the authentication client (Teleport Auth server).|
-|client_redirect_settings|[object](#client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
+|client_redirect_settings|[object](#`spec`client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is used to authenticate the client.|
 |display|string|Display is the friendly name for this provider.|
 |google_admin_email|string|GoogleAdminEmail is the email of a google admin to impersonate.|
@@ -59,10 +58,4 @@ the Teleport Kubernetes operator.
 |claim|string|Claim is a claim name.|
 |roles|[]string|Roles is a list of static teleport roles to match.|
 |value|string|Value is a claim value to match.|
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 

@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|ProvisionToken resource definition v2 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -30,19 +29,19 @@ the Teleport Kubernetes operator.
 |---|---|---|
 |allow|[][object](#allow-values)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |aws_iid_ttl|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
-|azure|[object](#azure)|Azure allows the configuration of options specific to the "azure" join method.|
+|azure|[object](#`spec`azure)|Azure allows the configuration of options specific to the "azure" join method.|
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
-|circleci|[object](#circleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
-|gcp|[object](#gcp)|GCP allows the configuration of options specific to the "gcp" join method.|
-|github|[object](#github)|GitHub allows the configuration of options specific to the "github" join method.|
-|gitlab|[object](#gitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
+|circleci|[object](#`spec`circleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
+|gcp|[object](#`spec`gcp)|GCP allows the configuration of options specific to the "gcp" join method.|
+|github|[object](#`spec`github)|GitHub allows the configuration of options specific to the "github" join method.|
+|gitlab|[object](#`spec`gitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
 |join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".|
-|kubernetes|[object](#kubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
+|kubernetes|[object](#`spec`kubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
 |roles|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
-|spacelift|[object](#spacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
+|spacelift|[object](#`spec`spacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
 |suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
 |suggested_labels|object|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
-|tpm|[object](#tpm)|TPM allows the configuration of options specific to the "tpm" join method.|
+|tpm|[object](#`spec`tpm)|TPM allows the configuration of options specific to the "tpm" join method.|
 
 ### `github`
 
@@ -64,6 +63,93 @@ the Teleport Kubernetes operator.
 |repository_owner|string||
 |sub|string||
 |workflow|string||
+
+### `tpm`
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#allow-values)|Allow is a list of Rules, the presented delegated identity must match one allow rule to permit joining.|
+|ekcert_allowed_cas|[]string|EKCertAllowedCAs is a list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.|
+
+### `allow` values
+
+|Field|Type|Description|
+|---|---|---|
+|description|string||
+|ek_certificate_serial|string||
+|ek_public_hash|string||
+
+### `spacelift`
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#allow-values)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|hostname|string|Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`|
+
+### `allow` values
+
+|Field|Type|Description|
+|---|---|---|
+|caller_id|string||
+|caller_type|string||
+|scope|string||
+|space_id|string||
+
+### `circleci`
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#allow-values)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
+|organization_id|string||
+
+### `allow` values
+
+|Field|Type|Description|
+|---|---|---|
+|context_id|string||
+|project_id|string||
+
+### `kubernetes`
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#allow-values)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|static_jwks|[object](#`kubernetes`static_jwks)|StaticJWKS is the configuration specific to the `static_jwks` type.|
+|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|
+
+### `allow` values
+
+|Field|Type|Description|
+|---|---|---|
+|service_account|string||
+
+### `static_jwks`
+
+|Field|Type|Description|
+|---|---|---|
+|jwks|string||
+
+### `azure`
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#allow-values)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+
+### `allow` values
+
+|Field|Type|Description|
+|---|---|---|
+|resource_groups|[]string||
+|subscription|string||
+
+### `allow` values
+
+|Field|Type|Description|
+|---|---|---|
+|aws_account|string|AWSAccount is the AWS account ID.|
+|aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
+|aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
+|aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API.|
 
 ### `gitlab`
 
@@ -93,40 +179,6 @@ the Teleport Kubernetes operator.
 |user_id|string||
 |user_login|string||
 
-### `circleci`
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#allow-values)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
-|organization_id|string||
-
-### `allow` values
-
-|Field|Type|Description|
-|---|---|---|
-|context_id|string||
-|project_id|string||
-
-### `kubernetes`
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#allow-values)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-|static_jwks|[object](#static_jwks)|StaticJWKS is the configuration specific to the `static_jwks` type.|
-|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|
-
-### `allow` values
-
-|Field|Type|Description|
-|---|---|---|
-|service_account|string||
-
-### `static_jwks`
-
-|Field|Type|Description|
-|---|---|---|
-|jwks|string||
-
 ### `gcp`
 
 |Field|Type|Description|
@@ -140,63 +192,4 @@ the Teleport Kubernetes operator.
 |locations|[]string||
 |project_ids|[]string||
 |service_accounts|[]string||
-
-### `allow` values
-
-|Field|Type|Description|
-|---|---|---|
-|aws_account|string|AWSAccount is the AWS account ID.|
-|aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
-|aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
-|aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API.|
-
-### `tpm`
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#allow-values)|Allow is a list of Rules, the presented delegated identity must match one allow rule to permit joining.|
-|ekcert_allowed_cas|[]string|EKCertAllowedCAs is a list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.|
-
-### `allow` values
-
-|Field|Type|Description|
-|---|---|---|
-|description|string||
-|ek_certificate_serial|string||
-|ek_public_hash|string||
-
-### `azure`
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#allow-values)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-
-### `allow` values
-
-|Field|Type|Description|
-|---|---|---|
-|resource_groups|[]string||
-|subscription|string||
-
-### `spacelift`
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#allow-values)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-|hostname|string|Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`|
-
-### `allow` values
-
-|Field|Type|Description|
-|---|---|---|
-|caller_id|string||
-|caller_type|string||
-|scope|string||
-|space_id|string||
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 

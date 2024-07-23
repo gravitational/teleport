@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|LoginRule resource definition v1 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -31,10 +30,4 @@ the Teleport Kubernetes operator.
 |priority|integer|Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.|
 |traits_expression|string|TraitsExpression is a predicate expression which should return the desired traits for the user upon login.|
 |traits_map|object|TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.|
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 

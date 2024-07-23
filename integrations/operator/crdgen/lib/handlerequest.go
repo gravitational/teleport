@@ -239,10 +239,10 @@ func (t PropertyTable) Less(i, j int) bool {
 	return strings.Compare(t.Fields[i].Name, t.Fields[j].Name) == -1
 }
 
-// The description of the Conditions field of a custom resource. This is
-// boilerplate for Kubernetes CRDs, and not appropriate to exposte in
-// user-facing documentation.
-const conditionsDescription = "Conditions represent the latest available observations of an object's state"
+// Skipping the "status" field, since it is not available for users to
+// configure.
+const statusDescription = "Status defines the observed state of the Teleport resource"
+const statusName = "status"
 
 func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]PropertyTable, error) {
 	switch props.Type {
@@ -254,15 +254,25 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 		tables := []PropertyTable{}
 		var i int
 		for k, v := range props.Properties {
-			// Don't document the Conditions field, which is for
+			// Don't document the Status field, which is for
 			// internal use.
-			if v.Description == conditionsDescription {
+			if k == statusName && strings.HasPrefix(v.Description, statusDescription) {
 				continue
 			}
-			var tp string
+			// Name the table after the hierarchy of
+			// field names to avoid duplication.
+			var tableName string
+			if currentFieldName != "" {
+				tableName = currentFieldName + "." + k
+			} else {
+				tableName = k
+			}
+
+			var fieldType string
+			var fieldDesc string
 			switch v.Type {
 			case "object":
-				tp = "object"
+				fieldType = "object"
 				if v.Properties == nil || len(v.Properties) == 0 {
 					break
 				}
@@ -273,7 +283,7 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 				if err != nil {
 					return nil, err
 				}
-				tp = fmt.Sprintf("[object](#%v)", k)
+				fieldType = fmt.Sprintf("[object](#%v)", strings.ReplaceAll(tableName, ".", ""))
 				tables = append(tables, extra...)
 			case "array":
 				var subtp string
@@ -290,14 +300,26 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 				} else {
 					subtp = v.Items.Schema.Type
 				}
-				tp = fmt.Sprintf("[]%v", subtp)
+				fieldType = fmt.Sprintf("[]%v", subtp)
+			case "":
+				if !v.XIntOrString {
+					fieldType = v.Type
+					break
+				}
+				fieldType = "string or integer"
+				fieldDesc = strings.TrimSuffix(v.Description, ".") + ". " + "Can be either the string or the integer representation of each option."
 			default:
-				tp = v.Type
+				fieldType = v.Type
 			}
+
+			if fieldDesc == "" {
+				fieldDesc = v.Description
+			}
+
 			fields = append(fields, PropertyTableField{
 				Name:        k,
-				Type:        tp,
-				Description: v.Description,
+				Type:        fieldType,
+				Description: fieldDesc,
 			})
 			i++
 		}

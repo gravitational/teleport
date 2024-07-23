@@ -22,7 +22,6 @@ the Teleport Kubernetes operator.
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
 |spec|[object](#spec)|SAMLConnector resource definition v2 from Teleport|
-|status|[object](#status)|Status defines the observed state of the Teleport resource|
 
 ### `spec`
 
@@ -30,22 +29,22 @@ the Teleport Kubernetes operator.
 |---|---|---|
 |acs|string|AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).|
 |allow_idp_initiated|boolean|AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.|
-|assertion_key_pair|[object](#assertion_key_pair)|EncryptionKeyPair is a key pair used for decrypting SAML assertions.|
+|assertion_key_pair|[object](#`spec`assertion_key_pair)|EncryptionKeyPair is a key pair used for decrypting SAML assertions.|
 |attributes_to_roles|[][object](#attributes_to_roles-values)|AttributesToRoles is a list of mappings of attribute statements to roles.|
 |audience|string|Audience uniquely identifies our service provider.|
-|cert|string|Cert is the identity provider certificate PEM. IDP signs <Response> responses using this certificate.|
-|client_redirect_settings|[object](#client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
+|cert|string|Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.|
+|client_redirect_settings|[object](#`spec`client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |display|string|Display controls how this connector is displayed.|
 |entity_descriptor|string|EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|
 |entity_descriptor_url|string|EntityDescriptorURL is a URL that supplies a configuration XML.|
 |issuer|string|Issuer is the identity provider issuer.|
 |provider|string|Provider is the external identity provider.|
 |service_provider_issuer|string|ServiceProviderIssuer is the issuer of the service provider (Teleport).|
-|signing_key_pair|[object](#signing_key_pair)|SigningKeyPair is an x509 key pair used to sign AuthnRequest.|
+|signing_key_pair|[object](#`spec`signing_key_pair)|SigningKeyPair is an x509 key pair used to sign AuthnRequest.|
 |single_logout_url|string|SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.|
 |sso|string|SSO is the URL of the identity provider's SSO service.|
 
-### `signing_key_pair`
+### `assertion_key_pair`
 
 |Field|Type|Description|
 |---|---|---|
@@ -60,7 +59,7 @@ the Teleport Kubernetes operator.
 |roles|[]string|Roles is a list of static teleport roles to map to.|
 |value|string|Value is an attribute statement value to match.|
 
-### `assertion_key_pair`
+### `signing_key_pair`
 
 |Field|Type|Description|
 |---|---|---|
@@ -72,10 +71,4 @@ the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
-
-### `status`
-
-|Field|Type|Description|
-|---|---|---|
-|teleportResourceID|integer||
 
