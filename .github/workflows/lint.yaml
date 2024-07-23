@@ -14,6 +14,7 @@ jobs:
     outputs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
+      has_proto: ${{ steps.changes.outputs.has_proto }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
