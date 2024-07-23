@@ -80,7 +80,7 @@ type ClusterConfigServiceClient interface {
 	ResetAuthPreference(ctx context.Context, in *ResetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// GetClusterAuditConfig retrieves the active cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, in *GetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
-	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth service.
 	GetClusterAccessGraphConfig(ctx context.Context, in *GetClusterAccessGraphConfigRequest, opts ...grpc.CallOption) (*GetClusterAccessGraphConfigResponse, error)
 }
 
@@ -248,7 +248,7 @@ type ClusterConfigServiceServer interface {
 	ResetAuthPreference(context.Context, *ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
 	// GetClusterAuditConfig retrieves the active cluster audit configuration.
 	GetClusterAuditConfig(context.Context, *GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
-	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth service.
 	GetClusterAccessGraphConfig(context.Context, *GetClusterAccessGraphConfigRequest) (*GetClusterAccessGraphConfigResponse, error)
 	mustEmbedUnimplementedClusterConfigServiceServer()
 }

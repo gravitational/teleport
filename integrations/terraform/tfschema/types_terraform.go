@@ -2304,7 +2304,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						"desktop_clipboard":         GenSchemaBoolOption(ctx),
 						"desktop_directory_sharing": GenSchemaBoolOption(ctx),
 						"device_trust_mode": {
-							Description: "DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport.",
+							Description: "DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2390,7 +2390,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"request_access": {
-							Description: "RequestAccess defines the access request strategy (optional|note|always) where optional is the default.",
+							Description: "RequestAccess defines the request strategy (optional|note|always) where optional is the default.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

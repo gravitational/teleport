@@ -53,7 +53,7 @@ service ClusterConfigService {
   // GetClusterAuditConfig retrieves the active cluster audit configuration.
   rpc GetClusterAuditConfig(GetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
 
-  // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+  // GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth service.
   rpc GetClusterAccessGraphConfig(GetClusterAccessGraphConfigRequest) returns (GetClusterAccessGraphConfigResponse);
 }
 

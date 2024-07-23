@@ -56,7 +56,7 @@ endif
 
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
-	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | jq .Dir))
+	$(eval PROTOBUF_MOD_PATH := $(shell go list -m -u -f '{{.Dir}}' github.com/gogo/protobuf))
 
 	@protoc \
 		-I=../../api/proto \
