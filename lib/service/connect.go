@@ -1240,6 +1240,19 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
+func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) breaker.Config {
+	// Disable circuit breaking for proxies. A proxy often times forwards
+	// requests to auth on behalf of agents(during joining) or unauthenticated
+	// users(webapi/ping) and any errors that may be encountered during forwarded
+	// requests could trip the breaker eventhough auth is healthy. Since the number
+	// of agents in a cluster should far outnumber the proxies this shouldn't
+	// have much impact.
+	if role == types.RoleProxy || process.instanceRoleExpected(types.RoleProxy) {
+		return breaker.NoopBreakerConfig()
+	}
+	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
+}
+
 func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
@@ -1257,7 +1270,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig),
+		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialTimeout:          process.Config.Testing.ClientTimeout,
 	})
 	if err != nil {
@@ -1304,7 +1317,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			apiclient.LoadTLS(tlsConfig),
 		},
 		DialTimeout:          process.Config.Testing.ClientTimeout,
-		CircuitBreakerConfig: servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig),
+		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {

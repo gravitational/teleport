@@ -247,16 +247,16 @@ buildbox-node:
 .PHONY:teleterm
 teleterm: buildbox-node
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
-		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && pnpm install --frozen-lockfile && pnpm build-term && pnpm package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
 .PHONY:ui
 ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
-		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
+		bash -c "cd ../teleport && pnpm install --frozen-lockfile && pnpm build-ui"
 
 # Builds webassets inside the buildbox-node container via the
-# Makefile (instead of calling yarn directly as the ui target above does)
+# Makefile (instead of calling pnpm directly as the ui target above does)
 # as that computes a SHA to prevent unnecessary rebuilds. This is used by
 # the CentOS 7 build that does not have a new enough version of node.js
 # to build webassets. Enterprise webassets will only be built if the e

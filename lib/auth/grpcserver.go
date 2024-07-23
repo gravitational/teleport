@@ -5269,6 +5269,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:           cfg.AuthServer.Cache,
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
+		Emitter:         cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

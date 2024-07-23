@@ -45,6 +45,11 @@ services:
       path: /bot/output
     enable_resumption: null
     proxy_templates_path: ""
+  - type: application-tunnel
+    listen: tcp://127.0.0.1:123
+    roles:
+      - access
+    app_name: my-app
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s
