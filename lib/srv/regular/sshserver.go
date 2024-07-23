@@ -33,7 +33,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -71,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -1148,19 +1146,6 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the socket to communicate over.
-	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer remoteConn.Close()
-	remoteFD, err := remoteConn.File()
-	if err != nil {
-		localConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	defer remoteFD.Close()
-
 	// Create context for the networking process.
 	_, nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity)
 	if err != nil {
@@ -1172,57 +1157,13 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	// Create command to re-exec Teleport which will handle networking requests. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
-	cmd, err := srv.ConfigureCommand(nsctx, remoteFD)
+	cmd, err := srv.ConfigureCommand(nsctx)
 	if err != nil {
-		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
-	// Propagate stderr from the spawned Teleport process to log any errors.
-	cmd.Stderr = os.Stderr
-
-	// Start the child process that will be used to listen for connections.
-	if err := cmd.Start(); err != nil {
-		localConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	cdone := make(chan struct{})
-	var explicitlyClosed atomic.Bool
-
-	go func() {
-		defer close(cdone)
-		defer localConn.Close()
-		// Ensure unexpected cmd failures get logged.
-		if err := cmd.Wait(); err != nil && !explicitlyClosed.Load() {
-			s.Logger.Warnf("Networking process exited early with unexpected error: %v", err)
-		}
-	}()
-
-	processCloser := utils.CloseFunc(func() error {
-		// Set flag indicating that the exit of the child is expected (changes logging behavior).
-		explicitlyClosed.Store(true)
-
-		// We use an interrupt signal because the main control socket is not connection oriented,
-		// meaning reading from the child side won't unblock with the parent closes it.
-		cmd.Process.Signal(os.Interrupt)
-
-		// We expect closing the conn to cause the child process to exit, but it's
-		// best to verify.
-		select {
-		case <-cdone:
-		case <-time.After(time.Second * 3):
-			// forcibly kill the child.
-			s.Logger.Warn("Forcibly terminating networking subprocess.")
-			cmd.Process.Kill()
-		}
-		return nil
-	})
-
-	return &networking.Process{
-		Conn:   localConn,
-		Closer: processCloser,
-	}, nil
+	proc, err := networking.NewProcess(cmd)
+	return proc, trace.Wrap(err)
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band

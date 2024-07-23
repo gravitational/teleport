@@ -35,10 +35,11 @@ package networking
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net"
 	"os"
+	"os/exec"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -49,11 +50,14 @@ import (
 
 // Process represents an instance of a networking process.
 type Process struct {
-	// Conn is the socket used to request a dialer or listener in the process.
-	Conn *net.UnixConn
-	// Closer contains and extra io.Closer to run when the process as a whole
-	// is closed.
-	Closer io.Closer
+	// cmd is the running process command.
+	cmd *exec.Cmd
+	// conn is the socket used to request a dialer or listener in the process.
+	conn *net.UnixConn
+	// done signals when the process completes.
+	done chan struct{}
+	// killed is set to true when the process was killed forcibly.
+	killed atomic.Bool
 }
 
 // Request is a networking request.
@@ -92,16 +96,75 @@ type X11Request struct {
 	MaxDisplay int
 }
 
+// NewProcess starts a new networking process with the given command, which should
+// be pre-configured from a ssh server context with Teleport reexec settings.
+func NewProcess(cmd *exec.Cmd) (*Process, error) {
+	// Create the socket to communicate over.
+	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer remoteConn.Close()
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		localConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	defer remoteFD.Close()
+	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
+
+	// Propagate stderr from the spawned Teleport process to log any errors.
+	cmd.Stderr = os.Stderr
+
+	proc := &Process{
+		cmd:  cmd,
+		conn: localConn,
+		done: make(chan struct{}),
+	}
+
+	if err := proc.start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return proc, nil
+}
+
+// start the the networking process.
+func (p *Process) start() error {
+	if err := p.cmd.Start(); err != nil {
+		p.conn.Close()
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		defer close(p.done)
+		defer p.conn.Close()
+		// Ensure unexpected cmd failures get logged.
+		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
+			slog.Warn("Networking process exited early with unexpected error.", "error", err)
+		}
+	}()
+
+	return nil
+}
+
 // Close stops the process and frees up its related resources.
 func (p *Process) Close() error {
-	var errs []error
-	if p.Conn != nil {
-		errs = append(errs, p.Conn.Close())
+	select {
+	case <-p.done:
+	default:
+		// We use an interrupt signal because the main control socket is not connection oriented,
+		// meaning reading from the child side won't unblock with the parent closes it.
+		p.cmd.Process.Signal(os.Interrupt)
+		select {
+		case <-p.done:
+		case <-time.After(time.Second * 3):
+			slog.Warn("Forcibly terminating networking subprocess.")
+			p.killed.Store(true)
+			p.cmd.Process.Kill()
+		}
 	}
-	if p.Closer != nil {
-		errs = append(errs, p.Closer.Close())
-	}
-	return trace.NewAggregate(errs...)
+	return nil
 }
 
 // Dial requests a network connection from the networking subprocess.
@@ -215,7 +278,7 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	context.AfterFunc(ctx, func() { localConn.Close() })
+	defer localConn.Close()
 
 	remoteFD, err := remoteConn.File()
 	remoteConn.Close()
@@ -223,15 +286,42 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 		return nil, trace.Wrap(err)
 	}
 
-	if _, _, err = uds.WriteWithFDs(p.Conn, jsonReq, []*os.File{remoteFD}); err != nil {
+	if _, _, err = uds.WriteWithFDs(p.conn, jsonReq, []*os.File{remoteFD}); err != nil {
 		remoteFD.Close()
 		return nil, trace.Wrap(err)
 	}
 	remoteFD.Close()
 
+	// Read in another goroutine so we can cancel it if the networking process stops or the context closes.
+	fileCh := make(chan *os.File)
+	errC := make(chan error)
+	go func() {
+		defer close(fileCh)
+		file, err := readResponse(localConn)
+		if err != nil {
+			errC <- err
+		} else {
+			fileCh <- file
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case <-p.done:
+		return nil, trace.Errorf("networking process is closed")
+	case err := <-errC:
+		return nil, trace.Wrap(err)
+	case listenerFD := <-fileCh:
+		return listenerFD, nil
+	}
+}
+
+// readResponse attempts to read a file descriptor from the given connection until it is closed.
+func readResponse(conn *net.UnixConn) (*os.File, error) {
 	buf := make([]byte, requestBufferSize)
 	fbuf := make([]*os.File, 1)
-	n, fn, err := uds.ReadWithFDs(localConn, buf, fbuf)
+	n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if fn == 0 {
