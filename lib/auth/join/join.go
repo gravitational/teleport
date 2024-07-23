@@ -410,6 +410,7 @@ func registerThroughAuth(
 		return nil, trace.Wrap(err)
 	}
 	defer client.Close()
+
 	certs, err = registerThroughAuthClient(ctx, token, params, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
