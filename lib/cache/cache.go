@@ -1430,7 +1430,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 // cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
-	gracePeriod := apidefaults.ServerAnnounceTTL
+
+	// the 3 minute margin of error we add to the TTL is fairly arbitrary. The idea is
+	// that since our event stream only guarntees ordering *for a given key*, its conceivable
+	// that newer writes arrive slightly before older ones. A 3 minute grace period is short enough
+	// to not significantly impact UX, but long enough to more than account for any sensible
+	// reordering, even under extreme load.
+	gracePeriod := apidefaults.ServerAnnounceTTL + time.Minute*3
 
 	// latestExp will be the value that we choose to consider the most recent "expired"
 	// timestamp.  This will either end up being the most recently seen node expiry, or
