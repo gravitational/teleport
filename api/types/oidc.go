@@ -399,7 +399,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("ClientID: missing client id")
 	}
 
-	if len(o.GetClaimsToRoles()) == 0 {
+	if len(o.GetClaimsToRoles()) == 0 && o.GetAllowAsMFAMethod() != AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY {
 		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
 	}
 	for _, v := range o.Spec.ClaimsToRoles {

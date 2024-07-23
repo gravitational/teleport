@@ -105,7 +105,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		})
 	}
 
-	if len(sc.GetAttributesToRoles()) == 0 {
+	if len(sc.GetAttributesToRoles()) == 0 && sc.GetAllowAsMFAMethod() != types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY {
 		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
 	}
 

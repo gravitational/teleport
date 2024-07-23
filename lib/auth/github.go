@@ -684,6 +684,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
+	// TODO: Don't create the user if this is an mfa-only connector
 	user, err := a.createGithubUser(ctx, params, req.SSOTestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
