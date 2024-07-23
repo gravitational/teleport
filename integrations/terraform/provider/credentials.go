@@ -1,16 +1,36 @@
+/*
+Copyright 2024 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/constants"
+	"strings"
+	"text/template"
+	"time"
+
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"strings"
-	"time"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -46,9 +66,15 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 		activeSources = append(activeSources, source)
 	}
 	if len(activeSources) == 0 {
-		return nil, diag.Diagnostics{diag.NewErrorDiagnostic(
+		// TODO: make this a hard failure in v17
+		// We currently try to load credentials from the user profile.
+		// As trying broken credentials takes 30 seconds this is a very bad UX and we should get rid of this.
+		// Credentials from profile are not passing MFA4Admin anyway.
+		summary := inactiveReason.String() +
+			"\n\n The provider will attempt to use your current local profile (this behaviour is deprecated and will be removed in v17, you should specify the profile name or directory)."
+		return CredentialSources{CredentialsFromProfile{isDefault: true}}, diag.Diagnostics{diag.NewWarningDiagnostic(
 			"No active Teleport credentials source found",
-			inactiveReason.String(),
+			summary,
 		)}
 	}
 	return activeSources, nil
@@ -126,35 +152,63 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 	return nil, diags
 }
 
+const failedToBuildClientErrorTemplate = `"Every credential source provided has failed. The Terraform provider cannot connect to the Teleport cluster '{{.Addr}}'.
+
+The provider tried building a client:
+{{- range $_, $source := .Sources }}
+- {{ $source }}
+{{- end }}
+
+You can find more information about why each credential source failed in the Terraform warnings above this error.`
+
 // failedToBuildClientErrorSummary builds a user-friendly message explaining we failed to build a functional Teleport
 // client and listing every connection method we tried.
 func (s CredentialSources) failedToBuildClientErrorSummary(addr string) string {
-	sb := strings.Builder{}
-	sb.WriteString("Every credential source provided has failed. The Terraform provider cannot connect to the Teleport cluster '")
-	sb.WriteString(addr)
-	sb.WriteString("'.\n\n")
-	sb.WriteString("We tried building a client:\n")
+	var sources []string
 	for _, source := range s {
-		sb.WriteString(" - ")
-		sb.WriteString(source.Name())
-		sb.WriteRune('\n')
+		sources = append(sources, source.Name())
 	}
-	sb.WriteRune('\n')
-	sb.WriteString("You can find more information about each credential source specific errors in the Terraform warnings above this error.")
-	return sb.String()
+
+	tpl := template.Must(template.New("failed-to-build-client-error-summary").Parse(failedToBuildClientErrorTemplate))
+	values := struct {
+		Addr    string
+		Sources []string
+	}{
+		Addr:    addr,
+		Sources: sources,
+	}
+	buffer := new(bytes.Buffer)
+	err := tpl.Execute(buffer, values)
+	if err != nil {
+		return "Failed to build error summary. This is a provider bug: " + err.Error()
+	}
+	return buffer.String()
 }
+
+const brokenCredentialErrorTemplate = `The Terraform provider tried to build credentials {{ .Source }} but received the following error:
+
+{{ .Error }}
+
+The provider tried to use the credential source because {{ .Reason }}. You must either address the error or disable the credential source by removing its values.`
 
 // brokenCredentialErrorSummary returns a user-friendly message expalining why we failed to
 func brokenCredentialErrorSummary(name, activeReason string, err error) string {
-	sb := strings.Builder{}
-	sb.WriteString("The Terraform provider tried to build credentials ")
-	sb.WriteString(name)
-	sb.WriteString(" but received the following error:\n\n")
-	sb.WriteString(err.Error())
-	sb.WriteString("\n\nThe provider tried to use the credential source because ")
-	sb.WriteString(activeReason)
-	sb.WriteString(". You must either address the error or disable the credential source by removing its values.")
-	return sb.String()
+	tpl := template.Must(template.New("broken-credential-error-summary").Parse(brokenCredentialErrorTemplate))
+	values := struct {
+		Source string
+		Error  string
+		Reason string
+	}{
+		Source: name,
+		Error:  err.Error(),
+		Reason: activeReason,
+	}
+	buffer := new(bytes.Buffer)
+	tplErr := tpl.Execute(buffer, values)
+	if tplErr != nil {
+		return fmt.Sprintf("Failed to build error '%s' summary. This is a provider bug: %s", err, tplErr)
+	}
+	return buffer.String()
 }
 
 // CredentialSource is a potential way for the Terraform provider to obtain the
@@ -358,7 +412,11 @@ func (CredentialsFromIdentityFileBase64) Credentials(ctx context.Context, config
 }
 
 // CredentialsFromProfile builds credentials from a local tsh profile.
-type CredentialsFromProfile struct{}
+type CredentialsFromProfile struct {
+	// isDefault represent if the CredentialSource is used as the default one.
+	// In this case, it explains that it is always active.
+	isDefault bool
+}
 
 // Name implements CredentialSource and returns the source name.
 func (CredentialsFromProfile) Name() string {
@@ -366,7 +424,11 @@ func (CredentialsFromProfile) Name() string {
 }
 
 // IsActive implements CredentialSource and returns if the source is active and why.
-func (CredentialsFromProfile) IsActive(config providerData) (bool, string) {
+func (c CredentialsFromProfile) IsActive(config providerData) (bool, string) {
+	if c.isDefault {
+		return true, "this is the default credential source, and no other credential was active"
+	}
+
 	profileName := stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
 	profileDir := stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
 

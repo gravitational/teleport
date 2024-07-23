@@ -408,10 +408,10 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.WithField("addr", addr).WithError(err).Debug("Teleport addr format error!")
+		log.WithField("addr", addr).WithError(err).Debug("Teleport address format error!")
 		resp.Diagnostics.AddError(
 			"Invalid Teleport address format",
-			fmt.Sprintf("Teleport addr must be specified as host:port. Got %q", addr),
+			fmt.Sprintf("Teleport address must be specified as host:port. Got %q", addr),
 		)
 		return false
 	}
