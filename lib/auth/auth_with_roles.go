@@ -597,9 +597,7 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 	// If the identity has a BotInstanceID included, copy it onto the request -
 	// but only if one wasn't already passed along via the proxy.
 	ident := a.context.Identity.GetIdentity()
-	if req.BotInstanceID == "" && ident.BotInstanceID != "" {
-		req.BotInstanceID = ident.BotInstanceID
-	}
+	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
