@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
@@ -470,6 +471,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 			Logins:     []string{login},
 			Namespaces: []string{apidefaults.Namespace},
 			Rules:      rules,
+			AppLabels:  types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)

@@ -18,19 +18,18 @@ func TestGetSAMLIdpServiceProviderHandle(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
-	sp1 := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "sp1",
-			},
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
 		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
+		types.SAMLIdPServiceProviderSpecV1{
 			ACSURL:           "https://sp1",
 			EntityID:         "https://sp1",
 			EntityDescriptor: newEntityDescriptor("https://sp1", "https://sp1"),
 		},
-	}
-	err := authClient.CreateSAMLIdPServiceProvider(context.Background(), sp1)
+	)
+	require.NoError(t, err)
+	err = authClient.CreateSAMLIdPServiceProvider(context.Background(), sp1)
 	require.NoError(t, err)
 
 	sp1FromBackend, err := authClient.GetSAMLIdPServiceProvider(context.Background(), sp1.GetName())
@@ -205,32 +204,30 @@ func TestUpdateSAMLIdpServiceProviderHandle(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 
 	authClient := s.newAdminAuthClient(s.ctx, t)
-	sp1 := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "sp1",
-			},
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
 		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
+		types.SAMLIdPServiceProviderSpecV1{
 			ACSURL:           "https://sp1",
 			EntityID:         "https://sp1",
 			EntityDescriptor: newEntityDescriptor("https://sp1", "https://sp1"),
 		},
-	}
-	err := authClient.CreateSAMLIdPServiceProvider(context.Background(), sp1)
+	)
+	require.NoError(t, err)
+	err = authClient.CreateSAMLIdPServiceProvider(context.Background(), sp1)
 	require.NoError(t, err)
 
-	sp2 := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "sp2",
-			},
+	sp2, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp2",
 		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
+		types.SAMLIdPServiceProviderSpecV1{
 			EntityID:         "https://sp2",
 			EntityDescriptor: newEntityDescriptor("https://sp2", "https://sp2"),
 		},
-	}
+	)
+	require.NoError(t, err)
 	err = authClient.CreateSAMLIdPServiceProvider(context.Background(), sp2)
 	require.NoError(t, err)
 
@@ -333,19 +330,18 @@ func TestDeleteSAMLIdpServiceProviderHandle(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 
 	authClient := s.newAdminAuthClient(s.ctx, t)
-	sp1 := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "sp1",
-			},
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
 		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
+		types.SAMLIdPServiceProviderSpecV1{
 			ACSURL:           "https://sp1",
 			EntityID:         "https://sp1",
 			EntityDescriptor: newEntityDescriptor("https://sp1", "https://sp1"),
 		},
-	}
-	err := authClient.CreateSAMLIdPServiceProvider(context.Background(), sp1)
+	)
+	require.NoError(t, err)
+	err = authClient.CreateSAMLIdPServiceProvider(context.Background(), sp1)
 	require.NoError(t, err)
 
 	spFromBackend, err := authClient.GetSAMLIdPServiceProvider(context.Background(), sp1.GetName())
