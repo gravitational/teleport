@@ -19,7 +19,10 @@ As an alternative to this guide, you can use the Teleport Web UI (Access Managem
 ## How it works
 Teleport is added as an [OpenID Connect identity provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to establish trust with your AWS account and assume a configured IAM role in order to access AWS resources.
 
-For this to work, the `openid-configuration` and public keys are exposed in a public S3 bucket.
+For this to work, the `openid-configuration` and public keys are automatically exposed in your cluster at:
+```code
+$ curl https://<Var name="teleport.example.com" />/.well-known/openid-configuration
+```
 The integration requires no extra configuration or services to run.
 
 Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
@@ -28,9 +31,9 @@ For example, when setting up [External Audit Storage](../../choose-an-edition/te
 ## Prerequisites
 
 - A running Teleport cluster.
-- AWS Account with permissions to create public S3 buckets, IAM Identity Providers and roles
+- AWS Account with permissions to create IAM Identity Providers and roles
 
-## Step 1/5. Configure RBAC
+## Step 1/4. Configure RBAC
 
 To configure the integration you will need the following allow rules in one of your Teleport roles.
 These are available by default in the preset `editor` role:
@@ -55,53 +58,23 @@ spec:
 ```
 
 
-## Step 2/5. Upload public keys to S3
-The AWS OIDC integration uses OpenID Connect to grant access to AWS APIs.
-Configuring OpenID Connect requires exposing the configuration file and the public keys, which AWS fetches to validate the requests.
-
-Those files should be exposed in S3, for which we'll need to pick a bucket <Var name="s3-bucket"/> and a prefix <Var name="s3-prefix"/>.
-
-Download the current configuration and public keys:
-```code
-$ mkdir .well-known
-$ curl https://<Var name="teleport.example.com"/>/.well-known/openid-configuration > .well-known/openid-configuration
-$ curl https://<Var name="teleport.example.com"/>/.well-known/jwks-oidc > .well-known/jwks
-```
-
-Edit the `openid-configuration` and replace the `issuer` and `jwks_uri` fields with with the S3 location:
-```json
-{
-  "issuer": "<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>",
-  "jwks_uri": "https://<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>/.well-known/jwks",
-  // other fields
-}
-```
-
-Upload those files to `<Var name="s3-bucket"/>` bucket:
-```code
-<Var name="s3-bucket"/>
-└── <Var name="s3-prefix"/>
-    └── .well-known
-        ├── openid-configuration
-        └── jwks
-```
-
-Make those objects public (either using Bucket Policies or ACLs):
-```bash
-$ curl https://<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>/.well-known/openid-configuration
-$ curl https://<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>/.well-known/jwks
-```
-
-## Step 3/5. Configure the Identity Provider in AWS
+## Step 2/4. Configure the Identity Provider in AWS
 Navigate to [AWS IAM Identity Provider](https://console.aws.amazon.com/iam/home#/identity_providers/create) and configure the Identity Provider:
 - Provider type: OpenID Connect
 - Provider URL:
 ```code
-https://<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>
+https://<Var name="teleport.example.com" />
 ```
 - Audience: `discover.teleport`
 
-## Step 4/5. Create IAM role
+You should also add the following tags to help you track the resource in the future:
+```code
+teleport.dev/cluster      <Var name="cluster-name"/>
+teleport.dev/origin       integration_awsoidc
+teleport.dev/integration  <Var name="my-integration"/>
+```
+
+## Step 3/4. Create IAM role
 An IAM role must be created to assign the required policies to the integration <Var name="iam-role"/>.
 
 This IAM role is created without any policy, as those are added depending on the feature you would like to use, for example when setting up [Access Graph AWS Sync](../../access-controls/access-graph/aws-sync.mdx).
@@ -114,12 +87,12 @@ To achieve this, add the following Trust Relationship:
 		{
 			"Effect": "Allow",
 			"Principal": {
-				"Federated": "arn:aws:iam::<Var name="aws-account-id" description="AWS Account ID"/>:oidc-provider/<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>"
+				"Federated": "arn:aws:iam::<Var name="aws-account-id" description="AWS Account ID"/>:oidc-provider/<Var name="teleport.example.com" />"
 			},
 			"Action": "sts:AssumeRoleWithWebIdentity",
 			"Condition": {
 				"StringEquals": {
-					"<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>:aud": "discover.teleport"
+					"<Var name="teleport.example.com" />:aud": "discover.teleport"
 				}
 			}
 		}
@@ -134,7 +107,7 @@ teleport.dev/origin       integration_awsoidc
 teleport.dev/integration  <Var name="my-integration"/>
 ```
 
-## Step 5/5. Create integration resource
+## Step 4/4. Create integration resource
 Create a file called `awsoidc-integration.yaml` with the following content:
 
 ```yaml
@@ -146,10 +119,7 @@ metadata:
 spec:
   aws_oidc:
     role_arn: "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="iam-role"/>"
-    issuer_s3_uri: s3://<Var name="s3-bucket"/>/<Var name="s3-prefix"/>
 ```
-
-We specify the IAM role and the S3 URI which has the openid-configuration and public keys.
 
 Create the resource:
 ```code

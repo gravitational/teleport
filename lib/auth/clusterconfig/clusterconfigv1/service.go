@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -223,9 +224,17 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
+	original, err := s.cache.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := s.backend.UpdateAuthPreference(ctx, req.AuthPreference)
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
+	oldSecondFactor := original.GetSecondFactor()
+	newSecondFactor := req.AuthPreference.GetSecondFactor()
+
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
 			Code: events.AuthPreferenceUpdateCode,
@@ -233,10 +242,12 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", err)
+		AdminActionsMFA:    GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
 	}
 
+	// don't handle the update error until after we emit an audit event
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,9 +287,17 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
+	original, err := s.cache.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := s.backend.UpsertAuthPreference(ctx, req.AuthPreference)
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
+	oldSecondFactor := original.GetSecondFactor()
+	newSecondFactor := req.AuthPreference.GetSecondFactor()
+
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
 			Code: events.AuthPreferenceUpdateCode,
@@ -286,10 +305,12 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", err)
+		AdminActionsMFA:    GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
 	}
 
+	// don't handle the update error until after we emit an audit event
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -318,6 +339,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	}
 
 	defaultPreference := types.DefaultAuthPreference()
+	newSecondFactor := defaultPreference.GetSecondFactor()
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
@@ -326,6 +348,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		oldSecondFactor := pref.GetSecondFactor()
 
 		if pref.Origin() == types.OriginConfigFile {
 			return nil, trace.BadParameter("auth preference has been defined via the config file and cannot be reset back to defaults dynamically.")
@@ -338,7 +361,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 			continue
 		}
 
-		if err := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
+		if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 			Metadata: apievents.Metadata{
 				Type: events.AuthPreferenceUpdateEvent,
 				Code: events.AuthPreferenceUpdateCode,
@@ -346,10 +369,12 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 			UserMetadata:       authzCtx.GetUserMetadata(),
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status:             eventStatus(err),
-		}); err != nil {
-			slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", err)
+			AdminActionsMFA:    GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+		}); auditErr != nil {
+			slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
 		}
 
+		// don't handle the update error until after we emit an audit event
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -363,6 +388,19 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	}
 
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
+}
+
+// GetAdminActionsMFAStatus returns whether MFA for admin actions was
+// altered when the auth preferences were updated.
+func GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor constants.SecondFactorType) apievents.AdminActionsMFAStatus {
+	if oldSecondFactor == newSecondFactor {
+		return apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_UNCHANGED
+	}
+	if newSecondFactor == constants.SecondFactorWebauthn {
+		return apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_ENABLED
+	}
+	// oldSecondFactor == constants.SecondFactorWebauthn
+	return apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_DISABLED
 }
 
 // GetClusterNetworkingConfig returns the locally cached networking configuration.

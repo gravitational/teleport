@@ -275,13 +275,18 @@ function Invoke-SignBinary {
     <#
     .SYNOPSIS
     Signs the provided binary with the base64-encoded certificate listed in "$WINDOWS_SIGNING_CERT"
+    .PARAMETER UnsignedBinaryPath
+    The path to the unsigned binary.
+    .PARAMETER SignedBinaryPath
+    The path where the signed binary should be written. If not provided, then the signed binary will
+    be written to a temporary path, and then moved to the unsigned binary path.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $UnsignedBinaryPath,
 
-        [Parameter(Mandatory)]
+        [Parameter()]
         [string] $SignedBinaryPath
     )
 
@@ -343,7 +348,7 @@ function Build-Tsh {
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
         go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
-           exit $LastExitCode
+            exit $LastExitCode
         }
         Write-Host "::endgroup::"
 

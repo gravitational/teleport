@@ -1749,10 +1749,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
-		name      string
-		timeout   time.Duration
-		update    func(*types.HeadlessAuthentication, *types.MFADevice)
-		expectErr bool
+		name        string
+		timeout     time.Duration
+		update      func(*types.HeadlessAuthentication, *types.MFADevice)
+		assertError require.ErrorAssertionFunc
 	}{
 		{
 			name:    "OK approved",
@@ -1761,25 +1761,31 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 				ha.MfaDevice = mfa
 			},
+			assertError: require.NoError,
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
-			expectErr: true,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
 		}, {
 			name:    "NOK denied",
 			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
-			expectErr: true,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
 		}, {
-			name:      "NOK timeout",
-			timeout:   100 * time.Millisecond,
-			update:    func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
-			expectErr: true,
+			name:    "NOK timeout",
+			timeout: 100 * time.Millisecond,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1802,6 +1808,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			errC := make(chan error)
 			go func() {
 				defer close(errC)
+
+				if tc.update == nil {
+					return
+				}
 
 				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
 				if err != nil {
@@ -1843,11 +1853,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			// Use assert so that we also output any test failures below.
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
-			if tc.expectErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			tc.assertError(t, err)
 		})
 	}
 }

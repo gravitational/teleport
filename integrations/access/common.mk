@@ -51,7 +51,7 @@ release: clean $(BINARY)
 		cmd/teleport-$(ACCESS_PLUGIN)/install \
 		build/$(RELEASE_NAME)/
 	echo $(VERSION) > build/$(RELEASE_NAME)/VERSION
-	tar -czf build/$(RELEASE).tar.gz build/$(RELEASE_NAME)
+	tar -C build/ -czf build/$(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf build/$(RELEASE_NAME)/
 	@echo "---> Created build/$(RELEASE).tar.gz."
 

@@ -297,6 +297,13 @@ export const eventCodes = {
   ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
   SPANNER_RPC: 'TSPN001I',
   SPANNER_RPC_DENIED: 'TSPN001W',
+  DISCOVERY_CONFIG_CREATE: 'DC001I',
+  DISCOVERY_CONFIG_UPDATE: 'DC002I',
+  DISCOVERY_CONFIG_DELETE: 'DC003I',
+  DISCOVERY_CONFIG_DELETE_ALL: 'DC004I',
+  INTEGRATION_CREATE: 'IG001I',
+  INTEGRATION_UPDATE: 'IG002I',
+  INTEGRATION_DELETE: 'IG003I',
 } as const;
 
 /**
@@ -1643,6 +1650,33 @@ export type RawEvents = {
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
   [eventCodes.SPANNER_RPC_DENIED]: RawSpannerRPCEvent<
     typeof eventCodes.SPANNER_RPC_DENIED
+  >;
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_DELETE_ALL
+  >;
+  [eventCodes.INTEGRATION_CREATE]: RawEvent<
+    typeof eventCodes.INTEGRATION_CREATE,
+    HasName
+  >;
+  [eventCodes.INTEGRATION_UPDATE]: RawEvent<
+    typeof eventCodes.INTEGRATION_UPDATE,
+    HasName
+  >;
+  [eventCodes.INTEGRATION_DELETE]: RawEvent<
+    typeof eventCodes.INTEGRATION_DELETE,
+    HasName
   >;
 };
 
