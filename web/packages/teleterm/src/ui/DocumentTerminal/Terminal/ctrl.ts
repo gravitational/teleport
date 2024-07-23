@@ -70,7 +70,10 @@ export default class TtyTerminal {
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       theme: this.options.theme,
-      windowsPty: this.options.windowsPty,
+      windowsPty: this.options.windowsPty && {
+        backend: this.options.windowsPty.useConpty ? 'conpty' : 'winpty',
+        buildNumber: this.options.windowsPty.buildNumber,
+      },
       windowOptions: {
         setWinSizeChars: true,
       },
