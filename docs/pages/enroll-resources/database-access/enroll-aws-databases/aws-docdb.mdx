@@ -154,10 +154,11 @@ and `Allowed` for the value. Then click **Create Role** to complete the process.
 
 ### Create a DocumentDB user
 
-Login your DocumentDB cluster with your master username and password from a
+Log in to your DocumentDB cluster with your master username and password from a
 machine that has network access to the DocumentDB cluster. Create a DocumentDB
 user with the IAM role ARN as username and specify `MONGODB-AWS` in the
 mechanisms for authentication:
+
 ```code
 use $external;
 db.createUser(
@@ -211,6 +212,7 @@ $ tsh db logout rds-example
 ### Unable to authenticate using mechanism "MONGODB-AWS" error
 
 You may encounter the following error when IAM authentication fails:
+
 ```code
 $ tsh db connect --db-user=teleport-docdb-user --db-name=test my-docdb
 ...
