@@ -195,7 +195,7 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
       event: DiscoverEventResource.SamlApplication,
       kind: ResourceKind.SamlApplication,
       samlMeta: { preset: samlAppPreset },
-      icon: 'Application',
+      icon: 'application',
       keywords: 'saml',
     });
   }
