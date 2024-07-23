@@ -262,8 +262,8 @@ func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*ident
 	}
 
 	i, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: key.PrivateKeyPEM(),
-		PublicKeyBytes:  key.MarshalSSHPublicKey(),
+		PrivateKeyBytes: key.PrivateKey.PrivateKeyPEM(),
+		PublicKeyBytes:  key.PrivateKey.MarshalSSHPublicKey(),
 	}, &proto.Certs{
 		SSH:        key.Cert,
 		TLS:        key.TLSCert,

@@ -20,26 +20,9 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { AwsOidc } from './AwsOidc';
-import { S3BucketWarningBanner } from './S3BucketWarningBanner';
-
-export default {
-  title: 'Teleport/Integrations/Enroll/AwsOidc',
-};
 
 export const Flow = () => (
   <MemoryRouter>
     <AwsOidc />
   </MemoryRouter>
-);
-
-export const SBucketWarning = () => (
-  <S3BucketWarningBanner onClose={() => null} onContinue={() => null} />
-);
-
-export const SBucketWarningWithReview = () => (
-  <S3BucketWarningBanner
-    onClose={() => null}
-    onContinue={() => null}
-    reviewing={true}
-  />
 );

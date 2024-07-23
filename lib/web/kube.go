@@ -216,9 +216,13 @@ func (p *podHandler) handler(r *http.Request) error {
 		return trace.Wrap(err, "failed getting user private key from the session")
 	}
 
-	keyPEM, err := pk.SoftwarePrivateKeyPEM()
+	privateKeyPEM, err := pk.SoftwarePrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err, "failed getting software private key")
+	}
+	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal public key")
 	}
 
 	resizeQueue := newTermSizeQueue(ctx, remotecommand.TerminalSize{
@@ -228,7 +232,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]terminal.WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
 
 	certsReq := clientproto.UserCertsRequest{
-		PublicKey:         pk.MarshalSSHPublicKey(),
+		TLSPublicKey:      publicKeyPEM,
 		Username:          p.sctx.GetUser(),
 		Expires:           p.sctx.cfg.Session.GetExpiryTime(),
 		Format:            constants.CertificateFormatStandard,
@@ -264,7 +268,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		}
 	}
 
-	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, certs.TLS, keyPEM)
+	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, certs.TLS, privateKeyPEM)
 	if err != nil {
 		return trace.Wrap(err, "failed creating Kubernetes rest config")
 	}
