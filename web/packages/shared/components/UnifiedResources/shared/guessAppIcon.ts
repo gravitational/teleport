@@ -51,48 +51,43 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     return app.friendlyName as ResourceIconName;
   }
 
-  // Try matching by iterating through all the icon names
-  for (let i = 0; i < iconNames.length; i++) {
-    const iconName = iconNames[i];
+  // Help match brands with sub brands:
 
-    // Help match brands with sub brands:
-    if (iconName === 'adobe' && match('adobe', app)) {
-      if (match('creative', app)) return 'adobecreativecloud';
-      if (match('marketo', app)) return 'adobemarketo';
-      return 'adobe'; // generic
-    }
-    if (iconName === 'atlassian' && match('atlassian', app)) {
-      if (match('bitbucket', app)) return 'atlassianbitbucket';
-      if (match('jiraservice', app)) return 'atlassianjiraservice';
-      if (match('status', app)) return 'atlassianstatus';
-      return 'atlassian'; // generic
-    }
-    if (iconName === 'google' && match('google', app)) {
-      if (match('analytic', app)) return 'googleanalytics';
-      if (match('calendar', app)) return 'googlecalendar';
-      if (match('cloud', app)) return 'googlecloud';
-      if (match('drive', app)) return 'googledrive';
-      if (match('tag', app)) return 'googletag';
-      if (match('voice', app)) return 'googlevoice';
-      return 'google'; // generic
-    }
-    if (iconName === 'microsoft' && match('microsoft', app)) {
-      if (match('excel', app)) return 'microsoftexcel';
-      if (match('drive', app)) return 'microsoftonedrive';
-      if (match('note', app)) return 'microsoftonenote';
-      if (match('outlook', app)) return 'microsoftoutlook';
-      if (match('powerpoint', app)) return 'microsoftpowerpoint';
-      if (match('team', app)) return 'microsoftteams';
-      if (match('word', app)) return 'microsoftword';
-      return 'microsoft'; // generic
-    }
-
-    if (match(iconName, app)) {
-      return iconName;
-    }
+  if (match('adobe', app)) {
+    if (match('creative', app)) return 'adobecreativecloud';
+    if (match('marketo', app)) return 'adobemarketo';
+    return 'adobe'; // generic
+  }
+  if (match('atlassian', app)) {
+    if (match('bitbucket', app)) return 'atlassianbitbucket';
+    if (match('jiraservice', app)) return 'atlassianjiraservice';
+    if (match('status', app)) return 'atlassianstatus';
+    return 'atlassian'; // generic
+  }
+  if (match('google', app)) {
+    if (match('analytic', app)) return 'googleanalytics';
+    if (match('calendar', app)) return 'googlecalendar';
+    if (match('cloud', app)) return 'googlecloud';
+    if (match('drive', app)) return 'googledrive';
+    if (match('tag', app)) return 'googletag';
+    if (match('voice', app)) return 'googlevoice';
+    return 'google'; // generic
+  }
+  if (match('microsoft', app)) {
+    if (match('excel', app)) return 'microsoftexcel';
+    if (match('drive', app)) return 'microsoftonedrive';
+    if (match('note', app)) return 'microsoftonenote';
+    if (match('outlook', app)) return 'microsoftoutlook';
+    if (match('powerpoint', app)) return 'microsoftpowerpoint';
+    if (match('team', app)) return 'microsoftteams';
+    if (match('word', app)) return 'microsoftword';
+    return 'microsoft'; // generic
   }
 
-  return 'application'; // couldn't match anything
+  // Try matching by iterating through all the icon names
+  const matchingIcon = iconNames.find(iconName => match(iconName, app));
+
+  return matchingIcon || 'application'; // couldn't match anything
 }
 
 function match(

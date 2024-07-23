@@ -55,7 +55,7 @@ const testCases: { name: string; app: App; expectedIcon: string }[] = [
     expectedIcon: 'application',
   },
   {
-    name: 'no matches for a branch with many sub brands',
+    name: 'generic match, if exact sub brand does not match',
     app: makeApp({
       name: 'Something MicroSoft and stuff',
     }),
