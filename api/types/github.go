@@ -201,7 +201,7 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
+	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 && c.GetAllowAsMFAMethod() != AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY {
 		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
