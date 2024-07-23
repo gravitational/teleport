@@ -63,6 +63,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare workspace
+        id: prepare
         uses: ./.github/actions/prepare-workspace
 
       - name: Mount debugfs
@@ -70,4 +71,11 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api test-go-bench-ci
+        run: make -j"$(nproc)" test-go test-sh test-api
+
+      # Run benchmarks once to make sure they don't break
+      # Must be run separate since gotestsum is not compatible with benchmark output
+      - name: Run Benchmarks Once
+        if: ${{ !cancelled() && steps.prepare.conclusion == 'success' }}
+        timeout-minutes: 5
+        run: make test-go-bench
