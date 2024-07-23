@@ -74,8 +74,10 @@ type RegisterParams struct {
 	// ID is identity ID
 	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
+	// Ignored if AuthClient is provided.
 	AuthServers []utils.NetAddr
 	// ProxyServer is a proxy server to dial
+	// Ignored if AuthClient is provided.
 	ProxyServer utils.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
@@ -86,12 +88,16 @@ type RegisterParams struct {
 	// PublicSSHKey is a server's public SSH key to sign
 	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
+	// Ignored if AuthClient is provided.
 	CipherSuites []uint16
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	// Ignored if AuthClient is provided.
 	CAPins []string
 	// CAPath is the path to the CA file.
+	// Ignored if AuthClient is provided.
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
+	// Ignored if AuthClient is provided.
 	GetHostCredentials HostCredentials
 	// Clock specifies the time provider. Will be used to override the time anchor
 	// for TLS certificate verification.
@@ -105,8 +111,10 @@ type RegisterParams struct {
 	// AzureParams is the parameters specific to the azure join method.
 	AzureParams AzureParams
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
+	// Ignored if AuthClient is provided.
 	CircuitBreakerConfig breaker.Config
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// Ignored if AuthClient is provided.
 	FIPS bool
 	// IDToken is a token retrieved from a workload identity provider for
 	// certain join types e.g GitHub, Google.
@@ -116,7 +124,13 @@ type RegisterParams struct {
 	// It should not be specified for non-bot registrations.
 	Expires *time.Time
 	// Insecure trusts the certificates from the Auth Server or Proxy during registration without verification.
+	// Ignored if AuthClient is provided.
 	Insecure bool
+	// AuthClient allows an existing client with a connection to the auth
+	// server to be used for the registration process. If specified, then the
+	// Register method will not attempt to dial, and many other parameters
+	// may be ignored.
+	AuthClient AuthJoinClient
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -132,6 +146,11 @@ func (r *RegisterParams) checkAndSetDefaults() error {
 }
 
 func (r *RegisterParams) verifyAuthOrProxyAddress() error {
+	// If AuthClient is provided we do not need addresses to dial with.
+	if r.AuthClient != nil {
+		return nil
+	}
+
 	haveAuthServers := len(r.AuthServers) > 0
 	haveProxyServer := !r.ProxyServer.IsEmpty()
 
@@ -208,6 +227,19 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	// If an explicit AuthClient has been provided, we want to go straight to
+	// using that rather than trying both proxy and auth dialing.
+	if params.AuthClient != nil {
+		log.Info("Attempting registration with existing auth client.")
+		certs, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		if err != nil {
+			log.WithError(err).Error("Registration with existing auth client failed.")
+			return nil, trace.Wrap(err)
+		}
+		log.Info("Successfully registered with existing auth client.")
+		return certs, nil
 	}
 
 	type registerMethod struct {
@@ -372,6 +404,26 @@ func registerThroughAuth(
 	}
 	defer client.Close()
 
+	certs, err = registerThroughAuthClient(ctx, token, params, client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs, nil
+}
+
+// AuthJoinClient is a client that allows access to the Auth Servers join
+// service and RegisterUsingToken method for the purposes of joining.
+type AuthJoinClient interface {
+	joinServiceClient
+	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+}
+
+func registerThroughAuthClient(
+	ctx context.Context,
+	token string,
+	params RegisterParams,
+	client AuthJoinClient,
+) (certs *proto.Certs, err error) {
 	switch params.JoinMethod {
 	// IAM and Azure methods use unique gRPC endpoints
 	case types.JoinMethodIAM:
