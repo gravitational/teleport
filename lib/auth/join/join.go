@@ -131,11 +131,18 @@ type RegisterParams struct {
 	// Register method will not attempt to dial, and many other parameters
 	// may be ignored.
 	AuthClient AuthJoinClient
+	// KubernetesReadFileFunc is a function used to read the Kubernetes token
+	// from disk. Used in tests, and set to `os.ReadFile` if unset.
+	KubernetesReadFileFunc func(name string) ([]byte, error)
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
+	}
+
+	if r.KubernetesReadFileFunc == nil {
+		r.KubernetesReadFileFunc = os.ReadFile
 	}
 
 	if err := r.verifyAuthOrProxyAddress(); err != nil {
@@ -213,7 +220,7 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodKubernetes:
-		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, os.ReadFile)
+		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

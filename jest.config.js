@@ -37,6 +37,9 @@ module.exports = {
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e'],
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
   setupFilesAfterEnv: [
     '<rootDir>/web/packages/build/jest/setupTests.ts',
     '<rootDir>/web/packages/build/jest/customMatchers.ts',
