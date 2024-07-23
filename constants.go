@@ -503,6 +503,10 @@ const (
 	// CertExtensionBotName indicates the name of the Machine ID bot this
 	// certificate was issued to, if any.
 	CertExtensionBotName = "bot-name@goteleport.com"
+	// CertExtensionBotInstanceID indicates the unique identifier of this
+	// Machine ID bot instance, if any. This identifier is persisted through
+	// certificate renewals.
+	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -670,6 +674,10 @@ const (
 	// The role is used as a basis for requiring trusted device access to
 	// resources.
 	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
+
+	// PresetTerraformProviderRoleName is a name of a default role that allows the Terraform provider
+	// to configure all its supported Teleport resources.
+	PresetTerraformProviderRoleName = "terraform-provider"
 
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request

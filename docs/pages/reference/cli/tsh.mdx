@@ -637,7 +637,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../../application-access/cloud-apis/azure.mdx).
+Access](../../enroll-resources/application-access/cloud-apis/azure.mdx).
 
 ### Arguments
 
@@ -748,7 +748,7 @@ $ gsutil ls
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
 This is typically used as part of the SSH client configuration to use `ssh` as a client
-through Teleport.  See the [OpenSSH Guide](../../server-access/openssh/openssh.mdx) guide
+through Teleport.  See the [OpenSSH Guide](../../enroll-resources/server-access/openssh/openssh.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
 
@@ -836,27 +836,6 @@ $ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
 ```
 
 See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
-
-## tsh recordings export
-
-Export recorded desktop sessions to video.
-
-```code
-$ tsh recordings export <session_id> [<flags>]
-```
-
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
-
-### Examples
-
-```code
-$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
-wrote recording to recording.avi
-```
 
 ## tsh recordings ls
 

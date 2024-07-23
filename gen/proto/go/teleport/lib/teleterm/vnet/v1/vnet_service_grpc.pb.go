@@ -35,9 +35,10 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	VnetService_Start_FullMethodName        = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
-	VnetService_Stop_FullMethodName         = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
-	VnetService_ListDNSZones_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones"
+	VnetService_Start_FullMethodName                   = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
+	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
+	VnetService_ListDNSZones_FullMethodName            = "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones"
+	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -60,6 +61,9 @@ type VnetServiceClient interface {
 	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
 	// be fetched (due to e.g., a network error or an expired cert).
 	ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error)
+	// GetBackgroundItemStatus returns the status of the background item responsible for launching
+	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
 }
 
 type vnetServiceClient struct {
@@ -100,6 +104,16 @@ func (c *vnetServiceClient) ListDNSZones(ctx context.Context, in *ListDNSZonesRe
 	return out, nil
 }
 
+func (c *vnetServiceClient) GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBackgroundItemStatusResponse)
+	err := c.cc.Invoke(ctx, VnetService_GetBackgroundItemStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility
@@ -120,6 +134,9 @@ type VnetServiceServer interface {
 	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
 	// be fetched (due to e.g., a network error or an expired cert).
 	ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error)
+	// GetBackgroundItemStatus returns the status of the background item responsible for launching
+	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -135,6 +152,9 @@ func (UnimplementedVnetServiceServer) Stop(context.Context, *StopRequest) (*Stop
 }
 func (UnimplementedVnetServiceServer) ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDNSZones not implemented")
+}
+func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 
@@ -203,6 +223,24 @@ func _VnetService_ListDNSZones_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_GetBackgroundItemStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBackgroundItemStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetServiceServer).GetBackgroundItemStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetService_GetBackgroundItemStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetServiceServer).GetBackgroundItemStatus(ctx, req.(*GetBackgroundItemStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -221,6 +259,10 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDNSZones",
 			Handler:    _VnetService_ListDNSZones_Handler,
+		},
+		{
+			MethodName: "GetBackgroundItemStatus",
+			Handler:    _VnetService_GetBackgroundItemStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

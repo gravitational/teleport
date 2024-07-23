@@ -8,7 +8,7 @@ exports[`kube connect dialogue local 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -51,41 +51,6 @@ exports[`kube connect dialogue local 1`] = `
   width: 100%;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -94,25 +59,23 @@ exports[`kube connect dialogue local 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
 }
 
-.c9 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c12 {
+.c13 {
   box-sizing: border-box;
-  margin-top: 8px;
   padding: 8px;
-  color: #FFFFFF;
+  margin-top: 8px;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-right: 8px;
 }
@@ -139,8 +102,161 @@ exports[`kube connect dialogue local 1`] = `
   margin-top: 24px;
 }
 
-.c23 {
+.c17 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
+}
+
+.c17:hover,
+.teleport-button__force-hover .c17 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c17:active,
+.teleport-button__force-active .c17 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c17:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c23 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c23:focus-visible,
+.teleport-button__force-focus-visible .c23 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c23:hover,
+.teleport-button__force-hover .c23 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c23:active,
+.teleport-button__force-active .c23 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c23:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
 .c5 {
@@ -150,17 +266,12 @@ exports[`kube connect dialogue local 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c13 {
+.c14 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
 }
 
 .c21 {
@@ -168,86 +279,10 @@ exports[`kube connect dialogue local 1`] = `
   justify-content: space-between;
 }
 
-.c17 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c17:hover,
-.c17:focus {
-  background: #B29DFF;
-}
-
-.c17:active {
-  background: #C5B6FF;
-}
-
-.c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c24 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c24:hover,
-.c24:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c24:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c24:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
 }
 
 <body>
@@ -271,36 +306,35 @@ exports[`kube connect dialogue local 1`] = `
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
-            connect to kubernetes cluster
-          </div>
+            Connect to Kubernetes Cluster
+          </h2>
         </div>
         <div
-          class="c7 c8"
+          class="c7 c8 c9"
         >
           <div
-            class="c9"
+            class="c10"
           >
             <div
-              class="c10"
+              class="c11"
             >
               Connect in the CLI using tsh and kubectl
             </div>
             <span
-              class="c11"
+              class="c12"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -315,7 +349,7 @@ exports[`kube connect dialogue local 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -323,21 +357,21 @@ exports[`kube connect dialogue local 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -352,7 +386,7 @@ exports[`kube connect dialogue local 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -360,20 +394,20 @@ exports[`kube connect dialogue local 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -388,7 +422,7 @@ exports[`kube connect dialogue local 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -399,17 +433,17 @@ exports[`kube connect dialogue local 1`] = `
             class="c18"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -424,7 +458,7 @@ exports[`kube connect dialogue local 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -444,7 +478,7 @@ exports[`kube connect dialogue local 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
               >
                 Exec
               </button>
@@ -452,11 +486,11 @@ exports[`kube connect dialogue local 1`] = `
           </div>
         </div>
         <div
-          class="c23"
+          class="c7"
         >
           <button
-            class="c24"
-            kind="secondary"
+            class="c23"
+            fill="filled"
           >
             Close
           </button>
@@ -475,7 +509,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -518,41 +552,6 @@ exports[`kube connect dialogue local with requestId 1`] = `
   width: 100%;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -561,25 +560,23 @@ exports[`kube connect dialogue local with requestId 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
 }
 
-.c9 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c12 {
+.c13 {
   box-sizing: border-box;
-  margin-top: 8px;
   padding: 8px;
-  color: #FFFFFF;
+  margin-top: 8px;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-right: 8px;
 }
@@ -612,8 +609,161 @@ exports[`kube connect dialogue local with requestId 1`] = `
   margin-top: 24px;
 }
 
-.c24 {
+.c17 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
+}
+
+.c17:hover,
+.teleport-button__force-hover .c17 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c17:active,
+.teleport-button__force-active .c17 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c17:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c24 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c24:focus-visible,
+.teleport-button__force-focus-visible .c24 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c24:hover,
+.teleport-button__force-hover .c24 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c24:active,
+.teleport-button__force-active .c24 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c24:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
 .c5 {
@@ -623,17 +773,12 @@ exports[`kube connect dialogue local with requestId 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c13 {
+.c14 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
 }
 
 .c22 {
@@ -641,86 +786,10 @@ exports[`kube connect dialogue local with requestId 1`] = `
   justify-content: space-between;
 }
 
-.c17 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c17:hover,
-.c17:focus {
-  background: #B29DFF;
-}
-
-.c17:active {
-  background: #C5B6FF;
-}
-
-.c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c25 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c25:hover,
-.c25:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c25:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c25:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
 }
 
 <body>
@@ -744,36 +813,35 @@ exports[`kube connect dialogue local with requestId 1`] = `
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
-            connect to kubernetes cluster
-          </div>
+            Connect to Kubernetes Cluster
+          </h2>
         </div>
         <div
-          class="c7 c8"
+          class="c7 c8 c9"
         >
           <div
-            class="c9"
+            class="c10"
           >
             <div
-              class="c10"
+              class="c11"
             >
               Connect in the CLI using tsh and kubectl
             </div>
             <span
-              class="c11"
+              class="c12"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -788,7 +856,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -796,21 +864,21 @@ exports[`kube connect dialogue local with requestId 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -825,7 +893,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -833,20 +901,20 @@ exports[`kube connect dialogue local with requestId 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -861,7 +929,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -872,17 +940,17 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c18"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -897,7 +965,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -908,17 +976,17 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c19"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 4 (Optional)
             </span>
              - When finished, drop the assumed role
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -933,7 +1001,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -953,7 +1021,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
               >
                 Exec
               </button>
@@ -961,11 +1029,11 @@ exports[`kube connect dialogue local with requestId 1`] = `
           </div>
         </div>
         <div
-          class="c24"
+          class="c7"
         >
           <button
-            class="c25"
-            kind="secondary"
+            class="c24"
+            fill="filled"
           >
             Close
           </button>
@@ -984,7 +1052,7 @@ exports[`kube connect dialogue sso 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -1027,41 +1095,6 @@ exports[`kube connect dialogue sso 1`] = `
   width: 100%;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -1070,25 +1103,23 @@ exports[`kube connect dialogue sso 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
 }
 
-.c9 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c12 {
+.c13 {
   box-sizing: border-box;
-  margin-top: 8px;
   padding: 8px;
-  color: #FFFFFF;
+  margin-top: 8px;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-right: 8px;
 }
@@ -1115,8 +1146,161 @@ exports[`kube connect dialogue sso 1`] = `
   margin-top: 24px;
 }
 
-.c23 {
+.c17 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
+}
+
+.c17:hover,
+.teleport-button__force-hover .c17 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c17:active,
+.teleport-button__force-active .c17 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c17:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c23 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c23:focus-visible,
+.teleport-button__force-focus-visible .c23 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c23:hover,
+.teleport-button__force-hover .c23 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c23:active,
+.teleport-button__force-active .c23 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c23:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
 .c5 {
@@ -1126,17 +1310,12 @@ exports[`kube connect dialogue sso 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c13 {
+.c14 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
 }
 
 .c21 {
@@ -1144,86 +1323,10 @@ exports[`kube connect dialogue sso 1`] = `
   justify-content: space-between;
 }
 
-.c17 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c17:hover,
-.c17:focus {
-  background: #B29DFF;
-}
-
-.c17:active {
-  background: #C5B6FF;
-}
-
-.c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c24 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c24:hover,
-.c24:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c24:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c24:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
 }
 
 <body>
@@ -1247,36 +1350,35 @@ exports[`kube connect dialogue sso 1`] = `
         <div
           class="c4 c5"
         >
-          <div
+          <h2
             class="c6"
-            color="text.main"
           >
-            connect to kubernetes cluster
-          </div>
+            Connect to Kubernetes Cluster
+          </h2>
         </div>
         <div
-          class="c7 c8"
+          class="c7 c8 c9"
         >
           <div
-            class="c9"
+            class="c10"
           >
             <div
-              class="c10"
+              class="c11"
             >
               Connect in the CLI using tsh and kubectl
             </div>
             <span
-              class="c11"
+              class="c12"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -1291,7 +1393,7 @@ exports[`kube connect dialogue sso 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -1299,21 +1401,21 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -1328,7 +1430,7 @@ exports[`kube connect dialogue sso 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -1336,20 +1438,20 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c10"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -1364,7 +1466,7 @@ exports[`kube connect dialogue sso 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -1375,17 +1477,17 @@ exports[`kube connect dialogue sso 1`] = `
             class="c18"
           >
             <span
-              class="c11"
+              class="c12"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c13 c14"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c15 c8"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
@@ -1400,7 +1502,7 @@ exports[`kube connect dialogue sso 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
@@ -1420,7 +1522,7 @@ exports[`kube connect dialogue sso 1`] = `
               </div>
               <button
                 class="c17"
-                kind="primary"
+                fill="filled"
               >
                 Exec
               </button>
@@ -1428,11 +1530,11 @@ exports[`kube connect dialogue sso 1`] = `
           </div>
         </div>
         <div
-          class="c23"
+          class="c7"
         >
           <button
-            class="c24"
-            kind="secondary"
+            class="c23"
+            fill="filled"
           >
             Close
           </button>

@@ -58,10 +58,10 @@ exports[`loaded approved role based request state 1`] = `
 
 .c24 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -86,20 +86,20 @@ exports[`loaded approved role based request state 1`] = `
 
 .c34 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c40 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c15 {
@@ -109,7 +109,8 @@ exports[`loaded approved role based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -118,30 +119,49 @@ exports[`loaded approved role based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 60px;
 }
 
-.c15:hover,
-.c15:focus {
-  background: rgba(255,255,255,0.07);
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c15:active {
-  background: rgba(255,255,255,0.13);
+.c15:hover,
+.teleport-button__force-hover .c15 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c15:active,
+.teleport-button__force-active .c15 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c15:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -152,7 +172,8 @@ exports[`loaded approved role based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -161,29 +182,49 @@ exports[`loaded approved role based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   margin-top: 24px;
 }
 
-.c29:hover,
-.c29:focus {
-  background: #B29DFF;
+.c29:focus-visible,
+.teleport-button__force-focus-visible .c29 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c29:active {
-  background: #C5B6FF;
+.c29:hover,
+.teleport-button__force-hover .c29 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c29:active,
+.teleport-button__force-active .c29 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c29:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -191,7 +232,7 @@ exports[`loaded approved role based request state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c22 {
@@ -199,84 +240,6 @@ exports[`loaded approved role based request state 1`] = `
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c26 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c27 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
-  margin: 0px;
-}
-
-.c33 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c37 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c41 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
 }
 
 .c11 {
@@ -313,7 +276,6 @@ exports[`loaded approved role based request state 1`] = `
   padding-bottom: 4px;
   background: #00BFA6;
   color: #000000;
-  font-size: 10px;
 }
 
 .c38 {
@@ -328,11 +290,10 @@ exports[`loaded approved role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #00BFA6;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c39 {
@@ -347,11 +308,88 @@ exports[`loaded approved role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.c33 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin-right: 8px;
+}
+
+.c37 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 16px;
+}
+
+.c41 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c1 {
@@ -407,7 +445,7 @@ exports[`loaded approved role based request state 1`] = `
 }
 
 .c3 {
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .c5 {
@@ -441,7 +479,6 @@ exports[`loaded approved role based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="success"
               style="font-weight: bold;"
             >
@@ -500,7 +537,7 @@ exports[`loaded approved role based request state 1`] = `
           >
             <button
               class="c15"
-              kind="border"
+              fill="border"
               width="60px"
             >
               Delete
@@ -675,7 +712,7 @@ exports[`loaded approved role based request state 1`] = `
       </div>
       <button
         class="c29"
-        kind="primary"
+        fill="filled"
       >
         Assume Roles
       </button>
@@ -704,7 +741,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c38"
-          font-size="0"
           kind="success"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -722,7 +758,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c39"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -740,7 +775,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c38"
-          font-size="0"
           kind="success"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -811,10 +845,10 @@ exports[`loaded denied role based request state 1`] = `
 
 .c22 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -848,20 +882,20 @@ exports[`loaded denied role based request state 1`] = `
 
 .c33 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c39 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c15 {
@@ -871,7 +905,8 @@ exports[`loaded denied role based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -880,30 +915,49 @@ exports[`loaded denied role based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 60px;
 }
 
-.c15:hover,
-.c15:focus {
-  background: rgba(255,255,255,0.07);
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c15:active {
-  background: rgba(255,255,255,0.13);
+.c15:hover,
+.teleport-button__force-hover .c15 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c15:active,
+.teleport-button__force-active .c15 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c15:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -911,7 +965,7 @@ exports[`loaded denied role based request state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c28 {
@@ -919,84 +973,6 @@ exports[`loaded denied role based request state 1`] = `
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c24 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c25 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
-  margin: 0px;
-}
-
-.c32 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c36 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c40 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
 }
 
 .c11 {
@@ -1033,7 +1009,6 @@ exports[`loaded denied role based request state 1`] = `
   padding-bottom: 4px;
   background: #FF6257;
   color: #000000;
-  font-size: 10px;
 }
 
 .c37 {
@@ -1048,11 +1023,10 @@ exports[`loaded denied role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FF6257;
   color: #000000;
   width: 10px;
-  font-size: 10px;
 }
 
 .c38 {
@@ -1067,11 +1041,88 @@ exports[`loaded denied role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
-  font-size: 10px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c25 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.c32 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin-right: 8px;
+}
+
+.c36 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 16px;
+}
+
+.c40 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c1 {
@@ -1127,7 +1178,7 @@ exports[`loaded denied role based request state 1`] = `
 }
 
 .c3 {
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .c5 {
@@ -1161,7 +1212,6 @@ exports[`loaded denied role based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="danger"
               style="font-weight: bold;"
             >
@@ -1214,7 +1264,7 @@ exports[`loaded denied role based request state 1`] = `
           >
             <button
               class="c15"
-              kind="border"
+              fill="border"
               width="60px"
             >
               Delete
@@ -1393,7 +1443,6 @@ exports[`loaded denied role based request state 1`] = `
         </div>
         <span
           class="c37"
-          font-size="0"
           kind="danger"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1411,7 +1460,6 @@ exports[`loaded denied role based request state 1`] = `
         </div>
         <span
           class="c38"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1482,10 +1530,10 @@ exports[`loaded pending role based request state 1`] = `
 
 .c25 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -1528,20 +1576,20 @@ exports[`loaded pending role based request state 1`] = `
 
 .c49 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c54 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c18 {
@@ -1551,7 +1599,8 @@ exports[`loaded pending role based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1560,30 +1609,49 @@ exports[`loaded pending role based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 60px;
 }
 
-.c18:hover,
-.c18:focus {
-  background: rgba(255,255,255,0.07);
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c18:active {
-  background: rgba(255,255,255,0.13);
+.c18:hover,
+.teleport-button__force-hover .c18 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c18:active,
+.teleport-button__force-active .c18 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1594,7 +1662,8 @@ exports[`loaded pending role based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1603,28 +1672,48 @@ exports[`loaded pending role based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c44:focus-visible,
+.teleport-button__force-focus-visible .c44 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c44:hover,
-.c44:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c44 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c44:active {
-  background: #C5B6FF;
+.c44:active,
+.teleport-button__force-active .c44 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c44:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1632,109 +1721,7 @@ exports[`loaded pending role based request state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.54);
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 10px;
-  margin: 0px;
-  margin-left: 4px;
-}
-
-.c27 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
-  margin: 0px;
-}
-
-.c31 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c39 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
-.c48 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c52 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c55 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c11 {
@@ -1757,7 +1744,8 @@ exports[`loaded pending role based request state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c7 {
@@ -1779,7 +1767,6 @@ exports[`loaded pending role based request state 1`] = `
   padding-bottom: 4px;
   background: #FFAB00;
   color: #000000;
-  font-size: 10px;
 }
 
 .c53 {
@@ -1794,11 +1781,112 @@ exports[`loaded pending role based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-size: 10px;
+  margin-left: 4px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c28 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.c31 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin-right: 16px;
+}
+
+.c39 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.c48 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin-right: 8px;
+}
+
+.c52 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 16px;
+}
+
+.c55 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c1 {
@@ -1843,7 +1931,7 @@ exports[`loaded pending role based request state 1`] = `
 
 .c42 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   min-height: 50px;
@@ -1859,14 +1947,14 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c42::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
 .c42:hover,
 .c42:focus,
 .c42:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c42:read-only {
@@ -1874,8 +1962,8 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c42:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c34 {
@@ -1936,7 +2024,7 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c3 {
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .c5 {
@@ -1970,7 +2058,6 @@ exports[`loaded pending role based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="warning"
               style="font-weight: bold;"
             >
@@ -2024,7 +2111,7 @@ exports[`loaded pending role based request state 1`] = `
             </div>
             <button
               class="c18"
-              kind="border"
+              fill="border"
               width="60px"
             >
               Delete
@@ -2202,7 +2289,7 @@ exports[`loaded pending role based request state 1`] = `
               </div>
               <button
                 class="c44"
-                kind="primary"
+                fill="filled"
               >
                 Submit Review
               </button>
@@ -2235,7 +2322,6 @@ exports[`loaded pending role based request state 1`] = `
         </div>
         <span
           class="c53"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -2253,7 +2339,6 @@ exports[`loaded pending role based request state 1`] = `
         </div>
         <span
           class="c53"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -2324,10 +2409,10 @@ exports[`loaded pending search based request state 1`] = `
 
 .c25 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
+  padding-left: 16px;
+  padding-right: 16px;
   background-color: #0C143D;
 }
 
@@ -2339,10 +2424,10 @@ exports[`loaded pending search based request state 1`] = `
 
 .c30 {
   box-sizing: border-box;
-  padding-bottom: 16px;
+  padding-top: 0;
   padding-left: 16px;
-  padding-right: 0px;
-  padding-top: 0px;
+  padding-right: 0;
+  padding-bottom: 16px;
   background-color: #344179;
 }
 
@@ -2379,20 +2464,20 @@ exports[`loaded pending search based request state 1`] = `
 
 .c53 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
+  margin-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c58 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-top: 16px;
+  margin-left: 4px;
 }
 
 .c18 {
@@ -2402,7 +2487,8 @@ exports[`loaded pending search based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2411,30 +2497,49 @@ exports[`loaded pending search based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 60px;
 }
 
-.c18:hover,
-.c18:focus {
-  background: rgba(255,255,255,0.07);
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c18:active {
-  background: rgba(255,255,255,0.13);
+.c18:hover,
+.teleport-button__force-hover .c18 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c18:active,
+.teleport-button__force-active .c18 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2445,7 +2550,8 @@ exports[`loaded pending search based request state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2454,28 +2560,48 @@ exports[`loaded pending search based request state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c48:focus-visible,
+.teleport-button__force-focus-visible .c48 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c48:hover,
-.c48:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c48 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c48:active {
-  background: #C5B6FF;
+.c48:active,
+.teleport-button__force-active .c48 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c48:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2483,109 +2609,7 @@ exports[`loaded pending search based request state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.54);
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 10px;
-  margin: 0px;
-  margin-left: 4px;
-}
-
-.c27 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
-  margin: 0px;
-}
-
-.c35 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c43 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
-.c52 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c56 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 16px;
-}
-
-.c59 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c11 {
@@ -2608,7 +2632,8 @@ exports[`loaded pending search based request state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .c7 {
@@ -2630,7 +2655,6 @@ exports[`loaded pending search based request state 1`] = `
   padding-bottom: 4px;
   background: #FFAB00;
   color: #000000;
-  font-size: 10px;
 }
 
 .c57 {
@@ -2645,11 +2669,112 @@ exports[`loaded pending search based request state 1`] = `
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  padding: 0px;
+  padding: 0;
   background: #FFAB00;
   color: #000000;
   width: 10px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-size: 10px;
+  margin-left: 4px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 8px;
+}
+
+.c28 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.c35 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin-right: 16px;
+}
+
+.c43 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.c52 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin-right: 8px;
+}
+
+.c56 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin-right: 16px;
+}
+
+.c59 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c1 {
@@ -2694,7 +2819,7 @@ exports[`loaded pending search based request state 1`] = `
 
 .c46 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   min-height: 50px;
@@ -2710,14 +2835,14 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c46::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
 .c46:hover,
 .c46:focus,
 .c46:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c46:read-only {
@@ -2725,8 +2850,8 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c46:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c32 {
@@ -2737,39 +2862,39 @@ exports[`loaded pending search based request state 1`] = `
   width: 100%;
 }
 
-.c32 > thead > tr > th,
-.c32 > tbody > tr > th,
-.c32 > tfoot > tr > th,
-.c32 > thead > tr > td,
-.c32 > tbody > tr > td,
-.c32 > tfoot > tr > td {
+.c32>thead>tr>th,
+.c32>tbody>tr>th,
+.c32>tfoot>tr>th,
+.c32>thead>tr>td,
+.c32>tbody>tr>td,
+.c32>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c32 > thead > tr > th:first-child,
-.c32 > tbody > tr > th:first-child,
-.c32 > tfoot > tr > th:first-child,
-.c32 > thead > tr > td:first-child,
-.c32 > tbody > tr > td:first-child,
-.c32 > tfoot > tr > td:first-child {
+.c32>thead>tr>th:first-child,
+.c32>tbody>tr>th:first-child,
+.c32>tfoot>tr>th:first-child,
+.c32>thead>tr>td:first-child,
+.c32>tbody>tr>td:first-child,
+.c32>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c32 > thead > tr > th:last-child,
-.c32 > tbody > tr > th:last-child,
-.c32 > tfoot > tr > th:last-child,
-.c32 > thead > tr > td:last-child,
-.c32 > tbody > tr > td:last-child,
-.c32 > tfoot > tr > td:last-child {
+.c32>thead>tr>th:last-child,
+.c32>tbody>tr>th:last-child,
+.c32>tfoot>tr>th:last-child,
+.c32>thead>tr>td:last-child,
+.c32>tbody>tr>td:last-child,
+.c32>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c32 > tbody > tr > td {
+.c32>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c32 > thead > tr > th {
+.c32>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -2781,11 +2906,11 @@ exports[`loaded pending search based request state 1`] = `
   white-space: nowrap;
 }
 
-.c32 > thead > tr > th svg {
+.c32>thead>tr>th svg {
   height: 12px;
 }
 
-.c32 > tbody > tr > td {
+.c32>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2805,7 +2930,7 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c32 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2815,7 +2940,7 @@ exports[`loaded pending search based request state 1`] = `
   height: 100%;
 }
 
-.c32 tbody tr:hover + tr {
+.c32 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -2863,7 +2988,7 @@ exports[`loaded pending search based request state 1`] = `
   width: 90%;
 }
 
-.c33 > tbody > tr > td {
+.c33>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -2885,7 +3010,7 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c3 {
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .c5 {
@@ -2923,7 +3048,6 @@ exports[`loaded pending search based request state 1`] = `
           >
             <span
               class="c7"
-              font-size="0"
               kind="warning"
               style="font-weight: bold;"
             >
@@ -2977,7 +3101,7 @@ exports[`loaded pending search based request state 1`] = `
             </div>
             <button
               class="c18"
-              kind="border"
+              fill="border"
               width="60px"
             >
               Delete
@@ -3261,7 +3385,7 @@ exports[`loaded pending search based request state 1`] = `
               </div>
               <button
                 class="c48"
-                kind="primary"
+                fill="filled"
               >
                 Submit Review
               </button>
@@ -3294,7 +3418,6 @@ exports[`loaded pending search based request state 1`] = `
         </div>
         <span
           class="c57"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -3312,7 +3435,6 @@ exports[`loaded pending search based request state 1`] = `
         </div>
         <span
           class="c57"
-          font-size="0"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"

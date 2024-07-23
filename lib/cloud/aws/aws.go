@@ -37,7 +37,7 @@ import (
 //
 // Note that this function checks some common values but not necessarily covers
 // everything. For types that have other known status values, separate
-// functions (e.g. IsRDSClusterAvailable) can be implemented.
+// functions (e.g. IsDBClusterAvailable) can be implemented.
 func IsResourceAvailable(r interface{}, status *string) bool {
 	switch strings.ToLower(aws.StringValue(status)) {
 	case "available", "modifying", "snapshotting", "active":
@@ -145,6 +145,20 @@ func AuroraMySQLVersion(cluster *rds.DBCluster) string {
 	return version
 }
 
+// IsDocumentDBClusterSupported checks whether IAM authentication is supported
+// for this DocumentDB cluster.
+//
+// https://docs.aws.amazon.com/documentdb/latest/developerguide/iam-identity-auth.html
+func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
+	ver, err := semver.NewVersion(aws.StringValue(cluster.EngineVersion))
+	if err != nil {
+		log.Errorf("Failed to parse DocumentDB engine version: %s", aws.StringValue(cluster.EngineVersion))
+		return false
+	}
+
+	return !ver.LessThan(semver.Version{Major: 5})
+}
+
 // IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
 // supported.
 func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
@@ -195,13 +209,13 @@ func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 	}
 }
 
-// IsRDSClusterAvailable checks if the RDS cluster is available.
-func IsRDSClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
+// IsDBClusterAvailable checks if the RDS or DocumentDB cluster is available.
+func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
 	switch aws.StringValue(clusterStatus) {
 	// Statuses marked as "Billed" in the above guide.
-	case "available", "backing-up", "backtracking", "failing-over",
+	case "active", "available", "backing-up", "backtracking", "failing-over",
 		"maintenance", "migrating", "modifying", "promoting", "renaming",
 		"resetting-master-credentials", "update-iam-db-auth", "upgrading":
 		return true

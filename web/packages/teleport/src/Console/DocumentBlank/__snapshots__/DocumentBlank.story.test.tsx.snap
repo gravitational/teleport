@@ -20,7 +20,8 @@ exports[`render DocumentBlank 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -29,28 +30,48 @@ exports[`render DocumentBlank 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c6:focus-visible,
+.teleport-button__force-focus-visible .c6 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c6:hover,
-.c6:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c6 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c6:active {
-  background: #C5B6FF;
+.c6:active,
+.teleport-button__force-active .c6 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c6:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -58,8 +79,8 @@ exports[`render DocumentBlank 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 40px;
   margin-top: 72px;
+  margin-bottom: 40px;
 }
 
 .c1 {
@@ -107,7 +128,7 @@ exports[`render DocumentBlank 1`] = `
       </span>
       <button
         class="c6"
-        kind="primary"
+        fill="filled"
       >
         Start a New Session
       </button>

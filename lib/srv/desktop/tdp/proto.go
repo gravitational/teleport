@@ -551,8 +551,11 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 }
 
 // Error is used to send a fatal error message to the browser.
+//
 // In Teleport 12 and up, Error is deprecated and Notification
-// should be preferred.
+// should be preferred. Nevertheless, IT SHOULD NOT BE DELETED
+// in order for older session recordings to continue to work.
+//
 // | message type (9) | message_length uint32 | message []byte |
 type Error struct {
 	Message string

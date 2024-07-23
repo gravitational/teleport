@@ -174,13 +174,14 @@ interface MenuIconProps {
   indicatorStatus: IndicatorStatus;
 }
 
-export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
+export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
   (props, ref) => {
     return (
       <StyledButton
         setRef={ref}
         onClick={props.onClick}
-        kind="secondary"
+        intent="neutral"
+        fill="filled"
         size="small"
         title="Open Connect My Computer"
         data-testid="connect-my-computer-icon"
@@ -198,7 +199,6 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
 
 const StyledButton = styled(Button)`
   position: relative;
-  background: ${props => props.theme.colors.spotBackground[0]};
   padding: 0;
   width: ${props => props.theme.space[5]}px;
   height: ${props => props.theme.space[5]}px;

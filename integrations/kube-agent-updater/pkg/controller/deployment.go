@@ -81,6 +81,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	var (
 		noNewVersionErr *version.NoNewVersionError
 		maintenanceErr  *MaintenanceNotTriggeredError
+		trustErr        *trace.TrustError
 	)
 	switch {
 	case errors.As(err, &noNewVersionErr):
@@ -91,9 +92,9 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 		// Not logging the error because it provides no other information than its type.
 		log.Info("No maintenance triggered, not updating.", "currentVersion", currentVersion)
 		return requeueLater, nil
-	case trace.IsTrustError(err):
+	case errors.As(err, &trustErr):
 		// Logging as error as image verification should not fail under normal use
-		log.Error(err, "Image verification failed, not updating.")
+		log.Error(trustErr.OrigError(), "Image verification failed, not updating.")
 		return requeueLater, nil
 	case err != nil:
 		log.Error(err, "Unexpected error, not updating.")

@@ -3,20 +3,9 @@
 exports[`locked 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
-  box-sizing: border-box;
-}
-
-.c13 {
+.c11 {
   box-sizing: border-box;
   margin: auto;
   padding: 24px;
@@ -25,36 +14,37 @@ exports[`locked 1`] = `
   flex: 0 0 auto;
 }
 
-.c16 {
+.c14 {
   box-sizing: border-box;
   width: 100%;
   text-align: left;
 }
 
-.c21 {
+.c19 {
   box-sizing: border-box;
   text-align: left;
 }
 
-.c26 {
+.c24 {
   box-sizing: border-box;
   margin-top: 24px;
   width: 100%;
 }
 
-.c28 {
+.c26 {
   box-sizing: border-box;
   width: 100%;
 }
 
-.c9 {
+.c7 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -63,91 +53,68 @@ exports[`locked 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   padding-top: 12px;
   padding-bottom: 12px;
   width: 100%;
   height: 36px;
 }
 
-.c9:hover,
-.c9:focus {
-  background: #B29DFF;
+.c7:focus-visible,
+.teleport-button__force-focus-visible .c7 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c9:active {
-  background: #C5B6FF;
+.c7:hover,
+.teleport-button__force-hover .c7 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c9:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+.c7:active,
+.teleport-button__force-active .c7 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c7:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
-.c11 {
+.c9 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c15 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+.c13 {
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-}
-
 .c17 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-bottom: 32px;
-}
-
-.c27 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 16px;
-  margin: 0px;
-}
-
-.c29 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 4px;
-}
-
-.c19 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -156,49 +123,95 @@ exports[`locked 1`] = `
   color: text.secondary;
 }
 
-.c24 {
+.c22 {
   display: block;
   outline: none;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+  margin-bottom: 4px;
+}
+
+.c16 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin-bottom: 32px;
+}
+
+.c25 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 4px;
 }
 
 .c1 {
   display: flex;
 }
 
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c10 {
+.c8 {
   display: flex;
   align-items: center;
 }
 
-.c14 {
+.c12 {
   display: flex;
   flex-direction: column;
 }
 
-.c20 {
+.c18 {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
   gap: 24px;
 }
 
-.c5 {
+.c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
+  align-items: center;
 }
 
-.c7 {
+.c6 {
   white-space: nowrap;
 }
 
@@ -206,6 +219,8 @@ exports[`locked 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -213,14 +228,14 @@ exports[`locked 1`] = `
   padding-bottom: 24px;
 }
 
-.c12 {
+.c10 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 10px;
 }
 
-.c22 {
+.c20 {
   background-color: rgba(255,255,255,0.07);
   padding: 24px;
   width: 340px;
@@ -230,7 +245,7 @@ exports[`locked 1`] = `
   align-items: center;
 }
 
-.c23 {
+.c21 {
   width: 293px;
   align-items: center;
   height: 240px;
@@ -238,7 +253,7 @@ exports[`locked 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c30 {
+.c28 {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -246,12 +261,12 @@ exports[`locked 1`] = `
   transform: translate(-50%,50%);
 }
 
-.c25 {
+.c23 {
   display: block;
 }
 
 @media screen and (max-width:800px) {
-  .c30 {
+  .c28 {
     min-width: 100%;
   }
 }
@@ -260,31 +275,31 @@ exports[`locked 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5"
+    class="c0 c3 c4"
   >
-    <div
-      class="c6 c7"
+    <h1
+      class="c5 c6"
     >
       Just In Time Access Requests
-    </div>
+    </h1>
     <div
-      class="c8"
+      class="c0"
     >
       <a
-        class="c9"
+        class="c7"
+        fill="filled"
         height="36px"
         href="https://goteleport.com/r/upgrade-community?4.4.0-dev&utm_campaign=CTA_ACCESS_REQUESTS"
-        kind="primary"
         rel="noreferrer"
         style="text-transform: none;"
         target="blank"
         width="100%"
       >
         <div
-          class="c8 c10"
+          class="c0 c8"
         >
           <span
-            class="c11 c12"
+            class="c9 c10"
             data-testid="locked-icon"
           >
             <svg
@@ -306,24 +321,24 @@ exports[`locked 1`] = `
     </div>
   </div>
   <div
-    class="c13 c14 sc-gEvEer c13 c15"
+    class="c11 c12 sc-gEvDqW c11 c13"
     width="auto"
   >
     <div
-      class="c16"
+      class="c14"
       width="100%"
     >
-      <div
-        class="c17"
+      <h2
+        class="c15"
       >
         Access Requests Flow
-      </div>
+      </h2>
       <div
-        class="c18"
+        class="c16"
       >
         To learn more about access requests, take a look at 
         <a
-          class="c19"
+          class="c17"
           color="text.secondary"
           href="https://goteleport.com/features/access-requests/"
           rel="noreferrer"
@@ -334,26 +349,26 @@ exports[`locked 1`] = `
       </div>
     </div>
     <div
-      class="c8 c20"
+      class="c0 c18"
       style="position: relative;"
     >
       <div
-        class="c21 c1 c22"
+        class="c19 c1 c20"
       >
         <div
-          class="c8 c1 c23"
+          class="c0 c1 c21"
         >
           <img
-            class="c24 c25"
+            class="c22 c23"
             src="file_stub"
           />
         </div>
         <div
-          class="c26"
+          class="c24"
           width="100%"
         >
           <div
-            class="c27"
+            class="c25"
             font-size="3"
           >
             Step 
@@ -361,11 +376,11 @@ exports[`locked 1`] = `
           </div>
         </div>
         <div
-          class="c28"
+          class="c26"
           width="100%"
         >
           <div
-            class="c29"
+            class="c27"
           >
             Bob can select the resources he needs to access or request the role
             <span
@@ -378,22 +393,22 @@ exports[`locked 1`] = `
         </div>
       </div>
       <div
-        class="c21 c1 c22"
+        class="c19 c1 c20"
       >
         <div
-          class="c8 c1 c23"
+          class="c0 c1 c21"
         >
           <img
-            class="c24 c25"
+            class="c22 c23"
             src="file_stub"
           />
         </div>
         <div
-          class="c26"
+          class="c24"
           width="100%"
         >
           <div
-            class="c27"
+            class="c25"
             font-size="3"
           >
             Step 
@@ -401,33 +416,33 @@ exports[`locked 1`] = `
           </div>
         </div>
         <div
-          class="c28"
+          class="c26"
           width="100%"
         >
           <div
-            class="c29"
+            class="c27"
           >
             Chatbot will notify both Alice and Ivan
           </div>
         </div>
       </div>
       <div
-        class="c21 c1 c22"
+        class="c19 c1 c20"
       >
         <div
-          class="c8 c1 c23"
+          class="c0 c1 c21"
         >
           <img
-            class="c24 c25"
+            class="c22 c23"
             src="file_stub"
           />
         </div>
         <div
-          class="c26"
+          class="c24"
           width="100%"
         >
           <div
-            class="c27"
+            class="c25"
             font-size="3"
           >
             Step 
@@ -435,34 +450,34 @@ exports[`locked 1`] = `
           </div>
         </div>
         <div
-          class="c28"
+          class="c26"
           width="100%"
         >
           <div
-            class="c29"
+            class="c27"
           >
             Alice and Ivan can review and approve request using Web UI or CLI
           </div>
         </div>
       </div>
       <div
-        class="c8 c30"
+        class="c0 c28"
       >
         <a
-          class="c9"
+          class="c7"
+          fill="filled"
           height="36px"
           href="https://goteleport.com/r/upgrade-community?4.4.0-dev&utm_campaign=CTA_ACCESS_REQUESTS"
-          kind="primary"
           rel="noreferrer"
           style="text-transform: none;"
           target="blank"
           width="100%"
         >
           <div
-            class="c8 c10"
+            class="c0 c8"
           >
             <span
-              class="c11 c12"
+              class="c9 c10"
               data-testid="locked-icon"
             >
               <svg

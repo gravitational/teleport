@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1559,7 +1560,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
-	if cfg, err := a.authServer.GetClusterNetworkingConfig(ctx); err == nil {
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
@@ -2952,11 +2953,11 @@ func getBotName(user types.User) string {
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
-	authPref, err := a.authServer.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3054,7 +3055,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
+			sessionTTL := roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration())
 			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
@@ -3218,30 +3219,62 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	var sshPublicKey, tlsPublicKey []byte
+	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+	if sharedPublicKey != nil {
+		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
+		}
+		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
+		}
+		sshPublicKey = sharedPublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+	} else {
+		sshPublicKey = req.SSHPublicKey
+		tlsPublicKey = req.TLSPublicKey
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
+	}
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
-		mfaVerified:       verifiedMFADeviceID,
-		user:              user,
-		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:     req.Format,
-		publicKey:         req.PublicKey,
-		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		dbService:         req.RouteToDatabase.ServiceName,
-		dbProtocol:        req.RouteToDatabase.Protocol,
-		dbUser:            req.RouteToDatabase.Username,
-		dbName:            req.RouteToDatabase.Database,
-		dbRoles:           req.RouteToDatabase.Roles,
-		appSessionID:      appSessionID,
-		appName:           req.RouteToApp.Name,
-		appPublicAddr:     req.RouteToApp.PublicAddr,
-		appClusterName:    req.RouteToApp.ClusterName,
-		awsRoleARN:        req.RouteToApp.AWSRoleARN,
-		azureIdentity:     req.RouteToApp.AzureIdentity,
-		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
-		checker:           checker,
+		mfaVerified:                      verifiedMFADeviceID,
+		user:                             user,
+		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:                    req.Format,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		dbService:                        req.RouteToDatabase.ServiceName,
+		dbProtocol:                       req.RouteToDatabase.Protocol,
+		dbUser:                           req.RouteToDatabase.Username,
+		dbName:                           req.RouteToDatabase.Database,
+		dbRoles:                          req.RouteToDatabase.Roles,
+		appSessionID:                     appSessionID,
+		appName:                          req.RouteToApp.Name,
+		appPublicAddr:                    req.RouteToApp.PublicAddr,
+		appClusterName:                   req.RouteToApp.ClusterName,
+		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
+		azureIdentity:                    req.RouteToApp.AzureIdentity,
+		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		checker:                          checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP: a.context.Identity.GetIdentity().LoginIP,
@@ -3250,8 +3283,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
-		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -3302,6 +3340,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
 		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.updateBotInstance(ctx, &certReq); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4483,8 +4527,11 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GetAuthPreference(ctx)
+	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
@@ -4673,7 +4720,11 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx)
+	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -6772,12 +6823,12 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 // enforceGlobalModeTrustedDevice is used to enforce global device trust requirements
 // for key endpoints.
 func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) error {
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 

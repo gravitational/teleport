@@ -22,7 +22,7 @@ import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
-import { Flex } from 'design';
+import { Flex, H2 } from 'design';
 
 import {
   NotificationSubKind,
@@ -43,6 +43,55 @@ export default {
 };
 
 initialize();
+
+export const NotificationCard = () => {
+  const ctx = createTeleportContext();
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Flex
+          mt={4}
+          p={4}
+          gap={4}
+          css={`
+            background: ${props => props.theme.colors.levels.surface};
+            width: 450px;
+            height: fit-content;
+            flex-direction: column;
+          `}
+        >
+          <Flex flexDirection="column">
+            <H2 textAlign="center" mb={2}>
+              Visited: Yes
+            </H2>
+            <Notification
+              notification={mockNotifications[5]}
+              closeNotificationsList={() => null}
+              markNotificationAsClicked={() => null}
+              removeNotification={() => null}
+            />
+          </Flex>
+          <Flex flexDirection="column">
+            <H2 textAlign="center" mb={2}>
+              Visited: No
+            </H2>
+            <Notification
+              notification={{
+                ...mockNotifications[5],
+                clicked: false,
+                id: '2',
+              }}
+              closeNotificationsList={() => null}
+              markNotificationAsClicked={() => null}
+              removeNotification={() => null}
+            />
+          </Flex>
+        </Flex>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
 
 export const NotificationTypes = () => {
   const ctx = createTeleportContext();
