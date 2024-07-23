@@ -31,16 +31,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/digitorus/pkcs7"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
@@ -50,6 +56,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -595,6 +604,371 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		require.NoError(t, err)
 		checkCertLoginIP(t, certs.TLS, remoteAddr)
 	})
+}
+
+// authClientForCerts is a test helper that creates an auth client for the given certs.
+func authClientForCerts(t *testing.T, ctx context.Context, addr *utils.NetAddr, tlsPrivateKey, sshPublicKey []byte, certs *proto.Certs) *authclient.Client {
+	t.Helper()
+
+	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+		PrivateKeyBytes: tlsPrivateKey,
+		PublicKeyBytes:  sshPublicKey,
+		TokenHashBytes:  []byte{},
+	}, certs)
+	require.NoError(t, err)
+
+	facade := identity.NewFacade(false, true, ident)
+
+	tlsConfig, err := facade.TLSConfig()
+	require.NoError(t, err)
+	sshConfig, err := facade.SSHClientConfig()
+	require.NoError(t, err)
+
+	resolver, err := reversetunnelclient.CachingResolver(
+		ctx,
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: addr.String(),
+			Insecure:  true,
+		}),
+		nil /* clock */)
+	require.NoError(t, err)
+
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   logrus.StandardLogger(),
+		InsecureSkipTLSVerify: true,
+		ClusterCAs:            tlsConfig.RootCAs,
+	})
+	require.NoError(t, err)
+
+	authClientConfig := &authclient.Config{
+		TLS:         tlsConfig,
+		SSH:         sshConfig,
+		AuthServers: []utils.NetAddr{*addr},
+		Log:         logrus.StandardLogger(),
+		Insecure:    true,
+		ProxyDialer: dialer,
+		DialOpts: []grpc.DialOption{
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot),
+		},
+	}
+
+	c, err := authclient.Connect(ctx, authClientConfig)
+	require.NoError(t, err)
+
+	return c
+}
+
+// instanceIDFromCerts parses a TLS identity from the certificates and returns
+// the embedded BotInstanceID, if any.
+func instanceIDFromCerts(t *testing.T, certs *proto.Certs) string {
+	t.Helper()
+
+	cert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+
+	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+
+	return ident.BotInstanceID
+}
+
+// registerHelper calls `join.Register` with the given token, prefilling params
+// where possible. Overrides may be applied with `fns`.
+func registerHelper(
+	ctx context.Context, token types.ProvisionToken,
+	addr *utils.NetAddr, tlsPublicKey, sshPublicKey []byte,
+	fns ...func(*join.RegisterParams),
+) (*proto.Certs, error) {
+	params := join.RegisterParams{
+		JoinMethod: token.GetJoinMethod(),
+		Token:      token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers:  []utils.NetAddr{*addr},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
+		KubernetesReadFileFunc: func(name string) ([]byte, error) {
+			return []byte("jwks-matching-service-account"), nil
+		},
+	}
+
+	for _, fn := range fns {
+		fn(&params)
+	}
+
+	return join.Register(ctx, params)
+}
+
+// TestRegisterBot_BotInstanceRejoin validates that bot instance IDs are
+// preserved when rejoining with an authenticated auth client.
+func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
+	// Note: Can not enable parallel testing for this due to use of t.Setenv()
+	// for AWS client configuration.
+	experimentBefore := experiment.Enabled()
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	srv := newTestTLSServer(t)
+	a := srv.Auth()
+	addr := utils.MustParseAddr(srv.Addr().String())
+
+	// Configure mock join methods
+	k8sTokenName := "jwks-matching-service-account"
+	k8sReadFileFunc := func(name string) ([]byte, error) {
+		return []byte(k8sTokenName), nil
+	}
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+		if token == k8sTokenName {
+			return &kubernetestoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+		}
+
+		return nil, errMockInvalidToken
+	}
+
+	a.httpClientForAWSSTS = &mockClient{
+		respStatusCode: http.StatusOK,
+		respBody: responseFromAWSIdentity(awsIdentity{
+			Account: "1234",
+			Arn:     "arn:aws::1111",
+		}),
+	}
+
+	nodeCredentials, err := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN").Get()
+	require.NoError(t, err)
+	t.Setenv("AWS_ACCESS_KEY_ID", nodeCredentials.AccessKeyID)
+	t.Setenv("AWS_SECRET_ACCESS_KEY", nodeCredentials.SecretAccessKey)
+	t.Setenv("AWS_SESSION_TOKEN", nodeCredentials.SessionToken)
+	t.Setenv("AWS_REGION", "us-west-2")
+
+	// Create a bot
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	require.NoError(t, err)
+
+	roleName := "test-role"
+	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	botName := "bot"
+	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Metadata: &headerv1.Metadata{
+			Name: botName,
+		},
+		Spec: &machineidv1pb.BotSpec{
+			Roles: []string{roleName},
+		},
+	}, a.clock.Now(), "")
+	require.NoError(t, err)
+
+	// Create k8s and IAM join tokens
+	k8sToken, err := types.NewProvisionTokenFromSpec("static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleBot},
+		BotName:    botName,
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeStaticJWKS,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: "static-jwks:matching"},
+			},
+			StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+				JWKS: "fake-jwks",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.CreateToken(ctx, k8sToken))
+
+	awsToken, err := types.NewProvisionTokenFromSpec(
+		"aws-test-token",
+		time.Now().Add(10*time.Minute),
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleBot},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: "1234",
+					AWSARN:     "arn:aws::1111",
+				},
+			},
+			BotName:    botName,
+			JoinMethod: types.JoinMethodIAM,
+		})
+	require.NoError(t, err)
+	require.NoError(t, a.UpsertToken(ctx, awsToken))
+
+	// Join as a "bot" with both token types.
+	k8sCerts, err := registerHelper(ctx, k8sToken, addr, tlsPublicKey, sshPublicKey, func(p *join.RegisterParams) {
+		p.KubernetesReadFileFunc = k8sReadFileFunc
+	})
+	require.NoError(t, err)
+	initialK8sInstanceID := instanceIDFromCerts(t, k8sCerts)
+	require.NotEmpty(t, initialK8sInstanceID)
+
+	awsCerts, err := registerHelper(ctx, awsToken, addr, tlsPublicKey, sshPublicKey)
+	require.NoError(t, err)
+	initialAWSInstanceID := instanceIDFromCerts(t, awsCerts)
+	require.NotEmpty(t, initialAWSInstanceID)
+
+	// They should be issued unique IDs despite being the same bot.
+	require.NotEqual(t, initialK8sInstanceID, initialAWSInstanceID, "instance IDs must not be the same when no client certs are provided")
+
+	// Rejoin using the k8s client and make sure we're issued certs with the
+	// same instance ID.
+	k8sClient := authClientForCerts(t, ctx, addr, sshPrivateKey, sshPublicKey, k8sCerts)
+	rejoinedK8sCerts, err := registerHelper(ctx, k8sToken, addr, tlsPublicKey, sshPublicKey, func(p *join.RegisterParams) {
+		p.KubernetesReadFileFunc = k8sReadFileFunc
+		p.AuthClient = k8sClient
+	})
+	require.NoError(t, err)
+	require.Equal(t, initialK8sInstanceID, instanceIDFromCerts(t, rejoinedK8sCerts))
+
+	// Repeat for the AWS client. Note that the AWS client is routed through the
+	// join service, the instance ID must be provided to auth by the proxy as
+	// part of the `RegisterUsingTokenRequest`.
+	iamClient := authClientForCerts(t, ctx, addr, sshPrivateKey, sshPublicKey, awsCerts)
+	rejoinedAWSCerts, err := registerHelper(ctx, awsToken, addr, tlsPublicKey, sshPublicKey, func(p *join.RegisterParams) {
+		p.AuthClient = iamClient
+	})
+	require.NoError(t, err)
+	require.Equal(t, initialAWSInstanceID, instanceIDFromCerts(t, rejoinedAWSCerts))
+
+	// Last, try to lie to auth. The k8s value should be overwritten with the
+	// correct instance ID since auth can directly inspect the client identity.
+	// For good measure, we'll include a "legitimate" instance ID from the AWS
+	// bot.
+	certs, err := k8sClient.RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
+		Token:         k8sToken.GetName(),
+		HostID:        "test-bot",
+		IDToken:       k8sTokenName,
+		Role:          types.RoleBot,
+		PublicSSHKey:  sshPublicKey,
+		PublicTLSKey:  tlsPublicKey,
+		BotInstanceID: initialAWSInstanceID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, initialK8sInstanceID, instanceIDFromCerts(t, certs))
+
+	// Note: Lying via IAM join not tested as that must be routed through the
+	// join service (along with Azure and TPM).
+}
+
+// TestRegisterBotWithInvalidInstanceID ensures that client-specified instance
+// IDs from untrusted sources are ignored and will be issued a new bot instance
+// ID.
+func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
+	experimentBefore := experiment.Enabled()
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	srv := newTestTLSServer(t)
+	a := srv.Auth()
+
+	botName := "bot"
+	k8sTokenName := "jwks-matching-service-account"
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+		if token == k8sTokenName {
+			return &kubernetestoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+		}
+
+		return nil, errMockInvalidToken
+	}
+	token, err := types.NewProvisionTokenFromSpec("static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleBot},
+		BotName:    botName,
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeStaticJWKS,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: "static-jwks:matching"},
+			},
+			StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+				JWKS: "fake-jwks",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.CreateToken(ctx, token))
+
+	roleName := "test-role"
+	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Metadata: &headerv1.Metadata{
+			Name: botName,
+		},
+		Spec: &machineidv1pb.BotSpec{
+			Roles: []string{roleName},
+		},
+	}, a.clock.Now(), "")
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	// Try registering with a proxy client; this is trusted but the invalid
+	// instance ID should be overwritten and a new instance generated.
+	certs, err := srv.Auth().RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
+		Token:         token.GetName(),
+		HostID:        "test-bot",
+		Role:          types.RoleBot,
+		PublicSSHKey:  sshPublicKey,
+		PublicTLSKey:  tlsPublicKey,
+		IDToken:       k8sTokenName,
+		BotInstanceID: "foo",
+	})
+
+	// Should not generate any errors, especially some variety of "instance not
+	// found" which might indicate improper behavior when encountering a
+	// nonexistent token.
+	require.NoError(t, err)
+
+	// Should not issue certs with an obviously invalid instance ID, or no ID.
+	id := instanceIDFromCerts(t, certs)
+	require.NotEmpty(t, id)
+	require.NotEqual(t, "foo", id)
+
+	// Try registering with a non-proxy client; this is untrusted and the
+	// client-provided ID should be discarded.
+	certs, err = client.RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
+		Token:         token.GetName(),
+		HostID:        "test-bot",
+		Role:          types.RoleBot,
+		PublicSSHKey:  sshPublicKey,
+		PublicTLSKey:  tlsPublicKey,
+		IDToken:       k8sTokenName,
+		BotInstanceID: "foo",
+	})
+
+	// As above, should not generate any errors, and a new ID should be
+	// generated.
+	require.NoError(t, err)
+
+	id = instanceIDFromCerts(t, certs)
+	require.NotEmpty(t, id)
+	require.NotEqual(t, "foo", id)
 }
 
 func checkCertLoginIP(t *testing.T, certBytes []byte, loginIP string) {

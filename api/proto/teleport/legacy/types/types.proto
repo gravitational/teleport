@@ -5262,6 +5262,11 @@ message RegisterUsingTokenRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // BotInstanceID is a trusted instance identifier for a Machine ID bot,
+  // provided when rejoining. This parameters may only be provided by the join
+  // service and is ignored otherwise; bots should otherwise rejoin with their
+  // existing client certificate to prove their instance identity.
+  string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
