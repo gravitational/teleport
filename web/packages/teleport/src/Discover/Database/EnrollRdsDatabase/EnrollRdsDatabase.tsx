@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, Toggle } from 'design';
+import { Box, Text, Toggle, Mark } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
@@ -50,7 +50,6 @@ import {
   AutoEnrollDialog,
   ActionButtons,
   Header,
-  Mark,
   SelfHostedAutoDiscoverDirections,
 } from '../../Shared';
 
