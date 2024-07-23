@@ -80,6 +80,17 @@ type CredentialsWithDefaultAddrs interface {
 	DefaultAddrs() ([]string, error)
 }
 
+// Expiry checks if the Credentials has an Expiry function and invokes it.
+// Starting with v17, this is part of the Credentials interface but we must be backward compatible with v16 and below.
+// If the Credentials don't implement Expiry, returns false.
+func Expiry(c Credentials) (time.Time, bool) {
+	credsWithExpiry, ok := c.(CredentialsWithExpiry)
+	if !ok {
+		return time.Time{}, false
+	}
+	return credsWithExpiry.Expiry()
+}
+
 // LoadTLS is used to load Credentials directly from a *tls.Config.
 //
 // TLS creds can only be used to connect directly to a Teleport Auth server.
