@@ -44,6 +44,11 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
   rpc ListSecurityGroups(ListSecurityGroupsRequest) returns (ListSecurityGroupsResponse);
 
+  // ListSubnets returns a list of AWS VPC subnets.
+  // It uses the following API:
+  // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
+  rpc ListSubnets(ListSubnetsRequest) returns (ListSubnetsResponse);
+
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 
@@ -160,6 +165,9 @@ message ListDatabasesRequest {
   // NextToken is the token to be used to fetch the next page.
   // If empty, the first page is fetched.
   string next_token = 5;
+  // VPCID filters databases to only include those deployed in the VPC.
+  // If empty, no filtering is done.
+  string vpc_id = 6;
 }
 
 // ListDatabasesResponse contains a page of AWS Databases.
@@ -231,6 +239,41 @@ message SecurityGroup {
 message ListSecurityGroupsResponse {
   // SecurityGroups contains the page of SecurityGroups.
   repeated SecurityGroup security_groups = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
+
+// ListSubnetsRequest is a request for a paginated list of AWS VPC subnets.
+message ListSubnetsRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // VPCID is the VPC ID for listing subnets.
+  // Required.
+  string vpc_id = 3;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 4;
+}
+
+// Subnet is a representation of an AWS VPC subnet.
+message Subnet {
+  // Name is the subnet name.
+  string name = 1;
+  // ID is the subnet ID.
+  string id = 2;
+  // AvailabilityZone is the availability zone of the subnet.
+  string availability_zone = 3;
+}
+
+// ListSubnetsResponse contains a page of AWS VPC subnets.
+message ListSubnetsResponse {
+  // Subnets contains the page of subnets.
+  repeated Subnet subnets = 1;
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;

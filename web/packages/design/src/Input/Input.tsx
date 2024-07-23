@@ -67,20 +67,20 @@ const Input = styled.input<InputProps>`
     border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
-  ::-ms-clear {
+  &::-ms-clear {
     display: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${props => props.theme.colors.text.muted};
     opacity: 1;
   }
 
-  :read-only {
+  &:read-only {
     cursor: not-allowed;
   }
 
-  :disabled {
+  &:disabled {
     color: ${props => props.theme.colors.text.disabled};
     border-color: ${props => props.theme.colors.text.disabled};
   }

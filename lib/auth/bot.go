@@ -202,17 +202,23 @@ func (a *Server) updateBotInstance(
 		return nil
 	}
 
-	// req.PublicKey is in SSH Authorized Keys format. For consistency, we
-	// only store public keys in PEM wrapped PKIX, DER format within
-	// BotInstances.
-	pkixPEM, err := sshPublicKeyToPKIXPEM(req.publicKey)
-	if err != nil {
-		return trace.Wrap(err, "converting key")
+	// TODO(nklaassen): consider recording both public keys once they are
+	// actually separated.
+	var publicKeyPEM []byte
+	if req.tlsPublicKey != nil {
+		publicKeyPEM = req.tlsPublicKey
+	} else {
+		// At least one of tlsPublicKey or sshPublicKey will be set, this is validated by [req.check].
+		var err error
+		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.sshPublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
-		PublicKey:       pkixPEM,
+		PublicKey:       publicKeyPEM,
 
 		// TODO: for now, this copy of the certificate generation only is
 		// informational. Future changes will transition to trusting (and
@@ -261,7 +267,7 @@ func (a *Server) updateBotInstance(
 		return nil
 	}
 
-	_, err = a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
@@ -323,7 +329,8 @@ func newBotInstance(
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
 func (a *Server) generateInitialBotCerts(
-	ctx context.Context, botName, username, loginIP string, pubKey []byte,
+	ctx context.Context, botName, username, loginIP string,
+	sshPubKey, tlsPubKey []byte,
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string,
@@ -375,7 +382,8 @@ func (a *Server) generateInitialBotCerts(
 	certReq := certRequest{
 		user:          userState,
 		ttl:           expires.Sub(a.GetClock().Now()),
-		publicKey:     pubKey,
+		sshPublicKey:  sshPubKey,
+		tlsPublicKey:  tlsPubKey,
 		checker:       checker,
 		traits:        accessInfo.Traits,
 		renewable:     renewable,

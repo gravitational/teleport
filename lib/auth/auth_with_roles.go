@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -3238,30 +3239,62 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	var sshPublicKey, tlsPublicKey []byte
+	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+	if sharedPublicKey != nil {
+		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
+		}
+		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
+		}
+		sshPublicKey = sharedPublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+	} else {
+		sshPublicKey = req.SSHPublicKey
+		tlsPublicKey = req.TLSPublicKey
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
+	}
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
-		mfaVerified:       verifiedMFADeviceID,
-		user:              user,
-		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:     req.Format,
-		publicKey:         req.PublicKey,
-		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		dbService:         req.RouteToDatabase.ServiceName,
-		dbProtocol:        req.RouteToDatabase.Protocol,
-		dbUser:            req.RouteToDatabase.Username,
-		dbName:            req.RouteToDatabase.Database,
-		dbRoles:           req.RouteToDatabase.Roles,
-		appSessionID:      appSessionID,
-		appName:           req.RouteToApp.Name,
-		appPublicAddr:     req.RouteToApp.PublicAddr,
-		appClusterName:    req.RouteToApp.ClusterName,
-		awsRoleARN:        req.RouteToApp.AWSRoleARN,
-		azureIdentity:     req.RouteToApp.AzureIdentity,
-		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
-		checker:           checker,
+		mfaVerified:                      verifiedMFADeviceID,
+		user:                             user,
+		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:                    req.Format,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		dbService:                        req.RouteToDatabase.ServiceName,
+		dbProtocol:                       req.RouteToDatabase.Protocol,
+		dbUser:                           req.RouteToDatabase.Username,
+		dbName:                           req.RouteToDatabase.Database,
+		dbRoles:                          req.RouteToDatabase.Roles,
+		appSessionID:                     appSessionID,
+		appName:                          req.RouteToApp.Name,
+		appPublicAddr:                    req.RouteToApp.PublicAddr,
+		appClusterName:                   req.RouteToApp.ClusterName,
+		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
+		azureIdentity:                    req.RouteToApp.AzureIdentity,
+		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		checker:                          checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP: a.context.Identity.GetIdentity().LoginIP,
@@ -3270,7 +3303,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
-		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots

@@ -31,11 +31,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -317,12 +319,25 @@ func botIdentityFromAuth(
 	if ident == nil || client == nil {
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
+
+	// TODO(nklaassen): split SSH and TLS keys in identity.
+	sshPublicKey := ident.PublicKeyBytes
+	cryptoPubKey, err := sshutils.CryptoPublicKey(sshPublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: ident.PublicKeyBytes,
-		Username:  ident.X509Cert.Subject.CommonName,
-		Expires:   time.Now().Add(ttl),
+		SSHPublicKey: sshPublicKey,
+		TLSPublicKey: tlsPublicKey,
+		Username:     ident.X509Cert.Subject.CommonName,
+		Expires:      time.Now().Add(ttl),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "calling GenerateUserCerts")

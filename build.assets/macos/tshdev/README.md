@@ -81,6 +81,15 @@ through the steps here unless you are trying to recreate parts of the skeleton
     For example, click "build" and copy the app using "Product -> Show Build
     Folder in Finder".
 
+## FIDO2
+
+In order to have a signed binary with FIDO2 support, you need to statically link libfido2.
+
+```
+make build-fido2
+PKG_CONFIG_PATH=$(make print-fido2-pkg-path) FIDO2=static make build/tsh
+```
+
 ## Working with launch daemons
 
 tsh.app includes a launch daemon for VNet under `Contents/Library/LaunchDaemons`. tsh uses

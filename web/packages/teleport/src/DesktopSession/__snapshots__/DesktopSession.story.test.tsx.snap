@@ -46,7 +46,7 @@ exports[`another session active 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c10:active,
@@ -58,7 +58,7 @@ exports[`another session active 1`] = `
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -84,7 +84,7 @@ exports[`another session active 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -97,8 +97,8 @@ exports[`another session active 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -120,13 +120,13 @@ exports[`another session active 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c9 {
+.c7 {
   box-sizing: border-box;
 }
 
@@ -136,26 +136,17 @@ exports[`another session active 1`] = `
   min-height: 32px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c5 {
@@ -170,7 +161,7 @@ exports[`another session active 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -211,6 +202,12 @@ exports[`another session active 1`] = `
   width: 484px;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -231,20 +228,19 @@ exports[`another session active 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Another Session Is Active
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         This desktop has an active session, connecting to it may close the other session. Do you wish to continue?
       </div>
       <div
-        class="c9"
+        class="c7"
       >
         <button
           class="c10"
@@ -311,7 +307,7 @@ exports[`connected settings false 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c9:active,
@@ -323,7 +319,7 @@ exports[`connected settings false 1`] = `
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -348,7 +344,7 @@ exports[`connected settings false 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 {
@@ -370,11 +366,11 @@ exports[`connected settings false 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -410,7 +406,7 @@ exports[`connected settings false 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -649,7 +645,7 @@ exports[`connected settings true 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c9:active,
@@ -661,7 +657,7 @@ exports[`connected settings true 1`] = `
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -686,7 +682,7 @@ exports[`connected settings true 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 {
@@ -708,11 +704,11 @@ exports[`connected settings true 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -748,7 +744,7 @@ exports[`connected settings true 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -961,7 +957,7 @@ exports[`connection error 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -975,8 +971,8 @@ exports[`connection error 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -998,13 +994,13 @@ exports[`connection error 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1021,11 +1017,11 @@ exports[`connection error 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
-.c10 {
+.c7 {
   box-sizing: border-box;
 }
 
@@ -1035,26 +1031,17 @@ exports[`connection error 1`] = `
   min-height: 32px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c5 {
@@ -1069,7 +1056,7 @@ exports[`connection error 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -1110,6 +1097,12 @@ exports[`connection error 1`] = `
   width: 484px;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -1130,18 +1123,17 @@ exports[`connection error 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Disconnected
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="info"
         >
           some tdp error
@@ -1149,7 +1141,7 @@ exports[`connection error 1`] = `
         Refresh the page to reconnect.
       </div>
       <div
-        class="c10"
+        class="c7"
       >
         <button
           class="c11"
@@ -1211,7 +1203,7 @@ exports[`disconnected 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c9:active,
@@ -1223,7 +1215,7 @@ exports[`disconnected 1`] = `
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1248,7 +1240,7 @@ exports[`disconnected 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c14 {
@@ -1270,11 +1262,11 @@ exports[`disconnected 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1310,7 +1302,7 @@ exports[`disconnected 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -1523,7 +1515,7 @@ exports[`fetch error 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -1537,8 +1529,8 @@ exports[`fetch error 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1560,13 +1552,13 @@ exports[`fetch error 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1583,11 +1575,11 @@ exports[`fetch error 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
-.c10 {
+.c7 {
   box-sizing: border-box;
 }
 
@@ -1597,26 +1589,17 @@ exports[`fetch error 1`] = `
   min-height: 32px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c5 {
@@ -1631,7 +1614,7 @@ exports[`fetch error 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -1672,6 +1655,12 @@ exports[`fetch error 1`] = `
   width: 484px;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -1692,18 +1681,17 @@ exports[`fetch error 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Disconnected
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="info"
         >
           some fetch  error
@@ -1711,7 +1699,7 @@ exports[`fetch error 1`] = `
         Refresh the page to reconnect.
       </div>
       <div
-        class="c10"
+        class="c7"
       >
         <button
           class="c11"
@@ -1773,7 +1761,7 @@ exports[`fetch processing 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c9:active,
@@ -1785,7 +1773,7 @@ exports[`fetch processing 1`] = `
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1810,7 +1798,7 @@ exports[`fetch processing 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 {
@@ -1838,11 +1826,11 @@ exports[`fetch processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1878,7 +1866,7 @@ exports[`fetch processing 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -2120,7 +2108,7 @@ exports[`processing 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c9:active,
@@ -2132,7 +2120,7 @@ exports[`processing 1`] = `
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -2157,7 +2145,7 @@ exports[`processing 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 {
@@ -2185,11 +2173,11 @@ exports[`processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2225,7 +2213,7 @@ exports[`processing 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -2467,7 +2455,7 @@ exports[`tdp processing 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c9:active,
@@ -2479,7 +2467,7 @@ exports[`tdp processing 1`] = `
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -2504,7 +2492,7 @@ exports[`tdp processing 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c16 {
@@ -2532,11 +2520,11 @@ exports[`tdp processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2572,7 +2560,7 @@ exports[`tdp processing 1`] = `
 .c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -2788,7 +2776,7 @@ exports[`unintended disconnect 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -2802,8 +2790,8 @@ exports[`unintended disconnect 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -2825,13 +2813,13 @@ exports[`unintended disconnect 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c9 {
+.c10 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2848,11 +2836,11 @@ exports[`unintended disconnect 1`] = `
   color: #000000;
 }
 
-.c9 a {
+.c10 a {
   color: #FFFFFF;
 }
 
-.c10 {
+.c7 {
   box-sizing: border-box;
 }
 
@@ -2862,26 +2850,17 @@ exports[`unintended disconnect 1`] = `
   min-height: 32px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c5 {
@@ -2896,7 +2875,7 @@ exports[`unintended disconnect 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -2937,6 +2916,12 @@ exports[`unintended disconnect 1`] = `
   width: 484px;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -2957,18 +2942,17 @@ exports[`unintended disconnect 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Disconnected
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
           kind="info"
         >
           websocket disconnected for an unknown reason
@@ -2976,7 +2960,7 @@ exports[`unintended disconnect 1`] = `
         Refresh the page to reconnect.
       </div>
       <div
-        class="c10"
+        class="c7"
       >
         <button
           class="c11"
@@ -2992,7 +2976,7 @@ exports[`unintended disconnect 1`] = `
 `;
 
 exports[`webauthn prompt 1`] = `
-.c11 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3024,8 +3008,8 @@ exports[`webauthn prompt 1`] = `
   width: 130px;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -3033,30 +3017,30 @@ exports[`webauthn prompt 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c12:hover,
+.teleport-button__force-hover .c12 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c12:active,
+.teleport-button__force-active .c12 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c11:disabled {
+.c12:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
-.c12 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3076,7 +3060,7 @@ exports[`webauthn prompt 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -3086,33 +3070,33 @@ exports[`webauthn prompt 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c12:focus-visible,
-.teleport-button__force-focus-visible .c12 {
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
 
-.c12:hover,
-.teleport-button__force-hover .c12 {
+.c13:hover,
+.teleport-button__force-hover .c13 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c12:active,
-.teleport-button__force-active .c12 {
+.c13:active,
+.teleport-button__force-active .c13 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c12:disabled {
+.c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -3127,10 +3111,9 @@ exports[`webauthn prompt 1`] = `
 .c7 {
   box-sizing: border-box;
   margin-bottom: 40px;
-  flex: 1;
 }
 
-.c10 {
+.c11 {
   box-sizing: border-box;
   text-align: center;
 }
@@ -3138,25 +3121,22 @@ exports[`webauthn prompt 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
   text-align: center;
 }
 
-.c9 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   text-align: center;
 }
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
 .c5 {
@@ -3171,7 +3151,7 @@ exports[`webauthn prompt 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -3212,6 +3192,13 @@ exports[`webauthn prompt 1`] = `
   width: 400px;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+  margin-bottom: 40px;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -3232,34 +3219,33 @@ exports[`webauthn prompt 1`] = `
         class="c4 c5"
         style="flex-direction: column;"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Multi-factor authentication
-        </div>
+        </h2>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           Re-enter your multi-factor authentication in the browser to continue.
         </div>
       </div>
       <div
-        class="c10"
+        class="c11"
       >
         <button
-          class="c11"
+          class="c12"
           fill="filled"
           width="130px"
         >
           OK
         </button>
         <button
-          class="c12"
+          class="c13"
           fill="filled"
         >
           Cancel

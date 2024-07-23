@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -38,7 +39,9 @@ import (
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // EventsService implements service to watch for events
@@ -211,6 +214,16 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessMonitoringRuleParser()
 		case types.KindBotInstance:
 			parser = newBotInstanceParser()
+		case types.KindInstance:
+			parser = newInstanceParser()
+		case types.KindDevice:
+			parser = newDeviceParser()
+		case types.KindAccessGraphSecretPrivateKey:
+			parser = newAccessGraphSecretPrivateKeyParser()
+		case types.KindAccessGraphSecretAuthorizedKey:
+			parser = newAccessGraphSecretAuthorizedKeyParser()
+		case types.KindAccessGraphSettings:
+			parser = newAccessGraphSettingsParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2161,6 +2174,31 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newInstanceParser() *instanceParser {
+	return &instanceParser{
+		baseParser: newBaseParser(backend.Key(instancePrefix)),
+	}
+}
+
+type instanceParser struct {
+	baseParser
+}
+
+func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindInstance, types.V1, 0)
+	case types.OpPut:
+		instance, err := generic.FastUnmarshal[*types.InstanceV1](event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return instance, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
 	name, err := base(event.Item.Key, offset)
 	if err != nil {
@@ -2228,6 +2266,138 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 	}
 }
 
+func newDeviceParser() *deviceParser {
+	return &deviceParser{
+		baseParser: newBaseParser(backend.Key(devicetrust.DevicesIDPrefix...)),
+	}
+}
+
+type deviceParser struct {
+	baseParser
+}
+
+func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name, err := base(event.Item.Key, 0 /* offset */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		device := &types.DeviceV1{
+			ResourceHeader: types.ResourceHeader{
+				Kind:    types.KindDevice,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: string(name),
+				},
+			},
+		}
+		return device, nil
+	case types.OpPut:
+		device, err := services.UnmarshalDeviceFromBackendItem(event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// [devicepb.Device] doesn't satisfy types.Resource interface or Resource153 interface,
+		// so we need to convert it to types.DeviceV1 so it satisfy types.Resource interface.
+		dev := types.DeviceToResource(device)
+		// Set the expires and revision fields.
+		dev.SetExpiry(event.Item.Expires)
+		dev.SetRevision(event.Item.Revision)
+		return dev, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessGraphSecretPrivateKeyParser() *accessGraphSecretPrivateKeyParser {
+	return &accessGraphSecretPrivateKeyParser{
+		baseParser: newBaseParser(backend.Key(privateKeysPrefix)),
+	}
+}
+
+type accessGraphSecretPrivateKeyParser struct {
+	baseParser
+}
+
+func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		deviceID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		privateKey := &accessgraphsecretsv1pb.PrivateKey{
+			Kind:    types.KindAccessGraphSecretPrivateKey,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &accessgraphsecretsv1pb.PrivateKeySpec{
+				DeviceId: deviceID,
+			},
+		}
+
+		return types.Resource153ToLegacy(privateKey), nil
+	case types.OpPut:
+		pk, err := services.UnmarshalAccessGraphPrivateKey(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(pk), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessGraphSecretAuthorizedKeyParser() *accessGraphSecretAuthorizedKeyParser {
+	return &accessGraphSecretAuthorizedKeyParser{
+		baseParser: newBaseParser(backend.Key(authorizedKeysPrefix)),
+	}
+}
+
+type accessGraphSecretAuthorizedKeyParser struct {
+	baseParser
+}
+
+func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
+			Kind:    types.KindAccessGraphSecretAuthorizedKey,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
+				HostId: hostID,
+			},
+		}
+
+		return types.Resource153ToLegacy(authorizedKey), nil
+	case types.OpPut:
+		ak, err := services.UnmarshalAccessGraphAuthorizedKey(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(ak), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 // Match matches the specified resource event by applying itself
 func (r EventMatcherFunc) Match(event types.Event) (types.Resource, error) {
 	return r(event)
@@ -2262,4 +2432,38 @@ func baseTwoKeys(key []byte) (string, string, error) {
 		return "", "", trace.NotFound("failed parsing %v", string(key))
 	}
 	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
+}
+
+func newAccessGraphSettingsParser() *accessGraphSettingsParser {
+	return &accessGraphSettingsParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix)),
+	}
+}
+
+type accessGraphSettingsParser struct {
+	baseParser
+}
+
+func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAccessGraphSettings, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAccessGraphSettings)
+		return h, nil
+	case types.OpPut:
+		settings, err := services.UnmarshalAccessGraphSettings(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(settings), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

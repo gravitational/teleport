@@ -238,22 +238,27 @@ type ProfileStatus struct {
 	// files on disk - must be accompanied by fallback logic when those paths
 	// do not exist.
 	IsVirtual bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
 // derived directly from a Key.
 type profileOptions struct {
-	ProfileName   string
-	ProfileDir    string
-	WebProxyAddr  string
-	Username      string
-	SiteName      string
-	KubeProxyAddr string
-	IsVirtual     bool
+	ProfileName             string
+	ProfileDir              string
+	WebProxyAddr            string
+	Username                string
+	SiteName                string
+	KubeProxyAddr           string
+	IsVirtual               bool
+	SAMLSingleLogoutEnabled bool
 }
 
 // profileFromkey returns a ProfileStatus for the given key and options.
-func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error) {
+func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, error) {
 	sshCert, err := key.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -350,25 +355,26 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		Username:           opts.Username,
-		Logins:             sshCert.ValidPrincipals,
-		ValidUntil:         validUntil,
-		Extensions:         extensions,
-		CriticalOptions:    sshCert.CriticalOptions,
-		Roles:              roles,
-		Cluster:            opts.SiteName,
-		Traits:             traits,
-		ActiveRequests:     activeRequests,
-		KubeEnabled:        opts.KubeProxyAddr != "",
-		KubeUsers:          tlsID.KubernetesUsers,
-		KubeGroups:         tlsID.KubernetesGroups,
-		Databases:          databases,
-		Apps:               apps,
-		AWSRolesARNs:       tlsID.AWSRoleARNs,
-		AzureIdentities:    tlsID.AzureIdentities,
-		GCPServiceAccounts: tlsID.GCPServiceAccounts,
-		IsVirtual:          opts.IsVirtual,
-		AllowedResourceIDs: allowedResourceIDs,
+		Username:                opts.Username,
+		Logins:                  sshCert.ValidPrincipals,
+		ValidUntil:              validUntil,
+		Extensions:              extensions,
+		CriticalOptions:         sshCert.CriticalOptions,
+		Roles:                   roles,
+		Cluster:                 opts.SiteName,
+		Traits:                  traits,
+		ActiveRequests:          activeRequests,
+		KubeEnabled:             opts.KubeProxyAddr != "",
+		KubeUsers:               tlsID.KubernetesUsers,
+		KubeGroups:              tlsID.KubernetesGroups,
+		Databases:               databases,
+		Apps:                    apps,
+		AWSRolesARNs:            tlsID.AWSRoleARNs,
+		AzureIdentities:         tlsID.AzureIdentities,
+		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
+		IsVirtual:               opts.IsVirtual,
+		AllowedResourceIDs:      allowedResourceIDs,
+		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 	}, nil
 }
 

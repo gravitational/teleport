@@ -68,7 +68,7 @@ agents by:
   you can select a resource to enroll in your Teleport cluster and retrieve an
   installation script to run on Linux hosts.
 - Using the example Terraform module for deploying agents in [Deploy Agents with
-  Terraform](agents/deploy-agents-terraform.mdx).
+  Terraform](enroll-resources/agents/deploy-agents-terraform.mdx).
 - Running the [one-line installation script](#one-line-installation-script) on
   each Linux server where you want to install a Teleport agent.
 
@@ -219,7 +219,7 @@ repositories.
    | Ubuntu       | >= 16.04             | `ubuntu`                        |
 
    Note that [Enhanced Session
-   Recording](./server-access/guides/bpf-session-recording.mdx) requires Linux
+   Recording](./enroll-resources/server-access/guides/bpf-session-recording.mdx) requires Linux
    kernel version 5.8+. This means that it requires more recent OS versions than
    other Teleport features:
 
@@ -531,7 +531,7 @@ the image is customized in order to improve the experience of running `tbot` in 
 container environment.
 
 To learn more, read the
-[Deploying Machine ID on Kubernetes](./machine-id/deployment/kubernetes.mdx)
+[Deploying Machine ID on Kubernetes](./enroll-resources/machine-id/deployment/kubernetes.mdx)
 guide.
 
 ### Running Teleport on Docker
@@ -621,7 +621,7 @@ Service on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./agents/join-services-to-your-cluster/join-token.mdx).
+method](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -749,7 +749,7 @@ Teleport AMIs are automatically published to all [non-opt-in AWS regions](https:
 
 ## Helm
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 There are two charts available to install. Please see our guide for using each
 chart.
@@ -847,10 +847,10 @@ If you wish to uninstall Teleport at any time, see our documentation on [Uninsta
 Now that you know how to install Teleport, you can enable access to all of your
 infrastructure. Get started with:
 
-- [Server Access](server-access/introduction.mdx)
-- [Kubernetes Access](kubernetes-access/introduction.mdx)
-- [Database Access](database-access/introduction.mdx)
-- [Application Access](application-access/introduction.mdx)
-- [Desktop Access](desktop-access/introduction.mdx)
-- [Machine ID](machine-id/introduction.mdx)
+- [Server Access](enroll-resources/server-access/introduction.mdx)
+- [Kubernetes Access](enroll-resources/kubernetes-access/introduction.mdx)
+- [Database Access](enroll-resources/database-access/database-access.mdx)
+- [Application Access](enroll-resources/application-access/introduction.mdx)
+- [Desktop Access](enroll-resources/desktop-access/introduction.mdx)
+- [Machine ID](enroll-resources/machine-id/introduction.mdx)
 

@@ -22,7 +22,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Text } from 'design';
 import { Cross } from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
 
@@ -65,9 +65,7 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           mb={0}
           alignItems="baseline"
         >
-          <Text typography="h4" bold>
-            Reopen previous session
-          </Text>
+          <H2 mb={4}>Reopen previous session</H2>
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
@@ -107,7 +105,7 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
             Reopen
           </ButtonPrimary>
           <ButtonSecondary type="button" onClick={props.onCancel}>
-            Start new session
+            Start New Session
           </ButtonSecondary>
         </DialogFooter>
       </form>

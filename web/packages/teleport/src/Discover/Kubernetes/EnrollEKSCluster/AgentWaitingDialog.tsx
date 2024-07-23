@@ -16,14 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-import { AnimatedProgressBar, Box, ButtonPrimary, Text, Flex } from 'design';
+import {
+  AnimatedProgressBar,
+  Box,
+  ButtonPrimary,
+  Text,
+  Flex,
+  Mark,
+} from 'design';
 import React, { useEffect } from 'react';
 
 import * as Icons from 'design/Icon';
 
 import { Kube } from 'teleport/services/kube';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { Mark, TextIcon, useShowHint } from 'teleport/Discover/Shared';
+import { TextIcon, useShowHint } from 'teleport/Discover/Shared';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
 
 type AgentWaitingDialogProps = {
@@ -49,6 +56,11 @@ export function AgentWaitingDialog({
     // These are not used by usePingTeleport
     // todo(anton): Refactor usePingTeleport to not require full join token.
     expiry: undefined,
+    safeName: '',
+    isStatic: false,
+    method: 'kubernetes',
+    roles: [],
+    content: '',
     expiryText: '',
     id: '',
     suggestedLabels: [],
