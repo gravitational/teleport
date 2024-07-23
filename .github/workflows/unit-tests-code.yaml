@@ -70,8 +70,4 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api
-      
-      - name: Run Benchmarks Once
-        timeout-minutes: 5
-        run: make -j"$(nproc)" test-go-bench-ci
+        run: make -j"$(nproc)" test-go test-sh test-api test-go-bench-ci
