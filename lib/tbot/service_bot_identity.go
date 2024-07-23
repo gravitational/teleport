@@ -92,20 +92,27 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 }
 
 // loadIdentityFromStore attempts to load a persisted identity from a store.
-// It checks this loaded identity against the configured onboarding profile
-// and ignores the loaded identity if there has been a configuration change.
-func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
+// It then checks:
+// - This identity against the configured onboarding profile.
+// - This identity is not expired
+// If any checks fail, it will not return the loaded identity.
+func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) *identity.Identity {
 	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
-	s.log.InfoContext(ctx, "Loading existing bot identity from store.", "store", store)
+	s.log.InfoContext(ctx, "Loading existing bot identity from store", "store", store)
 
 	loadedIdent, err := identity.LoadIdentity(ctx, store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			s.log.InfoContext(ctx, "No existing bot identity found in store. Bot will join using configured token.")
-			return nil, nil
+			s.log.InfoContext(ctx, "No existing bot identity found in store")
+			return nil
 		} else {
-			return nil, trace.Wrap(err)
+			s.log.WarnContext(
+				ctx,
+				"Failed to load existing bot identity from store",
+				"error", err,
+			)
+			return nil
 		}
 	}
 
@@ -116,77 +123,99 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 			sha := sha256.Sum256([]byte(token))
 			configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
 			if hasTokenChanged(loadedIdent.TokenHashBytes, configTokenHashBytes) {
-				s.log.InfoContext(ctx, "Bot identity loaded from store does not match configured token. Bot will fetch identity using configured token.")
+				s.log.InfoContext(ctx, "Bot identity loaded from store does not match configured token")
 				// If the token has changed, do not return the loaded
 				// identity.
-				return nil, nil
+				return nil
 			}
 		} else {
 			// we failed to get the newly configured token to compare to,
 			// we'll assume the last good credentials written to disk should
 			// still be used.
-			s.log.ErrorContext(ctx, "There was an error loading the configured token. Bot identity loaded from store will be tried.", "error", err)
+			s.log.WarnContext(
+				ctx,
+				"There was an error loading the configured token to compare to existing identity. Identity loaded from store will be tried",
+				"error", err,
+			)
 		}
 	}
-	s.log.InfoContext(ctx, "Loaded existing bot identity from store.", "identity", describeTLSIdentity(ctx, s.log, loadedIdent))
 
-	return loadedIdent, nil
+	s.log.InfoContext(
+		ctx,
+		"Loaded existing bot identity from store",
+		"identity", describeTLSIdentity(ctx, s.log, loadedIdent),
+	)
+
+	now := time.Now().UTC()
+	if now.After(loadedIdent.X509Cert.NotAfter) {
+		s.log.WarnContext(
+			ctx,
+			"Identity loaded from store is expired, it will not be used",
+			"not_after", loadedIdent.X509Cert.NotAfter.Format(time.RFC3339),
+			"current_time", now.Format(time.RFC3339),
+		)
+		return nil
+	} else if now.Before(loadedIdent.X509Cert.NotBefore) {
+		s.log.WarnContext(
+			ctx,
+			"Identity loaded from store is not yet valid, it will not be used. Confirm that the system time is correct",
+			"not_before", loadedIdent.X509Cert.NotBefore.Format(time.RFC3339),
+			"current_time", now.Format(time.RFC3339),
+		)
+		return nil
+	}
+
+	return loadedIdent
 }
 
-// Initialize attempts to load an existing identity from the bot's storage.
-// If an identity is found, it is checked against the configured onboarding
-// settings. It is then renewed and persisted.
+// Initialize sets up the bot identity at startup. This process has a few
+// steps to it.
 //
-// If no identity is found, or the identity is no longer valid, a new identity
-// is requested using the configured onboarding settings.
+// First, we attempt to load an existing identity from the configured storage.
+// This is ignored if we know that the onboarding settings have changed.
+//
+// If the identity is found, and seems valid, we attempt to renew using this
+// identity to give us a fresh set of certificates.
+//
+// If there is no identity, or the identity is invalid, we'll join using the
+// configured onboarding settings.
 func (s *identityService) Initialize(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Initialize")
 	defer span.End()
 
-	s.log.InfoContext(ctx, "Initializing bot identity.")
-	var loadedIdent *identity.Identity
-	var err error
-	if s.cfg.Onboarding.RenewableJoinMethod() {
-		// Nil, nil will be returned if no identity can be found in store or
-		// the identity in the store is no longer relevant.
-		loadedIdent, err = s.loadIdentityFromStore(ctx, s.cfg.Storage.Destination)
-		if err != nil {
-			return trace.Wrap(err)
+	s.log.InfoContext(ctx, "Initializing bot identity")
+	// nil will be returned if no identity can be found in store or
+	// the identity in the store is no longer relevant or valid.
+	loadedIdent := s.loadIdentityFromStore(ctx, s.cfg.Storage.Destination)
+	if loadedIdent == nil {
+		if !s.cfg.Onboarding.HasToken() {
+			// There's no loaded identity to work with, and they've not
+			// configured  a token to use to request an identity :(
+			return trace.BadParameter(
+				"no existing identity found on disk or join token configured",
+			)
 		}
+		s.log.InfoContext(
+			ctx,
+			"Bot was unable to load a valid existing identity from the store, will attempt to join using configured token",
+		)
 	}
 
+	var err error
 	var newIdentity *identity.Identity
-	if s.cfg.Onboarding.RenewableJoinMethod() && loadedIdent != nil {
-		// If using a renewable join method and we loaded an identity, let's
-		// immediately renew it so we know that after initialisation we have the
-		// full certificate TTL.
-		if err := checkIdentity(ctx, s.log, loadedIdent); err != nil {
-			return trace.Wrap(err)
-		}
-		facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, loadedIdent)
-		authClient, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
+	if loadedIdent != nil {
+		newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.resolver, loadedIdent)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-		newIdentity, err = botIdentityFromAuth(
-			ctx, s.log, loadedIdent, authClient, s.cfg.CertificateTTL,
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else if s.cfg.Onboarding.HasToken() {
-		// If using a non-renewable join method, or we weren't able to load an
-		// identity from the store, let's get a new identity using the
-		// configured token.
-		newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg)
-		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "renewing identity using loaded identity")
 		}
 	} else {
-		// There's no loaded identity to work with, and they've not configured
-		// a token to use to request an identity :(
-		return trace.BadParameter("no existing identity found on disk or join token configured")
+		// TODO(noah): If the above renewal fails, do we want to try joining
+		// instead? Is there a sane amount of times to try renewing before
+		// giving up and rejoining?
+		newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil)
+		if err != nil {
+			return trace.Wrap(err, "joining with token")
+		}
 	}
 
 	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
@@ -262,32 +291,9 @@ func (s *identityService) renew(
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
-	var newIdentity *identity.Identity
-	var err error
-	if s.cfg.Onboarding.RenewableJoinMethod() {
-		// When using a renewable join method, we use GenerateUserCerts to
-		// request a new certificate using our current identity.
-		// We explicitly create a new client here to ensure that the latest
-		// identity is being used!
-		facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, currentIdentity)
-		authClient, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
-		if err != nil {
-			return trace.Wrap(err, "creating auth client")
-		}
-		defer authClient.Close()
-		newIdentity, err = botIdentityFromAuth(
-			ctx, s.log, currentIdentity, authClient, s.cfg.CertificateTTL,
-		)
-		if err != nil {
-			return trace.Wrap(err, "renewing identity with existing identity")
-		}
-	} else {
-		// When using the non-renewable join methods, we rejoin each time rather
-		// than using certificate renewal.
-		newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg)
-		if err != nil {
-			return trace.Wrap(err, "renewing identity with token")
-		}
+	newIdentity, err := renewIdentity(ctx, s.log, s.cfg, s.resolver, currentIdentity)
+	if err != nil {
+		return trace.Wrap(err, "renewing identity")
 	}
 
 	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
@@ -299,6 +305,44 @@ func (s *identityService) renew(
 	s.log.DebugContext(ctx, "Bot identity persisted", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 
 	return nil
+}
+
+func renewIdentity(
+	ctx context.Context,
+	log *slog.Logger,
+	botCfg *config.BotConfig,
+	resolver reversetunnelclient.Resolver,
+	oldIdentity *identity.Identity,
+) (*identity.Identity, error) {
+	ctx, span := tracer.Start(ctx, "renewIdentity")
+	defer span.End()
+	// Explicitly create a new client - this guarantees that requests will be
+	// made with the most recent identity and that a connection associated with
+	// an old identity will not be used.
+	facade := identity.NewFacade(botCfg.FIPS, botCfg.Insecure, oldIdentity)
+	authClient, err := clientForFacade(ctx, log, botCfg, facade, resolver)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating auth client")
+	}
+	defer authClient.Close()
+
+	if oldIdentity.TLSIdentity.Renewable {
+		// When using a renewable join method, we use GenerateUserCerts to
+		// request a new certificate using our current identity.
+		newIdentity, err := botIdentityFromAuth(
+			ctx, log, oldIdentity, authClient, botCfg.CertificateTTL,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "renewing identity using GenerateUserCert")
+		}
+		return newIdentity, nil
+	}
+
+	newIdentity, err := botIdentityFromToken(ctx, log, botCfg, authClient)
+	if err != nil {
+		return nil, trace.Wrap(err, "renewing identity using Register")
+	}
+	return newIdentity, nil
 }
 
 // botIdentityFromAuth uses an existing identity to request a new from the auth
@@ -341,7 +385,16 @@ func botIdentityFromAuth(
 
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
-func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.BotConfig) (*identity.Identity, error) {
+//
+// The authClient parameter is optional - if provided - this will be used for
+// the request. This saves the overhead of trying to create a new client as
+// part of the join process and allows us to preserve the bot instance id.
+func botIdentityFromToken(
+	ctx context.Context,
+	log *slog.Logger,
+	cfg *config.BotConfig,
+	authClient *authclient.Client,
+) (*identity.Identity, error) {
 	_, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
 
@@ -363,16 +416,21 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		PublicTLSKey:       tlsPublicKey,
-		PublicSSHKey:       sshPublicKey,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
+		JoinMethod:   cfg.Onboarding.JoinMethod,
+		Expires:      &expires,
+
+		// Below options are effectively ignored if AuthClient is not-nil
+		Insecure:           cfg.Insecure,
 		CAPins:             cfg.Onboarding.CAPins,
 		CAPath:             cfg.Onboarding.CAPath,
-		GetHostCredentials: client.HostCredentials,
-		JoinMethod:         cfg.Onboarding.JoinMethod,
-		Expires:            &expires,
 		FIPS:               cfg.FIPS,
+		GetHostCredentials: client.HostCredentials,
 		CipherSuites:       cfg.CipherSuites(),
-		Insecure:           cfg.Insecure,
+	}
+	if authClient != nil {
+		params.AuthClient = authClient
 	}
 
 	addr, addrKind := cfg.Address()
