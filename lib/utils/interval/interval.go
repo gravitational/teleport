@@ -88,7 +88,7 @@ func New(cfg Config) *Interval {
 	interval := &Interval{
 		ch:    make(chan time.Time, 1),
 		cfg:   cfg,
-		reset: make(chan struct{}),
+		reset: make(chan time.Duration),
 		fire:  make(chan struct{}),
 		done:  make(chan struct{}),
 	}
@@ -121,7 +121,15 @@ func (i *Interval) Stop() {
 // jitter(duration) regardless of current timer progress).
 func (i *Interval) Reset() {
 	select {
-	case i.reset <- struct{}{}:
+	case i.reset <- 0:
+	case <-i.done:
+	}
+}
+
+// ResetTo resets the interval to the specified duration without pausing it.
+func (i *Interval) ResetTo(d time.Duration) {
+	select {
+	case i.reset <- d:
 	case <-i.done:
 	}
 }
@@ -163,13 +171,17 @@ func (i *Interval) run(timer clockwork.Timer) {
 			// output channel is set.
 			timer.Reset(i.duration())
 			ch = i.ch
-		case <-i.reset:
+		case d := <-i.reset:
 			// stop and drain timer
 			if !timer.Stop() {
 				<-timer.Chan()
 			}
+			// use the standard duration source if duration was zero
+			if d == 0 {
+				d = i.duration()
+			}
 			// re-set the timer
-			timer.Reset(i.duration())
+			timer.Reset(d)
 			// ensure we don't send any pending ticks
 			ch = nil
 		case <-i.fire:

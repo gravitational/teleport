@@ -82,6 +82,7 @@ func TestWatcherCapacity(t *testing.T) {
 		BufferCapacity(1),
 		BufferClock(clock),
 		BacklogGracePeriod(gracePeriod),
+		CreationGracePeriod(time.Nanosecond),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -141,6 +142,71 @@ func TestWatcherCapacity(t *testing.T) {
 	case <-w.Done():
 	default:
 		t.Fatalf("buffer did not close watcher that was past grace period")
+	}
+}
+
+func TestWatcherCreationGracePeriod(t *testing.T) {
+	const backlogGracePeriod = time.Second
+	const creationGracePeriod = backlogGracePeriod * 3
+	const queueSize = 1
+	clock := clockwork.NewFakeClock()
+
+	ctx := context.Background()
+	b := NewCircularBuffer(
+		BufferCapacity(1),
+		BufferClock(clock),
+		BacklogGracePeriod(backlogGracePeriod),
+		CreationGracePeriod(creationGracePeriod),
+	)
+	defer b.Close()
+	b.SetInit()
+
+	w, err := b.NewWatcher(ctx, Watch{
+		QueueSize: queueSize,
+	})
+	require.NoError(t, err)
+	defer w.Close()
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpInit, e.Type)
+	default:
+		t.Fatalf("Expected immediate OpInit.")
+	}
+
+	// emit enough events to create a backlog
+	for i := 0; i < queueSize*2; i++ {
+		b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: int64(i + 1)}})
+	}
+
+	select {
+	case <-w.Done():
+		t.Fatal("watcher closed unexpectedly")
+	default:
+	}
+
+	// sanity-check
+	require.True(t, creationGracePeriod > backlogGracePeriod*2)
+
+	// advance well past the backlog grace period, but not past the creation grace period
+	clock.Advance(backlogGracePeriod * 2)
+
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: 100}})
+
+	select {
+	case <-w.Done():
+		t.Fatal("watcher closed unexpectedly")
+	default:
+	}
+
+	// advance well past creation grace period
+	clock.Advance(creationGracePeriod)
+
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: 101}})
+	select {
+	case <-w.Done():
+	default:
+		t.Fatal("watcher did not close after creation grace period exceeded")
 	}
 }
 
