@@ -90,7 +90,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "`port_info`",
+					Name: "port_info",
 					Fields: []PropertyTableField{
 						{
 							Name:        "port",
@@ -187,13 +187,13 @@ func Test_propertyTable(t *testing.T) {
 						},
 						{
 							Name:        "ports",
-							Type:        "[][object](#ports-values)",
+							Type:        "[][object](#ports-items)",
 							Description: "Ports on which the server listens",
 						},
 					},
 				},
 				{
-					Name: "`ports` values",
+					Name: "ports items",
 					Fields: []PropertyTableField{
 						{
 							Name:        "port",
@@ -210,7 +210,7 @@ func Test_propertyTable(t *testing.T) {
 			},
 		},
 		{
-			description: "property with only object type",
+			description: "property with only object type and no fields",
 			input: apiextv1.JSONSchemaProps{
 				Type:        "object",
 				Description: "Attributes of the server",
@@ -237,6 +237,198 @@ func Test_propertyTable(t *testing.T) {
 							Name:        "name",
 							Type:        "string",
 							Description: "The name of the server",
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "repeated property names",
+			input: apiextv1.JSONSchemaProps{
+				Type:        "object",
+				Description: "Attributes of the server",
+				Properties: map[string]apiextv1.JSONSchemaProps{
+					"metadata": apiextv1.JSONSchemaProps{
+						Type:        "object",
+						Description: "The server metadata",
+						Properties: map[string]apiextv1.JSONSchemaProps{
+							"name": apiextv1.JSONSchemaProps{
+								Type:        "string",
+								Description: "The server name",
+							},
+						},
+					},
+					"datacenter": apiextv1.JSONSchemaProps{
+						Type:        "object",
+						Description: "Information about the data center",
+						Properties: map[string]apiextv1.JSONSchemaProps{
+							"metadata": apiextv1.JSONSchemaProps{
+								Type:        "object",
+								Description: "The datacenter metadata",
+								Properties: map[string]apiextv1.JSONSchemaProps{
+									"name": apiextv1.JSONSchemaProps{
+										Type:        "string",
+										Description: "The datacenter name",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []PropertyTable{
+				{
+					Name: "",
+					Fields: []PropertyTableField{
+						{
+							Name:        "datacenter",
+							Type:        "[object](#datacenter)",
+							Description: "Information about the data center",
+						},
+						{
+							Name:        "metadata",
+							Type:        "[object](#metadata)",
+							Description: "The server metadata",
+						},
+					},
+				},
+				{
+					Name: "metadata",
+					Fields: []PropertyTableField{
+						{
+							Name:        "name",
+							Type:        "string",
+							Description: "The server name",
+						},
+					},
+				},
+				{
+					Name: "datacenter",
+					Fields: []PropertyTableField{
+						{
+							Name:        "metadata",
+							Type:        "[object](#datacentermetadata)",
+							Description: "The datacenter metadata",
+						},
+					},
+				},
+				{
+					Name: "datacenter.metadata",
+					Fields: []PropertyTableField{
+						{
+							Name:        "name",
+							Type:        "string",
+							Description: "The datacenter name",
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "repeated item property names",
+			input: apiextv1.JSONSchemaProps{
+				Type:        "object",
+				Description: "Attributes of the server",
+				Properties: map[string]apiextv1.JSONSchemaProps{
+					"circleci": apiextv1.JSONSchemaProps{
+						Type:        "object",
+						Description: "Allows CircleCI-specific configuration",
+						Properties: map[string]apiextv1.JSONSchemaProps{
+							"allow": apiextv1.JSONSchemaProps{
+								Type:        "array",
+								Description: "What to allow",
+								Items: &apiextv1.JSONSchemaPropsOrArray{
+									Schema: &apiextv1.JSONSchemaProps{
+										Type:        "object",
+										Description: "Project information",
+										Properties: map[string]apiextv1.JSONSchemaProps{
+											"project_id": apiextv1.JSONSchemaProps{
+												Type:        "string",
+												Description: "The project ID",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					"gitlab": apiextv1.JSONSchemaProps{
+						Type:        "object",
+						Description: "Allows GitLab-specific configuration",
+						Properties: map[string]apiextv1.JSONSchemaProps{
+							"allow": apiextv1.JSONSchemaProps{
+								Type:        "array",
+								Description: "What to allow",
+								Items: &apiextv1.JSONSchemaPropsOrArray{
+									Schema: &apiextv1.JSONSchemaProps{
+										Type:        "object",
+										Description: "Project information",
+										Properties: map[string]apiextv1.JSONSchemaProps{
+											"project_id": apiextv1.JSONSchemaProps{
+												Type:        "string",
+												Description: "The project ID",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []PropertyTable{
+				{
+					Name: "",
+					Fields: []PropertyTableField{
+						{
+							Name:        "circleci",
+							Type:        "[object](#circleci)",
+							Description: "Allows CircleCI-specific configuration",
+						},
+						{
+							Name:        "gitlab",
+							Type:        "[object](#gitlab)",
+							Description: "Allows GitLab-specific configuration",
+						},
+					},
+				},
+				{
+					Name: "circleci",
+					Fields: []PropertyTableField{
+						{
+							Name:        "allow",
+							Type:        "[][object](#circleciallow-items)",
+							Description: "What to allow",
+						},
+					},
+				},
+				{
+					Name: "circleci.allow items",
+					Fields: []PropertyTableField{
+						{
+							Name:        "project_id",
+							Type:        "string",
+							Description: "The project ID",
+						},
+					},
+				},
+				{
+					Name: "gitlab",
+					Fields: []PropertyTableField{
+						{
+							Name:        "allow",
+							Type:        "[][object](#gitlaballow-items)",
+							Description: "What to allow",
+						},
+					},
+				},
+				{
+					Name: "gitlab.allow items",
+					Fields: []PropertyTableField{
+						{
+							Name:        "project_id",
+							Type:        "string",
+							Description: "The project ID",
 						},
 					},
 				},

@@ -1,15 +1,14 @@
 ---
 title: TeleportOIDCConnector
-description: Provides a comprehensive list of fields in the TeleportOIDCConnector resource available through the Teleport Kubernetes operator.
+description: Provides a comprehensive list of fields in the TeleportOIDCConnector resource available through the Teleport Kubernetes operator
 tocDepth: 3
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
-This guide is a comprehensive reference to the fields available to configure in
-the `TeleportOIDCConnector` resource, which you can apply after installing
-the Teleport Kubernetes operator.
+This guide is a comprehensive reference to the fields in the `TeleportOIDCConnector`
+resource, which you can apply after installing the Teleport Kubernetes operator.
 
 
 ## resources.teleport.dev/v3
@@ -23,15 +22,15 @@ the Teleport Kubernetes operator.
 |metadata|object||
 |spec|[object](#spec)|OIDCConnector resource definition v3 from Teleport|
 
-### `spec`
+### spec
 
 |Field|Type|Description|
 |---|---|---|
 |acr_values|string|ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.|
 |allow_unverified_email|boolean|AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.|
-|claims_to_roles|[][object](#claims_to_roles-values)|ClaimsToRoles specifies a dynamic mapping from claims to roles.|
+|claims_to_roles|[][object](#specclaims_to_roles-items)|ClaimsToRoles specifies a dynamic mapping from claims to roles.|
 |client_id|string|ClientID is the id of the authentication client (Teleport Auth server).|
-|client_redirect_settings|[object](#`spec`client_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
+|client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is used to authenticate the client.|
 |display|string|Display is the friendly name for this provider.|
 |google_admin_email|string|GoogleAdminEmail is the email of a google admin to impersonate.|
@@ -45,17 +44,18 @@ the Teleport Kubernetes operator.
 |scope|[]string|Scope specifies additional scopes set by provider.|
 |username_claim|string|UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.|
 
-### `client_redirect_settings`
-
-|Field|Type|Description|
-|---|---|---|
-|allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
-
-### `claims_to_roles` values
+### spec.claims_to_roles items
 
 |Field|Type|Description|
 |---|---|---|
 |claim|string|Claim is a claim name.|
 |roles|[]string|Roles is a list of static teleport roles to match.|
 |value|string|Value is a claim value to match.|
+
+### spec.client_redirect_settings
+
+|Field|Type|Description|
+|---|---|---|
+|allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
+|insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
 

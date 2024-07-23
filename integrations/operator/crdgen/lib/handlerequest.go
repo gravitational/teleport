@@ -181,27 +181,23 @@ func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, string, error)
 	return doc, "yaml", nil
 }
 
-var crdDocTmpl string = strings.ReplaceAll(`{{- $kind := .Spec.Names.Kind}}
-{{- $group := .Spec.Group -}}
----
-title: {{ $kind }}
-description: Provides a comprehensive list of fields in the {{ $kind }} resource available through the Teleport Kubernetes operator.
+var crdDocTmpl string = `---
+title: {{.Title}}
+description: {{.Description}}
 tocDepth: 3
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
-This guide is a comprehensive reference to the fields available to configure in
-the BACKTICK{{ $kind }}BACKTICK resource, which you can apply after installing
-the Teleport Kubernetes operator.
+{{.Intro}}
 
-{{ range .Spec.Versions}}
-## {{$group}}/{{.Name}}
+{{ range .Sections}}
+## {{.APIVersion}}
 
-**apiVersion:** {{$group}}/{{.Name}}
+**apiVersion:** {{.APIVersion}}
 
-{{- range propertyTable "" .Schema.OpenAPIV3Schema }}
+{{- range .Subsections }}
 {{- if ne .Name "" }}
 ### {{.Name}}
 {{- end }}
@@ -214,7 +210,43 @@ the Teleport Kubernetes operator.
 {{ end }}
 
 {{- end}}
-`, "BACKTICK", "`")
+`
+
+type ResourcePage struct {
+	Title       string
+	Description string
+	Intro       string
+	Sections    []VersionSection
+}
+
+func (r ResourcePage) Len() int {
+	return len(r.Sections)
+}
+
+func (r ResourcePage) Swap(i, j int) {
+	r.Sections[i], r.Sections[j] = r.Sections[j], r.Sections[i]
+}
+
+func (r ResourcePage) Less(i, j int) bool {
+	return strings.Compare(r.Sections[i].APIVersion, r.Sections[j].APIVersion) == -1
+}
+
+func (v VersionSection) Len() int {
+	return len(v.Subsections)
+}
+
+func (v VersionSection) Swap(i, j int) {
+	v.Subsections[i], v.Subsections[j] = v.Subsections[j], v.Subsections[i]
+}
+
+func (v VersionSection) Less(i, j int) bool {
+	return strings.Compare(v.Subsections[i].Name, v.Subsections[j].Name) == -1
+}
+
+type VersionSection struct {
+	APIVersion  string
+	Subsections []PropertyTable
+}
 
 type PropertyTable struct {
 	Name   string
@@ -276,8 +308,9 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 				if v.Properties == nil || len(v.Properties) == 0 {
 					break
 				}
+
 				extra, err := propertyTable(
-					fmt.Sprintf("`%v`", k),
+					tableName,
 					&v,
 				)
 				if err != nil {
@@ -289,14 +322,14 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 				var subtp string
 				if v.Items.Schema.Type == "object" {
 					extra, err := propertyTable(
-						fmt.Sprintf("`%v` values", k),
+						fmt.Sprintf("%v items", tableName),
 						v.Items.Schema,
 					)
 					if err != nil {
 						return nil, err
 					}
 					tables = append(tables, extra...)
-					subtp = fmt.Sprintf("[object](#%v-values)", k)
+					subtp = fmt.Sprintf("[object](#%v-items)", strings.ReplaceAll(tableName, ".", ""))
 				} else {
 					subtp = v.Items.Schema.Type
 				}
@@ -333,16 +366,37 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 
 func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, string, error) {
 	var buf bytes.Buffer
+	rp := ResourcePage{
+		Title:       crd.Spec.Names.Kind,
+		Description: fmt.Sprintf("Provides a comprehensive list of fields in the %v resource available through the Teleport Kubernetes operator", crd.Spec.Names.Kind),
+		Intro: strings.ReplaceAll(fmt.Sprintf(
+			`This guide is a comprehensive reference to the fields in the BACKTICK%vBACKTICK
+resource, which you can apply after installing the Teleport Kubernetes operator.`,
+			crd.Spec.Names.Kind), "BACKTICK", "`"),
+	}
+
+	vs := make([]VersionSection, len(crd.Spec.Versions))
+	for i, v := range crd.Spec.Versions {
+		props, err := propertyTable("", v.Schema.OpenAPIV3Schema)
+		if err != nil {
+			return nil, "", err
+		}
+		n := VersionSection{
+			APIVersion:  fmt.Sprintf("%v/%v", crd.Spec.Group, v.Name),
+			Subsections: props,
+		}
+		sort.Sort(n)
+		vs[i] = n
+	}
+	rp.Sections = vs
+
 	templ := template.New("docs")
-	templ = templ.Funcs(template.FuncMap{
-		"propertyTable": propertyTable,
-	})
 	templ, err := templ.Parse(crdDocTmpl)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	err = templ.Execute(&buf, crd)
+	err = templ.Execute(&buf, rp)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
