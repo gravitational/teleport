@@ -21,6 +21,10 @@ import { MemoryRouter } from 'react-router';
 
 import { AwsOidc } from './AwsOidc';
 
+export default {
+  title: 'Teleport/Integrations/Enroll/AwsOidc',
+};
+
 export const Flow = () => (
   <MemoryRouter>
     <AwsOidc />

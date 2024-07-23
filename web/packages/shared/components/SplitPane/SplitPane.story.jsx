@@ -17,43 +17,40 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
+import { Box } from 'design';
 
-import Flex from './Flex';
-import Box from './../Box';
+import Component from './SplitPane';
 
 export default {
-  title: 'Design/Flex',
+  title: 'Shared',
 };
 
-export const Basic = () => (
-  <Flex gap={5}>
-    <Box width={1 / 2} bg="pink" p={5}>
-      Box one
-    </Box>
-    <Box width={1 / 2} bg="orange" p={5}>
-      Box two
-    </Box>
-  </Flex>
-);
+export const SplitPane = () => {
+  return (
+    <Container>
+      <Component defaultSize="50%" flex="1" split="vertical">
+        <Box flex="1" bg="red">
+          red
+        </Box>
+        <Component flex="1" split="horizontal" defaultSize="50%">
+          <Box flex="1" bg="blue">
+            blue
+          </Box>
+          <Box flex="1" bg="green">
+            green
+          </Box>
+        </Component>
+      </Component>
+    </Container>
+  );
+};
 
-export const Wrapped = () => (
-  <Flex flexWrap="wrap" gap={2}>
-    <Box width={[1, 1 / 2]} bg="pink" p={5}>
-      Box one
-    </Box>
-    <Box width={[1, 1 / 2]} bg="orange" p={5}>
-      Box two
-    </Box>
-  </Flex>
-);
-
-export const Justified = () => (
-  <Flex justifyContent="space-around">
-    <Box width={1 / 3} bg="pink" p={5}>
-      Box one
-    </Box>
-    <Box width={1 / 3} bg="orange" p={5}>
-      Box two
-    </Box>
-  </Flex>
-);
+const Container = styled.div`
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  position: absolute;
+  display: flex;
+`;

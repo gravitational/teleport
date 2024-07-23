@@ -18,10 +18,43 @@
 
 import React from 'react';
 
-import Indicator from '../Indicator';
+import Box from '../Box';
+
+import Flex from './Flex';
 
 export default {
-  title: 'Design/Indicator',
+  title: 'Design/Flex',
 };
 
-export const Loader = () => <Indicator />;
+export const Basic = () => (
+  <Flex gap={5}>
+    <Box width={1 / 2} bg="pink" p={5}>
+      Box one
+    </Box>
+    <Box width={1 / 2} bg="orange" p={5}>
+      Box two
+    </Box>
+  </Flex>
+);
+
+export const Wrapped = () => (
+  <Flex flexWrap="wrap" gap={2}>
+    <Box width={[1, 1 / 2]} bg="pink" p={5}>
+      Box one
+    </Box>
+    <Box width={[1, 1 / 2]} bg="orange" p={5}>
+      Box two
+    </Box>
+  </Flex>
+);
+
+export const Justified = () => (
+  <Flex justifyContent="space-around">
+    <Box width={1 / 3} bg="pink" p={5}>
+      Box one
+    </Box>
+    <Box width={1 / 3} bg="orange" p={5}>
+      Box two
+    </Box>
+  </Flex>
+);

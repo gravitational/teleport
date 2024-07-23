@@ -163,7 +163,6 @@ export function createViteConfig(
           secure: false,
         },
       };
-
       if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
         config.server.https = {
           key: readFileSync(process.env.VITE_HTTPS_KEY),
