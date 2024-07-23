@@ -41,7 +41,7 @@ export function createPtyService(
         runtimeSettings,
         {
           ssh: options.ssh,
-          terminal: { useConpty: windowsPty.backend === 'conpty' },
+          windowsPty,
         },
         command
       );

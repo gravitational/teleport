@@ -32,9 +32,10 @@ export function getWindowsPty(
 
   const buildNumber = getWindowsBuildNumber(runtimeSettings.osVersion);
   const useConpty =
-    terminalOptions.useConpty && buildNumber >= WIN_BUILD_STABLE_CONPTY;
+    terminalOptions.windowsBackend === 'auto' &&
+    buildNumber >= WIN_BUILD_STABLE_CONPTY;
   return {
-    backend: useConpty ? 'conpty' : 'winpty',
+    useConpty,
     buildNumber,
   };
 }

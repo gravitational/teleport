@@ -57,11 +57,11 @@ export const createAppConfigSchema = (platform: Platform) => {
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
-    'terminal.windowsUseConpty': z
-      .boolean()
-      .default(true)
+    'terminal.windowsBackend': z
+      .enum(['auto', 'winpty'])
+      .default('auto')
       .describe(
-        'Whether to use the ConPTY system instead of winpty. ConPTY requires Windows version 18309 and above.'
+        '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
       ),
     'usageReporting.enabled': z
       .boolean()
