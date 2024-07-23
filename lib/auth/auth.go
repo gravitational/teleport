@@ -3791,17 +3791,23 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
+	ssoChallenge, err := a.getAuthConnectorChallenge(ctx, readOnlyAuthPref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ssoMFASupported := ssoChallenge != nil
+
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
 	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
-		if knownDevices <= minDevices {
+		if !ssoMFASupported && knownDevices <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] <= minDevices {
+		if !ssoMFASupported && sfToCount[sf] <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
@@ -6573,7 +6579,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	return challenge, nil
 }
 
-func (a *Server) getAuthConnectorChallenge(ctx context.Context, apref types.AuthPreference) (*proto.AuthConnectorChallenge, error) {
+func (a *Server) getAuthConnectorChallenge(ctx context.Context, apref readonly.AuthPreference) (*proto.AuthConnectorChallenge, error) {
 	switch apref.GetMFAConnectorType() {
 	case constants.OIDC:
 		if apref.GetMFAConnectorName() != "" {

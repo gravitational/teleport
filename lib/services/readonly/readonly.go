@@ -48,6 +48,8 @@ type AuthPreference interface {
 	GetHardwareKeySerialNumberValidation() (*types.HardwareKeySerialNumberValidation, error)
 	GetAllowPasswordless() bool
 	Clone() types.AuthPreference
+	GetMFAConnectorName() string
+	GetMFAConnectorType() string
 }
 
 type sealedAuthPreference struct {
