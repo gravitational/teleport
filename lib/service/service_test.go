@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1346,10 +1347,19 @@ func TestProxyGRPCServers(t *testing.T) {
 		{
 			name: "secure client to secure server",
 			credentials: func() credentials.TransportCredentials {
-				// // Create a new client using the client identity.
-				// creds, err := testConnector.ClientTLSConfig(nil)
-				// require.NoError(t, err)
-				return credentials.NewTLS(testConnector.Client.TLSConfig())
+				// Create a new client using the client identity.
+				tlsConfig := utils.TLSConfig(nil)
+				tlsConfig.ServerName = apiutils.EncodeClusterName(testConnector.ClusterName())
+				tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+					tlsCert, err := testConnector.ClientGetCertificate()
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return tlsCert, nil
+				}
+				tlsConfig.InsecureSkipVerify = true
+				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
+				return credentials.NewTLS(tlsConfig)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.NoError,
