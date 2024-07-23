@@ -884,7 +884,7 @@ endif
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell find ./lib -iname "*_test.go" -exec grep -l testing.B {} \; | xargs dirname | xargs go list)
+test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list)
 test-go-bench:
 	go test -run ^$$ -bench . -benchtime 1x $(PACKAGES)
 
