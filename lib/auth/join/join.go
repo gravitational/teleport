@@ -372,7 +372,6 @@ func registerThroughProxy(
 				EC2IdentityDocument:  params.ec2IdentityDocument,
 				IDToken:              params.IDToken,
 				Expires:              params.Expires,
-				
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
