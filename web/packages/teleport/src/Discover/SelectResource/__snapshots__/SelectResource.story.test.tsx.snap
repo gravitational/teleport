@@ -82,6 +82,10 @@ exports[`render with URL loc state set to "server" 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -240,11 +244,11 @@ exports[`render with URL loc state set to "server" 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -817,6 +821,10 @@ exports[`render with all access 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -955,11 +963,11 @@ exports[`render with all access 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -2834,6 +2842,10 @@ exports[`render with no access 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -2968,11 +2980,11 @@ exports[`render with no access 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -4999,6 +5011,10 @@ exports[`render with partial access 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -5163,11 +5179,11 @@ exports[`render with partial access 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
