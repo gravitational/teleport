@@ -507,8 +507,11 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	}
 
 	if route, err := pickActiveApp(cf, activeRoutes); err == nil {
-		info := &appInfo{RouteToApp: route, isActive: true}
-		return info, info.checkAndSetDefaults(cf, tc, profile)
+		return &appInfo{
+			profile:    profile,
+			RouteToApp: route,
+			isActive:   true,
+		}, nil
 	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -519,7 +522,8 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 		return nil, trace.Wrap(err)
 	}
 
-	info := &appInfo{
+	appInfo := &appInfo{
+		profile: profile,
 		RouteToApp: proto.RouteToApp{
 			Name:        app.GetName(),
 			PublicAddr:  app.GetPublicAddr(),
@@ -528,7 +532,33 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 		app: app,
 	}
 
-	return info, info.checkAndSetDefaults(cf, tc, profile)
+	// If this is a cloud app, set additional applicable fields from CLI flags or roles.
+	switch {
+	case app.IsAWSConsole():
+		awsRoleARN, err := getARNFromFlags(cf, profile, app)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		appInfo.AWSRoleARN = awsRoleARN
+
+	case app.IsAzureCloud():
+		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("Azure identity is %q", azureIdentity)
+		appInfo.AzureIdentity = azureIdentity
+
+	case app.IsGCP():
+		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("GCP service account is %q", gcpServiceAccount)
+		appInfo.GCPServiceAccount = gcpServiceAccount
+	}
+
+	return appInfo, nil
 }
 
 // appInfo wraps a RouteToApp and the corresponding app.
@@ -538,71 +568,13 @@ type appInfo struct {
 	proto.RouteToApp
 	// app corresponds to the app route and may be nil, so use GetApp
 	// instead of accessing it directly.
-	app types.Application
+	app   types.Application
+	appMu sync.Mutex
 	// isActive indicates an active app matched this app info.
 	isActive bool
-	mu       sync.Mutex
 
 	// profile is a cached profile status for the current login session.
 	profile *client.ProfileStatus
-}
-
-// checkAndSetDefaults checks the app route, applies cli flags, and sets defaults.
-func (a *appInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus) error {
-	a.profile = profile
-
-	switch {
-	case a.IsAWSConsole():
-		app, err := a.GetApp(cf.Context, tc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		awsRoleARN, err := getARNFromFlags(cf, profile, app)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		a.AWSRoleARN = awsRoleARN
-
-	case a.IsAzureCloud():
-		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Debugf("Azure identity is %q", azureIdentity)
-		a.AzureIdentity = azureIdentity
-
-	case a.IsGCP():
-		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Debugf("GCP service account is %q", gcpServiceAccount)
-		a.GCPServiceAccount = gcpServiceAccount
-	}
-
-	return nil
-}
-
-func (a *appInfo) IsAWSConsole() bool {
-	if a.app != nil {
-		return a.app.IsAWSConsole()
-	}
-	return a.RouteToApp.AWSRoleARN != ""
-}
-
-func (a *appInfo) IsAzureCloud() bool {
-	if a.app != nil {
-		return a.app.IsAzureCloud()
-	}
-	return a.RouteToApp.AzureIdentity != ""
-}
-
-func (a *appInfo) IsGCP() bool {
-	if a.app != nil {
-		return a.app.IsGCP()
-	}
-	return a.RouteToApp.GCPServiceAccount != ""
 }
 
 func (a *appInfo) appLocalCAPath(cluster string) string {
@@ -612,8 +584,8 @@ func (a *appInfo) appLocalCAPath(cluster string) string {
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
 func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.Application, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.appMu.Lock()
+	defer a.appMu.Unlock()
 	if a.app != nil {
 		return a.app.Copy(), nil
 	}
