@@ -17,7 +17,7 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
 <div align="center">
    <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.svg" width=750/>
+   <img src="./assets/img/hero-teleport-platform.png" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/download">
@@ -109,8 +109,6 @@ If you wish to deploy Teleport inside a Docker container see the
 [installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
 
 ### For Local Testing and Development
-
-Follow the instructions in the [docker/README](docker/README.md) file.
 
 To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
 

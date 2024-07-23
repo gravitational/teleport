@@ -88,8 +88,7 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 		})
 	})
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	for _, test := range []struct {
 		desc           string
@@ -132,10 +131,11 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			mfaResponse := test.getMFAResponse()
 			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-				PublicKey:   pub,
-				Username:    u.username,
-				Expires:     time.Now().Add(time.Hour),
-				MFAResponse: mfaResponse,
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     u.username,
+				Expires:      time.Now().Add(time.Hour),
+				MFAResponse:  mfaResponse,
 			})
 
 			switch {
@@ -167,8 +167,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	start := srv.AuthServer.Clock().Now()
 
@@ -252,9 +251,10 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			require.NoError(t, err)
 
 			req := proto.UserCertsRequest{
-				PublicKey: pub,
-				Username:  user.GetName(),
-				Expires:   start.Add(test.reqTTL),
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     user.GetName(),
+				Expires:      start.Add(test.reqTTL),
 			}
 			if test.roleRequests {
 				// Reconfigure role to allow impersonation of its own role.
@@ -274,7 +274,11 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			x509, err := tlsca.ParseCertificatePEM(certs.TLS)
 			require.NoError(t, err)
 
+			sshCert, err := sshutils.ParseCertificate(certs.SSH)
+			require.NoError(t, err)
+
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
+			require.WithinDuration(t, start.Add(test.expiresIn), time.Unix(int64(sshCert.ValidBefore), 0), 1*time.Second)
 		})
 	}
 }
@@ -297,13 +301,12 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user.GetName(),
-		Expires:   time.Now().Add(time.Hour),
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 }
@@ -694,6 +697,8 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+
 	testCases := []struct {
 		desc       string
 		user       types.User
@@ -716,11 +721,9 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			client, err := srv.NewClient(TestUser(tt.user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := testauthority.New().GenerateKeyPair()
-			require.NoError(t, err)
-
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:         pub,
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
 				Username:          tt.user.GetName(),
 				Expires:           time.Now().Add(time.Hour),
 				KubernetesCluster: kubeClusterName,
@@ -734,7 +737,13 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
-			require.Less(t, tt.expiration.Sub(identity.Expires).Abs(), 10*time.Second,
+
+			sshCert, err := sshutils.ParseCertificate(certs.SSH)
+			require.NoError(t, err)
+
+			require.WithinDuration(t, tt.expiration, identity.Expires, 10*time.Second,
+				"Identity expiration is out of expected boundaries")
+			require.WithinDuration(t, tt.expiration, time.Unix(int64(sshCert.ValidBefore), 0), 10*time.Second,
 				"Identity expiration is out of expected boundaries")
 		})
 	}
@@ -942,11 +951,10 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := testauthority.New().GenerateKeyPair()
-			require.NoError(t, err)
-
+			_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:       pub,
+				SSHPublicKey:    sshPubKey,
+				TLSPublicKey:    tlsPubKey,
 				Username:        user.GetName(),
 				Expires:         time.Now().Add(time.Hour),
 				RoleRequests:    tt.roleRequests,
@@ -1040,12 +1048,13 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
+
+	_, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	// Request certs for only the `foo` role.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:    pub,
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
 		Username:     user.GetName(),
 		Expires:      time.Now().Add(time.Hour),
 		RoleRequests: []string{accessFooRole.GetName()},
@@ -1053,7 +1062,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make an impersonated client.
-	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, priv)
+	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
 	require.NoError(t, err)
 	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
 
@@ -1063,7 +1072,8 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 
 	// Attempt to generate new certs for a different (allowed) role.
 	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:    pub,
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
 		Username:     user.GetName(),
 		Expires:      time.Now().Add(time.Hour),
 		RoleRequests: []string{accessBarRole.GetName()},
@@ -1073,7 +1083,8 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 
 	// Attempt to generate new certs for the same role.
 	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:    pub,
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
 		Username:     user.GetName(),
 		Expires:      time.Now().Add(time.Hour),
 		RoleRequests: []string{accessFooRole.GetName()},
@@ -1085,9 +1096,10 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// (If allowed, this might issue certs for the original user without role
 	// requests.)
 	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user.GetName(),
-		Expires:   time.Now().Add(time.Hour),
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))

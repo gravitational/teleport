@@ -111,7 +111,7 @@ func TestListKeys(t *testing.T) {
 		const keyNum = 5
 
 		// add 5 keys for "bob"
-		keys := make([]Key, keyNum)
+		keys := make([]KeyRing, keyNum)
 		for i := 0; i < keyNum; i++ {
 			idx := KeyIndex{fmt.Sprintf("host-%v", i), "bob", "root"}
 			key := auth.makeSignedKey(t, idx, false)
@@ -135,7 +135,7 @@ func TestListKeys(t *testing.T) {
 		skey, err := keyStore.GetKey(samIdx, WithSSHCerts{})
 		require.NoError(t, err)
 		require.Equal(t, samKey.Cert, skey.Cert)
-		require.Equal(t, samKey.MarshalSSHPublicKey(), skey.MarshalSSHPublicKey())
+		require.Equal(t, samKey.PrivateKey.MarshalSSHPublicKey(), skey.PrivateKey.MarshalSSHPublicKey())
 	})
 }
 
@@ -147,7 +147,7 @@ func TestGetCertificates(t *testing.T) {
 		const keyNum = 3
 
 		// add keys for 3 different clusters with the same user and proxy.
-		keys := make([]Key, keyNum)
+		keys := make([]KeyRing, keyNum)
 		certs := make([]*ssh.Certificate, keyNum)
 		var proxy = "proxy.example.com"
 		var user = "bob"
