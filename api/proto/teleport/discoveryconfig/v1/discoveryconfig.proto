@@ -66,9 +66,6 @@ message DiscoveryConfigStatus {
   uint64 discovered_resources = 3;
   // last_sync_time is the timestamp when the Discovery Config was last sync.
   google.protobuf.Timestamp last_sync_time = 4;
-  // AWSEC2InstancesDiscovered contains all the EC2 Instances Discovered.
-  // Does not include the AWS resources from Access Graph.
-  repeated AWSEC2InstancesDiscovered aws_ec2_instances_discovered = 5;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
@@ -82,42 +79,4 @@ enum DiscoveryConfigState {
   DISCOVERY_CONFIG_STATE_ERROR = 2;
   // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
   DISCOVERY_CONFIG_STATE_SYNCING = 3;
-}
-
-// AWSEC2InstancesDiscovered represents an AWS EC2 Instance that was discovered.
-message AWSEC2InstancesDiscovered {
-  // Region is the AWS Region.
-  string region = 1;
-  // Integration is the AWS OIDC Integration name used to fetch the resource.
-  string integration = 2;
-  // InstanceID is the instance ID which uniquely identifies this resource in AWS.
-  string instance_id = 3;
-  // EnrollMode indicates the enroll mode used to auto-enroll this instance.
-  // Either using the EICE or the Script mode.
-  types.InstallParamEnrollMode enroll_mode = 4;
-  // EnrollStatus indicates whether the instance was successfully enrolled or if it failed.
-  AWSEC2EnrollmentStatus enroll_status = 5;
-  // EnrollMessage is an informational message used to further expand on the result of auto-enrolling this instance.
-  string enroll_message = 6;
-  // Name is the friendly name of the resource.
-  // Might be empty.
-  string name = 7;
-  // SSMInvocationURL is the URL that points to the ssm:RunCommand invocation result.
-  // This only present when auto-enrolling using the Script mode.
-  string ssm_invocation_url = 8;
-}
-
-// AWSEC2EnrollmentStatus is the status of the discovery config EC2 instance enrollment.
-enum AWSEC2EnrollmentStatus {
-  AWSEC2_ENROLLMENT_STATUS_UNSPECIFIED = 0;
-  // AWSEC2_ENROLLMENT_STATUS_SYNCING means the instance was detected and the auto-enrollment process started.
-  AWSEC2_ENROLLMENT_STATUS_SYNCING = 1;
-  // AWSEC2_ENROLLMENT_STATUS_SCRIPT_SUCCESS means that teleport successfully ran the script.
-  AWSEC2_ENROLLMENT_STATUS_SCRIPT_SUCCESS = 2;
-  // AWSEC2_ENROLLMENT_STATUS_SCRIPT_ERROR means that the script failed to run.
-  AWSEC2_ENROLLMENT_STATUS_SCRIPT_ERROR = 3;
-  // AWSEC2_ENROLLMENT_STATUS_SUCCESS indicates that the instance joined teleport.
-  AWSEC2_ENROLLMENT_STATUS_SUCCESS = 4;
-  // AWSEC2_ENROLLMENT_STATUS_ERROR indicates some other error when trying to auto-enroll the instance.
-  AWSEC2_ENROLLMENT_STATUS_ERROR = 5;
 }
