@@ -71,7 +71,7 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 		// As trying broken credentials takes 30 seconds this is a very bad UX and we should get rid of this.
 		// Credentials from profile are not passing MFA4Admin anyway.
 		summary := inactiveReason.String() +
-			"\n\n The provider will attempt to use your current local profile (this behaviour is deprecated and will be removed in v17, you should specify the profile name or directory)."
+			"\nThe provider will fallback to your current local profile (this behaviour is deprecated and will be removed in v17, you should specify the profile name or directory)."
 		return CredentialSources{CredentialsFromProfile{isDefault: true}}, diag.Diagnostics{diag.NewWarningDiagnostic(
 			"No active Teleport credentials source found",
 			summary,
@@ -419,8 +419,12 @@ type CredentialsFromProfile struct {
 }
 
 // Name implements CredentialSource and returns the source name.
-func (CredentialsFromProfile) Name() string {
-	return "from the local profile"
+func (c CredentialsFromProfile) Name() string {
+	name := "from the local profile"
+	if c.isDefault {
+		name += " (default)"
+	}
+	return name
 }
 
 // IsActive implements CredentialSource and returns if the source is active and why.
