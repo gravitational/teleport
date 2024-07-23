@@ -18,12 +18,10 @@
 
 import React from 'react';
 
-import Image from '../Image';
-
-import teleportSvg from './../assets/images/enterprise-dark.svg';
+import Indicator from '.';
 
 export default {
-  title: 'Design/Image',
+  title: 'Design/Indicator',
 };
 
-export const Logo = () => <Image src={teleportSvg} />;
+export const Loader = () => <Indicator />;

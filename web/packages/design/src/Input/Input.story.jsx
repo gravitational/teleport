@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,11 +18,17 @@
 
 import React from 'react';
 
-import { render } from 'design/utils/testing';
+import Input from '.';
 
-import { Cards } from './CardTerminal.story';
+export default {
+  title: 'Design/Inputs',
+};
 
-test('rendering of CardTerminal components', () => {
-  const { container } = render(<Cards />);
-  expect(container.firstChild).toMatchSnapshot();
-});
+export const Inputs = () => (
+  <>
+    <Input mb={4} placeholder="Enter SomeText" />
+    <Input mb={4} hasError={true} defaultValue="This field has an error" />
+    <Input mb={4} readOnly defaultValue="Read-only field" />
+    <Input mb={4} disabled defaultValue="Disabled field" />
+  </>
+);

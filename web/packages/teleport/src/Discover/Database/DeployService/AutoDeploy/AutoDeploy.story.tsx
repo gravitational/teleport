@@ -17,8 +17,7 @@
  */
 
 import React from 'react';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
 
@@ -40,10 +39,7 @@ import { AutoDeploy } from './AutoDeploy';
 
 export default {
   title: 'Teleport/Discover/Database/Deploy/Auto',
-  loaders: [mswLoader],
 };
-
-initialize();
 
 export const Init = () => {
   return (
@@ -52,14 +48,14 @@ export const Init = () => {
     </ComponentWrapper>
   );
 };
-
 Init.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      ),
+      http.post(cfg.api.awsDeployTeleportServicePath, () =>
+        HttpResponse.json({ serviceDashboardUrl: 'some-dashboard-url' })
       ),
     ],
   },
@@ -88,25 +84,19 @@ export const InitWithAutoEnroll = () => {
 InitWithAutoEnroll.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
-      rest.post(
-        cfg.getAwsRdsDbsDeployServicesUrl('test-integration'),
-        (req, res, ctx) =>
-          res(
-            ctx.json({
-              clusterDashboardUrl: 'some-cluster-dashboard-url',
-            })
-          )
+      http.post(cfg.getAwsRdsDbsDeployServicesUrl('test-integration'), () =>
+        HttpResponse.json({
+          clusterDashboardUrl: 'some-cluster-dashboard-url',
+        })
       ),
     ],
   },
 };
 
-export const InitWithLabels = () => {
+export const InitWithLabelsWithDeployFailure = () => {
   return (
     <TeleportProvider
       resourceKind={ResourceKind.Database}
@@ -126,14 +116,19 @@ export const InitWithLabels = () => {
     </TeleportProvider>
   );
 };
-
-InitWithLabels.parameters = {
+InitWithLabelsWithDeployFailure.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      ),
+      http.post(cfg.api.awsDeployTeleportServicePath, () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 500 }
+        )
       ),
     ],
   },
@@ -150,15 +145,13 @@ export const InitSecurityGroupsLoadingFailed = () => {
 InitSecurityGroupsLoadingFailed.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(
-            ctx.status(403),
-            ctx.json({
-              message: 'some error when trying to list security groups',
-            })
-          )
+      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+        HttpResponse.json(
+          {
+            message: 'some error when trying to list security groups',
+          },
+          { status: 403 }
+        )
       ),
     ],
   },
@@ -175,9 +168,8 @@ export const InitSecurityGroupsLoading = () => {
 InitSecurityGroupsLoading.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) => res(ctx.delay('infinite'))
+      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+        delay('infinite')
       ),
     ],
   },
