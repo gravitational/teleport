@@ -157,8 +157,8 @@ func (u *Users) Setup(_ context.Context, database types.Database) error {
 
 // Start starts users service to manage cloud database users.
 func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Databases) {
-	u.cfg.Log.Debug("Starting cloud users service.")
-	defer u.cfg.Log.Debug("Cloud users service done.")
+	u.cfg.Log.DebugContext(ctx, "Starting cloud users service.")
+	defer u.cfg.Log.DebugContext(ctx, "Cloud users service done.")
 
 	ticker := interval.New(interval.Config{
 		// Use jitter for HA setups.
