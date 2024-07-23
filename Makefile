@@ -885,7 +885,9 @@ endif
 .PHONY: test-go-bench-ci
 test-go-bench-ci: PACKAGES = $(shell find ./lib -iname "*_test.go" -exec grep -l testing.B {} \; | xargs dirname | xargs go list)
 test-go-bench-ci:
-	go test -run ^$$ -bench . -benchtime 1x $(PACKAGES)
+	go test -run ^$$ -bench . -json -benchtime 1x $(PACKAGES) \
+	| tee $(TEST_LOG_DIR)/unit.json \
+	| gotestsum --raw-command -- cat
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
