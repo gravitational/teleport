@@ -82,6 +82,7 @@ func TestWatcherCapacity(t *testing.T) {
 		BufferCapacity(1),
 		BufferClock(clock),
 		BacklogGracePeriod(gracePeriod),
+		CreationGracePeriod(time.Nanosecond),
 	)
 	defer b.Close()
 	b.SetInit()

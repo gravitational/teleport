@@ -142,6 +142,9 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 		reads.WithLabelValues(s.Component).Add(float64(len(res.Items)))
 	}
 	s.trackRequest(types.OpGet, startKey, endKey)
+	if s.Clock().Since(start) > time.Second*3 {
+		log.Warnf("Slow GetRange: elapsed=%v, start_key=%q, end_key=%q, limit=%d", s.Clock().Since(start), startKey, endKey, limit)
+	}
 	return res, err
 }
 

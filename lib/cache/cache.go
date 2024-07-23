@@ -1275,6 +1275,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 
+	fetchAndApplyStart := time.Now()
+
 	confirmedKindsMap := make(map[resourceKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
 		confirmedKindsMap[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = kind
@@ -1337,6 +1339,12 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
+
+	fetchAndApplyDuration := time.Since(fetchAndApplyStart)
+	c.Logger.Debugf("Cache %q fetch and apply took %v", c.Config.target, fetchAndApplyDuration)
+	if fetchAndApplyDuration > time.Second*20 {
+		c.Logger.Warnf("Slow fetch and apply for cache %q took %v.", c.Config.target, fetchAndApplyDuration)
+	}
 
 	var lastStalenessWarning time.Time
 	var staleEventCount int
