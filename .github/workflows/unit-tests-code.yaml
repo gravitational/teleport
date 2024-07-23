@@ -78,4 +78,6 @@ jobs:
       - name: Run Benchmarks Once
         if: ${{ !cancelled() && steps.prepare.conclusion == 'success' }}
         timeout-minutes: 5
-        run: make test-go-bench | sed -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
+        run: |
+          set -o pipefail
+          make test-go-bench | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
