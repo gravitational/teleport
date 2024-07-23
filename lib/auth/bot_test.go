@@ -851,27 +851,50 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	t.Cleanup(cancel)
 
 	srv := newTestTLSServer(t)
+	a := srv.Auth()
 
-	client, err := srv.NewClient(TestAdmin())
-	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
-				Name: "test",
+	botName := "bot"
+	k8sTokenName := "jwks-matching-service-account"
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+		if token == k8sTokenName {
+			return &kubernetestoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+		}
+
+		return nil, errMockInvalidToken
+	}
+	token, err := types.NewProvisionTokenFromSpec("static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleBot},
+		BotName:    botName,
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeStaticJWKS,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: "static-jwks:matching"},
 			},
-			Spec: &machineidv1pb.BotSpec{
-				Roles: []string{"example"},
+			StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+				JWKS: "fake-jwks",
 			},
 		},
 	})
 	require.NoError(t, err)
+	require.NoError(t, a.CreateToken(ctx, token))
 
-	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
-		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
-	})
+	roleName := "test-role"
+	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
-	require.NoError(t, client.CreateToken(ctx, token))
+
+	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Metadata: &headerv1.Metadata{
+			Name: botName,
+		},
+		Spec: &machineidv1pb.BotSpec{
+			Roles: []string{roleName},
+		},
+	}, a.clock.Now(), "")
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
 
 	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -880,23 +903,45 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	// Try registering with a non-proxy client; this is untrusted and the
-	// client-provided ID should be discarded.
-	certs, err := client.RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
+	// Try registering with a proxy client; this is trusted but the invalid
+	// instance ID should be overwritten and a new instance generated.
+	certs, err := srv.Auth().RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
 		Token:         token.GetName(),
 		HostID:        "test-bot",
 		Role:          types.RoleBot,
 		PublicSSHKey:  sshPublicKey,
 		PublicTLSKey:  tlsPublicKey,
+		IDToken:       k8sTokenName,
 		BotInstanceID: "foo",
 	})
 
 	// Should not generate any errors, especially some variety of "instance not
-	// found" which might indicate that it tried to trust the value improperly.
+	// found" which might indicate improper behavior when encountering a
+	// nonexistent token.
 	require.NoError(t, err)
 
 	// Should not issue certs with an obviously invalid instance ID, or no ID.
 	id := instanceIDFromCerts(t, certs)
+	require.NotEmpty(t, id)
+	require.NotEqual(t, "foo", id)
+
+	// Try registering with a non-proxy client; this is untrusted and the
+	// client-provided ID should be discarded.
+	certs, err = client.RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
+		Token:         token.GetName(),
+		HostID:        "test-bot",
+		Role:          types.RoleBot,
+		PublicSSHKey:  sshPublicKey,
+		PublicTLSKey:  tlsPublicKey,
+		IDToken:       k8sTokenName,
+		BotInstanceID: "foo",
+	})
+
+	// As above, should not generate any errors, and a new ID should be
+	// generated.
+	require.NoError(t, err)
+
+	id = instanceIDFromCerts(t, certs)
 	require.NotEmpty(t, id)
 	require.NotEqual(t, "foo", id)
 }

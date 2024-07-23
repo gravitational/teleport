@@ -202,6 +202,18 @@ func (a *Server) updateBotInstance(
 		return nil
 	}
 
+	// Check if this bot instance actually exists.
+	instanceNotFound := false
+	if botInstanceID != "" {
+		_, err := a.BotInstance.GetBotInstance(ctx, botName, botInstanceID)
+		if trace.IsNotFound(err) {
+			instanceNotFound = true
+		} else if err != nil {
+			// Some other error, bail.
+			return trace.Wrap(err)
+		}
+	}
+
 	// TODO(nklaassen): consider recording both public keys once they are
 	// actually separated.
 	var publicKeyPEM []byte
@@ -240,15 +252,17 @@ func (a *Server) updateBotInstance(
 	// An empty bot instance most likely means a bot is rejoining after an
 	// upgrade, so a new bot instance should be generated. We may consider
 	// making this an error in the future.
-	if botInstanceID == "" {
-		log.WithFields(logrus.Fields{
-			"bot_name": botName,
-		}).Info("bot has no instance ID, a new instance will be generated")
-
+	if botInstanceID == "" || instanceNotFound {
 		instanceID, err := uuid.NewRandom()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		log.WithFields(logrus.Fields{
+			"bot_name":            botName,
+			"invalid_instance_id": botInstanceID,
+			"new_instance_id":     instanceID.String(),
+		}).Info("bot has no valid instance ID, a new instance will be generated")
 
 		expires := a.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin)
 
@@ -418,13 +432,15 @@ func (a *Server) generateInitialBotCerts(
 
 			// Note: botName is derived from the provision token rather than any
 			// value sent by the client, so we can trust it.
-			// TODO: Determine how we should handle update failure in edge cases
-			// (bot instance expired should not be possible?)
 			if err := a.updateBotInstance(ctx, &certReq, botName, existingInstanceID, initialAuth); err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			certReq.botInstanceID = existingInstanceID
+			// Only set the bot instance ID if it's empty; `updateBotInstance()`
+			// may set it if a new instance is created.
+			if certReq.botInstanceID == "" {
+				certReq.botInstanceID = existingInstanceID
+			}
 		}
 	}
 
