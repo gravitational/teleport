@@ -89,9 +89,7 @@ type WatcherConfig struct {
 // Returns [ErrUnsupportedPlatform] if the operating system is not supported.
 func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 
-	switch getOS(config) {
-	case constants.LinuxOS:
-	default:
+	if getOS(config) != constants.LinuxOS {
 		return nil, trace.Wrap(ErrUnsupportedPlatform)
 	}
 
@@ -258,7 +256,9 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 		}
 
 		hostKeys, err := w.parseAuthorizedKeysFile(u, authorizedKeysPath)
-		if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
 			w.logger.Warn("Failed to parse authorized_keys file", "error", err)
 			continue
 		}
@@ -273,10 +273,7 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 	const maxKeysPerReport = 500
 	for i := 0; i < len(keys); i += maxKeysPerReport {
 		start := i
-		end := i + maxKeysPerReport
-		if end > len(keys) {
-			end = len(keys)
-		}
+		end := min(i+maxKeysPerReport, len(keys))
 		if err := stream.Send(
 			&accessgraphsecretsv1pb.ReportAuthorizedKeysRequest{
 				Keys:      keys[start:end],
@@ -338,9 +335,7 @@ func userList(ctx context.Context, log *slog.Logger, filePath string) ([]user.Us
 
 func (w *Watcher) parseAuthorizedKeysFile(u user.User, authorizedKeysPath string) ([]*accessgraphsecretsv1pb.AuthorizedKey, error) {
 	file, err := os.Open(authorizedKeysPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer func() {

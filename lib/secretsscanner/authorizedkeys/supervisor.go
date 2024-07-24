@@ -56,13 +56,23 @@ func supervisorRunner(parentCtx context.Context, cfg supervisorRunnerConfig) err
 		mu           sync.Mutex
 	)
 
+	getIsRunning := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return isRunning
+	}
+
+	setIsRunning := func(s bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		isRunning = s
+	}
+
 	runRoutine := func(ctx context.Context, cancel context.CancelCauseFunc) {
 		defer func() {
 			wg.Done()
 			cancel(errShutdown)
-			mu.Lock()
-			isRunning = false
-			mu.Unlock()
+			setIsRunning(false)
 		}()
 		if err := cfg.runner(ctx); err != nil && !errors.Is(err, errShutdown) {
 			cfg.logger.WarnContext(ctx, "Runner failed", "error", err)
@@ -75,14 +85,12 @@ func supervisorRunner(parentCtx context.Context, cfg supervisorRunnerConfig) err
 		switch enabled, err := cfg.checkIfMonitorEnabled(parentCtx); {
 		case err != nil:
 			cfg.logger.WarnContext(parentCtx, "Failed to check if authorized keys report is enabled", "error", err)
-		case enabled && !isRunning:
+		case enabled && !getIsRunning():
 			runCtx, runCtxCancel = context.WithCancelCause(parentCtx)
-			mu.Lock()
-			isRunning = true
-			mu.Unlock()
+			setIsRunning(true)
 			wg.Add(1)
 			go runRoutine(runCtx, runCtxCancel)
-		case !enabled && isRunning:
+		case !enabled && getIsRunning():
 			runCtxCancel(errShutdown)
 			// Wait for the runner to stop before checking if the monitor is enabled again.
 			wg.Wait()

@@ -103,7 +103,7 @@ func TestSupervisorRunner(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			return !running
-		}, 1000*time.Millisecond, 10*time.Millisecond, "expected runner to re-stop, but it did not")
+		}, 100*time.Millisecond, 10*time.Millisecond, "expected runner to re-stop, but it did not")
 
 		// Cancel the context to stop the supervisor
 		cancel()
