@@ -1326,6 +1326,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
 	as.DefaultSessionTTL = authPreference.GetDefaultSessionTTL()
+	as.SignatureAlgorithmSuite = authPreference.GetSignatureAlgorithmSuite()
 
 	return as, nil
 }
