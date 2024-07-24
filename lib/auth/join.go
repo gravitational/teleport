@@ -377,9 +377,6 @@ func (a *Server) generateCertsBot(
 		// TODO(nklaassen): consider logging the SSH public key as well, for now
 		// the SSH and TLS public keys are still identical for tbot.
 		PublicKey: req.PublicTLSKey,
-
-		// Note: Generation will be set during `generateInitialBotCerts()` as
-		// needed.
 	}
 
 	if joinAttributeSrc != nil {
@@ -401,7 +398,7 @@ func (a *Server) generateCertsBot(
 	certs, err := a.generateInitialBotCerts(
 		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr,
 		req.PublicSSHKey, req.PublicTLSKey, expires, renewable, auth,
-		req.BotInstanceID,
+		req.BotInstanceID, req.BotGeneration,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
