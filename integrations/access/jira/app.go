@@ -59,7 +59,7 @@ const (
 	// the jira issue again if the webhook payload and jira API disagree on the issue status.
 	webhookIssueAPIRetryInterval = 5 * time.Second
 	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
-	webhookIssueAPIRetryTimeout = time.Minute
+	webhookIssueAPIRetryTimeout = 5 * time.Minute
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)
@@ -290,6 +290,9 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 // onJiraWebhook processes Jira webhook and updates the status of an issue
 func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
+	ctx, cancel := context.WithTimeout(ctx, webhookIssueAPIRetryTimeout)
+	defer cancel()
+
 	webhookEvent := webhook.WebhookEvent
 	issueEventTypeName := webhook.IssueEventTypeName
 	if webhookEvent != "jira:issue_updated" || issueEventTypeName != "issue_generic" {
