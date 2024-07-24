@@ -82,7 +82,7 @@ func NewListVPCsClient(ctx context.Context, req *AWSClientRequest) (ListVPCsClie
 // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVpcs.html
 // It returns a list of VPCs and an optional NextToken that can be used to fetch the next page.
 func ListVPCs(ctx context.Context, clt ListVPCsClient, req ListVPCsRequest) (*ListVPCsResponse, error) {
-	describeVPCsInput := &ec2.DescribeVpcsInput{}
+	describeVPCsInput := &ec2.DescribeVpcsInput{MaxResults: aws.Int32(100)}
 	if req.NextToken != "" {
 		describeVPCsInput.NextToken = &req.NextToken
 	}
