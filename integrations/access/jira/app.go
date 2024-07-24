@@ -59,7 +59,7 @@ const (
 	// the jira issue again if the webhook payload and jira API disagree on the issue status.
 	webhookIssueAPIRetryInterval = 5 * time.Second
 	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
-	webhookIssueAPIRetryTimeout = time.Minute
+	webhookIssueAPIRetryTimeout = 5 * time.Minute
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)
