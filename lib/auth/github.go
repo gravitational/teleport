@@ -724,6 +724,10 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
 		}
+		// Modifies the session with a DeviceWebToken.
+		if err := a.augmentSessionForDeviceTrust(ctx, session, req.ClientLoginIP, req.ClientUserAgent); err != nil {
+			return nil, trace.Wrap(err, "Failed to issue device web token.")
+		}
 
 		auth.Session = session
 	}

@@ -642,29 +642,44 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Modifies the session with a DeviceWebToken.
+	if err := a.augmentSessionForDeviceTrust(ctx, sess, loginIP, userAgent); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
+}
+
+func (a *Server) augmentSessionForDeviceTrust(
+	ctx context.Context,
+	session types.WebSession,
+	loginIP, userAgent string,
+) error {
+	// IP and user agent are mandatory for device web authentication.
+	if loginIP == "" || userAgent == "" {
+		return nil
+	}
 
 	// Create the device trust DeviceWebToken.
 	// We only get a token if the server is enabled for Device Trust and the user
 	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
+	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+		WebSessionId:     session.GetName(),
+		BrowserUserAgent: userAgent,
+		BrowserIp:        loginIP,
+		User:             session.GetUser(),
+	})
+	switch {
+	case err != nil:
+		log.WithError(err).Warn("Failed to create DeviceWebToken for user")
+	case webToken != nil: // May be nil even if err==nil.
+		session.SetDeviceWebToken(&types.DeviceWebToken{
+			Id:    webToken.Id,
+			Token: webToken.Token,
 		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
 	}
 
-	return sess, nil
+	return nil
 }
 
 func (a *Server) calculateTrustedDeviceMode(
