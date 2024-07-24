@@ -1235,7 +1235,18 @@ message ProvisionTokenSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include "token", "ec2", and "iam".
+  // Supported joining methods include:
+  // - azure
+  // - circleci
+  // - ec2
+  // - gcp
+  // - github
+  // - gitlab
+  // - iam
+  // - kubernetes
+  // - spacelift
+  // - token
+  // - tpm
   string JoinMethod = 4 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
