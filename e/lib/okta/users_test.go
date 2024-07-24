@@ -14,7 +14,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -156,7 +155,10 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
-		assertEmptyAssigmentList(t, ap)
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1, app1, app2},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
 	})
 
 	t.Run("unlock user", func(t *testing.T) {
@@ -165,18 +167,11 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		var err error
-		// Create an empty user state, which should cause a cleanup of all assignments since it has no permissions.
-		ap.userState, err = userloginstate.New(header.Metadata{
-			Name: testUser,
-		}, userloginstate.Spec{
-			UserType: types.UserTypeSSO,
-		})
-		require.NoError(t, err)
-
-		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
-		assertEmptyAssigmentList(t, ap)
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1, app1, app2},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
 	})
 }
 
