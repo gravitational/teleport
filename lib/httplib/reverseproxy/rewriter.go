@@ -129,7 +129,7 @@ func maybeSetForwarded(req *http.Request) {
 	// Set X-Forwarded-For since net/http/httputil.ReverseProxy won't
 	// do this when Rewrite is set.
 	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		req.Header.Set("X-Forwarded-For", clientIP)
+		req.Header.Set(XForwardedFor, clientIP)
 	}
 
 	if req.Header.Get(XForwardedProto) != "" {
