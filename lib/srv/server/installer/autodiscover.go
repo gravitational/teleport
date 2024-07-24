@@ -214,7 +214,7 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	}
 	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
-	// Check if teleport is already installed and install it, if it's absent
+	// Check if teleport is already installed and install it, if it's absent.
 	if _, err := os.Stat(ani.binariesLocation.Teleport); err != nil {
 		ani.Logger.InfoContext(ctx, "Installing teleport")
 		if err := ani.installTeleportFromRepo(ctx); err != nil {

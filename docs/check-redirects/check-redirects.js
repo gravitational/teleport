@@ -1,7 +1,7 @@
 const yaml = require('yaml');
 const path = require('path');
 
-const teleportDomain = 'https://goteleport.com';
+const teleportDocsURL = 'https://goteleport.com/docs';
 // RedirectChecker checks for Teleport docs site domains and paths within a
 // given file tree and determines whether a given docs configuration requires
 // redirects.
@@ -38,21 +38,14 @@ class RedirectChecker {
   // URLs that do not correspond to an existing docs page or redirect. It
   // returns a list of problematic URLs.
   check() {
-    const results = this.checkDir(this.otherRepoRoot);
-    let deduped = {};
-    if (results != undefined) {
-      results.forEach(r => {
-        deduped[r] = true;
-      });
-      return Object.keys(deduped);
-    }
+    return this.checkDir(this.otherRepoRoot);
   }
 
   // checkDir recursively checks for docs URLs with missing docs paths or
   // redirects at dirPath. It returns an array of missing URLs.
   checkDir(dirPath) {
     const files = this.fs.readdirSync(dirPath, 'utf8');
-    let result = [];
+    let result = new Set();
     files.forEach(f => {
       for (let e = 0; e < this.exclude.length; e++) {
         if (f.endsWith(this.exclude[e])) {
@@ -62,12 +55,16 @@ class RedirectChecker {
       const fullPath = path.join(dirPath, f);
       const info = this.fs.statSync(fullPath);
       if (!info.isDirectory()) {
-        result = result.concat(this.checkFile(fullPath));
+        for (const r of this.checkFile(fullPath)) {
+          result.add(r);
+        }
         return;
       }
-      result = result.concat(this.checkDir(fullPath));
+      for (const r of this.checkDir(fullPath)) {
+        result.add(r);
+      }
     });
-    return result;
+    return [...result];
   }
 
   // checkFile determines whether docs URLs found in the file
@@ -75,13 +72,13 @@ class RedirectChecker {
   // Returns an array of URLs with missing files or redirects.
   checkFile(filePath) {
     const docsPattern = new RegExp(
-      /https:\/\/goteleport.com\/docs\/(ver\/[0-9]+\.x\/)?[\w\/_#-]+/,
+      /https:\/\/goteleport.com\/docs(\/ver\/[0-9]+\.x)?(\/[\w\/_-]+)\/?#?/,
       'gm'
     );
     const text = this.fs.readFileSync(filePath, 'utf8');
     const docsURLs = [...text.matchAll(docsPattern)];
     if (docsURLs.length === 0) {
-      return;
+      return [];
     }
     let result = [];
     docsURLs.forEach(url => {
@@ -92,10 +89,10 @@ class RedirectChecker {
         }) == undefined;
 
       if (!missingEntry) {
-        return;
+        return [];
       }
 
-      let pathPart = url[0].slice(teleportDomain.length);
+      let pathPart = url[2];
       if (pathPart[pathPart.length - 1] != '/') {
         pathPart += '/';
       }
@@ -109,7 +106,7 @@ class RedirectChecker {
 
   urlToDocsPath(url) {
     let nofrag = url.split('#')[0]; // Remove the fragment
-    let rest = nofrag.slice((teleportDomain + '/docs/').length);
+    let rest = nofrag.slice(teleportDocsURL.length);
     if (rest.length == 0) {
       return path.join(this.docsRoot, 'docs', 'pages', 'index.mdx');
     }

@@ -1530,7 +1530,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1647,7 +1647,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1957,7 +1957,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-b", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
