@@ -1,11 +1,13 @@
 import React from 'react';
 import styled from 'styled-components';
 import { components } from 'react-select';
-import Select, { type Option } from 'shared/components/Select';
+import Select from 'shared/components/Select';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 import Box from 'design/Box';
+
+import type { Option } from 'shared/components/Select';
 
 export type Days = 0 | 7 | 30 | 90 | 120;
 

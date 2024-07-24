@@ -3,6 +3,10 @@ import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import { getAcl } from 'teleport/mocks/contexts';
 
+import { http, HttpResponse } from 'msw';
+
+import { StoryObj } from '@storybook/react';
+
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import {
@@ -14,118 +18,138 @@ import cfg from 'e-teleport/config';
 
 import { ViewEditAccessList } from './ViewEditAccessList';
 
-const { worker, rest } = window.msw;
-
 export default {
-  title: 'Teleport/AccessLists/View',
+  title: 'TeleportE/AccessLists/View',
   decorators: [
     Story => {
-      // Reset request handlers added in individual stories.
-      worker.resetHandlers();
       return <Story />;
     },
   ],
 };
 
-export const Failed = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.status(500));
-    })
-  );
-  return (
-    <Provider>
-      <ViewEditAccessList />
-    </Provider>
-  );
-};
-
 // Note the disabled buttons.
 // Owners are limited to member edits.
-export const ViewingAsOwner = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessList: mockAccessList }));
-    })
-  );
-  return (
-    <Provider customAcl={getAcl({ noAccess: true })}>
-      <ViewEditAccessList />
-    </Provider>
-  );
+export const ViewingAsOwner: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({
+            accessList: mockAccessList,
+          });
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider customAcl={getAcl({ noAccess: true })}>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
 };
 
 // Note the disabled buttons.
 // Members can't edit and view other members.
-export const ViewingAsMember = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(
-        ctx.json({
-          accessList: {
-            ...mockAccessList,
-            spec: {
-              ...mockAccessList.spec,
-              // No owners
-              owners: [
-                { name: 'owner1', description: 'some description' },
-                {
-                  name: 'george.washington@goteleport.com',
-                  ineligible_status: IneligibleStatus.MissingRequirements,
-                },
-              ],
+export const ViewingAsMember: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({
+            accessList: {
+              ...mockAccessList,
+              spec: {
+                ...mockAccessList.spec,
+                // No owners
+                owners: [
+                  { name: 'owner1', description: 'some description' },
+                  {
+                    name: 'george.washington@goteleport.com',
+                    ineligible_status: IneligibleStatus.MissingRequirements,
+                  },
+                ],
+              },
             },
-          },
-        })
-      );
-    })
-  );
-  return (
-    <Provider customAcl={getAcl({ noAccess: true })}>
-      <ViewEditAccessList />
-    </Provider>
-  );
+          });
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider customAcl={getAcl({ noAccess: true })}>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
 };
 
 // Note that admin will have access to all actions.
-export const ViewingAsAdmin = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessList: mockAccessList }));
-    }),
-    rest.get(cfg.oss.getUsersUrl(), (req, res, ctx) => {
-      return res.once(
-        ctx.json([
-          { name: 'apple' },
-          { name: 'banana' },
-          {
-            name: 'carrot',
-            roles: ['reviewer', 'auditor'],
-            allTraits: { fruit: ['carrot'] },
-          },
-        ])
-      );
-    }),
-    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
-      return res.once(
-        ctx.json({
-          startKey: '',
-          items: [
+export const ViewingAsAdmin: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({
+            accessList: mockAccessList,
+          });
+        }),
+        http.get(cfg.oss.getUsersUrl(), () => {
+          return HttpResponse.json([
+            { name: 'apple' },
+            { name: 'banana' },
+            {
+              name: 'carrot',
+              roles: ['reviewer', 'auditor'],
+              allTraits: { fruit: ['carrot'] },
+            },
+          ]);
+        }),
+        http.get(cfg.oss.getListRolesUrl(), () => {
+          return HttpResponse.json([
             { name: 'admin' },
             { name: 'auditor' },
             { name: 'reviewer' },
             { name: 'access' },
             { name: 'editor' },
-          ],
-        })
-      );
-    })
-  );
-  return (
-    <Provider>
-      <ViewEditAccessList />
-    </Provider>
-  );
+          ]);
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json(
+            {
+              error: { message: 'Whoops, something went wrong.' },
+            },
+            { status: 500 }
+          );
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
 };
 
 const Provider = props => {

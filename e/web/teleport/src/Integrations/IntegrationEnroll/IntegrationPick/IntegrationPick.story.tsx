@@ -7,13 +7,15 @@ import {
 } from 'teleport/services/integrations';
 import { noAccess, allAccessAcl } from 'teleport/mocks/contexts';
 
+import { StoryObj } from '@storybook/react';
+
+import { http, HttpResponse } from 'msw';
+
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import cfg from 'e-teleport/config';
 import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { IntegrationPick } from './IntegrationPick';
-
-const { worker, rest } = window.msw;
 
 const onboardSupportPluginKinds: PluginKind[] = [
   'slack',
@@ -43,61 +45,73 @@ export default {
           cfg.oss.externalAuditStorage = defaultEasFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
           cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
-          worker.stop();
         };
       }, []);
 
-      // Reset request handlers added in individual stories.
-      worker.resetHandlers();
-      worker.start();
       return <Story />;
     },
   ],
 };
 
-export const NoPluginsEnrolled = () => {
-  worker.use(
-    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
-      return res(ctx.json(onboardSupportPluginKinds));
-    })
-  );
-
-  worker.use(
-    rest.get(cfg.getPluginUrl(), (req, res, ctx) => {
-      return res(ctx.json([]));
-    })
-  );
-
-  const ctx = createTeleportContextE();
-  return render(ctx);
+export const NoPluginsEnrolled: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.api.pluginTypesPath, () => {
+          return HttpResponse.json(onboardSupportPluginKinds);
+        }),
+        http.get(cfg.getPluginUrl(), () => {
+          return HttpResponse.json([]);
+        }),
+      ],
+    },
+  },
+  render() {
+    const ctx = createTeleportContextE();
+    return render(ctx);
+  },
 };
 
-export const PluginsEnrolled = () => {
-  worker.use(
-    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
-      return res(ctx.json(onboardSupportPluginKinds));
-    })
-  );
+export const PluginsEnrolled: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.api.pluginTypesPath, () => {
+          return HttpResponse.json(onboardSupportPluginKinds);
+        }),
+        http.get(cfg.getPluginUrl(), () => {
+          return HttpResponse.json(mockGetPluginsReply);
+        }),
+      ],
+    },
+  },
+  render() {
+    const ctx = createTeleportContextE();
 
-  worker.use(
-    rest.get(cfg.getPluginUrl(), (req, res, ctx) => {
-      return res(ctx.json(mockGetPluginsReply));
-    })
-  );
-
-  const ctx = createTeleportContextE();
-  return render(ctx);
+    return render(ctx);
+  },
 };
 
-export const Error = () => {
-  worker.use(
-    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
-      return res(ctx.status(500), ctx.json({ message: 'some error message' }));
-    })
-  );
+export const Error: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.api.pluginTypesPath, () => {
+          return HttpResponse.json(
+            {
+              message: 'some error message',
+            },
+            { status: 500 }
+          );
+        }),
+      ],
+    },
+  },
+  render() {
+    const ctx = createTeleportContextE();
 
-  const ctx = createTeleportContextE();
-  return render(ctx);
+    return render(ctx);
+  },
 };
 
 export const NoAccess = () => {
@@ -112,45 +126,49 @@ export const NoAccess = () => {
   return render(ctx);
 };
 
-export const RequiresEnterprise = () => {
-  cfg.oss.mobileDeviceManagement = false;
-  cfg.oss.externalAuditStorage = false;
-  cfg.oss.isIgsEnabled = false;
-  worker.use(
-    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
-      return res(ctx.json(onboardSupportPluginKinds));
-    })
-  );
+export const RequiresEnterprise: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.api.pluginTypesPath, () => {
+          return HttpResponse.json(onboardSupportPluginKinds);
+        }),
+        http.get(cfg.getPluginUrl(), () => {
+          return HttpResponse.json(mockGetPluginsReply);
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.isTeam = true;
+    const ctx = createTeleportContextE();
 
-  worker.use(
-    rest.get(cfg.getPluginUrl(), (req, res, ctx) => {
-      return res(ctx.json(mockGetPluginsReply));
-    })
-  );
-  const ctx = createTeleportContextE();
-
-  return render(ctx);
+    return render(ctx);
+  },
 };
 
-export const FullFeatures = () => {
-  cfg.oss.mobileDeviceManagement = true;
-  cfg.oss.externalAuditStorage = true;
-  cfg.oss.isEnterprise = true;
-  cfg.oss.isIgsEnabled = true;
-  worker.use(
-    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
-      return res(ctx.json(onboardSupportPluginKinds));
-    })
-  );
+export const FullFeatures: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.api.pluginTypesPath, () => {
+          return HttpResponse.json(onboardSupportPluginKinds);
+        }),
+        http.get(cfg.getPluginUrl(), () => {
+          return HttpResponse.json(mockGetPluginsReply);
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.mobileDeviceManagement = true;
+    cfg.oss.externalAuditStorage = true;
+    cfg.oss.isEnterprise = true;
+    cfg.oss.isIgsEnabled = true;
+    const ctx = createTeleportContextE();
 
-  worker.use(
-    rest.get(cfg.getPluginUrl(), (req, res, ctx) => {
-      return res(ctx.json(mockGetPluginsReply));
-    })
-  );
-  const ctx = createTeleportContextE();
-
-  return render(ctx);
+    return render(ctx);
+  },
 };
 
 function render(ctx: TeleportEContext) {

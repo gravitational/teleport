@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-import { rest } from 'msw';
-import { initialize, mswLoader } from 'msw-storybook-addon';
+import { http, HttpResponse } from 'msw';
 
 import { Info } from 'design/Alert';
 
@@ -10,9 +9,7 @@ import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import TeleportEContext from 'e-teleport/teleportContextE';
 
-import { renderPluginEnroll } from '../../PluginEnroll.story';
-
-initialize();
+import { renderPluginEnroll } from '../../StorybookHelper';
 
 const defaultIsEnterprise = cfg.isEnterprise;
 const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
@@ -26,7 +23,6 @@ const render = (ctx: TeleportEContext) => (
 
 export default {
   title: 'TeleportE/Integrations/Enroll/Entra',
-  loaders: [mswLoader],
   decorators: [
     Story => {
       useEffect(() => {
@@ -42,16 +38,18 @@ export default {
   parameters: {
     msw: {
       handlers: [
-        rest.get(cfg.api.usersPath, async (_req, res, ctx) => {
-          return res(
-            ctx.json([{ name: 'alice' }, { name: 'bob' }, { name: 'carol' }])
-          );
+        http.get(cfg.api.usersPath, () => {
+          return HttpResponse.json([
+            { name: 'alice' },
+            { name: 'bob' },
+            { name: 'carol' },
+          ]);
         }),
-        rest.get(ecfg.api.pluginNeedsCleanupPath, async (_req, res, ctx) => {
-          return res(ctx.json({ needsCleanup: false }));
+        http.get(ecfg.api.pluginNeedsCleanupPath, () => {
+          return HttpResponse.json({ needsCleanup: false });
         }),
-        rest.post(ecfg.getPluginValidateUrl(), async (_req, res, ctx) => {
-          return res(ctx.json({}));
+        http.post(ecfg.getPluginValidateUrl(), () => {
+          return HttpResponse.json({});
         }),
       ],
     },

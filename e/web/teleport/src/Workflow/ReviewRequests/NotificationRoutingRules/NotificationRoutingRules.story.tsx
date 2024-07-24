@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
+import { withoutQuery } from 'web/packages/build/storybook';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
@@ -10,12 +10,14 @@ import cfg from 'e-teleport/config';
 
 import { NotificationRoutingRulesDialog } from './NotificationRoutingRulesDialog';
 
-initialize();
 const defaultIsCloud = cfg.oss.isCloud;
 
+const accessMonitoringRuleListWithoutQuery = withoutQuery(
+  cfg.api.accessMonitoringRule.list
+);
+
 export default {
-  title: 'TeleportE/Workflow/NotificationRoutingRules',
-  loaders: [mswLoader],
+  title: 'TeleportE/AccessRequests/NotificationRoutingRules',
   decorators: [
     Story => {
       useEffect(() => {
@@ -68,84 +70,77 @@ subjects:
 - access_request
 version: v1`;
 
-const withPlugins = rest.get(cfg.getPluginUrl(), (req, res, ctx) =>
-  res(
-    ctx.json([
-      {
-        name: 'slack-plugin',
-        details: '',
-        statusCode: '',
-        type: 'slack',
-        spec: { fallbackChannel: 'some-fallback-channel' },
-      },
-      {
-        name: 'mattermost-plugin',
-        details: '',
-        statusCode: '',
-        type: 'mattermost',
-        spec: { channel: 'some-channel', reportToEmail: 'foo@example.com' },
-      },
-      {
-        name: 'mattermost-plugin-with-only-channel',
-        details: '',
-        statusCode: '',
-        type: 'mattermost',
-        spec: { channel: 'some-channel' },
-      },
-      {
-        name: 'mattermost-plugin-with-only-email',
-        details: '',
-        statusCode: '',
-        type: 'mattermost',
-        spec: { reportToEmail: 'foo@example.com' },
-      },
-      {
-        name: 'opgsgenie',
-        details: '',
-        statusCode: '',
-        type: 'opsgenie',
-        spec: { defaultSchedules: ['schedule1', 'schedule2', 'schedule3'] },
-      },
-    ])
-  )
+const withPlugins = http.get(cfg.getPluginUrl(), () =>
+  HttpResponse.json([
+    {
+      name: 'slack-plugin',
+      details: '',
+      statusCode: '',
+      type: 'slack',
+      spec: { fallbackChannel: 'some-fallback-channel' },
+    },
+    {
+      name: 'mattermost-plugin',
+      details: '',
+      statusCode: '',
+      type: 'mattermost',
+      spec: { channel: 'some-channel', reportToEmail: 'foo@example.com' },
+    },
+    {
+      name: 'mattermost-plugin-with-only-channel',
+      details: '',
+      statusCode: '',
+      type: 'mattermost',
+      spec: { channel: 'some-channel' },
+    },
+    {
+      name: 'mattermost-plugin-with-only-email',
+      details: '',
+      statusCode: '',
+      type: 'mattermost',
+      spec: { reportToEmail: 'foo@example.com' },
+    },
+    {
+      name: 'opgsgenie',
+      details: '',
+      statusCode: '',
+      type: 'opsgenie',
+      spec: { defaultSchedules: ['schedule1', 'schedule2', 'schedule3'] },
+    },
+  ])
 );
 
-const withRule = rest.get(cfg.api.accessMonitoringRule.list, (req, res, ctx) =>
-  res(
-    ctx.json({
-      rules: [
-        {
-          object: {
-            ...validRuleObject,
-            metadata: { name: 'valid-default-to-standard-editor' },
-          },
-          yaml: ``,
+const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
+  HttpResponse.json({
+    rules: [
+      {
+        object: {
+          ...validRuleObject,
+          metadata: { name: 'valid-default-to-standard-editor' },
         },
-      ],
-      startKey: '',
-    })
-  )
+        yaml: ``,
+      },
+    ],
+    startKey: '',
+  })
 );
 
-const noRules = rest.get(cfg.api.accessMonitoringRule.list, (req, res, ctx) =>
-  res(ctx.json({ rules: [], startKey: '' }))
+const noRules = http.get(accessMonitoringRuleListWithoutQuery, () =>
+  HttpResponse.json({ rules: [], startKey: '' })
 );
 
-const deleteRule = rest.delete(
-  cfg.api.accessMonitoringRule.delete,
-  (req, res, ctx) => res(ctx.json({}))
+const deleteRule = http.delete(cfg.api.accessMonitoringRule.delete, () =>
+  HttpResponse.json({})
 );
 
-const createRule = rest.post(
+const createRule = http.post(
   cfg.api.accessMonitoringRule.create,
-  async (req, res, ctx) => {
-    const json = await req.json();
-    return res(
-      ctx.json({
-        object: json.object,
-        yaml: '',
-      })
-    );
+  async ({ request }) => {
+    const json = (await request.json()) as { object: string };
+    return HttpResponse.json({
+      object: json.object,
+      yaml: '',
+    });
   }
 );
 
@@ -159,11 +154,15 @@ WithValidRule.parameters = {
       withPlugins,
       deleteRule,
       createRule,
-      rest.post(cfg.oss.api.yaml.parse, (req, res, ctx) =>
-        res(ctx.json({ resource: validRuleObject }))
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({
+          resource: validRuleObject,
+        })
       ),
-      rest.post(cfg.oss.api.yaml.stringify, (req, res, ctx) =>
-        res(ctx.json({ yaml: ruleYaml }))
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({
+          aml: ruleYaml,
+        })
       ),
     ],
   },
@@ -175,30 +174,28 @@ export const WithAnInvalidRule = () => {
 WithAnInvalidRule.parameters = {
   msw: {
     handlers: [
-      rest.get(cfg.api.accessMonitoringRule.list, (req, res, ctx) =>
-        res(
-          ctx.json({
-            rules: [
-              {
-                object: {
-                  ...invalidRuleObject,
-                  metadata: { name: 'invalid-default-to-yaml-editor' },
-                },
-                yaml: ruleYaml,
+      http.get(accessMonitoringRuleListWithoutQuery, () =>
+        HttpResponse.json({
+          rules: [
+            {
+              object: {
+                ...invalidRuleObject,
+                metadata: { name: 'invalid-default-to-yaml-editor' },
               },
-            ],
-            startKey: '',
-          })
-        )
+              yaml: ruleYaml,
+            },
+          ],
+          startKey: '',
+        })
       ),
       withPlugins,
       deleteRule,
       createRule,
-      rest.post(cfg.oss.api.yaml.parse, (req, res, ctx) =>
-        res(ctx.json({ resource: invalidRuleObject }))
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({ resource: invalidRuleObject })
       ),
-      rest.post(cfg.oss.api.yaml.stringify, (req, res, ctx) =>
-        res(ctx.json({ yaml: ruleYaml }))
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({ yaml: ruleYaml })
       ),
     ],
   },
@@ -213,7 +210,7 @@ NoPlugins.parameters = {
   msw: {
     handlers: [
       noRules,
-      rest.get(cfg.getPluginUrl(), (req, res, ctx) => res(ctx.json([]))),
+      http.get(cfg.getPluginUrl(), () => HttpResponse.json([])),
       deleteRule,
       createRule,
     ],
@@ -229,8 +226,13 @@ WithListRuleErrors.parameters = {
       withPlugins,
       deleteRule,
       createRule,
-      rest.get(cfg.api.accessMonitoringRule.list, (req, res, ctx) =>
-        res(ctx.status(404), ctx.json({ message: 'some listing rules error' }))
+      http.get(accessMonitoringRuleListWithoutQuery, () =>
+        HttpResponse.json(
+          {
+            message: 'some listing rules error',
+          },
+          { status: 404 }
+        )
       ),
     ],
   },
@@ -245,8 +247,13 @@ WithPluginError.parameters = {
       withRule,
       deleteRule,
       createRule,
-      rest.get(cfg.getPluginUrl(), (req, res, ctx) =>
-        res(ctx.status(404), ctx.json({ message: 'some listing plugin error' }))
+      http.get(cfg.getPluginUrl(), () =>
+        HttpResponse.json(
+          {
+            message: 'some listing plugin error',
+          },
+          { status: 404 }
+        )
       ),
     ],
   },
@@ -261,8 +268,13 @@ WithDeleteError.parameters = {
       withRule,
       createRule,
       withPlugins,
-      rest.delete(cfg.api.accessMonitoringRule.delete, (req, res, ctx) =>
-        res(ctx.status(404), ctx.json({ message: 'some delete error' }))
+      http.delete(cfg.api.accessMonitoringRule.delete, () =>
+        HttpResponse.json(
+          {
+            message: 'some delete error',
+          },
+          { status: 404 }
+        )
       ),
     ],
   },
@@ -277,8 +289,15 @@ WithCreateError.parameters = {
       withRule,
       withPlugins,
       deleteRule,
-      rest.post(cfg.api.accessMonitoringRule.create, async (req, res, ctx) => {
-        return res(ctx.status(404), ctx.json({ message: 'some create error' }));
+      http.post(cfg.api.accessMonitoringRule.create, () => {
+        HttpResponse.json(
+          {
+            message: 'some create error',
+          },
+          {
+            status: 404,
+          }
+        );
       }),
     ],
   },
@@ -294,11 +313,11 @@ WithNoPerm.parameters = {
       withPlugins,
       deleteRule,
       createRule,
-      rest.post(cfg.oss.api.yaml.parse, (req, res, ctx) =>
-        res(ctx.json({ resource: validRuleObject }))
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({ resource: validRuleObject })
       ),
-      rest.post(cfg.oss.api.yaml.stringify, (req, res, ctx) =>
-        res(ctx.json({ yaml: ruleYaml }))
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({ yaml: ruleYaml })
       ),
     ],
   },

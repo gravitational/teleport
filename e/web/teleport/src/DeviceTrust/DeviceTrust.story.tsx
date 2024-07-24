@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 
@@ -19,7 +18,6 @@ const defaultIgsFlag = cfg.isIgsEnabled;
 
 export default {
   title: 'TeleportE/DeviceTrust',
-  loaders: [mswLoader],
   decorators: [
     Story => {
       cfg.isEnterprise = true;
@@ -37,9 +35,8 @@ export default {
   ],
 };
 
-initialize();
-
 export function Empty() {
+  cfg.trustedDevices = true;
   const ctx = createTeleportContextE();
 
   return (
@@ -51,8 +48,8 @@ export function Empty() {
 Empty.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: [] }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: [] })
       ),
     ],
   },
@@ -71,8 +68,8 @@ export function EmptyCta() {
 EmptyCta.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: [] }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: [] })
       ),
     ],
   },
@@ -92,8 +89,8 @@ export function EmptyEubCta() {
 EmptyEubCta.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: [] }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: [] })
       ),
     ],
   },
@@ -111,7 +108,9 @@ export function Processing() {
 Processing.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) => res(ctx.delay('infinite'))),
+      http.get(ecfg.getTrustedDevicesUrl({}), async () => {
+        await delay('infinite');
+      }),
     ],
   },
 };
@@ -130,8 +129,8 @@ export function LoadedLegacy() {
 LoadedLegacy.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: devices }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: devices })
       ),
     ],
   },
@@ -152,8 +151,8 @@ export function LoadedEubWithIgs() {
 LoadedEubWithIgs.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: devices }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: devices })
       ),
     ],
   },
@@ -172,8 +171,8 @@ export function LoadedCta() {
 LoadedCta.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: devices }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: devices })
       ),
     ],
   },
@@ -193,8 +192,8 @@ export function LoadedEubCta() {
 LoadedEubCta.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.json({ items: devices }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json({ items: devices })
       ),
     ],
   },
@@ -212,8 +211,13 @@ export function Failed() {
 Failed.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.devices, (req, res, ctx) =>
-        res(ctx.status(404), ctx.json({ message: 'some error message' }))
+      http.get(ecfg.getTrustedDevicesUrl({}), () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 500 }
+        )
       ),
     ],
   },

@@ -1,14 +1,9 @@
 import React, { useEffect } from 'react';
-import { MemoryRouter, Route } from 'react-router';
-
 import cfg from 'teleport/config';
 
-import { ContextProvider } from 'teleport';
-
-import TeleportEContext from 'e-teleport/teleportContextE';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
-import { PluginEnroll } from './PluginEnroll';
+import { renderPluginEnroll } from './StorybookHelper';
 
 const defaultMdmFlag = cfg.mobileDeviceManagement;
 const defaultIsEnterprise = cfg.isEnterprise;
@@ -78,19 +73,3 @@ export const EnrollFailed = () =>
   renderPluginEnroll(
     `event_id=c6b794e1-afcf-4e16-ac5b-48fe4ba6e54b&error=some-error&error_description=some%20error%20 description`
   );
-
-export function renderPluginEnroll(
-  search: string,
-  pathname = cfg.getIntegrationEnrollRoute('slack'),
-  ctx?: TeleportEContext
-) {
-  return (
-    <MemoryRouter initialEntries={[{ pathname, search }]}>
-      <Route path={cfg.routes.integrationEnroll}>
-        <ContextProvider ctx={ctx}>
-          <PluginEnroll />
-        </ContextProvider>
-      </Route>
-    </MemoryRouter>
-  );
-}

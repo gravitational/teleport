@@ -3,7 +3,7 @@ import React from 'react';
 import { NoAccessState } from './NoAccessState';
 
 export default {
-  title: 'Teleport/AccessLists/NoAccessState',
+  title: 'TeleportE/AccessLists/NoAccessState',
 };
 
 export const Create = () => <NoAccessState action="create" />;

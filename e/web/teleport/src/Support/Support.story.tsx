@@ -1,5 +1,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { SupportE } from './Support';
 
@@ -11,7 +14,9 @@ export default {
 
 export const CloudSection = () => (
   <MemoryRouter>
-    <SupportE {...props} isCloud={true}></SupportE>
+    <ContextProvider ctx={createTeleportContextE()}>
+      <SupportE {...props} isCloud={true}></SupportE>
+    </ContextProvider>
   </MemoryRouter>
 );
 

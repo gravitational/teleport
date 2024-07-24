@@ -5,7 +5,7 @@ import { RequestList } from './RequestList';
 import { sample } from './fixtures';
 
 export default {
-  title: 'TeleportE/Workflow/RequestList',
+  title: 'TeleportE/AccessRequests/RequestList',
 };
 
 export const Processing = () => {

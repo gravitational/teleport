@@ -1,7 +1,6 @@
 import React, { useEffect, PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
-import { rest } from 'msw';
-import { initialize, mswLoader } from 'msw-storybook-addon';
+import { http, HttpResponse, delay } from 'msw';
 
 import cfg from 'teleport/config';
 import {
@@ -15,15 +14,13 @@ import { Info } from 'design/Alert';
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
-import { renderPluginEnroll } from '../../PluginEnroll.story';
 import { PluginProvider, usePlugin } from '../usePlugin';
 import { CloudHostablePlugin, pluginMap } from '../../plugins';
 import { PluginEnrollSuccess } from '../PluginEnrollSuccess';
+import { renderPluginEnroll } from '../../StorybookHelper';
 
 import { SetUpScim as SetUpScimComponent } from './SetUpScim';
 import { ImportUserGroupsAndApps as ImportComponent } from './ImportUserGroupsAndApps/ImportUserGroupsAndApps';
-
-initialize();
 
 const oktaPlugin = pluginMap['okta'] as CloudHostablePlugin;
 
@@ -32,7 +29,6 @@ const defaultIgs = cfg.isIgsEnabled;
 
 export default {
   title: 'TeleportE/Integrations/Enroll/Okta',
-  loaders: [mswLoader],
   decorators: [
     Story => {
       useEffect(() => {
@@ -58,19 +54,24 @@ export const EnrollOktaEnterpriseWithCleanUp = () => {
   cfg.mobileDeviceManagement = true;
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
+  return (
+    <>
+      <Info>Devs: Click next to see cleanup state</Info>
+      {renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx)}
+    </>
+  );
 };
 EnrollOktaEnterpriseWithCleanUp.parameters = {
   msw: {
     handlers: [
-      rest.get(ecfg.api.pluginNeedsCleanupPath, async (req, res, ctx) => {
-        return res(ctx.json({ needsCleanup: true }));
+      http.get(ecfg.api.pluginNeedsCleanupPath, () => {
+        return HttpResponse.json({ needsCleanup: true });
       }),
-      rest.put(ecfg.api.pluginCleanupPath, async (req, res, ctx) => {
-        return res(ctx.json({}));
+      http.put(ecfg.api.pluginCleanupPath, () => {
+        return HttpResponse.json({});
       }),
-      rest.post(ecfg.getPluginValidateUrl(), async (req, res, ctx) => {
-        return res(ctx.json({}));
+      http.post(ecfg.getPluginValidateUrl(), () => {
+        return HttpResponse.json({});
       }),
     ],
   },
@@ -110,15 +111,13 @@ export const ImportInitLoading = () => {
 ImportInitLoading.parameters = {
   msw: {
     handlers: [
-      rest.post(ecfg.api.okta.groups, async (req, res, ctx) => {
-        return res(ctx.delay('infinite'));
+      http.post(ecfg.api.okta.groups, async () => {
+        await delay('infinite');
       }),
-      rest.post(ecfg.api.okta.apps, async (req, res, ctx) => {
-        return res(ctx.delay('infinite'));
+      http.post(ecfg.api.okta.apps, async () => {
+        await delay('infinite');
       }),
-      rest.get(cfg.api.usersPath, (req, res, ctx) =>
-        res(ctx.delay('infinite'))
-      ),
+      http.get(cfg.api.usersPath, async () => await delay('infinite')),
     ],
   },
 };
@@ -143,88 +142,82 @@ export const Import = () => {
 Import.parameters = {
   msw: {
     handlers: [
-      rest.post(ecfg.api.okta.groups, async (req, res, ctx) => {
-        if (req.body['groupFilters']?.includes('test-err')) {
-          return res(
-            ctx.status(400),
-            ctx.json({
+      http.post(ecfg.api.okta.groups, async ({ request }) => {
+        const formData = await request.formData();
+
+        if (formData.get('groupFilters')?.toString().includes('test-err')) {
+          return HttpResponse.json(
+            {
               error: {
                 message: 'bad filter: test-err',
               },
-            })
+            },
+            { status: 400 }
           );
         }
-        if (req.body['groupFilters']?.includes('test-query')) {
-          return res(
-            ctx.json([
-              { name: 'group-4-test', description: 'group 4 desc' },
-              { name: 'group-3-test', description: 'group 3 desc' },
-            ])
-          );
+        if (formData.get('groupFilters')?.toString().includes('test-query')) {
+          return HttpResponse.json([
+            { name: 'group-4-test', description: 'group 4 desc' },
+            { name: 'group-3-test', description: 'group 3 desc' },
+          ]);
         }
-        return res(
-          ctx.json([
-            { name: 'group-4', description: 'group 4 desc' },
-            { name: 'group-3', description: 'group 3 desc' },
-            { name: 'group-1', description: 'group 1 desc' },
-            { name: 'group-5', description: 'group 5 desc' },
-            { name: 'group-6', description: 'group 6 desc' },
-            { name: 'group-2', description: 'group 2 desc' },
-            { name: 'group-64', description: 'group 64 desc' },
-            { name: 'group-63', description: 'group 63 desc' },
-            { name: 'group-61', description: 'group 61 desc' },
-            { name: 'group-65', description: 'group 65 desc' },
-            { name: 'group-66', description: 'group 66 desc' },
-            { name: 'group-62', description: 'group 62 desc' },
-          ])
-        );
+        return HttpResponse.json([
+          { name: 'group-4', description: 'group 4 desc' },
+          { name: 'group-3', description: 'group 3 desc' },
+          { name: 'group-1', description: 'group 1 desc' },
+          { name: 'group-5', description: 'group 5 desc' },
+          { name: 'group-6', description: 'group 6 desc' },
+          { name: 'group-2', description: 'group 2 desc' },
+          { name: 'group-64', description: 'group 64 desc' },
+          { name: 'group-63', description: 'group 63 desc' },
+          { name: 'group-61', description: 'group 61 desc' },
+          { name: 'group-65', description: 'group 65 desc' },
+          { name: 'group-66', description: 'group 66 desc' },
+          { name: 'group-62', description: 'group 62 desc' },
+        ]);
       }),
-      rest.post(ecfg.api.okta.apps, async (req, res, ctx) => {
-        if (req.body['appFilters']?.includes('test-err')) {
-          return res(
-            ctx.status(400),
-            ctx.json({
+      http.post(ecfg.api.okta.apps, async ({ request }) => {
+        const formData = await request.formData();
+
+        if (formData.get('appFilters')?.toString().includes('test-err')) {
+          return HttpResponse.json(
+            {
               error: {
                 message: 'bad filter: test-err',
               },
-            })
+            },
+            { status: 400 }
           );
         }
-        if (req.body['appFilters']?.includes('test-query')) {
-          return res(
-            ctx.json([
-              { name: '[staging] Cloud Platform Access - test' },
-              { name: 'Zoom - test' },
-            ])
-          );
+        if (formData.get('appFilters')?.toString().includes('test-query')) {
+          return HttpResponse.json([
+            { name: '[staging] Cloud Platform Access - test' },
+            { name: 'Zoom - test' },
+          ]);
         }
-        return res(
-          ctx.json([
-            { name: '1Password' },
-            { name: 'Airbase' },
-            { name: 'Anthem' },
-            { name: 'Asana' },
-            { name: 'Amazon Web Services' },
-            { name: 'Bonusly' },
-            { name: '[staging] Cloud Platform Access' },
-            { name: 'Loom (Google Auth)' },
-            { name: 'Zendesk Customer Success' },
-            { name: 'Secure Code Warrior Testing Long App' },
-            { name: 'Zoom' },
-            { name: 'Slab' },
-          ])
-        );
+        return HttpResponse.json([
+          { name: '1Password' },
+          { name: 'Airbase' },
+          { name: 'Anthem' },
+          { name: 'Asana' },
+          { name: 'Amazon Web Services' },
+          { name: 'Bonusly' },
+          { name: '[staging] Cloud Platform Access' },
+          { name: 'Loom (Google Auth)' },
+          { name: 'Zendesk Customer Success' },
+          { name: 'Secure Code Warrior Testing Long App' },
+          { name: 'Zoom' },
+          { name: 'Slab' },
+        ]);
       }),
-      rest.get(cfg.api.usersPath, (req, res, ctx) =>
-        res(
-          ctx.json([
-            { name: 'user-3', roles: ['admin'], authType: 'local' },
-            { name: 'user-2', roles: ['access'], authType: 'local' },
-            { name: 'user-1', roles: ['editor'], authType: 'local' },
-          ])
-        )
+      http.get(cfg.api.usersPath, () =>
+        HttpResponse.json([
+          { name: 'user-3', roles: ['admin'], authType: 'local' },
+          { name: 'user-2', roles: ['access'], authType: 'local' },
+          { name: 'user-1', roles: ['editor'], authType: 'local' },
+        ])
       ),
-      rest.post(ecfg.api.pluginPath, (req, res, ctx) => res(ctx.json({}))),
+      http.post(ecfg.api.pluginPath, () => HttpResponse.json({})),
     ],
   },
 };

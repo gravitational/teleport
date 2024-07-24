@@ -3,24 +3,26 @@ import { addWeeks } from 'date-fns';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import { getAcl } from 'teleport/mocks/contexts';
+import Box from 'design/Box';
+
+import { StoryObj } from '@storybook/react';
+
+import { http, HttpResponse } from 'msw';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import cfg from 'e-teleport/config';
 
 import { AccessLists } from './AccessLists';
 
-const { worker, rest } = window.msw;
-
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
 
 export default {
-  title: 'Teleport/AccessLists/List',
+  title: 'TeleportE/AccessLists/List',
   decorators: [
     Story => {
       cfg.oss.isEnterprise = true;
       // Reset request handlers added in individual stories.
-      worker.resetHandlers();
       useEffect(() => {
         // Clean up
         return () => {
@@ -33,93 +35,144 @@ export default {
   ],
 };
 
-export const Failed = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.status(500));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
+export const ListUnlimited: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new Response(
+            JSON.stringify({
+              accessLists: mockAccessLists,
+            })
+          );
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
+
+    return (
+      <Provider>
+        <AccessLists />
+      </Provider>
+    );
+  },
 };
 
-export const NoAccess = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.status(403));
-    })
-  );
-  return (
-    <Provider customAcl={getAcl({ noAccess: true })}>
-      <AccessLists />
-    </Provider>
-  );
+export const ListLimitedAccessCta: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new Response(JSON.stringify({ accessLists: mockAccessLists }));
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.entitlements.AccessLists = { enabled: true, limit: 45 };
+
+    return (
+      <Provider>
+        <Box>
+          <AccessLists />
+        </Box>
+      </Provider>
+    );
+  },
 };
 
-export const EmptyUnlimitedAccess = () => {
-  cfg.oss.entitlements.AccessLists = {
-    enabled: true,
-    limit: 0,
-  };
-
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: [] }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json(
+            {
+              error: { message: 'Whoops, something went wrong.' },
+            },
+            { status: 400 }
+          );
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <AccessLists />
+      </Provider>
+    );
+  },
 };
 
-export const EmptyLimitedAccessCta = () => {
-  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 4 };
-
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: [] }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
+export const NoAccess: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(null, { status: 403 });
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider customAcl={getAcl({ noAccess: true })}>
+        <AccessLists />
+      </Provider>
+    );
+  },
 };
 
-export const ListUnlimited = () => {
-  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
+export const EmptyUnlimitedAccess: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(
+            JSON.stringify({
+              accessLists: [],
+            })
+          );
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.entitlements.AccessLists = {
+      enabled: true,
+      limit: 0,
+    };
 
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: mockAccessLists }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
+    return (
+      <Provider>
+        <AccessLists />
+      </Provider>
+    );
+  },
 };
 
-export const ListLimitedAccessCta = () => {
-  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 45 };
+export const EmptyLimitedAccessCta: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(JSON.stringify({ accessLists: [] }));
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.entitlements.AccessLists = { enabled: true, limit: 4 };
 
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: mockAccessLists }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
+    return (
+      <Provider>
+        <AccessLists />
+      </Provider>
+    );
+  },
 };
 
 const Provider = props => {

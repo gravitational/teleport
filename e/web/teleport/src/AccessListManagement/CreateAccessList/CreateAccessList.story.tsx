@@ -3,22 +3,23 @@ import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 
+import { StoryObj } from '@storybook/react';
+
+import { http, HttpResponse } from 'msw';
+
 import cfg from 'e-teleport/config';
 
 import { CreateAccessList } from './CreateAccessList';
-
-const { worker, rest } = window.msw;
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
 
 export default {
-  title: 'Teleport/AccessLists/Create',
+  title: 'TeleportE/AccessLists/Create',
   decorators: [
     Story => {
       cfg.oss.isEnterprise = true;
       // Reset request handlers added in individual stories.
-      worker.resetHandlers();
       useEffect(() => {
         // Clean up
         return () => {
@@ -31,92 +32,119 @@ export default {
   ],
 };
 
-export const Failed = () => {
-  worker.use(
-    rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
-      return res.once(ctx.status(500));
-    })
-  );
-  return (
-    <Provider>
-      <CreateAccessList />
-    </Provider>
-  );
-};
-
-export const NoAccess = () => {
-  worker.use(
-    rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
-      return res.once(ctx.status(200));
-    }),
-    rest.get(cfg.oss.api.rolePath, (req, res, ctx) => {
-      return res.once(ctx.status(200));
-    })
-  );
-  return (
-    <Provider customAcl={getAcl({ noAccess: true })}>
-      <CreateAccessList />
-    </Provider>
-  );
-};
-
-export const LoadedUnlimited = () => {
-  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
-
-  worker.use(
-    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ items: [], startKey: '' }));
-    }),
-    rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
-      return res.once(ctx.json([]));
-    }),
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: [] }));
-    })
-  );
-  return (
-    <Provider>
-      <CreateAccessList />
-    </Provider>
-  );
-};
-
-export const LoadedLimitedReachedLimit = () => {
-  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 1 };
-
-  worker.use(
-    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ items: [], startKey: '' }));
-    }),
-    rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
-      return res.once(ctx.json([]));
-    }),
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(
-        ctx.json({
-          accessLists: [
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json(
             {
-              metadata: { name: 'aaa' },
-              spec: {
-                title: 'Interns',
-                description: 'lorem ipsum description',
-                audit: { frequency: '', next_audit_date: new Date() },
-                grants: { roles: ['access', 'editor'] },
-                ownership_requires: { roles: [] },
-                owners: [],
-              },
-              membersCount: 0,
+              error: { message: 'Whoops, something went wrong.' },
             },
-          ],
-        })
-      );
-    })
-  );
-  return (
-    <Provider>
-      <CreateAccessList />
-    </Provider>
-  );
+            { status: 500 }
+          );
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <CreateAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const NoAccess: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.oss.api.usersPath, () => {
+          return new HttpResponse();
+        }),
+        http.get(cfg.oss.api.listRolesPath, () => {
+          return new HttpResponse();
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider customAcl={getAcl({ noAccess: true })}>
+        <CreateAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const LoadedWithIgs: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.oss.getListRolesUrl(), () => {
+          return HttpResponse.json([]);
+        }),
+        http.get(cfg.oss.api.usersPath, () => {
+          return HttpResponse.json([]);
+        }),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({ accessLists: [] });
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.isIgsEnabled = true;
+
+    return (
+      <Provider>
+        <CreateAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const LoadedReachedLimit: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.oss.getListRolesUrl(), () => {
+          return HttpResponse.json([]);
+        }),
+        http.get(cfg.oss.api.usersPath, () => {
+          return HttpResponse.json([]);
+        }),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({
+            accessLists: [
+              {
+                metadata: { name: 'aaa' },
+                spec: {
+                  title: 'Interns',
+                  description: 'lorem ipsum description',
+                  audit: { frequency: '', next_audit_date: new Date() },
+                  grants: { roles: ['access', 'editor'] },
+                  ownership_requires: { roles: [] },
+                  owners: [],
+                },
+                membersCount: 0,
+              },
+            ],
+          });
+        }),
+      ],
+    },
+  },
+  render() {
+    cfg.oss.featureLimits.accessListCreateLimit = 1;
+
+    return (
+      <Provider>
+        <CreateAccessList />
+      </Provider>
+    );
+  },
 };
 
 const Provider = props => {

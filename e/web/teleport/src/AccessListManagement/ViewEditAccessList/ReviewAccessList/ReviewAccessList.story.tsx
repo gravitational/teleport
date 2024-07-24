@@ -15,7 +15,7 @@ import { AccessListModified } from '../ViewEditAccessList';
 import { ReviewAccessList } from './ReviewAccessList';
 
 export default {
-  title: 'Teleport/AccessLists/Review',
+  title: 'TeleportE/AccessLists/Review',
 };
 
 async function filterMockRoleOptions(input: string) {
