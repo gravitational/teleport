@@ -48,18 +48,6 @@ const (
 	ExpiryMargin = time.Minute * 5
 )
 
-const (
-	// AuthenticationHistoryLimit is the maximum number of authentication
-	// records to be recorded in a bot instance's .Status.LatestAuthentications
-	// field.
-	AuthenticationHistoryLimit = 10
-
-	// ExpiryMargin is the duration added to bot instance expiration times to
-	// ensure the instance remains accessible until shortly after the last
-	// issued certificate expires.
-	ExpiryMargin = time.Minute * 5
-)
-
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
 // service.
 type BotInstanceServiceConfig struct {
