@@ -21,12 +21,8 @@ import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
-import {
-  UnifiedResource,
-  DeleteUnifiedResourceItem,
-} from 'teleport/services/agents';
+import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
-
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
@@ -37,45 +33,22 @@ import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
-
 import { ResourceKind } from 'teleport/Discover/Shared';
-
 import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 
-import type { ResourceAction } from 'teleport/Discover/SelectResource/types';
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 type Props = {
   resource: UnifiedResource;
-  setResourceAction?: (resourceAction: ResourceAction) => void;
-  /**
-   * resourceIndex is used to set resource item index to delete.
-   * Index is set inside ClusterResources.
-   */
-  resourceIndex?: number;
-  /**
-   * setDeletedItem set's resourceIndex for DeleteUnifiedResourceItem
-   * */
-  setDeletedItem?: (deleteItem: DeleteUnifiedResourceItem) => void;
 };
 
-export const ResourceActionButton = ({
-  resource,
-  setResourceAction,
-  resourceIndex,
-  setDeletedItem,
-}: Props) => {
+export const ResourceActionButton = ({ resource }: Props) => {
   switch (resource.kind) {
     case 'node':
       return <NodeConnect node={resource} />;
     case 'app':
-      return (
-        <AppLaunch
-          app={resource}
-          setResourceAction={setResourceAction}
-          resourceIndex={resourceIndex}
-          setDeletedItem={setDeletedItem}
-        />
-      );
+      return <AppLaunch app={resource} />;
     case 'db':
       return <DatabaseConnect database={resource} />;
     case 'kube_cluster':
@@ -169,16 +142,8 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
 type AppLaunchProps = {
   app: App;
-  setResourceAction?: (resourceAction: ResourceAction) => void;
-  resourceIndex?: number;
-  setDeletedItem?: (deleteItem: DeleteUnifiedResourceItem) => void;
 };
-const AppLaunch = ({
-  app,
-  setResourceAction,
-  resourceIndex,
-  setDeletedItem,
-}: AppLaunchProps) => {
+const AppLaunch = ({ app }: AppLaunchProps) => {
   const {
     name,
     launchUrl,
@@ -192,8 +157,7 @@ const AppLaunch = ({
     samlAppSsoUrl,
     samlAppPreset,
   } = app;
-  const ctx = useTeleport();
-  const userSamlIdPPerm = ctx.storeUser.getSamlIdPServiceProviderAccess();
+  const { action, userSamlIdPPerm } = useSamlAppAction();
   if (awsConsole) {
     return (
       <AwsLaunchButton
@@ -224,36 +188,16 @@ const AppLaunch = ({
     );
   }
 
-  function handleSamlMenuButtonClick(action: 'edit' | 'delete') {
-    // check user permissions for each action.
-    if (action === 'edit' && !userSamlIdPPerm.edit) {
-      return;
-    }
-    if (action === 'delete' && !userSamlIdPPerm.remove) {
-      return;
-    }
-    setResourceAction({
-      action: action,
-      resourceSpec: {
+  if (samlApp) {
+    if (action.showActions) {
+      const currentSamlAppSpec: ResourceSpec = {
         name: name,
         event: DiscoverEventResource.SamlApplication,
         kind: ResourceKind.SamlApplication,
         samlMeta: { preset: samlAppPreset },
         icon: 'Application',
         keywords: 'saml',
-      },
-    });
-
-    if (action === 'delete') {
-      setDeletedItem({ backendDeleted: false, index: resourceIndex });
-    }
-  }
-
-  const showSamlActionMenu =
-    setResourceAction && (userSamlIdPPerm.edit || userSamlIdPPerm.remove);
-
-  if (samlApp) {
-    if (showSamlActionMenu) {
+      };
       return (
         <ButtonWithMenu
           text="Log In"
@@ -267,13 +211,13 @@ const AppLaunch = ({
           title="Log in to SAML application"
         >
           <MenuItem
-            onClick={() => handleSamlMenuButtonClick('edit')}
+            onClick={() => action.startEdit(currentSamlAppSpec)}
             disabled={!userSamlIdPPerm.edit} // disable props does not disable onClick
           >
             Edit
           </MenuItem>
           <MenuItem
-            onClick={() => handleSamlMenuButtonClick('delete')}
+            onClick={() => action.startDelete(currentSamlAppSpec)}
             disabled={!userSamlIdPPerm.remove} // disable props does not disable onClick
           >
             Delete

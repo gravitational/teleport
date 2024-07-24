@@ -33,6 +33,7 @@ import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
+import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
 
 import {
   makeUnifiedResourceViewItemApp,
@@ -106,14 +107,7 @@ export const Cards: Story = {
         {[
           ...apps.map(resource =>
             makeUnifiedResourceViewItemApp(resource, {
-              ActionButton: (
-                <ResourceActionButton
-                  resource={resource}
-                  setResourceAction={() =>
-                    alert('Sets resource spec and opens update dialog')
-                  }
-                />
-              ),
+              ActionButton: <ResourceActionButton resource={resource} />,
             })
           ),
           ...databases.map(resource =>
@@ -136,20 +130,22 @@ export const Cards: Story = {
             makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
           ),
         ].map((res, i) => (
-          <ResourceCard
-            key={i}
-            pinned={false}
-            pinResource={() => {}}
-            selectResource={() => {}}
-            selected={false}
-            pinningSupport={PinningSupport.Supported}
-            name={res.name}
-            primaryIconName={res.primaryIconName}
-            SecondaryIcon={res.SecondaryIcon}
-            cardViewProps={res.cardViewProps}
-            labels={res.labels}
-            ActionButton={res.ActionButton}
-          />
+          <SamlAppActionProvider>
+            <ResourceCard
+              key={i}
+              pinned={false}
+              pinResource={() => {}}
+              selectResource={() => {}}
+              selected={false}
+              pinningSupport={PinningSupport.Supported}
+              name={res.name}
+              primaryIconName={res.primaryIconName}
+              SecondaryIcon={res.SecondaryIcon}
+              cardViewProps={res.cardViewProps}
+              labels={res.labels}
+              ActionButton={res.ActionButton}
+            />
+          </SamlAppActionProvider>
         ))}
       </Grid>
     );

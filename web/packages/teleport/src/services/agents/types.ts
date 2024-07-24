@@ -165,20 +165,3 @@ export type DatabaseTester = {
   user?: string; // `json:"database_user"`
   name?: string; // `json:"database_name"`
 };
-
-/**
- * DeleteUnifiedResourceItem is used to define
- * an index of an item to delete and its deletion
- * state in the backend.
- */
-export type DeleteUnifiedResourceItem = {
-  /**
-   * index of an item to delete.
-   */
-  index: number;
-  /**
-   * backendDeleted specifies if the item is deleted
-   * in the backend.
-   */
-  backendDeleted: boolean;
-};

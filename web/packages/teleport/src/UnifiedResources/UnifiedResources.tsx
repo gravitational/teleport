@@ -49,10 +49,11 @@ import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
+import { UnifiedResource } from 'teleport/services/agents';
 import {
-  UnifiedResource,
-  DeleteUnifiedResourceItem,
-} from 'teleport/services/agents';
+  useSamlAppAction,
+  SamlAppActionProvider,
+} from 'teleport/SamlApplications/useSamlAppActions';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -62,11 +63,13 @@ export function UnifiedResources() {
 
   return (
     <FeatureBox px={4}>
-      <ClusterResources
-        key={clusterId} // when the current cluster changes, remount the component
-        clusterId={clusterId}
-        isLeafCluster={isLeafCluster}
-      />
+      <SamlAppActionProvider>
+        <ClusterResources
+          key={clusterId} // when the current cluster changes, remount the component
+          clusterId={clusterId}
+          isLeafCluster={isLeafCluster}
+        />
+      </SamlAppActionProvider>
     </FeatureBox>
   );
 }
@@ -103,20 +106,17 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
-  deleteItem,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
   getActionButton?: (
     resource: UnifiedResource,
-    includedResourceMode: IncludedResourceMode,
-    resourceIndex: number
+    includedResourceMode: IncludedResourceMode
   ) => JSX.Element;
   showCheckout?: boolean;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
-  deleteItem?: DeleteUnifiedResourceItem;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -192,9 +192,19 @@ export function ClusterResources({
       ]
     ),
   });
-
-  if (deleteItem?.backendDeleted) {
-    resources.splice(deleteItem.index, 1);
+  const { samlAppToDelete } = useSamlAppAction();
+  if (samlAppToDelete?.backendDeleted) {
+    const index = resources.findIndex(e => {
+      switch (e.kind) {
+        case 'app':
+          return e.name === samlAppToDelete.name && e.samlApp;
+        default:
+          return false;
+      }
+    });
+    if (index >= 0) {
+      resources.splice(index, 1);
+    }
   }
 
   // This state is used to recognize when the `params` value has changed,
@@ -246,13 +256,12 @@ export function ClusterResources({
             emptyStateInfo={emptyStateInfo}
           />
         }
-        resources={resources.map((resource, index) => ({
+        resources={resources.map(resource => ({
           resource,
           ui: {
             ActionButton: getActionButton?.(
               resource,
-              params.includedResourceMode,
-              index
+              params.includedResourceMode
             ) || <ResourceActionButton resource={resource} />,
           },
         }))}
