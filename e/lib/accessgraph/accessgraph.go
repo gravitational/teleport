@@ -30,11 +30,13 @@ import (
 	"google.golang.org/grpc/connectivity"
 	_ "google.golang.org/grpc/health"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -142,28 +144,66 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 			}()
 
 			eventWatcherSender := newTagEventWatcher(newCtx, stream)
-			watcher, err := authServer.Cache.NewWatcher(
-				eventWatcherSender.Context(),
-				types.Watch{
-					Kinds:               supportedKindsToWatcherKinds(supportedKinds),
-					AllowPartialSuccess: true,
-				},
+
+			var (
+				// we use two watchers to watch the auth server for events.
+				// one subscribes to the Cache service in order to watch for events
+				// that are supported by the cache such as: kube servers, app servers, users, roles...
+				// the other subscribes to the Services service in order to watch for events
+				// that aren't supported by the cache such as: devices, private keys, authorized keys...
+				// noOpWatcher is used to terminate the watcher if the context is canceled. This is used to
+				// avoid locks when connection is terminating.
+				// The watcher will be replaced with the real watcher if access graph service supports the associated kinds.
+				servicesWatcher    types.Watcher = &noOpWatcher{ctx}
+				cacheWatcher       types.Watcher = &noOpWatcher{ctx}
+				supportedResources []string
 			)
-			if err != nil {
-				return trace.Wrap(err)
+
+			if svcWatchKinds := supportedKindsToWatcherKinds(supportedKinds, servicesWatcherKind); len(svcWatchKinds) > 0 {
+				servicesWatcher, err = authServer.Services.NewWatcher(
+					eventWatcherSender.Context(),
+					types.Watch{
+						Kinds:               svcWatchKinds,
+						AllowPartialSuccess: true,
+					},
+				)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer servicesWatcher.Close()
+				servicesSupportedResources, err := waitForInit(servicesWatcher)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				supportedResources = append(supportedResources, servicesSupportedResources...)
 			}
-			defer watcher.Close()
-			cacheSupportedResources, err := waitForInit(watcher)
-			if err != nil {
-				return trace.Wrap(err)
+
+			if cacheWatchKinds := supportedKindsToWatcherKinds(supportedKinds, cacheWatcherKind); len(cacheWatchKinds) > 0 {
+				cacheWatcher, err = authServer.Cache.NewWatcher(
+					eventWatcherSender.Context(),
+					types.Watch{
+						Kinds:               cacheWatchKinds,
+						AllowPartialSuccess: true,
+					},
+				)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer cacheWatcher.Close()
+				cacheSupportedResources, err := waitForInit(cacheWatcher)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				supportedResources = append(supportedResources, cacheSupportedResources...)
 			}
-			missingWatchKinds(ctx, log, supportedKinds, cacheSupportedResources)
+
+			missingWatchKinds(ctx, log, supportedKinds, supportedResources)
 			errc := make(chan error, 1)
 			go func() {
 				// Start watching the auth server for events.
 				// Subscribe for new events before sending all resources.
 				// Otherwise, we might miss some events.
-				errc <- forwardEventsWatch(watcher, eventWatcherSender)
+				errc <- forwardEventsWatch(cacheWatcher, servicesWatcher, eventWatcherSender)
 			}()
 
 			log.DebugContext(ctx, "Sending teleport resources to access graph service")
@@ -237,10 +277,30 @@ func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
 	return tEvent
 }
 
-func supportedKindsToWatcherKinds(supportedKinds []string) []types.WatchKind {
+type watcherKind int
+
+const (
+	cacheWatcherKind watcherKind = iota + 1
+	servicesWatcherKind
+)
+
+var (
+	servicesWatcherOnlyKinds = []string{
+		types.KindAccessGraphSecretAuthorizedKey,
+		types.KindAccessGraphSecretPrivateKey,
+		types.KindDevice,
+	}
+)
+
+func supportedKindsToWatcherKinds(supportedKinds []string, wk watcherKind) []types.WatchKind {
 	var observedKinds []types.WatchKind
 	for _, kind := range supportedKinds {
-		observedKinds = append(observedKinds, types.WatchKind{Kind: kind})
+		switch isServicesWatchOnly := slices.Contains(servicesWatcherOnlyKinds, kind); {
+		case wk == servicesWatcherKind && isServicesWatchOnly:
+			observedKinds = append(observedKinds, types.WatchKind{Kind: kind})
+		case wk == cacheWatcherKind && !isServicesWatchOnly:
+			observedKinds = append(observedKinds, types.WatchKind{Kind: kind})
+		}
 	}
 	return observedKinds
 }
@@ -289,7 +349,7 @@ func newTagEventWatcher(ctx context.Context, stream accessGraphSender) *tagEvent
 	return &tagEventWatcher{
 		ctx:               ctx,
 		accessGraphStream: stream,
-		cache:             make([]*proto.Event, 0),
+		cache:             make([]types.Event, 0),
 	}
 }
 
@@ -308,7 +368,7 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 	}
 
 	if slices.Contains(serverSupportedKinds, types.KindAccessRequest) {
-		if err := sendAccessRequests(ctx, authServer, stream); err != nil {
+		if err := sendAccessRequests(ctx, authServer.Services, stream); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -355,6 +415,24 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 		}
 	}
 
+	if slices.Contains(serverSupportedKinds, types.KindDevice) {
+		if err := sendDevices(ctx, authServer.Services, stream); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if slices.Contains(serverSupportedKinds, types.KindAccessGraphSecretAuthorizedKey) {
+		if err := sendAuthorizedKeys(ctx, authServer.Services, stream); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if slices.Contains(serverSupportedKinds, types.KindAccessGraphSecretPrivateKey) {
+		if err := sendPrivateKeys(ctx, authServer.Services, stream); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Send end event to indicate that initialization is done.
 	err := stream.Send(
 		&accessgraphv1.EventsStreamV2Request{
@@ -367,19 +445,21 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 }
 
 // forwardEventsWatch starts watching the auth server for events and sends them to the access graph service.
-func forwardEventsWatch(watcher types.Watcher, eventWatcher *tagEventWatcher) error {
+func forwardEventsWatch(cacheWatcher types.Watcher, servicesWatcher types.Watcher, eventWatcher *tagEventWatcher) error {
 	for {
 		select {
-		case event := <-watcher.Events():
-			out, err := client.EventToGRPC(event)
-			if err != nil {
+		case event := <-cacheWatcher.Events():
+			if err := eventWatcher.Send(event); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := eventWatcher.Send(out); err != nil {
+		case event := <-servicesWatcher.Events():
+			if err := eventWatcher.Send(event); err != nil {
 				return trace.Wrap(err)
 			}
-		case <-watcher.Done():
-			return trace.Wrap(watcher.Error())
+		case <-cacheWatcher.Done():
+			return trace.Wrap(cacheWatcher.Error())
+		case <-servicesWatcher.Done():
+			return trace.Wrap(servicesWatcher.Error())
 		}
 	}
 }
@@ -661,6 +741,128 @@ func sendDatabaseObjects(ctx context.Context, authServer services.DatabaseObject
 	return nil
 }
 
+func sendDevices(ctx context.Context, authServer services.DevicesGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+	pageToken := ""
+	limit := 0 // use default limit
+	if authServer == nil {
+		return trace.BadParameter("authServer is nil")
+	}
+	for {
+		objects, nextToken, err := authServer.ListDevices(ctx, limit, pageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		list := &accessgraphv1.ResourceList{}
+		for _, object := range objects {
+			// reset device credentials before sending to access graph
+			object.Credential = nil
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_Device{
+					Device: object,
+				},
+			})
+		}
+
+		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+				Upsert: list,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		pageToken = nextToken
+	}
+
+	return nil
+}
+
+func sendPrivateKeys(ctx context.Context, authServer services.AccessGraphSecretsGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+	startToken := ""
+	limit := 0 // use default limit
+	if authServer == nil {
+		return trace.BadParameter("authServer is nil")
+	}
+	for {
+		objects, nextToken, err := authServer.ListAllPrivateKeys(ctx, limit, startToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		list := &accessgraphv1.ResourceList{}
+		for _, object := range objects {
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_PrivateKey{
+					PrivateKey: object,
+				},
+			})
+		}
+
+		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+				Upsert: list,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		startToken = nextToken
+	}
+
+	return nil
+}
+
+func sendAuthorizedKeys(ctx context.Context, authServer services.AccessGraphSecretsGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+	startToken := ""
+	limit := 0 // use default limit
+	if authServer == nil {
+		return trace.BadParameter("authServer is nil")
+	}
+	for {
+		objects, nextToken, err := authServer.ListAllAuthorizedKeys(ctx, limit, startToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		list := &accessgraphv1.ResourceList{}
+		for _, object := range objects {
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{
+					AuthorizedKey: object,
+				},
+			})
+		}
+
+		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+				Upsert: list,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		startToken = nextToken
+	}
+
+	return nil
+}
+
 // sendAccessRequests sends all access requests to the access graph service.
 func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	requests, err := authServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
@@ -717,7 +919,7 @@ type tagEventWatcher struct {
 	// ready is set to true when the watcher is ready to send events.
 	ready atomic.Bool
 	// cache is used to cache events before the watcher is ready.
-	cache []*proto.Event
+	cache []types.Event
 	// cacheMtx is used to synchronize access to the cache.
 	cacheMtx sync.Mutex
 	// accessGraphStream is used to send events to the access graph service.
@@ -730,7 +932,7 @@ func (t *tagEventWatcher) Context() context.Context {
 }
 
 // Send sends an event to the access graph service.
-func (t *tagEventWatcher) Send(event *proto.Event) error {
+func (t *tagEventWatcher) Send(event types.Event) error {
 	// If the watcher is not ready, cache the event and send it later.
 	if !t.ready.Load() {
 		t.cacheMtx.Lock()
@@ -751,11 +953,11 @@ func (t *tagEventWatcher) Send(event *proto.Event) error {
 	return trace.Wrap(t.send(event))
 }
 
-func (t *tagEventWatcher) send(event *proto.Event) error {
+func (t *tagEventWatcher) send(event types.Event) error {
 	switch event.Type {
-	case proto.Operation_DELETE:
+	case types.OpDelete:
 		return trace.Wrap(t.sendDelete(event))
-	case proto.Operation_PUT:
+	case types.OpPut:
 		return trace.Wrap(t.sendPut(event))
 	default:
 		// Ignore INIT event type.
@@ -787,7 +989,7 @@ func (t *tagEventWatcher) markReady() error {
 	return nil
 }
 
-func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
+func (t *tagEventWatcher) sendDelete(event types.Event) error {
 	deleteEventStreamRequest := func(header *types.ResourceHeader) *accessgraphv1.EventsStreamV2Request {
 		return &accessgraphv1.EventsStreamV2Request{
 			Operation: &accessgraphv1.EventsStreamV2Request_Delete{
@@ -813,73 +1015,81 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 
 	var req *accessgraphv1.EventsStreamV2Request
 	switch resource := event.Resource.(type) {
-	case *proto.Event_User:
+	case *types.UserV2:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindUser,
 				types.V2,
-				resource.User,
+				resource,
 			),
 		)
 
-	case *proto.Event_Role:
+	case *types.RoleV6:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindRole,
-				resource.Role.Version,
-				resource.Role,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_AccessRequest:
+	case *types.AccessRequestV3:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindAccessRequest,
-				resource.AccessRequest.Version,
-				resource.AccessRequest,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_Server:
+	case *types.ServerV2:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindNode,
-				resource.Server.Version,
-				resource.Server,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_KubernetesServer:
+	case *types.KubernetesServerV3:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindKubeServer,
-				resource.KubernetesServer.Version,
-				resource.KubernetesServer,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_AppServer:
+	case *types.AppServerV3:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindAppServer,
-				resource.AppServer.Version,
-				resource.AppServer,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_DatabaseServer:
+	case *types.DatabaseServerV3:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindDatabaseServer,
-				resource.DatabaseServer.Version,
-				resource.DatabaseServer,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_WindowsDesktop:
+	case *types.WindowsDesktopV3:
 		req = deleteEventStreamRequest(
 			resourceHeaderFromMetadata(
 				types.KindWindowsDesktop,
-				resource.WindowsDesktop.Version,
-				resource.WindowsDesktop,
+				resource.Version,
+				resource,
 			),
 		)
-	case *proto.Event_ResourceHeader:
-		if resource.ResourceHeader.Kind == types.KindAccessListMember {
+	case *types.DeviceV1:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindDevice,
+				resource.Version,
+				resource,
+			),
+		)
+	case *types.ResourceHeader:
+		if resource.Kind == types.KindAccessListMember {
 			// Access list member uses a different object format
 			// when it is sent to the access graph service.
 			req = &accessgraphv1.EventsStreamV2Request{
@@ -888,8 +1098,8 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 						Members: []*accessgraphv1.ExcludeAccessListMember{
 							{
 								// access list name comes from the resource header description
-								AccessList: resource.ResourceHeader.GetMetadata().Description,
-								Username:   resource.ResourceHeader.GetName(),
+								AccessList: resource.GetMetadata().Description,
+								Username:   resource.GetName(),
 							},
 						},
 					},
@@ -897,9 +1107,9 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 			}
 			break
 		}
-		req = deleteEventStreamRequest(resource.ResourceHeader)
-	case *proto.Event_AccessList:
-		header := headerv1.FromResourceHeaderProto(resource.AccessList.GetHeader())
+		req = deleteEventStreamRequest(resource)
+	case *accesslist.AccessList:
+		header := headerv1.FromResourceHeaderProto(accesslistv1conv.ToProto(resource).GetHeader())
 		req = deleteEventStreamRequest(
 			&types.ResourceHeader{
 				Kind:    header.GetKind(),
@@ -909,30 +1119,59 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 				),
 			},
 		)
-	case *proto.Event_AccessListMember:
+	case *accesslist.AccessListMember:
 		// Access list member uses a different header format.
 		req = &accessgraphv1.EventsStreamV2Request{
 			Operation: &accessgraphv1.EventsStreamV2Request_ExcludeAccessListMembers{
 				ExcludeAccessListMembers: &accessgraphv1.ExcludeAccessListsMembers{
 					Members: []*accessgraphv1.ExcludeAccessListMember{
 						{
-							AccessList: resource.AccessListMember.GetSpec().GetAccessList(),
-							Username:   resource.AccessListMember.GetSpec().GetName(),
+							AccessList: resource.Spec.AccessList,
+							Username:   resource.Spec.Name,
 						},
 					},
 				},
 			},
 		}
-	case *proto.Event_DatabaseObject:
-		req = deleteEventStreamRequestResource153(resource.DatabaseObject)
-	case *proto.Event_CrownJewel:
-		req = deleteEventStreamRequest(
-			&types.ResourceHeader{
-				Kind:     resource.CrownJewel.Kind,
-				Version:  resource.CrownJewel.Version,
-				Metadata: fromProtoMetadataToTypes(resource.CrownJewel.Metadata),
-			},
-		)
+
+	case types.Resource153Unwrapper:
+		switch resource := resource.Unwrap().(type) {
+		case *crownjewelv1.CrownJewel:
+			req = deleteEventStreamRequest(
+				&types.ResourceHeader{
+					Kind:     resource.Kind,
+					Version:  resource.Version,
+					Metadata: fromProtoMetadataToTypes(resource.Metadata),
+				},
+			)
+		case *dbobjectv1.DatabaseObject:
+			req = deleteEventStreamRequestResource153(resource)
+		case *accessgraphsecretsv1pb.PrivateKey:
+			req = deleteEventStreamRequest(
+				&types.ResourceHeader{
+					Kind:    resource.GetKind(),
+					Version: resource.GetVersion(),
+					Metadata: types.Metadata{
+						Name:        resource.GetMetadata().GetName(),
+						Description: resource.GetSpec().GetDeviceId(),
+					},
+				},
+			)
+		case *accessgraphsecretsv1pb.AuthorizedKey:
+			req = deleteEventStreamRequest(
+				&types.ResourceHeader{
+					Kind:    resource.GetKind(),
+					Version: resource.GetVersion(),
+					Metadata: types.Metadata{
+						Name:        resource.GetMetadata().GetName(),
+						Description: resource.GetSpec().GetHostId(),
+					},
+				},
+			)
+		default:
+			return trace.BadParameter("resource type %T is not supported", resource)
+		}
+
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
@@ -961,7 +1200,7 @@ func timePtr(asTime time.Time) *time.Time {
 	return &asTime
 }
 
-func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
+func (t *tagEventWatcher) sendPut(event types.Event) (err error) {
 	putResourceEventStreamRequest := func(resources ...*accessgraphv1.ResourceEntry) *accessgraphv1.EventsStreamV2Request {
 		return &accessgraphv1.EventsStreamV2Request{
 			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
@@ -974,103 +1213,138 @@ func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
 
 	var req *accessgraphv1.EventsStreamV2Request
 	switch resource := event.Resource.(type) {
-	case *proto.Event_User:
+	case *types.UserV2:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_User{
-					User: resource.User,
+					User: resource,
 				},
 			},
 		)
 
-	case *proto.Event_CrownJewel:
-		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_CrownJewel{
-					CrownJewel: resource.CrownJewel,
-				},
-			},
-		)
-	case *proto.Event_Role:
+	case *types.RoleV6:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_Role{
-					Role: resource.Role,
+					Role: resource,
 				},
 			},
 		)
-	case *proto.Event_AccessRequest:
+	case *types.AccessRequestV3:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_AccessRequest{
-					AccessRequest: resource.AccessRequest,
+					AccessRequest: resource,
 				},
 			},
 		)
-	case *proto.Event_Server:
+	case *types.ServerV2:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_Server{
-					Server: resource.Server,
+					Server: resource,
 				},
 			},
 		)
-	case *proto.Event_KubernetesServer:
+	case *types.KubernetesServerV3:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_KubernetesServer{
-					KubernetesServer: resource.KubernetesServer,
+					KubernetesServer: resource,
 				},
 			},
 		)
-	case *proto.Event_AppServer:
+	case *types.AppServerV3:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_AppServer{
-					AppServer: resource.AppServer,
+					AppServer: resource,
 				},
 			},
 		)
-	case *proto.Event_DatabaseServer:
+	case *types.DatabaseServerV3:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_DatabaseServer{
-					DatabaseServer: resource.DatabaseServer,
+					DatabaseServer: resource,
 				},
 			},
 		)
-	case *proto.Event_WindowsDesktop:
+	case *types.WindowsDesktopV3:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{
-					WindowsDesktop: resource.WindowsDesktop,
+					WindowsDesktop: resource,
 				},
 			},
 		)
-	case *proto.Event_AccessList:
+	case *accesslist.AccessList:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_AccessList{
-					AccessList: resource.AccessList,
+					AccessList: accesslistv1conv.ToProto(resource),
 				},
 			},
 		)
-	case *proto.Event_AccessListMember:
+	case *accesslist.AccessListMember:
 		req = &accessgraphv1.EventsStreamV2Request{
 			Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
 				AccessListsMembers: &accessgraphv1.AccessListsMembers{
-					Members: []*accesslistv1.Member{resource.AccessListMember},
+					Members: []*accesslistv1.Member{accesslistv1conv.ToMemberProto(resource)},
 				},
 			},
 		}
-	case *proto.Event_DatabaseObject:
+	case *types.DeviceV1:
+		device, err := types.DeviceFromResource(resource)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// reset device credentials before sending to access graph
+		device.Credential = nil
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
-					DatabaseObject: resource.DatabaseObject,
+				Resource: &accessgraphv1.ResourceEntry_Device{
+					Device: device,
 				},
 			},
 		)
+	case types.Resource153Unwrapper:
+		switch resource := resource.Unwrap().(type) {
+		case *dbobjectv1.DatabaseObject:
+			req = putResourceEventStreamRequest(
+				&accessgraphv1.ResourceEntry{
+					Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
+						DatabaseObject: resource,
+					},
+				},
+			)
+		case *crownjewelv1.CrownJewel:
+			req = putResourceEventStreamRequest(
+				&accessgraphv1.ResourceEntry{
+					Resource: &accessgraphv1.ResourceEntry_CrownJewel{
+						CrownJewel: resource,
+					},
+				},
+			)
+		case *accessgraphsecretsv1pb.PrivateKey:
+			req = putResourceEventStreamRequest(
+				&accessgraphv1.ResourceEntry{
+					Resource: &accessgraphv1.ResourceEntry_PrivateKey{
+						PrivateKey: resource,
+					},
+				},
+			)
+		case *accessgraphsecretsv1pb.AuthorizedKey:
+			req = putResourceEventStreamRequest(
+				&accessgraphv1.ResourceEntry{
+					Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{
+						AuthorizedKey: resource,
+					},
+				},
+			)
+		default:
+			return trace.BadParameter("resource type %T is not supported", resource)
+		}
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
@@ -1174,4 +1448,25 @@ func pushResourcesWithLabelsToTAG(resources []types.ResourceWithLabels, stream a
 			Upsert: list,
 		},
 	}))
+}
+
+// noOpWatcher is a watcher that does not send any events.
+// We use it to replace a real watcher if Access Graph server does not support any of the resource types
+// they are supposed to watch.
+// This way we have a watcher that does not send any events, but is automatically released when the underlying
+// context is canceled - i.e. when connection is lost.
+type noOpWatcher struct {
+	context.Context
+}
+
+func (f *noOpWatcher) Events() <-chan types.Event {
+	return nil
+}
+
+func (f *noOpWatcher) Close() error {
+	return nil
+}
+
+func (f *noOpWatcher) Error() error {
+	return nil
 }

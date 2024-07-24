@@ -37,7 +37,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 
-	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -91,19 +90,19 @@ func Test_tagEventWatcher_Send(t *testing.T) {
 	eventWatcher := newTagEventWatcher(ctx, mock)
 
 	// Init should be ignored
-	err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_INIT})
+	err := eventWatcher.Send(types.Event{Type: types.OpInit})
 	require.NoError(t, err)
 
-	err = eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
-		Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: "1"}}},
+	err = eventWatcher.Send(types.Event{Type: types.OpPut,
+		Resource: &types.ServerV2{Metadata: types.Metadata{Name: "1"}},
 	})
 	require.NoError(t, err)
 
 	err = eventWatcher.markReady()
 	require.NoError(t, err)
 
-	err = eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
-		Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: "2"}}},
+	err = eventWatcher.Send(types.Event{Type: types.OpPut,
+		Resource: &types.ServerV2{Metadata: types.Metadata{Name: "2"}},
 	})
 	require.NoError(t, err)
 
@@ -120,12 +119,12 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	eventWatcher := newTagEventWatcher(ctx, mock)
 
 	// Init should be ignored
-	err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_INIT})
+	err := eventWatcher.Send(types.Event{Type: types.OpInit})
 	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
-		err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
-			Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}}},
+		err := eventWatcher.Send(types.Event{Type: types.OpPut,
+			Resource: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}},
 		})
 		assert.NoError(t, err)
 	}
@@ -140,8 +139,8 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 		defer wg.Done()
 
 		for i := 100; i < 200; i++ {
-			err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
-				Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}}},
+			err := eventWatcher.Send(types.Event{Type: types.OpPut,
+				Resource: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}},
 			})
 			assert.NoError(t, err)
 		}
