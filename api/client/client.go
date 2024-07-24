@@ -1053,8 +1053,9 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsReque
 		// This could be a v17+ client connecting to a v16- auth (which we
 		// officially don't support), or a difference between commits on master
 		// during the v17 dev cycle.
-		if req.PublicKey == nil && (req.TLSPublicKey != nil || req.SSHPublicKey != nil) &&
-			strings.Contains(err.Error(), "ssh: no key found") {
+		usingLegacyPubKey := req.PublicKey != nil //nolint:staticcheck // SA1019: intentional reference to deprecated field.
+		usingNewPubKey := req.TLSPublicKey != nil || req.SSHPublicKey != nil
+		if !usingLegacyPubKey && usingNewPubKey && strings.Contains(err.Error(), "ssh: no key found") {
 			authVersion := "unknown"
 			if pingResp, err := c.Ping(ctx); err == nil && pingResp.ServerVersion != "" {
 				authVersion = pingResp.ServerVersion
