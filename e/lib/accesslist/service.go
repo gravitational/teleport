@@ -943,6 +943,14 @@ func populateMemberFields(clock clockwork.Clock, username string, oldMember, mem
 	member.Spec.AddedBy = oldMember.Spec.AddedBy
 	member.Spec.Reason = oldMember.Spec.Reason
 
+	// If the IneligibleStatus is empty, use the existing value.
+	// Ineligibility is dynamic field calculated by the backend.
+	// Where Backend sets this field to empty string when returning data to a client
+	// and expecting that a client will not set this field.
+	if member.Spec.IneligibleStatus == "" {
+		member.Spec.IneligibleStatus = oldMember.Spec.IneligibleStatus
+	}
+
 	return true, member
 }
 
