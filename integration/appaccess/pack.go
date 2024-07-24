@@ -43,10 +43,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -472,7 +473,11 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
 func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName, pinnedIP string) *tls.Config {
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	require.NoError(t, err)
 
 	// Make sure the session ID can be seen in the backend before we continue onward.
@@ -484,7 +489,7 @@ func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clus
 	}, 5*time.Second, 100*time.Millisecond)
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{
-			PublicKey:   publicKey,
+			PublicKey:   publicKeyPEM,
 			Username:    username,
 			TTL:         time.Hour,
 			PublicAddr:  publicAddr,
@@ -494,7 +499,7 @@ func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clus
 		})
 	require.NoError(t, err)
 
-	tlsCert, err := tls.X509KeyPair(certificate, privateKey)
+	tlsCert, err := tls.X509KeyPair(certificate, privateKeyPEM)
 	require.NoError(t, err)
 
 	return &tls.Config{
@@ -507,12 +512,16 @@ func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clus
 // makeTLSConfigNoSession returns TLS config for application access without
 // creating session to simulate nonexistent session scenario.
 func (p *Pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName string) *tls.Config {
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	require.NoError(t, err)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{
-			PublicKey:   publicKey,
+			PublicKey:   publicKeyPEM,
 			Username:    p.user.GetName(),
 			TTL:         time.Hour,
 			PublicAddr:  publicAddr,
@@ -522,7 +531,7 @@ func (p *Pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName stri
 		})
 	require.NoError(t, err)
 
-	tlsCert, err := tls.X509KeyPair(certificate, privateKey)
+	tlsCert, err := tls.X509KeyPair(certificate, privateKeyPEM)
 	require.NoError(t, err)
 
 	return &tls.Config{

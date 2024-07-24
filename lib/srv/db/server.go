@@ -244,9 +244,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.CloudUsers == nil {
+		clusterName, err := c.AuthClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:    c.CloudClients,
-			UpdateMeta: c.CloudMeta.Update,
+			Clients:     c.CloudClients,
+			UpdateMeta:  c.CloudMeta.Update,
+			ClusterName: clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -995,7 +1000,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			// continues beyond the session lifetime.
 			err := rec.Close(s.closeContext)
 			if err != nil {
-				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
+				sessionCtx.Log.WarnContext(ctx, "Failed to close stream writer.", "error", err)
 			}
 		}()
 	}()
@@ -1076,6 +1081,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 		Emitter:  s.cfg.Emitter,
 		Recorder: rec,
 		Database: sessionCtx.Database,
+		Clock:    s.cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1171,11 +1177,9 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		AuthContext:        authContext,
 		Checker:            authContext.Checker,
 		StartupParameters:  make(map[string]string),
-		Log: s.logrusLogger.WithFields(logrus.Fields{
-			"id": id,
-			"db": database.GetName(),
-		}),
-		LockTargets: authContext.LockTargets(),
+		Log:                s.log.With("id", id, "db", database.GetName()),
+		LockTargets:        authContext.LockTargets(),
+		StartTime:          s.cfg.Clock.Now(),
 	}
 
 	s.log.DebugContext(ctx, "Created session context.", "session", sessionCtx)

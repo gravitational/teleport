@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
@@ -157,7 +158,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				Region:              "r",
 				TaskRoleARN:         "arn",
 				IntegrationName:     "teleportdev",
-				ResourceCreationTags: AWSTags{
+				ResourceCreationTags: tags.AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",
@@ -202,7 +203,7 @@ type mockDeployServiceClient struct {
 	iamTokenMissing bool
 
 	iamAccessDeniedListServices bool
-	defaultTags                 AWSTags
+	defaultTags                 tags.AWSTags
 }
 
 // DescribeClusters lists ECS Clusters.

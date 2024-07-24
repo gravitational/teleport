@@ -20,11 +20,11 @@ package common
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -59,11 +59,13 @@ type Session struct {
 	// StartupParameters define initial connection parameters such as date style.
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+	// StartTime is the time the session started.
+	StartTime time.Time
 }
 
 // String returns string representation of the session parameters.

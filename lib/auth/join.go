@@ -374,7 +374,9 @@ func (a *Server) generateCertsBot(
 		// secrets. Should we hash it?
 		JoinToken:  provisionToken.GetSafeName(),
 		JoinMethod: string(provisionToken.GetJoinMethod()),
-		PublicKey:  req.PublicTLSKey,
+		// TODO(nklaassen): consider logging the SSH public key as well, for now
+		// the SSH and TLS public keys are still identical for tbot.
+		PublicKey: req.PublicTLSKey,
 
 		// Note: Generation will be set during `generateInitialBotCerts()` as
 		// needed.
@@ -402,9 +404,11 @@ func (a *Server) generateCertsBot(
 		machineidv1.BotResourceName(botName),
 		req.RemoteAddr,
 		req.PublicSSHKey,
+		req.PublicTLSKey,
 		expires,
 		renewable,
 		auth,
+		req.BotInstanceID,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -422,7 +426,6 @@ func (a *Server) generateCertsBot(
 
 	// Emit audit event for bot join.
 	log.Infof("Bot %q (instance: %s) has joined the cluster.", botName, botInstanceID)
-
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}

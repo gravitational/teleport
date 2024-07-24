@@ -167,6 +167,27 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"docdb": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"cluster_id": {
+									Description: "ClusterID is the cluster identifier.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Description: "EndpointType is the type of the endpoint.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"instance_id": {
+									Description: "InstanceID is the instance identifier.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "DocumentDB contains AWS DocumentDB specific metadata.",
+							Optional:    true,
+						},
 						"elasticache": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"endpoint_type": {
@@ -1312,6 +1333,11 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"signature_algorithm_suite": {
+					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. The current default value is \"legacy\". This field is not yet fully supported.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
 				"type": {
 					Computed:      true,
 					Description:   "Type is the type of authentication.",
@@ -2304,7 +2330,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						"desktop_clipboard":         GenSchemaBoolOption(ctx),
 						"desktop_directory_sharing": GenSchemaBoolOption(ctx),
 						"device_trust_mode": {
-							Description: "DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport.",
+							Description: "DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2390,7 +2416,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"request_access": {
-							Description: "RequestAccess defines the access request strategy (optional|note|always) where optional is the default.",
+							Description: "RequestAccess defines the request strategy (optional|note|always) where optional is the default.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -4545,6 +4571,74 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["docdb"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.DocumentDB = github_com_gravitational_teleport_api_types.DocumentDB{}
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj := &obj.DocumentDB
+													{
+														a, ok := tf.Attrs["cluster_id"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB.ClusterID"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB.ClusterID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.ClusterID = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["instance_id"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB.InstanceID"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB.InstanceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.InstanceID = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["endpoint_type"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB.EndpointType"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB.EndpointType", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.EndpointType = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -6631,6 +6725,102 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 												}
 												c.Unknown = false
 												tf.Attrs["session_tags"] = c
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["docdb"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["docdb"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												{
+													obj := obj.DocumentDB
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["cluster_id"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB.ClusterID"})
+														} else {
+															v, ok := tf.Attrs["cluster_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AWS.DocumentDB.ClusterID", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB.ClusterID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.ClusterID) == ""
+															}
+															v.Value = string(obj.ClusterID)
+															v.Unknown = false
+															tf.Attrs["cluster_id"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["instance_id"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB.InstanceID"})
+														} else {
+															v, ok := tf.Attrs["instance_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AWS.DocumentDB.InstanceID", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB.InstanceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.InstanceID) == ""
+															}
+															v.Value = string(obj.InstanceID)
+															v.Unknown = false
+															tf.Attrs["instance_id"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["endpoint_type"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AWS.DocumentDB.EndpointType"})
+														} else {
+															v, ok := tf.Attrs["endpoint_type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AWS.DocumentDB.EndpointType", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AWS.DocumentDB.EndpointType", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.EndpointType) == ""
+															}
+															v.Value = string(obj.EndpointType)
+															v.Unknown = false
+															tf.Attrs["endpoint_type"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["docdb"] = v
 											}
 										}
 									}
@@ -12905,6 +13095,23 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["signature_algorithm_suite"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+							} else {
+								var t github_com_gravitational_teleport_api_types.SignatureAlgorithmSuite
+								if !v.Null && !v.Unknown {
+									t = github_com_gravitational_teleport_api_types.SignatureAlgorithmSuite(v.Value)
+								}
+								obj.SignatureAlgorithmSuite = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -14099,6 +14306,28 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								v.Unknown = false
 								tf.Attrs["hardware_key"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["signature_algorithm_suite"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite"})
+						} else {
+							v, ok := tf.Attrs["signature_algorithm_suite"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.signature_algorithm_suite", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
+								v.Null = int64(obj.SignatureAlgorithmSuite) == 0
+							}
+							v.Value = int64(obj.SignatureAlgorithmSuite)
+							v.Unknown = false
+							tf.Attrs["signature_algorithm_suite"] = v
 						}
 					}
 				}

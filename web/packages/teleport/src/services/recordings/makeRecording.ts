@@ -20,12 +20,16 @@ import { differenceInMilliseconds, formatDistanceStrict } from 'date-fns';
 
 import { eventCodes } from 'teleport/services/audit';
 
+import cfg from 'teleport/config';
+
 import { Recording } from './types';
 
 // Takes in json objects built by SessionEnd and WindowsDesktopSessionEnd as defined in teleport/api/types/events/events.proto.
 export function makeRecording(event: any): Recording {
   if (event.code === eventCodes.DESKTOP_SESSION_ENDED) {
     return makeDesktopRecording(event);
+  } else if (event.code === eventCodes.DATABASE_SESSION_ENDED) {
+    return makeDatabaseRecording(event);
   } else {
     return makeSshOrKubeRecording(event);
   }
@@ -117,6 +121,43 @@ function formatDuration(startDateString: string, stopDateString: string) {
   }
 
   return { duration, durationText };
+}
+
+function makeDatabaseRecording({
+  time,
+  session_start,
+  session_stop,
+  user,
+  sid,
+  db_service,
+  db_protocol,
+}) {
+  const description = cfg.getPlayableDatabaseProtocols().includes(db_protocol)
+    ? 'play'
+    : 'non-interactive';
+  let { duration, durationText } = formatDuration(session_start, session_stop);
+
+  // Older database session recordings won't have start/stop fields. For those
+  // recordings we set the duration to the smallest number so we can still
+  // play them.
+  // As a side effect, the progress bar does not work properly, showing always
+  // as completed. Also, navigating through it won't work.
+  if (duration === 0) {
+    duration = 1;
+    durationText = '-';
+  }
+
+  return {
+    duration,
+    durationText,
+    sid,
+    createdDate: time,
+    users: user,
+    hostname: db_service,
+    description,
+    recordingType: 'database',
+    playable: description === 'play',
+  } as Recording;
 }
 
 const disabledDescription = 'recording disabled';

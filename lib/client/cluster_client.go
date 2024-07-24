@@ -32,6 +32,7 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
@@ -169,7 +170,7 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 	return trace.Wrap(c.tc.localAgent.AddKey(key))
 }
 
-func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*Key, error) {
+func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*KeyRing, error) {
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = c.cluster
 	}
@@ -324,7 +325,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 // prepareUserCertsRequest creates a [proto.UserCertsRequest] with the fields
 // set accordingly from the provided ReissueParams.
-func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) (*proto.UserCertsRequest, error) {
+func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *KeyRing) (*proto.UserCertsRequest, error) {
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -342,8 +343,16 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	// TODO(nklaassen): split the SSH and TLS key.
+	sshPublicKey := key.PrivateKey.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(key.PrivateKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
-		PublicKey:             key.MarshalSSHPublicKey(),
+		SSHPublicKey:          sshPublicKey,
+		TLSPublicKey:          tlsPublicKey,
 		Username:              tlsCert.Subject.CommonName,
 		Expires:               tlsCert.NotAfter,
 		RouteToCluster:        params.RouteToCluster,
@@ -363,8 +372,8 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 }
 
 // performMFACeremony runs the mfa ceremony to completion.
-// If successful the returned [Key] will be authorized to connect to the target.
-func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key, mfaPrompt mfa.Prompt) (*Key, error) {
+// If successful the returned [KeyRing] will be authorized to connect to the target.
+func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *KeyRing, mfaPrompt mfa.Prompt) (*KeyRing, error) {
 	certsReq, err := rootClient.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -387,7 +396,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
-func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*Key, proto.MFARequired, error) {
+func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*KeyRing, proto.MFARequired, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -530,7 +539,7 @@ type PerformMFACeremonyParams struct {
 
 	// Key is the client key to add the new certificates to.
 	// Optional.
-	Key *Key
+	Key *KeyRing
 }
 
 // PerformMFACeremony issues single-use certificates via GenerateUserCerts,
@@ -549,7 +558,7 @@ type PerformMFACeremonyParams struct {
 //  4. Call RootAuthClient.GenerateUserCerts
 //
 // Returns the modified params.Key and the GenerateUserCertsResponse, or an error.
-func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*Key, *proto.Certs, error) {
+func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*KeyRing, *proto.Certs, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
 

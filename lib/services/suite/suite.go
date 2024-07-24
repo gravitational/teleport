@@ -20,7 +20,6 @@ package suite
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
 	"sort"
@@ -37,15 +36,19 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
+	protobuf "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,40 +80,39 @@ type TestCAConfig struct {
 // Keep this function in-sync with lib/auth/auth.go:newKeySet().
 // TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	// privateKeys is to specify another RSA private key
-	if len(config.PrivateKeys) == 0 {
-		// db client CA gets its own private key to distinguish its pub key
-		// from the other CAs. Snowflake uses public key to verify JWT signer,
-		// so if we don't do this then tests verifying that the correct
-		// signer was used are pointless.
-		if config.Type == types.DatabaseClientCA {
-			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa-db-client"]}
-		} else {
-			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.Type == types.DatabaseClientCA {
+		// Always use pre-generated RSA key for the db_client CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
 		}
-	}
-	keyBytes := config.PrivateKeys[0]
-	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	signer, err := ssh.NewSignerFromKey(rsaKey)
-	if err != nil {
-		panic(err)
-	}
-
-	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: rsaKey.(*rsa.PrivateKey),
-		Entity: pkix.Name{
-			CommonName:   config.ClusterName,
-			Organization: []string{config.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: config.Clock,
-	})
-	if err != nil {
-		panic(err)
+	} else {
+		// If config.PrivateKeys was not set and this is not the db_client CA,
+		// generate an ECDSA key. Signatures are ~10x faster than RSA and
+		// generating a new key is actually faster than parsing a PEM fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM, err = keys.MarshalPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer, keyPEM)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	ca := &types.CertAuthorityV2{
@@ -127,50 +129,47 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		},
 	}
 
-	// Match the key set to lib/auth/auth.go:newKeySet().
+	// Add SSH keys if necessary.
 	switch config.Type {
-	case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
-	case types.KindJWT, types.OIDCIdPCA:
-		// Generating keys is CPU intensive operation. Generate JWT keys only
-		// when needed.
-		publicKey, privateKey, err := testauthority.New().GenerateJWT()
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.ClusterName},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)
 		}
 		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PublicKey:  publicKey,
-			PrivateKey: privateKey,
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
 		}}
-	case types.UserCA, types.HostCA:
-		ca.Spec.ActiveKeys = types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
-				PrivateKey: keyBytes,
-			}},
-			TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
-		}
-	case types.OpenSSHCA:
-		ca.Spec.ActiveKeys = types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
-				PrivateKey: keyBytes,
-			}},
-		}
-	case types.SPIFFECA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
-		// Generating keys is CPU intensive operation. Generate JWT keys only
-		// when needed.
-		publicKey, privateKey, err := testauthority.New().GenerateJWT()
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PublicKey:  publicKey,
-			PrivateKey: privateKey,
-		}}
-	default:
-		panic("unknown CA type")
 	}
 
 	return ca
@@ -180,12 +179,13 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 // for services. It is used for local implementations and implementations
 // using gRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
-	Access        services.Access
-	CAS           services.TrustInternal
-	PresenceS     services.Presence
-	ProvisioningS services.Provisioner
-	WebS          services.Identity
-	ConfigS       services.ClusterConfiguration
+	Access         services.Access
+	TrustS         services.Trust
+	TrustInternalS services.TrustInternal
+	PresenceS      services.Presence
+	ProvisioningS  services.Provisioner
+	WebS           services.Identity
+	ConfigS        services.ClusterConfiguration
 	// LocalConfigS is used for local config which can only be
 	// managed by the Auth service directly (static tokens).
 	// Used by some tests to differentiate between a server
@@ -345,33 +345,33 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	ctx := context.Background()
 	ca := NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
+	require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
-	out, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+	out, err := s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(out, ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	cas, err := s.CAS.GetCertAuthorities(ctx, types.UserCA, false)
+	cas, err := s.TrustS.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
 	require.Empty(t, cmp.Diff(cas[0], ca2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
+	cas, err = s.TrustS.GetCertAuthorities(ctx, types.UserCA, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
+	cas, err = s.TrustS.GetCertAuthorities(ctx, types.UserCA, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.CAS.DeleteCertAuthority(ctx, *ca.ID())
+	err = s.TrustS.DeleteCertAuthority(ctx, *ca.ID())
 	require.NoError(t, err)
 
 	// test compare and swap
 	ca = NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, s.CAS.CreateCertAuthority(ctx, ca))
+	require.NoError(t, s.TrustS.CreateCertAuthority(ctx, ca))
 
 	clock := clockwork.NewFakeClock()
 	newCA := *ca
@@ -383,16 +383,16 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	}
 	newCA.SetRotation(rotation)
 
-	err = s.CAS.CompareAndSwapCertAuthority(&newCA, ca)
+	err = s.TrustS.CompareAndSwapCertAuthority(&newCA, ca)
 	require.NoError(t, err)
 
-	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+	out, err = s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// test conditional update
 	ca = NewTestCA(types.UserCA, "update.example.com")
-	rev, err := s.CAS.CreateCertAuthorities(ctx, ca)
+	rev, err := s.TrustInternalS.CreateCertAuthorities(ctx, ca)
 	require.NoError(t, err)
 
 	newCA = *ca
@@ -405,15 +405,15 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	newCA.SetRotation(rotation)
 
 	// verify that mismatched revision does not work
-	_, err = s.CAS.UpdateCertAuthority(ctx, &newCA)
+	_, err = s.TrustInternalS.UpdateCertAuthority(ctx, &newCA)
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
 
 	// verify that revision returned by create causes update to succeed
 	newCA.SetRevision(rev)
-	_, err = s.CAS.UpdateCertAuthority(ctx, &newCA)
+	_, err = s.TrustInternalS.UpdateCertAuthority(ctx, &newCA)
 	require.NoError(t, err)
 
-	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+	out, err = s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
@@ -431,12 +431,12 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 		cas = append(cas, NewTestCA(types.UserCA, cn))
 	}
 
-	rev, err = s.CAS.CreateCertAuthorities(ctx, cas...)
+	rev, err = s.TrustInternalS.CreateCertAuthorities(ctx, cas...)
 	require.NoError(t, err)
 
 	// verify that all CAs were created and that they all have the expected revision
 	for _, original := range cas {
-		ca, err := s.CAS.GetCertAuthority(ctx, original.GetID(), true)
+		ca, err := s.TrustS.GetCertAuthority(ctx, original.GetID(), true)
 		require.NoError(t, err)
 		require.Equal(t, rev, ca.GetRevision())
 		require.Empty(t, cmp.Diff(original, ca, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -448,11 +448,11 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 		ids = append(ids, ca.GetID())
 	}
 
-	require.NoError(t, s.CAS.DeleteCertAuthorities(ctx, ids...))
+	require.NoError(t, s.TrustInternalS.DeleteCertAuthorities(ctx, ids...))
 
 	// verify that bulk deletion succeeded
 	for _, ca := range cas {
-		_, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+		_, err := s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
 		require.True(t, trace.IsNotFound(err), "err: %v", err)
 	}
 }
@@ -1022,7 +1022,7 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	clusterName := "example.com"
-	out, err := s.PresenceS.GetTunnelConnections(clusterName)
+	out, err := s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
@@ -1034,15 +1034,15 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.PresenceS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(conn)
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	out, err = s.PresenceS.GetAllTunnelConnections()
+	out, err = s.TrustS.GetAllTunnelConnections()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1050,37 +1050,37 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	dt = dt.Add(time.Hour)
 	conn.SetLastHeartbeat(dt)
 
-	err = s.PresenceS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(conn)
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteAllTunnelConnections()
+	err = s.TrustS.DeleteAllTunnelConnections()
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
-	err = s.PresenceS.DeleteAllTunnelConnections()
+	err = s.TrustS.DeleteAllTunnelConnections()
 	require.NoError(t, err)
 
 	// test delete individual connection
-	err = s.PresenceS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(conn)
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteTunnelConnection(clusterName, conn.GetName())
+	err = s.TrustS.DeleteTunnelConnection(clusterName, conn.GetName())
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
@@ -1199,6 +1199,39 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertAuthPreference(ctx, gotAP)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "Revision"))
+}
+
+// AccessGraphSettings tests access graph settings service
+func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
+	ctx := context.Background()
+	ap, err := clusterconfig.NewAccessGraphSettings(
+		&clusterconfigpb.AccessGraphSettingsSpec{
+			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+		},
+	)
+	require.NoError(t, err)
+
+	created, err := s.ConfigS.CreateAccessGraphSettings(ctx, ap)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetMetadata().GetRevision())
+
+	// Validate the created preference matches the retrieve preference.
+	got, err := s.ConfigS.GetAccessGraphSettings(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ap, got, protocmp.Transform()))
+
+	// Validate that update only works if the revision matches.
+	got.Metadata.Revision = "123"
+	_, err = s.ConfigS.UpdateAccessGraphSettings(ctx, got)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertAccessGraphSettings(ctx, protobuf.Clone(got).(*clusterconfigpb.AccessGraphSettings))
+	require.NoError(t, err)
+	require.NotEmpty(t, upserted.GetMetadata().GetRevision())
+	upserted.Metadata.Revision = ""
+	got.Metadata.Revision = ""
+	require.Empty(t, cmp.Diff(upserted, got, protocmp.Transform()))
 }
 
 // SessionRecordingConfig tests session recording configuration.
@@ -1615,12 +1648,12 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				ca := NewTestCA(types.UserCA, "example.com")
-				require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
+				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
-				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), true)
+				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), true)
 				require.NoError(t, err)
 
-				require.NoError(t, s.CAS.DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, s.TrustS.DeleteCertAuthority(ctx, *ca.ID()))
 				return out
 			},
 		},
@@ -1636,12 +1669,12 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				ca := NewTestCA(types.UserCA, "example.com")
-				require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
+				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
-				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), false)
+				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), false)
 				require.NoError(t, err)
 
-				require.NoError(t, s.CAS.DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, s.TrustS.DeleteCertAuthority(ctx, *ca.ID()))
 				return out
 			},
 		},
@@ -1824,13 +1857,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.PresenceS.UpsertTunnelConnection(conn)
+				err = s.TrustS.UpsertTunnelConnection(conn)
 				require.NoError(t, err)
 
-				out, err := s.PresenceS.GetTunnelConnections("example.com")
+				out, err := s.TrustS.GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteAllTunnelConnections()
+				err = s.TrustS.DeleteAllTunnelConnections()
 				require.NoError(t, err)
 
 				return out[0]
@@ -1863,13 +1896,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				rc, err := types.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
-				_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+				_, err = s.TrustS.CreateRemoteCluster(ctx, rc)
 				require.NoError(t, err)
 
-				out, err := s.PresenceS.GetRemoteClusters(ctx)
+				out, err := s.TrustS.GetRemoteClusters(ctx)
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteRemoteCluster(ctx, rc.GetName())
+				err = s.TrustS.DeleteRemoteCluster(ctx, rc.GetName())
 				require.NoError(t, err)
 
 				return out[0]

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 
@@ -28,20 +28,23 @@ import {
   ModeratedSessionsCTA,
 } from './Sessions.story';
 
-test('loaded', () => {
+test('loaded', async () => {
   const { container } = render(<Loaded />);
+  await screen.findByText(/cluster: teleport/i);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('active sessions CTA', () => {
+test('active sessions CTA', async () => {
   cfg.isTeam = true;
   cfg.isEnterprise = true;
   const { container } = render(<ActiveSessionsCTA />);
+  await screen.findByText(/cluster: teleport/i);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('moderated sessions CTA for non-enterprise', () => {
+test('moderated sessions CTA for non-enterprise', async () => {
   cfg.isEnterprise = false;
   const { container } = render(<ModeratedSessionsCTA />);
+  await screen.findByText(/cluster: teleport/i);
   expect(container.firstChild).toMatchSnapshot();
 });

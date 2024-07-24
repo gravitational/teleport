@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build darwin
-// +build darwin
-
 package vnet
 
 import (
@@ -37,11 +34,11 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-// receiveTUNDevice is a blocking call which waits for the admin subcommand to pass over the socket
+// receiveTUNDevice is a blocking call which waits for the admin process to pass over the socket
 // the name and fd of the TUN device.
 func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 	tunName, tunFd, err := recvTUNNameAndFd(socket)
@@ -53,7 +50,9 @@ func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 	return tunDevice, trace.Wrap(err, "creating TUN device from file descriptor")
 }
 
-func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+// execAdminSubcommand starts an osascript wrapper that starts tsh vnet-daemon as root.
+// Used in execAdminProcess when vnetdaemon tag is not supplied.
+func execAdminSubcommand(ctx context.Context, config daemon.Config) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -61,7 +60,7 @@ func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr st
 
 	if homePath := os.Getenv(types.HomeEnvVar); homePath == "" {
 		// Explicitly set TELEPORT_HOME if not already set.
-		os.Setenv(types.HomeEnvVar, profile.FullProfilePath(""))
+		os.Setenv(types.HomeEnvVar, config.HomePath)
 	}
 
 	appleScript := fmt.Sprintf(`
@@ -75,7 +74,7 @@ do shell script quoted form of executableName & `+
 		`" --dns-addr " & quoted form of dnsAddr & `+
 		`" >/var/log/vnet.log 2>&1" `+
 		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
-		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
+		executableName, config.SocketPath, config.IPv6Prefix, config.DNSAddr, teleport.VnetAdminSetupSubCommand)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
 	// privileged process, canceling the context (and thus killing osascript) has no effect on the privileged

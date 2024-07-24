@@ -335,15 +335,7 @@ function EmptyState() {
       >
         <BellRinging size={40} />
       </Flex>
-      <Text
-        mt={4}
-        css={`
-          font-weight: 500;
-          font-size: 18px;
-          line-height: 24px;
-          text-align: center;
-        `}
-      >
+      <Text mt={4} typography="h2" textAlign="center">
         You currently have no notifications.
       </Text>
     </Flex>
@@ -508,7 +500,7 @@ const NotificationsList = styled.div`
   max-height: 100%;
   overflow-y: auto;
   padding: ${p => p.theme.space[3]}px;
-  padding-top: 0px;
+  padding-top: 2px;
   // Subtract the width of the scrollbar from the right padding.
   padding-right: ${p => `${p.theme.space[3] - 8}px`};
 

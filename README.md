@@ -17,7 +17,7 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
 <div align="center">
    <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.svg" width=750/>
+   <img src="./assets/img/hero-teleport-platform.png" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/download">
@@ -110,8 +110,6 @@ If you wish to deploy Teleport inside a Docker container see the
 
 ### For Local Testing and Development
 
-Follow the instructions in the [docker/README](docker/README.md) file.
-
 To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
 
 ## Building Teleport
@@ -150,8 +148,8 @@ Ensure you have installed correct versions of necessary dependencies:
 * For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
   `pkg-config` installed locally
 * To build the web UI:
-  * [`yarn`](https://classic.yarnpkg.com/en/docs/install)(< 2.0.0) is required.
-  * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
+  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
+  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
   * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
   * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually

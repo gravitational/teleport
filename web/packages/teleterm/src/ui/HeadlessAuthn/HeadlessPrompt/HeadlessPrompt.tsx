@@ -18,7 +18,15 @@
 
 import React, { useState } from 'react';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, ButtonSecondary, Image, Flex, Box } from 'design';
+import {
+  ButtonIcon,
+  Text,
+  ButtonSecondary,
+  Image,
+  Flex,
+  Box,
+  H2,
+} from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogHeader,
@@ -76,9 +84,9 @@ export function HeadlessPrompt({
       open={true}
     >
       <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
-        <Text typography="h4">
+        <H2 mb={4}>
           Headless command on <b>{cluster.name}</b>
-        </Text>
+        </H2>
         <ButtonIcon
           type="button"
           color="text.slightlyMuted"

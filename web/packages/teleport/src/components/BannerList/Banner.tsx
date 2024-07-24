@@ -109,10 +109,10 @@ const CloseButton = styled.button`
   margin-left: auto;
   padding: 0.5rem;
 
-  :hover {
+  &:hover {
     background-color: rgb(255, 255, 255, 0.1);
   }
-  :focus {
+  &:focus {
     border: 1px solid rgb(255, 255, 255, 0.1);
   }
 `;

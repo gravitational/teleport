@@ -205,11 +205,8 @@ type Identity struct {
 
 // RouteToApp holds routing information for applications.
 type RouteToApp struct {
-	// SessionID is a UUIDv4 used to identify application sessions created by
-	// this certificate. The reason a UUID was used instead of a hash of the
-	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
-	// the SessionID is emitted in the audit log, using a UUID matches how SSH
-	// sessions are identified.
+	// SessionID is an ID used to identify application sessions created by
+	// this certificate.
 	SessionID string
 
 	// PublicAddr (and ClusterName) are used to route requests issued with this

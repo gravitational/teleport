@@ -256,7 +256,6 @@ create a `cluster_auth_preference` resource.
       type: saml|oidc|github
   ```
 
-  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
   <TabItem scope={["cloud","team"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
@@ -278,7 +277,6 @@ create a `cluster_auth_preference` resource.
   $ tctl create -f cap.yaml
   ```
 
-  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
 </Tabs>
 
@@ -293,6 +291,8 @@ based on one of the following examples.
 ```
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
+
+(!docs/pages/includes/sso/saml-slo.mdx!)
 
 </TabItem>
 <TabItem label="OneLogin">
@@ -330,6 +330,8 @@ based on one of the following examples.
 ```
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
+
+(!docs/pages/includes/sso/saml-slo.mdx!)
 
 </TabItem>
 <TabItem label="GitHub">

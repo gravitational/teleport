@@ -38,6 +38,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -107,7 +108,7 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 			"addr": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "host:port where Teleport Auth server is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.",
+				Description: "host:port where Teleport Auth Service is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.",
 			},
 			"cert_path": {
 				Type:        types.StringType,
@@ -220,22 +221,22 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	addr := p.stringFromConfigOrEnv(config.Addr, "TF_TELEPORT_ADDR", "")
-	certPath := p.stringFromConfigOrEnv(config.CertPath, "TF_TELEPORT_CERT", "")
-	certBase64 := p.stringFromConfigOrEnv(config.CertBase64, "TF_TELEPORT_CERT_BASE64", "")
-	keyPath := p.stringFromConfigOrEnv(config.KeyPath, "TF_TELEPORT_KEY", "")
-	keyBase64 := p.stringFromConfigOrEnv(config.KeyBase64, "TF_TELEPORT_KEY_BASE64", "")
-	caPath := p.stringFromConfigOrEnv(config.RootCaPath, "TF_TELEPORT_ROOT_CA", "")
-	caBase64 := p.stringFromConfigOrEnv(config.RootCaBase64, "TF_TELEPORT_CA_BASE64", "")
-	profileName := p.stringFromConfigOrEnv(config.ProfileName, "TF_TELEPORT_PROFILE_NAME", "")
-	profileDir := p.stringFromConfigOrEnv(config.ProfileDir, "TF_TELEPORT_PROFILE_PATH", "")
-	identityFilePath := p.stringFromConfigOrEnv(config.IdentityFilePath, "TF_TELEPORT_IDENTITY_FILE_PATH", "")
-	identityFile := p.stringFromConfigOrEnv(config.IdentityFile, "TF_TELEPORT_IDENTITY_FILE", "")
-	identityFileBase64 := p.stringFromConfigOrEnv(config.IdentityFileBase64, "TF_TELEPORT_IDENTITY_FILE_BASE64", "")
-	retryBaseDurationStr := p.stringFromConfigOrEnv(config.RetryBaseDuration, "TF_TELEPORT_RETRY_BASE_DURATION", "1s")
-	retryCapDurationStr := p.stringFromConfigOrEnv(config.RetryCapDuration, "TF_TELEPORT_RETRY_CAP_DURATION", "5s")
-	maxTriesStr := p.stringFromConfigOrEnv(config.RetryMaxTries, "TF_TELEPORT_RETRY_MAX_TRIES", "10")
-	dialTimeoutDurationStr := p.stringFromConfigOrEnv(config.DialTimeoutDuration, "TF_TELEPORT_DIAL_TIMEOUT_DURATION", "30s")
+	addr := p.stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
+	certPath := p.stringFromConfigOrEnv(config.CertPath, constants.EnvVarTerraformCertificates, "")
+	certBase64 := p.stringFromConfigOrEnv(config.CertBase64, constants.EnvVarTerraformCertificatesBase64, "")
+	keyPath := p.stringFromConfigOrEnv(config.KeyPath, constants.EnvVarTerraformKey, "")
+	keyBase64 := p.stringFromConfigOrEnv(config.KeyBase64, constants.EnvVarTerraformKeyBase64, "")
+	caPath := p.stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
+	caBase64 := p.stringFromConfigOrEnv(config.RootCaBase64, constants.EnvVarTerraformRootCertificatesBase64, "")
+	profileName := p.stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
+	profileDir := p.stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
+	identityFilePath := p.stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
+	identityFile := p.stringFromConfigOrEnv(config.IdentityFile, constants.EnvVarTerraformIdentityFile, "")
+	identityFileBase64 := p.stringFromConfigOrEnv(config.IdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64, "")
+	retryBaseDurationStr := p.stringFromConfigOrEnv(config.RetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, "1s")
+	retryCapDurationStr := p.stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
+	maxTriesStr := p.stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
+	dialTimeoutDurationStr := p.stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
 
 	if !p.validateAddr(addr, resp) {
 		return
