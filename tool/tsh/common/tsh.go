@@ -815,19 +815,23 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
+	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	azure.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 
 	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
 	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	gcloud.Alias("gcp")
 
 	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
 	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")

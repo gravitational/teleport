@@ -21,7 +21,7 @@ import React from 'react';
 import ButtonSso from './ButtonSso';
 
 export default {
-  title: 'Shared',
+  title: 'Shared/ButtonSso',
 };
 
 export const Button = () => (

@@ -160,7 +160,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 							assert.NoError(t, os.Rename(teleportHiddenPath, teleportInitialPath))
 							c.Exit(0)
 						})
-					case "amzn", "rhel", "centos":
+					case "amzn", "rhel", "centos", "almalinux", "rocky":
 						mockBins["yum"].Expect("install", "-y", "yum-utils")
 						mockBins["rpm"].Expect("--eval", bintest.MatchAny())
 						mockBins["yum-config-manager"].Expect("--add-repo", bintest.MatchAny())
@@ -477,6 +477,12 @@ var wellKnownOS = map[string]map[string]map[string]string{
 		"8": {etcOSReleaseFile: rhel8OSRelease},
 		"9": {etcOSReleaseFile: rhel9OSRelease},
 	},
+	"almalinux": {
+		"9": {etcOSReleaseFile: alma9OSRelease},
+	},
+	"rocky": {
+		"9": {etcOSReleaseFile: rocky9OSRelease},
+	},
 	"sles": {
 		"12": {etcOSReleaseFile: sles12OSRelease},
 		"15": {etcOSReleaseFile: sles15OSRelease},
@@ -704,6 +710,44 @@ REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 9"
 REDHAT_BUGZILLA_PRODUCT_VERSION=9.4
 REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
 REDHAT_SUPPORT_PRODUCT_VERSION="9.4"`
+
+	alma9OSRelease = `NAME="AlmaLinux"
+VERSION="9.4 (Seafoam Ocelot)"
+ID="almalinux"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="9.4"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="AlmaLinux 9.4 (Seafoam Ocelot)"
+ANSI_COLOR="0;34"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:almalinux:almalinux:9::baseos"
+HOME_URL="https://almalinux.org/"
+DOCUMENTATION_URL="https://wiki.almalinux.org/"
+BUG_REPORT_URL="https://bugs.almalinux.org/"
+
+ALMALINUX_MANTISBT_PROJECT="AlmaLinux-9"
+ALMALINUX_MANTISBT_PROJECT_VERSION="9.4"
+REDHAT_SUPPORT_PRODUCT="AlmaLinux"
+REDHAT_SUPPORT_PRODUCT_VERSION="9.4"
+SUPPORT_END=2032-06-01`
+
+	rocky9OSRelease = `NAME="Rocky Linux"
+VERSION="9.3 (Blue Onyx)"
+ID="rocky"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="9.3"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="Rocky Linux 9.3 (Blue Onyx)"
+ANSI_COLOR="0;32"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:rocky:rocky:9::baseos"
+HOME_URL="https://rockylinux.org/"
+BUG_REPORT_URL="https://bugs.rockylinux.org/"
+SUPPORT_END="2032-05-31"
+ROCKY_SUPPORT_PRODUCT="Rocky-Linux-9"
+ROCKY_SUPPORT_PRODUCT_VERSION="9.3"
+REDHAT_SUPPORT_PRODUCT="Rocky Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="9.3"`
 
 	sles12OSRelease = `NAME="SLES"
 VERSION="12-SP3"

@@ -14,6 +14,7 @@ jobs:
     outputs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
+      has_proto: ${{ steps.changes.outputs.has_proto }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -224,4 +225,4 @@ jobs:
 
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make terraform-resources-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@main && make terraform-resources-up-to-date
