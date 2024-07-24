@@ -17,7 +17,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -372,9 +371,9 @@ func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) strin
 	}, accesslist.Spec{
 		Title:              "access list 1",
 		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc", IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()}},
-		OwnershipRequires:  accesslist.Requires{Roles: []string{"llama-role"}, Traits: trait.Traits{}},
-		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
-		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
+		OwnershipRequires:  accesslist.Requires{Roles: []string{"llama-role"}},
+		Grants:             accesslist.Grants{Roles: []string{"access"}},
+		MembershipRequires: accesslist.Requires{},
 		Audit:              accesslist.Audit{NextAuditDate: time.Now()},
 	})
 	require.NoError(t, err)
