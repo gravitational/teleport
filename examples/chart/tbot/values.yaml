@@ -1,3 +1,33 @@
+image: public.ecr.aws/gravitational/tbot-distroless
+# clusterName should be the name of the Teleport cluster that your Bot will
+# join.
+clusterName: ""
+
+# teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator
+# image version deployed by the chart.
+#
+# Normally, the version of the Teleport Kubernetes Operator matches the
+# version of the chart. If you install chart version 15.0.0, you'll use
+# Teleport Kubernetes Operator version 15.0.0. Upgrading the operator is
+# done by upgrading the chart.
+#
+# <Admonition type="warning">
+# `teleportVersionOverride` is intended for development and MUST NOT be
+# used to control the Teleport version in a typical deployment. This
+# chart is designed to run a specific Teleport version. You will face
+# compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version `X.Y.Z`, you should use
+# `helm install --version X.Y.Z` instead.
+#
+# </Admonition>
+teleportVersionOverride: ""
+
+# imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
+# for more details.
+imagePullPolicy: IfNotPresent
+
 # extraLabels -- contains additional Kubernetes labels to apply on the resources
 # created by the chart.
 # See [the Kubernetes label documentation

@@ -8,9 +8,16 @@ metadata:
 {{- if .Values.extraLabels.deployment }}
   {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
 {{- end }}
+  {{- if .Values.annotations.deployment }}
+  annotations: {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
 spec:
+  # Replicas are set to 1 until we establish a locking mechanism for the
+  # `kubernetes_secret` destination.
   replicas: 1
   strategy:
+    # Recreate strategy until we establish a locking mechanism for the
+    # `kubernetes_secret` destination.
     type: Recreate
   selector:
     matchLabels:
@@ -23,10 +30,14 @@ spec:
       containers:
         - name: tbot
           image: {{ .Values.image }}:{{ .Chart.Version }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
           args:
             - start
             - -c
             - /config/tbot.yaml
+            - --debug # Make this configurable.
+            - --log-format
+            - json
           env:
             # POD_NAMESPACE is required for the kubernetes_secret` destination
             # type to work correctly.
@@ -34,6 +45,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # TELEPORT_NODE_NAME is required for Workload Identity Kubernetes
+            # Workload Attestation to work correctly.
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             # KUBERNETES_TOKEN_PATH specifies the path to the service account
             # JWT to use for joining.
             # This path is based on the configuration of the volume and
@@ -50,7 +67,7 @@ spec:
               name: config
             - mountPath: /var/run/secrets/tokens
               name: join-sa-token
-      serviceAccountName: tbot
+      serviceAccountName: {{ template "tbot.serviceAccountName" . }}
       volumes:
         - name: config
           configMap:
@@ -63,6 +80,4 @@ spec:
                   # 600 seconds is the minimum that Kubernetes supports. We
                   # recommend this value is used.
                   expirationSeconds: 600
-                  # `example.teleport.sh` must be replaced with the name of
-                  # your Teleport cluster.
-                  audience: example.teleport.sh
+                  audience: {{ .Values.clusterName }}
