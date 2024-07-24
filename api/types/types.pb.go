@@ -4122,7 +4122,18 @@ type ProvisionTokenSpecV2 struct {
 	// to join the cluster with this token.
 	AWSIIDTTL Duration `protobuf:"varint,3,opt,name=AWSIIDTTL,proto3,casttype=Duration" json:"aws_iid_ttl,omitempty"`
 	// JoinMethod is the joining method required in order to use this token.
-	// Supported joining methods include "token", "ec2", and "iam".
+	// Supported joining methods include:
+	// - azure
+	// - circleci
+	// - ec2
+	// - gcp
+	// - github
+	// - gitlab
+	// - iam
+	// - kubernetes
+	// - spacelift
+	// - token
+	// - tpm
 	JoinMethod JoinMethod `protobuf:"bytes,4,opt,name=JoinMethod,proto3,casttype=JoinMethod" json:"join_method"`
 	// BotName is the name of the bot this token grants access to, if any
 	BotName string `protobuf:"bytes,5,opt,name=BotName,proto3" json:"bot_name,omitempty"`
