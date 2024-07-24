@@ -21,6 +21,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
@@ -169,7 +170,7 @@ func (h *Handler) createDesktopConnection(
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk, desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk.Public(), desktopName, username)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -252,7 +253,7 @@ const (
 
 func createUserCertsRequest(
 	sctx *SessionContext,
-	pk *keys.PrivateKey,
+	publicKey crypto.PublicKey,
 	desktopName,
 	username,
 	siteName string,
@@ -262,11 +263,13 @@ func createUserCertsRequest(
 		return nil, trace.Wrap(err)
 	}
 
+	publicKeyPEM, err := keys.MarshalPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certsReq := proto.UserCertsRequest{
-		// TODO(nklaassen): This is the user's TLS key marshaled to SSH
-		// authorized key format, and we're requesting SSH and TLS certs.
-		// Update this to only request a TLS cert once UserCertsRequest supports it.
-		PublicKey:      pk.MarshalSSHPublicKey(),
+		TLSPublicKey:   publicKeyPEM,
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
@@ -286,7 +289,7 @@ func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-	pk *keys.PrivateKey,
+	publicKey crypto.PublicKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
@@ -300,7 +303,7 @@ func (h *Handler) prepareForCertIssuance(
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, pk, desktopName, username, site.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, site.GetName())
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}

@@ -159,12 +159,21 @@ exports[`empty state 1`] = `
   cursor: auto;
 }
 
+.c11 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 24px;
+  height: 160px;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -172,12 +181,10 @@ exports[`empty state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
+  font-weight: 500;
   font-size: 24px;
+  line-height: 32px;
   margin-bottom: 8px;
-  font-weight: 700;
 }
 
 .c13 {
@@ -186,15 +193,6 @@ exports[`empty state 1`] = `
   margin: 0;
   font-size: 14px;
   font-weight: 400;
-}
-
-.c11 {
-  display: block;
-  outline: none;
-  margin-left: auto;
-  margin-right: auto;
-  margin-bottom: 24px;
-  height: 160px;
 }
 
 .c1 {
@@ -215,7 +213,6 @@ exports[`empty state 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -250,11 +247,11 @@ exports[`empty state 1`] = `
     <div
       class="c0 c3 c4"
     >
-      <div
+      <h1
         class="c5 c6"
       >
         Servers
-      </div>
+      </h1>
     </div>
     <div
       class="c7 c8 sc-gEvDqW c7"
@@ -271,13 +268,11 @@ exports[`empty state 1`] = `
             height="160px"
             src="file_stub"
           />
-          <div
+          <h1
             class="c12"
-            font-size="24"
-            font-weight="700"
           >
             Add your first server to Teleport
-          </div>
+          </h1>
           <div
             class="c13"
             font-size="14"
@@ -515,12 +510,27 @@ exports[`failed 1`] = `
   margin-left: 4px;
 }
 
+.c34 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -542,21 +552,6 @@ exports[`failed 1`] = `
   line-height: 16px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c34 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
 }
 
 .c1 {
@@ -665,7 +660,6 @@ exports[`failed 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -889,11 +883,11 @@ exports[`failed 1`] = `
   <div
     class="c0 c3 c4"
   >
-    <div
+    <h1
       class="c5 c6"
     >
       Servers
-    </div>
+    </h1>
   </div>
   <div
     class="c7"
@@ -1317,7 +1311,7 @@ exports[`failed 1`] = `
       </tr>
       <tr>
         <td>
-          zebpecda
+          Vukuron
         </td>
         <td>
           172.10.1.1:3022
@@ -1428,7 +1422,7 @@ exports[`failed 1`] = `
       </tr>
       <tr>
         <td>
-          zebpecda
+          Nerjaeb
         </td>
         <td>
           <span
@@ -1785,12 +1779,27 @@ exports[`loaded 1`] = `
   margin-left: 4px;
 }
 
+.c34 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -1812,21 +1821,6 @@ exports[`loaded 1`] = `
   line-height: 16px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c34 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
 }
 
 .c1 {
@@ -1935,7 +1929,6 @@ exports[`loaded 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2159,11 +2152,11 @@ exports[`loaded 1`] = `
   <div
     class="c0 c3 c4"
   >
-    <div
+    <h1
       class="c5 c6"
     >
       Servers
-    </div>
+    </h1>
     <a
       href="/web/discover"
       style="text-decoration: none;"
@@ -2592,7 +2585,7 @@ exports[`loaded 1`] = `
       </tr>
       <tr>
         <td>
-          zebpecda
+          Vukuron
         </td>
         <td>
           172.10.1.1:3022
@@ -2703,7 +2696,7 @@ exports[`loaded 1`] = `
       </tr>
       <tr>
         <td>
-          zebpecda
+          Nerjaeb
         </td>
         <td>
           <span
@@ -2842,8 +2835,8 @@ exports[`readonly empty state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
 }
 
@@ -2851,8 +2844,8 @@ exports[`readonly empty state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
   margin-bottom: 16px;
 }
@@ -2882,7 +2875,6 @@ exports[`readonly empty state 1`] = `
 
 .c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2917,21 +2909,21 @@ exports[`readonly empty state 1`] = `
     <div
       class="c0 c3 c4"
     >
-      <div
+      <h1
         class="c5 c6"
       >
         Servers
-      </div>
+      </h1>
     </div>
     <div
       class="c7"
       color="text.main"
     >
-      <div
+      <h1
         class="c8"
       >
         No Servers Found
-      </div>
+      </h1>
       <div
         class="c9"
       >

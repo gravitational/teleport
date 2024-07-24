@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -115,4 +116,15 @@ type ClusterConfiguration interface {
 	UpdateClusterMaintenanceConfig(ctx context.Context, cfg types.ClusterMaintenanceConfig) error
 	// DeleteClusterMaintenanceConfig deletes the maintenance config singleton.
 	DeleteClusterMaintenanceConfig(ctx context.Context) error
+
+	// GetAccessGraphSettings gets the access graph settings from the backend.
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+	// CreateAccessGraphSettings creates the access graph settings in the backend.
+	CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	// UpdateAccessGraphSettings updates the access graph settings in the backend.
+	UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
+	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	// DeleteAccessGraphSettings deletes the access graph settings from the backend.
+	DeleteAccessGraphSettings(context.Context) error
 }

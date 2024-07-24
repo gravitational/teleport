@@ -187,7 +187,6 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       </ButtonBorder>
     );
   }
-
   if (samlApp) {
     if (action.showActions) {
       const currentSamlAppSpec: ResourceSpec = {
@@ -195,7 +194,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
         event: DiscoverEventResource.SamlApplication,
         kind: ResourceKind.SamlApplication,
         samlMeta: { preset: samlAppPreset },
-        icon: 'Application',
+        icon: 'application',
         keywords: 'saml',
       };
       return (

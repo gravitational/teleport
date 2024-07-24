@@ -41,6 +41,7 @@ function makePresets(test = false) {
       },
     ],
     ['@babel/preset-react', { runtime: 'automatic' }],
+    '@babel/preset-typescript',
   ];
 }
 

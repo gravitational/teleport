@@ -20,7 +20,6 @@ package suite
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
 	"sort"
@@ -37,15 +36,19 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
+	protobuf "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,40 +80,39 @@ type TestCAConfig struct {
 // Keep this function in-sync with lib/auth/auth.go:newKeySet().
 // TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	// privateKeys is to specify another RSA private key
-	if len(config.PrivateKeys) == 0 {
-		// db client CA gets its own private key to distinguish its pub key
-		// from the other CAs. Snowflake uses public key to verify JWT signer,
-		// so if we don't do this then tests verifying that the correct
-		// signer was used are pointless.
-		if config.Type == types.DatabaseClientCA {
-			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa-db-client"]}
-		} else {
-			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.Type == types.DatabaseClientCA {
+		// Always use pre-generated RSA key for the db_client CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
 		}
-	}
-	keyBytes := config.PrivateKeys[0]
-	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	signer, err := ssh.NewSignerFromKey(rsaKey)
-	if err != nil {
-		panic(err)
-	}
-
-	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: rsaKey.(*rsa.PrivateKey),
-		Entity: pkix.Name{
-			CommonName:   config.ClusterName,
-			Organization: []string{config.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: config.Clock,
-	})
-	if err != nil {
-		panic(err)
+	} else {
+		// If config.PrivateKeys was not set and this is not the db_client CA,
+		// generate an ECDSA key. Signatures are ~10x faster than RSA and
+		// generating a new key is actually faster than parsing a PEM fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM, err = keys.MarshalPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer, keyPEM)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	ca := &types.CertAuthorityV2{
@@ -127,50 +129,47 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		},
 	}
 
-	// Match the key set to lib/auth/auth.go:newKeySet().
+	// Add SSH keys if necessary.
 	switch config.Type {
-	case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
-	case types.KindJWT, types.OIDCIdPCA:
-		// Generating keys is CPU intensive operation. Generate JWT keys only
-		// when needed.
-		publicKey, privateKey, err := testauthority.New().GenerateJWT()
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.ClusterName},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)
 		}
 		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PublicKey:  publicKey,
-			PrivateKey: privateKey,
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
 		}}
-	case types.UserCA, types.HostCA:
-		ca.Spec.ActiveKeys = types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
-				PrivateKey: keyBytes,
-			}},
-			TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
-		}
-	case types.OpenSSHCA:
-		ca.Spec.ActiveKeys = types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
-				PrivateKey: keyBytes,
-			}},
-		}
-	case types.SPIFFECA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
-		// Generating keys is CPU intensive operation. Generate JWT keys only
-		// when needed.
-		publicKey, privateKey, err := testauthority.New().GenerateJWT()
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PublicKey:  publicKey,
-			PrivateKey: privateKey,
-		}}
-	default:
-		panic("unknown CA type")
 	}
 
 	return ca
@@ -1200,6 +1199,39 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertAuthPreference(ctx, gotAP)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "Revision"))
+}
+
+// AccessGraphSettings tests access graph settings service
+func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
+	ctx := context.Background()
+	ap, err := clusterconfig.NewAccessGraphSettings(
+		&clusterconfigpb.AccessGraphSettingsSpec{
+			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+		},
+	)
+	require.NoError(t, err)
+
+	created, err := s.ConfigS.CreateAccessGraphSettings(ctx, ap)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetMetadata().GetRevision())
+
+	// Validate the created preference matches the retrieve preference.
+	got, err := s.ConfigS.GetAccessGraphSettings(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ap, got, protocmp.Transform()))
+
+	// Validate that update only works if the revision matches.
+	got.Metadata.Revision = "123"
+	_, err = s.ConfigS.UpdateAccessGraphSettings(ctx, got)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertAccessGraphSettings(ctx, protobuf.Clone(got).(*clusterconfigpb.AccessGraphSettings))
+	require.NoError(t, err)
+	require.NotEmpty(t, upserted.GetMetadata().GetRevision())
+	upserted.Metadata.Revision = ""
+	got.Metadata.Revision = ""
+	require.Empty(t, cmp.Diff(upserted, got, protocmp.Transform()))
 }
 
 // SessionRecordingConfig tests session recording configuration.

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { Box, Text } from 'design';
+import { Box, H2, Text } from 'design';
 
 import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';
 import useTeleport from 'teleport/useTeleport';
@@ -28,9 +28,7 @@ export const MachineIDIntegrationSection = () => {
   return (
     <>
       <Box mb={3}>
-        <Text fontWeight="bold" typography="h4">
-          Machine ID
-        </Text>
+        <H2 mb={1}>Machine ID</H2>
         <Text typography="body1">
           Set up Teleport Machine ID to allow CI/CD workflows and other machines
           to access resources protected by Teleport.

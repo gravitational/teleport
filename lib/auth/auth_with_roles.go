@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -574,12 +575,30 @@ func (a *ServerWithRoles) GetClusterCACert(
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+	if !isProxy || req.RemoteAddr == "" {
 		if err := setRemoteAddrFromContext(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// Similarly, do not trust bot instance IDs in the request unless from the
+	// proxy (via the join service). They will be derived from the client
+	// certificate otherwise.
+	if !isProxy && req.BotInstanceID != "" {
+		log.WithFields(logrus.Fields{
+			"bot_instance_id": req.BotInstanceID,
+		}).Warnf("Untrusted client attempted to provide a bot instance ID, this will be ignored")
+
+		req.BotInstanceID = ""
+	}
+
+	// If the identity has a BotInstanceID included, copy it onto the request -
+	// but only if one wasn't already passed along via the proxy.
+	ident := a.context.Identity.GetIdentity()
+	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -1276,10 +1295,6 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	if resourceKind == types.KindSAMLIdPServiceProvider {
-		return true, nil
-	}
-
 	// check access normally if base checker doesnt exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
@@ -1889,7 +1904,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				var serviceProviders []types.SAMLIdPServiceProvider
 				var startKey string
 				for {
-					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
+					sps, nextKey, err := a.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -3219,18 +3234,34 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.PublicKey
-	cryptoPubKey, err := sshutils.CryptoPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var sshPublicKey, tlsPublicKey []byte
+	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+	if sharedPublicKey != nil {
+		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
+		}
+		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
+		}
+		sshPublicKey = sharedPublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+	} else {
+		sshPublicKey = req.SSHPublicKey
+		tlsPublicKey = req.TLSPublicKey
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
 	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := keys.AttestationStatementFromProto(req.AttestationStatement)
-	tlsPublicKeyAttestationStatement := keys.AttestationStatementFromProto(req.AttestationStatement)
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
@@ -3329,7 +3360,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 		// Update the bot instance based on this authentication. This may create
 		// a new bot instance record if the identity is missing an instance ID.
-		if err := a.updateBotInstance(ctx, &certReq); err != nil {
+		if err := a.authServer.updateBotInstance(ctx, &certReq, certReq.botName, certReq.botInstanceID, nil); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -6893,13 +6924,38 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
+// TODO(sshah): set MFARequired for SAML IdP admin actions?
+func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
+	return a.context.Checker.CheckAccess(
+		sp,
+		// MFA is not required for operations on SAML resources but
+		// will be enforced at the connection time.
+		services.AccessState{})
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+	sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Filter out service providers the caller doesn't have access to.
+	var filtered []types.SAMLIdPServiceProvider
+	for _, sp := range sps {
+		err := a.checkAccessToSAMLIdPServiceProvider(sp)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, "", trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, sp)
+		}
+
+	}
+	return filtered, nextKey, nil
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -6908,7 +6964,16 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sp, nil
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
@@ -6943,6 +7008,10 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	// Support reused MFA for bulk tctl create requests.
 	if err = a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6982,6 +7051,17 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	existingSP, err := a.authServer.GetSAMLIdPServiceProvider(ctx, sp.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = a.checkAccessToSAMLIdPServiceProvider(existingSP); err != nil {
+		return trace.Wrap(err)
+	}
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7037,6 +7117,10 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
 	name = sp.GetName()
 	entityID = sp.GetEntityID()
 
@@ -7046,6 +7130,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+// Returns without deleting any resource if user role denies access to any one of the listed resource.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
 	defer func() {
 		code := events.SAMLIdPServiceProviderDeleteAllCode
@@ -7072,6 +7157,23 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	var startKey string
+	for {
+		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, sp := range sps {
+			if err := a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 
 	err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)

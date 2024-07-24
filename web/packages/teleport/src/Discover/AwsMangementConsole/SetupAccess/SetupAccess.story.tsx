@@ -18,8 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { AwsRole } from 'shared/services/apps';
 
 import { ContextProvider } from 'teleport';
@@ -42,10 +41,7 @@ import { SetupAccess } from './SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Application/AwsConsole/SetupAccess',
-  loaders: [mswLoader],
 };
-
-initialize();
 
 const awsRoles: AwsRole[] = [
   {
@@ -62,19 +58,17 @@ const awsRoles: AwsRole[] = [
   },
 ];
 
-const defaultUserGet = rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
-  res(
-    ctx.json({
-      name: 'user-1',
-      roles: [],
-      authType: 'local',
-      isLocal: true,
-      traits: {
-        awsRoleArns: [],
-      },
-      allTraits: {},
-    })
-  )
+const defaultUserGet = http.get(cfg.api.userWithUsernamePath, () =>
+  HttpResponse.json({
+    name: 'user-1',
+    roles: [],
+    authType: 'local',
+    isLocal: true,
+    traits: {
+      awsRoleArns: [],
+    },
+    allTraits: {},
+  })
 );
 
 export const NoTraits = () => (
@@ -100,19 +94,17 @@ export const WithTraits = () => (
 WithTraits.parameters = {
   msw: {
     handlers: [
-      rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
-        res(
-          ctx.json({
-            name: 'user-1',
-            roles: [],
-            authType: 'local',
-            isLocal: true,
-            traits: {
-              awsRoleArns: ['arn:aws:iam::123456789012:role/dynamic1'],
-            },
-            allTraits: {},
-          })
-        )
+      http.get(cfg.api.userWithUsernamePath, () =>
+        HttpResponse.json({
+          name: 'user-1',
+          roles: [],
+          authType: 'local',
+          isLocal: true,
+          traits: {
+            awsRoleArns: ['arn:aws:iam::123456789012:role/dynamic1'],
+          },
+          allTraits: {},
+        })
       ),
     ],
   },
