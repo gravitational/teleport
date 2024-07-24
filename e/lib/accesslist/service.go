@@ -1290,7 +1290,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
 
-	accessListModified = !cmp.Equal(oldAccessList, newAccessList, ignoreEphemeralFields...)
+	accessListModified = !accessListEqual(oldAccessList, newAccessList)
 
 	// Modifying the access list requires RBAC access.
 	var authErrOld error
@@ -1408,6 +1408,7 @@ func (s *Service) canUpdateMembership(ctx context.Context, authCtx *authz.Contex
 	// since they're represented in it. With this check, so long as owner2 doesn't
 	// actually modify their own entry, we can say that it's okay for them to
 	// modify the users in this list.
+
 	if !cmp.Equal(oldMember, newMember, ignoreEphemeralFields...) {
 		return trace.Wrap(err)
 	}
@@ -2178,4 +2179,13 @@ func applyOwnersIneligibleStatus(accessList *accesslist.AccessList, clock clockw
 	}
 
 	return updatedOwners
+}
+
+func accessListEqual(a, b *accesslist.AccessList) bool {
+	cmpOptions := append(
+		ignoreEphemeralFields,
+		// evaluate empty slices/map and nil as equal
+		cmpopts.EquateEmpty(),
+	)
+	return cmp.Equal(a, b, cmpOptions...)
 }
