@@ -1,4 +1,4 @@
-.version: &version "15.4.10-dev.edwarddowling.2"
+.version: &version "15.4.10-dev.edwarddowling.3"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
