@@ -30,80 +30,69 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/inventory"
 )
 
 const (
 	// timeCheckCycle is the period when local times are compared
 	// for collected resources from heartbeats, and notification must be added.
-	timeCheckCycle = 10 * time.Minute
+	timeCheckCycle = 5 * time.Second
 	// timeShiftThreshold is the duration threshold for triggering a warning
 	// if the time difference exceeds this threshold.
 	timeShiftThreshold = time.Minute
 )
 
-// resourceWithLocalTime is minimal interface for resource with local time.
-type resourceWithLocalTime interface {
-	types.Resource
-
-	// GetLocalTime gets the local time of the current server.
-	GetLocalTime() time.Time
+// inventoryMonitor stores info about resource and time difference with local time.
+type inventoryMonitor struct {
+	serverID string
+	services types.SystemRoles
+	diff     time.Duration
 }
 
-// resourceMonitor stores info about resource and time difference with local time.
-type resourceMonitor struct {
-	resource resourceWithLocalTime
-	diff     time.Duration
+// String returns the inventory representation.
+func (res *inventoryMonitor) String() string {
+	return fmt.Sprintf(
+		"%s[%s] is %s",
+		res.serverID,
+		res.services.String(),
+		durationText(res.diff),
+	)
 }
 
 // MonitorNodeInfos consumes heartbeat events of other services to periodically
 // compare the auth server time with the time of remote services,
 // and notifying about the time difference between servers.
 func (a *Server) MonitorNodeInfos(ctx context.Context) error {
-	resources := make(map[string]resourceMonitor)
 	ticker := a.clock.NewTicker(timeCheckCycle)
 
-	watcher, err := a.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: types.KindNode},
-			{Kind: types.KindWindowsDesktopService},
-			{Kind: types.KindKubeServer},
-			{Kind: types.KindAppServer},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.Chan():
+			var resources []inventoryMonitor
+			a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+				info := handle.Hello()
+				metadata := handle.AgentMetadata()
+
+				diff := time.Duration(metadata.TimeDifference)
+				if (diff > 0 && diff > timeShiftThreshold) || (diff < 0 && -diff > timeShiftThreshold) {
+					resources = append(resources, inventoryMonitor{
+						serverID: info.GetServerID(),
+						services: info.GetServices(),
+						diff:     diff,
+					})
+					slog.WarnContext(ctx, "server time difference detected",
+						"server", info.GetServerID(),
+						"services", info.GetServices(),
+						"difference", durationText(diff),
+					)
+				}
+			})
+
 			err := upsertGlobalNotification(ctx, a.Services, generateNotificationMessage(resources))
 			if err != nil {
 				slog.ErrorContext(ctx, "can't set notification about time difference", err)
-			}
-		case event := <-watcher.Events():
-			res, ok := event.Resource.(resourceWithLocalTime)
-			if !ok {
-				continue
-			}
-			// Previous version of the servers don't have this parameter, we have to skip them.
-			if res.GetLocalTime().IsZero() {
-				continue
-			}
-
-			if event.Type == types.OpPut {
-				now := a.clock.Now().UnixNano()
-				localTime := res.GetLocalTime().UnixNano()
-				duration := time.Duration(localTime - now)
-
-				if (duration > 0 && duration > timeShiftThreshold) || (duration < 0 && -duration > timeShiftThreshold) {
-					resources[res.GetName()] = resourceMonitor{resource: res, diff: duration}
-					slog.WarnContext(ctx, "server time difference detected",
-						"server", res.GetName(), "difference", durationText(duration))
-				}
-			} else if event.Type == types.OpDelete {
-				delete(resources, res.GetName())
 			}
 		}
 	}
@@ -133,24 +122,15 @@ func upsertGlobalNotification(ctx context.Context, services *Services, text stri
 
 // generateNotificationMessage formats the notification message for the user with detailed information
 // about the server name and time difference in comparison with the auth node.
-func generateNotificationMessage(resources map[string]resourceMonitor) string {
-	serverAlias := map[string]string{
-		types.KindNode:                  "Node",
-		types.KindWindowsDesktopService: "WindowsDesktopService",
-		types.KindKubeServer:            "KubeServer",
-		types.KindAppServer:             "AppServer",
-	}
+func generateNotificationMessage(resources []inventoryMonitor) string {
 	var serverMessages []string
-	for _, server := range resources {
-		alias, ok := serverAlias[server.resource.GetKind()]
-		if ok {
-			serverMessages = append(serverMessages, fmt.Sprintf(
-				"%s(%s) is %s",
-				alias,
-				server.resource.GetName(),
-				durationText(server.diff)),
-			)
-		}
+	for _, resource := range resources {
+		serverMessages = append(serverMessages, fmt.Sprintf(
+			"%s[%s] is %s",
+			resource.serverID,
+			resource.services.String(),
+			durationText(resource.diff)),
+		)
 	}
 
 	return "Incorrect system clock detected in the cluster, which may lead to certificate validation issues.\n" +

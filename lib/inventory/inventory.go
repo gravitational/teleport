@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -97,6 +98,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 		pingHandlers: make(map[uint64]DownstreamPingHandler),
 		closeContext: ctx,
 		cancel:       cancel,
+		clock:        clockwork.NewRealClock(),
 	}
 	go handle.run(fn, hello)
 	go handle.autoEmitMetadata()
@@ -112,6 +114,7 @@ type downstreamHandle struct {
 	closeContext      context.Context
 	cancel            context.CancelFunc
 	upstreamSSHLabels map[string]string
+	clock             clockwork.Clock
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -148,6 +151,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		case <-h.CloseContext().Done():
 			return
 		}
+		msg.LocalTime = h.clock.Now().UTC()
 
 		// Send metadata.
 		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {

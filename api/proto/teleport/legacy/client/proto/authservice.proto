@@ -2363,6 +2363,14 @@ message UpstreamInventoryAgentMetadata {
   string ContainerOrchestrator = 7;
   // CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
   string CloudEnvironment = 8;
+  // LocalTime advertises the local time of the instance.
+  google.protobuf.Timestamp LocalTime = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_time,omitempty"
+  ];
+  // TimeDifference stores the time difference between the upstream and downstream.
+  int64 TimeDifference = 10;
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.

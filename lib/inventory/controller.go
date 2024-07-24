@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -105,6 +106,7 @@ type controllerOptions struct {
 	authID             string
 	onConnectFunc      func(string)
 	onDisconnectFunc   func(string)
+	clock              clockwork.Clock
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -131,6 +133,10 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.onDisconnectFunc == nil {
 		options.onDisconnectFunc = func(s string) {}
+	}
+
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
 	}
 }
 
@@ -182,6 +188,13 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	}
 }
 
+// WithClock sets the clock for the controller to have a general clock configuration.
+func WithClock(clock clockwork.Clock) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.clock = clock
+	}
+}
+
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
@@ -200,6 +213,7 @@ type Controller struct {
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
 	onDisconnectFunc           func(string)
+	clock                      clockwork.Clock
 	closeContext               context.Context
 	cancel                     context.CancelFunc
 }
@@ -247,6 +261,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		usageReporter:              usageReporter,
 		onConnectFunc:              options.onConnectFunc,
 		onDisconnectFunc:           options.onDisconnectFunc,
+		clock:                      options.clock,
 		closeContext:               ctx,
 		cancel:                     cancel,
 	}
@@ -488,7 +503,7 @@ func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) 
 	ping := proto.DownstreamInventoryPing{
 		ID: req.id,
 	}
-	start := time.Now()
+	start := c.clock.Now()
 	if err := handle.Send(c.closeContext, ping); err != nil {
 		req.rspC <- pingResponse{
 			err: err,
@@ -544,7 +559,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		handle.sshServer = &heartBeatInfo[*types.ServerV2]{}
 	}
 
-	now := time.Now()
+	now := c.clock.Now()
 
 	sshServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
@@ -589,7 +604,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
 	}
 
-	now := time.Now()
+	now := c.clock.Now()
 
 	appServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
@@ -616,6 +631,10 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
+	if !m.LocalTime.IsZero() {
+		m.TimeDifference = c.clock.Since(m.LocalTime).Nanoseconds()
+	}
+
 	handle.SetAgentMetadata(m)
 
 	svcs := make([]string, 0, len(handle.Hello().Services))
@@ -681,7 +700,7 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 				c.testEvent(appKeepAliveOk)
 			}
 		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+			srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
 			lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
 			if err != nil {
 				c.testEvent(appUpsertRetryErr)
@@ -724,7 +743,7 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 			c.testEvent(sshKeepAliveOk)
 		}
 	} else if handle.sshServer.retryUpsert {
-		handle.sshServer.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		handle.sshServer.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
 		lease, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource)
 		if err != nil {
 			c.testEvent(sshUpsertRetryErr)
