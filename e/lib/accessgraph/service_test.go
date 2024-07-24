@@ -20,18 +20,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestService_Query(t *testing.T) {
@@ -39,181 +30,32 @@ func TestService_Query(t *testing.T) {
 
 	ctx := context.Background()
 
-	agSrv, roleSvc, userSvc, testFake := setup(ctx, t)
+	env := setup(t)
 
-	createUsersAndRoles(t, roleSvc, ctx, userSvc)
+	env.createUsersAndRoles(t, ctx)
 
 	t.Run("Query is not allowed", func(t *testing.T) {
 		ctx = genUserContext(ctx, "test-user-no-perm", []string{}, map[string][]string{})
 
-		_, err := agSrv.Query(ctx, &accessgraphv1alpha.QueryRequest{})
+		_, err := env.service.Query(ctx, &accessgraphv1alpha.QueryRequest{})
 		require.ErrorContains(t, err, "not allowed to read the access graph")
 
-		require.Equal(t, 0, testFake.calledFunctions["Query"])
+		require.Equal(t, 0, env.fakeAccessGraphServer.calledFunctions["Query"])
 	})
 
 	t.Run("Query is allowed", func(t *testing.T) {
 		ctx = genUserContext(ctx, "test-user", []string{"test-role"}, map[string][]string{})
 
-		_, err := agSrv.Query(ctx, &accessgraphv1alpha.QueryRequest{})
+		_, err := env.service.Query(ctx, &accessgraphv1alpha.QueryRequest{})
 		require.NoError(t, err)
 
-		require.Equal(t, 1, testFake.calledFunctions["Query"])
+		require.Equal(t, 1, env.fakeAccessGraphServer.calledFunctions["Query"])
 	})
 
 	t.Run("GetFile is always allowed", func(t *testing.T) {
 		ctx = genUserContext(ctx, "test-user-no-perm", []string{}, map[string][]string{})
 
-		_, err := agSrv.GetFile(ctx, &accessgraphv1alpha.GetFileRequest{})
+		_, err := env.service.GetFile(ctx, &accessgraphv1alpha.GetFileRequest{})
 		require.NoError(t, err)
-	})
-}
-
-type serviceFake struct {
-	// Implements the AccessGraphServiceClient interface to avoid breaking changes
-	// when TAG API is updated.
-	accessgraphv1alpha.AccessGraphServiceClient
-	calledFunctions map[string]int // map of function name to number of times called
-}
-
-func newServiceFake() *serviceFake {
-	return &serviceFake{
-		calledFunctions: make(map[string]int),
-	}
-}
-
-func (s *serviceFake) Query(_ context.Context, _ *accessgraphv1alpha.QueryRequest, _ ...grpc.CallOption) (*accessgraphv1alpha.QueryResponse, error) {
-	s.calledFunctions["Query"]++
-	return &accessgraphv1alpha.QueryResponse{}, nil
-}
-
-func (s *serviceFake) GetFile(_ context.Context, _ *accessgraphv1alpha.GetFileRequest, _ ...grpc.CallOption) (*accessgraphv1alpha.GetFileResponse, error) {
-	s.calledFunctions["GetFile"]++
-	return &accessgraphv1alpha.GetFileResponse{}, nil
-}
-
-func (s *serviceFake) EventsStreamV2(_ context.Context, _ ...grpc.CallOption) (accessgraphv1alpha.AccessGraphService_EventsStreamV2Client, error) {
-	s.calledFunctions["EventsStream"]++
-	return nil, nil
-}
-
-func (s *serviceFake) Register(ctx context.Context, in *accessgraphv1alpha.RegisterRequest, opts ...grpc.CallOption) (*accessgraphv1alpha.RegisterResponse, error) {
-	s.calledFunctions["Register"]++
-	return &accessgraphv1alpha.RegisterResponse{}, nil
-}
-
-func (s *serviceFake) ReplaceCAs(ctx context.Context, in *accessgraphv1alpha.ReplaceCAsRequest, opts ...grpc.CallOption) (*accessgraphv1alpha.ReplaceCAsResponse, error) {
-	s.calledFunctions["ReplaceCAs"]++
-	return &accessgraphv1alpha.ReplaceCAsResponse{}, nil
-}
-
-func setup(ctx context.Context, t *testing.T) (*Service, *local.AccessService, *local.IdentityService, *serviceFake) {
-	t.Helper()
-
-	clock := clockwork.NewFakeClock()
-	backend, err := memory.New(memory.Config{Clock: clock})
-	require.NoError(t, err)
-
-	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
-	require.NoError(t, err)
-
-	trustSvc := local.NewCAService(backend)
-	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
-
-	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
-	require.NoError(t, err)
-	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
-	_, err = clusterConfigSvc.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	require.NoError(t, err)
-
-	accessPoint := &testClient{
-		ClusterConfiguration: clusterConfigSvc,
-		Trust:                trustSvc,
-		RoleGetter:           roleSvc,
-		UserGetter:           userSvc,
-	}
-
-	accessService := local.NewAccessService(backend)
-	eventService := local.NewEventsService(backend)
-
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Client:    eventService,
-			Component: "test",
-		},
-		LockGetter: accessService,
-	})
-	require.NoError(t, err)
-
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "test-cluster",
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-	})
-	require.NoError(t, err)
-
-	testFake := newServiceFake()
-	serviceNew, err := NewService(ServiceConfig{
-		Authorizer: authorizer,
-		Logger:     utils.NewLoggerForTests(),
-		Client:     testFake,
-	})
-	require.NoError(t, err)
-
-	return serviceNew, roleSvc, userSvc, testFake
-}
-
-type testClient struct {
-	services.ClusterConfiguration
-	services.Trust
-	services.RoleGetter
-	services.UserGetter
-}
-
-func createUsersAndRoles(t *testing.T, roleSvc *local.AccessService, ctx context.Context, userSvc *local.IdentityService) {
-	t.Helper()
-
-	testRole, err := types.NewRole("test-role", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Namespaces: []string{"*"},
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindAccessGraph},
-					Verbs:     []string{types.VerbRead},
-				},
-			},
-		},
-	})
-
-	require.NoError(t, err)
-
-	_, err = roleSvc.CreateRole(ctx, testRole)
-	require.NoError(t, err)
-
-	testUser, err := types.NewUser("test-user")
-	require.NoError(t, err)
-
-	testUser.SetRoles([]string{})
-	_, err = userSvc.CreateUser(ctx, testUser)
-	require.NoError(t, err)
-
-	testUserNoPerm, err := types.NewUser("test-user-no-perm")
-	require.NoError(t, err)
-
-	_, err = userSvc.CreateUser(ctx, testUserNoPerm)
-	require.NoError(t, err)
-}
-
-func genUserContext(ctx context.Context, username string, groups []string, traits map[string][]string) context.Context {
-	return authz.ContextWithUser(ctx, authz.LocalUser{
-		Username: username,
-		Identity: tlsca.Identity{
-			Username: username,
-			Groups:   groups,
-			Traits:   traits,
-		},
 	})
 }

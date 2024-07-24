@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
@@ -405,17 +406,33 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 		return trace.Wrap(err)
 	}
 	agClient := accessgraphv1.NewAccessGraphServiceClient(agConn)
+	clusterName, err := authServer.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err, "failed to get cluster name")
+	}
+
+	storage, err := local.NewAccessGraphSecretsService(p.authServer.GetBackend())
+	if err != nil {
+		return trace.Wrap(err, "failed to create access graph secrets service")
+	}
 
 	accessGraphService, err := accessgraph.NewService(accessgraph.ServiceConfig{
-		Client:     agClient,
-		Authorizer: p.authServer.Authorizer,
-		Logger:     log,
+		Client:                agClient,
+		Authorizer:            p.authServer.Authorizer,
+		Logger:                p.logger,
+		ClusterName:           clusterName,
+		Storage:               storage,
+		AuthPreferenceGetter:  p.authServer.AuthServer.GetReadOnlyAuthPreference,
+		DeviceAssertionServer: p.authServer.AuthServer.GetDeviceAssertionServer(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	accessgraphv1.RegisterAccessGraphServiceServer(service, accessGraphService)
+	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(service, accessGraphService)
+
+	p.authServer.AuthServer.SetAccessGraphSecretService(storage)
 
 	return nil
 }
@@ -513,7 +530,8 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 
 	// Wire DeviceWebToken creation into auth.Server.
 	authServer.SetCreateDeviceWebTokenFunc(deviceService.CreateDeviceWebToken)
-
+	authServer.SetDeviceAssertionServer(deviceService.CreateAssertCeremony)
+	authServer.SetDevicesGetter(deviceStorage)
 	return deviceService, nil
 }
 

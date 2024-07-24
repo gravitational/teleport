@@ -18,21 +18,25 @@ package accessgraph
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 const (
@@ -41,16 +45,34 @@ const (
 
 type ServiceConfig struct {
 	// Logger is the logger to use.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
+
+	// Storage is the backend storage to use.
+	Storage *local.AccessGraphSecretsService
 
 	// Client is the access graph client.
 	Client accessgraphv1.AccessGraphServiceClient
 
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
+
+	// ClusterName is the name of the cluster.
+	ClusterName string
+
+	// DeviceAssertionServer is the device trust assertions service.
+	DeviceAssertionServer func() (assertserver.Ceremony, error)
+
+	// AuthPreferenceGetter a function to get the auth preference.
+	AuthPreferenceGetter AuthPreferenceGetterFunc
 }
 
+// AuthPreferenceGetterFunc is a function that returns the auth preference.
+type AuthPreferenceGetterFunc func(ctx context.Context) (readonly.AuthPreference, error)
+
 type Service struct {
+	accessgraphv1.UnimplementedAccessGraphServiceServer
+	accessgraphsecretsv1pb.UnimplementedSecretsScannerServiceServer
+
 	// client is the access graph client.
 	client accessgraphv1.AccessGraphServiceClient
 
@@ -58,26 +80,35 @@ type Service struct {
 	authorizer authz.Authorizer
 
 	// log is the logger to use.
-	log logrus.FieldLogger
+	log *slog.Logger
 
-	accessgraphv1.UnimplementedAccessGraphServiceServer
+	clusterName    string
+	secretsService *local.AccessGraphSecretsService
+
+	deviceAssertionServer func() (assertserver.Ceremony, error)
+	authPreferenceGetter  AuthPreferenceGetterFunc
 }
 
+// NewService creates a new access graph service.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Service{
-		client:     cfg.Client,
-		log:        cfg.Logger,
-		authorizer: cfg.Authorizer,
+		client:                cfg.Client,
+		log:                   cfg.Logger,
+		authorizer:            cfg.Authorizer,
+		clusterName:           cfg.ClusterName,
+		secretsService:        cfg.Storage,
+		deviceAssertionServer: cfg.DeviceAssertionServer,
+		authPreferenceGetter:  cfg.AuthPreferenceGetter,
 	}, nil
 }
 
 func (c *ServiceConfig) checkAndSetDefaults() error {
 	if c.Logger == nil {
-		c.Logger = logrus.StandardLogger()
+		c.Logger = slog.Default()
 	}
 
 	if c.Client == nil {
@@ -86,6 +117,22 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 	if c.Authorizer == nil {
 		return trace.BadParameter("missing authorizer")
+	}
+
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+
+	if c.Storage == nil {
+		return trace.BadParameter("missing Storage")
+	}
+
+	if c.DeviceAssertionServer == nil {
+		return trace.BadParameter("missing DeviceAssertionServer")
+	}
+
+	if c.AuthPreferenceGetter == nil {
+		return trace.BadParameter("missing AuthPreferenceGetter")
 	}
 
 	return nil
