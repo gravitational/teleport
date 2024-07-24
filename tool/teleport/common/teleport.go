@@ -907,7 +907,7 @@ func onConfigDump(flags dumpFlags) error {
 				fmt.Fprintf(flags.stdout, "- The Teleport configuration is located at %q.\n", configPath)
 			}
 			if !canWriteToDataDir {
-				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, edit the \"data_dir\" field in %q.", flags.DataDir, configPath)
 			}
 			fmt.Fprintf(flags.stdout, "\n")
 		} else {
