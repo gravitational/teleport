@@ -32,7 +32,8 @@ import (
 func TestAWSSecretsManager(t *testing.T) {
 	createFunc := func(_ context.Context) (Secrets, error) {
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
-			Client: NewMockSecretsManagerClient(MockSecretsManagerClientConfig{}),
+			Client:      NewMockSecretsManagerClient(MockSecretsManagerClientConfig{}),
+			ClusterName: "example.teleport.sh",
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -70,7 +71,8 @@ func TestAWSSecretsManager(t *testing.T) {
 		// Create secret for the first time with default KMS.
 		client := NewMockSecretsManagerClient(MockSecretsManagerClientConfig{})
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
-			Client: client,
+			Client:      client,
+			ClusterName: "example.teleport.sh",
 		})
 		require.NoError(t, err)
 		require.NoError(t, secrets.CreateOrUpdate(ctx, "key", "value"))
@@ -84,8 +86,9 @@ func TestAWSSecretsManager(t *testing.T) {
 		// Create secret for the second time with custom KMS. Create returns
 		// IsAlreadyExists but KMSKeyID should be updated.
 		secrets, err = NewAWSSecretsManager(AWSSecretsManagerConfig{
-			Client:   client,
-			KMSKeyID: "customKMS",
+			Client:      client,
+			KMSKeyID:    "customKMS",
+			ClusterName: "example.teleport.sh",
 		})
 		require.NoError(t, err)
 		require.True(t, trace.IsAlreadyExists(secrets.CreateOrUpdate(ctx, "key", "value")))
