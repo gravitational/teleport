@@ -357,6 +357,8 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 		DeviceExtensions:        devExts,
+		BotName:                 id.BotName,
+		BotInstanceID:           id.BotInstanceID,
 	}
 }
 
@@ -1138,6 +1140,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AccessRequests:    id.ActiveRequests,
 		UserKind:          userKind,
 		TrustedDevice:     device,
+		BotName:           id.BotName,
+		BotInstanceID:     id.BotInstanceID,
 	}
 }
 
