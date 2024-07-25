@@ -12,7 +12,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -590,11 +589,7 @@ func buildAccessGraphForwarder(tlsConfig *tls.Config) (*reverseproxy.Forwarder, 
 // It builds the TLS config using the proxy identity and the cipher suites
 // specified in the configuration.
 func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
-	tlsConfig, err := p.getProxyTLSConfig(p.Config.AccessGraph.CipherSuites)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tlsConfig, err = getAccessGraphTLSConfig(p.Config.AccessGraph, tlsConfig)
+	tlsConfig, err := getAccessGraphTLSConfig(p.Config.AccessGraph, p.getProxyClientCertificate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -683,18 +678,13 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	}
 
 	// now that we know the access graph supports HTTP, check if it's reachable.
-	tlsConf, err := p.getProxyTLSConfig(nil)
-	if err != nil {
-		p.Log.WithError(err).Debugf("Failed to get proxy TLS config")
-		return false
-	}
-	tlsConf, err = getAccessGraphTLSConfig(p.Config.AccessGraph, tlsConf)
+	tlsConfig, err := getAccessGraphTLSConfig(p.Config.AccessGraph, p.getProxyClientCertificate)
 	if err != nil {
 		p.Log.WithError(err).Debugf("Failed to get access graph TLS config")
 		return false
 	}
 	tr := &http.Transport{
-		TLSClientConfig: tlsConf,
+		TLSClientConfig: tlsConfig,
 	}
 	if err := http2.ConfigureTransport(tr); err != nil {
 		p.Log.WithError(err).Debugf("Failed to configure transport")
@@ -727,26 +717,20 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	io.Copy(io.Discard, httpRsp.Body)
 	if httpRsp.StatusCode != http.StatusOK {
 		p.Log.Warnf("Access graph static assets are not reachable. Please ensure proxy can reach access graph service at %v.", p.Config.AccessGraph.Addr)
-
 	}
 	return httpRsp.StatusCode == http.StatusOK
 }
 
-func (p *Plugin) getProxyTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-	if testing.Testing() {
-		return &tls.Config{
-			InsecureSkipVerify: true,
-		}, nil
-	}
-	tlsConfig, err := p.h.GetProxyClientTLSConfig(cipherSuites)
+func (p *Plugin) getProxyClientCertificate() (*tls.Certificate, error) {
+	cert, err := p.h.GetProxyClientCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return tlsConfig, nil
+	return cert, nil
 }
 
 // getAccessGraphTLSConfig builds the TLS config used to retrieve static assets from access graph service.
-func getAccessGraphTLSConfig(cfg *AccessGraphConfig, tlsConfig *tls.Config) (*tls.Config, error) {
+func getAccessGraphTLSConfig(cfg *AccessGraphConfig, getClientCert func() (*tls.Certificate, error)) (*tls.Config, error) {
 	const (
 		// accessGraph expects this ALPN to redirect the request to the static HTTP server instead of the default
 		// gRPC server.
@@ -760,10 +744,16 @@ func getAccessGraphTLSConfig(cfg *AccessGraphConfig, tlsConfig *tls.Config) (*tl
 		}
 	}
 
-	if tlsConfig == nil {
-		tlsConfig = &tls.Config{}
+	tlsConfig := utils.TLSConfig(cfg.CipherSuites)
+	if getClientCert != nil {
+		tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			c, err := getClientCert()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return c, nil
+		}
 	}
-
 	tlsConfig.NextProtos = []string{accessGraphStaticFileServerALPN, string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolHTTP)}
 	tlsConfig.InsecureSkipVerify = cfg.Insecure
 	tlsConfig.RootCAs = caPool

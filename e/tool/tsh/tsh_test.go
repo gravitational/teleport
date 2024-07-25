@@ -3,6 +3,7 @@ package main_test
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"os/user"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	authe "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/entitlements"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tshcommon "github.com/gravitational/teleport/tool/tsh/common"
 )
@@ -571,9 +575,18 @@ func setupDeviceTrust(t *testing.T, process *service.TeleportProcess) tshcommon.
 	require.NoError(t, err)
 	authConn, err := process.WaitForConnector(service.AuthIdentityEvent, nil)
 	require.NotNil(t, authConn, err)
-	adminTLS, err := authConn.ClientTLSConfig(nil)
-	require.NoError(t, err)
-	require.NotNil(t, adminTLS)
+
+	adminTLS := utils.TLSConfig(process.Config.CipherSuites)
+	adminTLS.ServerName = apiutils.EncodeClusterName(authConn.ClusterName())
+	adminTLS.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := authConn.ClientGetCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsCert, nil
+	}
+	adminTLS.InsecureSkipVerify = true
+	adminTLS.VerifyConnection = utils.VerifyConnectionWithRoots(authConn.ClientGetPool)
 
 	clt, err := apiclient.New(ctx, apiclient.Config{
 		Addrs: []string{authAddr.String()},

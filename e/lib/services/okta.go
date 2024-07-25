@@ -192,7 +192,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		}
 	}()
 
-	tlsConfig, err := conn.ServerTLSConfig(nil)
+	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}

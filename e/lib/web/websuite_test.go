@@ -242,7 +242,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &stubProxySettings{},
 		PluginRegistry:                  pluginRegistry,
-		GetProxyClientTLSConfig: func(cipherSuites []uint16) (*tls.Config, error) {
+		GetProxyClientCertificate: func() (*tls.Certificate, error) {
 			return nil, nil
 		},
 		ClusterFeatures: proto.Features{
