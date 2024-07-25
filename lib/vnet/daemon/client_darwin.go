@@ -310,6 +310,16 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 				return
 			}
 
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+				errC <- trace.Wrap(errMissingCodeSigningIdentifiers)
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionCodeSigningRequirementFailure {
+				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "the daemon does not appear to be code signed correctly")
+				return
+			}
+
 			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
 			return
 		}
