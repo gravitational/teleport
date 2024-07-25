@@ -748,7 +748,7 @@ func sendDevices(ctx context.Context, authServer services.DevicesGetter, stream 
 		return trace.BadParameter("authServer is nil")
 	}
 	for {
-		objects, nextToken, err := authServer.ListDevices(ctx, limit, pageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
+		objects, nextToken, err := authServer.ListDevices(ctx, limit, pageToken, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
 		if err != nil {
 			return trace.Wrap(err)
 		}
