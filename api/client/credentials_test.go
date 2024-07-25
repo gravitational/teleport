@@ -213,7 +213,7 @@ func TestLoadKeyPair(t *testing.T) {
 	_, err = invalidIdentityCreds.TLSConfig()
 	require.Error(t, err)
 	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
-	expiringCreds = creds.(CredentialsWithExpiry)
+	expiringCreds = invalidIdentityCreds.(CredentialsWithExpiry)
 	_, ok = expiringCreds.Expiry()
 	require.False(t, ok, "expiry should be unknown on a broken credential")
 }
