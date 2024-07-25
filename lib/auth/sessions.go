@@ -20,9 +20,11 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -31,11 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,10 +67,16 @@ type NewWebSessionRequest struct {
 	// This should only be set to true for web sessions that are purely in the purview of the Proxy
 	// and Auth services. Users should never have direct access to attested web sessions.
 	AttestWebSession bool
-	// PrivateKey is a specific private key to use when generating the web sessions' certificates.
-	// This should be provided when extending an attested web session in order to maintain the
-	// session attested status.
-	PrivateKey *keys.PrivateKey
+	// SSHPrivateKey is a specific private key to use when generating the web
+	// sessions' SSH certificates.
+	// This should be provided when extending an attested web session in order
+	// to maintain the session attested status.
+	SSHPrivateKey *keys.PrivateKey
+	// TLSPrivateKey is a specific private key to use when generating the web
+	// sessions' SSH certificates.
+	// This should be provided when extending an attested web session in order
+	// to maintain the session attested status.
+	TLSPrivateKey *keys.PrivateKey
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -145,8 +154,14 @@ func (a *Server) newWebSession(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.PrivateKey == nil {
-		req.PrivateKey, err = native.GeneratePrivateKey()
+	var sshKey, tlsKey crypto.Signer
+	if req.SSHPrivateKey != nil || req.TLSPrivateKey != nil {
+		if req.SSHPrivateKey == nil || req.TLSPrivateKey == nil {
+			return nil, trace.BadParameter("invalid to set only one of SSHPrivateKey or TLSPrivateKey (this is a bug)")
+		}
+		sshKey, tlsKey = req.SSHPrivateKey.Signer, req.TLSPrivateKey.Signer
+	} else {
+		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, a)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -158,22 +173,36 @@ func (a *Server) newWebSession(
 	}
 
 	if req.AttestWebSession {
-		// Upsert web session attestation data so that this key's certs
-		// will be marked with the web session private key policy.
-		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, pubKey := range []crypto.PublicKey{sshKey.Public(), tlsKey.Public()} {
+			// Upsert web session attestation data so that this key's certs
+			// will be marked with the web session private key policy.
+			webAttData, err := services.NewWebSessionAttestationData(pubKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	}
+
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsPublicKeyPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	certReq := certRequest{
 		user:           userState,
 		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
-		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
+		sshPublicKey:   sshAuthorizedKey,
+		tlsPublicKey:   tlsPublicKeyPEM,
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
@@ -204,9 +233,19 @@ func (a *Server) newWebSession(
 		startTime = req.LoginTime
 	}
 
+	sshPrivateKeyPEM, err := keys.MarshalPrivateKey(sshKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPrivateKeyPEM, err := keys.MarshalPrivateKey(tlsKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sessionSpec := types.WebSessionSpecV2{
 		User:                req.User,
-		Priv:                req.PrivateKey.PrivateKeyPEM(),
+		Priv:                sshPrivateKeyPEM,
+		TLSPriv:             tlsPrivateKeyPEM,
 		Pub:                 certs.SSH,
 		TLSCert:             certs.TLS,
 		Expires:             startTime.UTC().Add(sessionTTL),
@@ -368,7 +407,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	// Create certificate for this session.
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GenerateKey(ctx, a, cryptosuites.UserTLS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -385,10 +424,19 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		}
 	}
 
+	privateKeyPEM, err := keys.MarshalPrivateKey(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(priv.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:           user,
 		loginIP:        req.LoginIP,
-		publicKey:      priv.MarshalSSHPublicKey(),
+		tlsPublicKey:   tlsPublicKey,
 		checker:        checker,
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
@@ -416,8 +464,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:        req.User,
-		Priv:        priv.PrivateKeyPEM(),
-		Pub:         certs.SSH,
+		TLSPriv:     privateKeyPEM,
 		TLSCert:     certs.TLS,
 		LoginTime:   a.clock.Now().UTC(),
 		Expires:     a.clock.Now().UTC().Add(req.SessionTTL),
@@ -499,17 +546,32 @@ func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := publicKey
+	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshPublicKeyAttestationStatement := attestationReq
+	tlsPublicKeyAttestationStatement := attestationReq
+
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                 userState,
-		ttl:                  sessionTTL,
-		publicKey:            publicKey,
-		compatibility:        compatibility,
-		checker:              checker,
-		traits:               userState.GetTraits(),
-		routeToCluster:       routeToCluster,
-		kubernetesCluster:    kubernetesCluster,
-		attestationStatement: attestationReq,
-		loginIP:              loginIP,
+		user:                             userState,
+		ttl:                              sessionTTL,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		compatibility:                    compatibility,
+		checker:                          checker,
+		traits:                           userState.GetTraits(),
+		routeToCluster:                   routeToCluster,
+		kubernetesCluster:                kubernetesCluster,
+		loginIP:                          loginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

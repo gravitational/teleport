@@ -291,6 +291,11 @@ func TestBotConfig_YAML(t *testing.T) {
 							Path: "/bot/output",
 						},
 					},
+					&ApplicationTunnelService{
+						Listen:  "tcp://127.0.0.1:123",
+						Roles:   []string{"access"},
+						AppName: "my-app",
+					},
 				},
 			},
 		},

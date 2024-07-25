@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"path"
 	"regexp"
@@ -264,7 +265,7 @@ func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 	// be used, only log expression parse errors as a warning.
 	if err := validateRoleExpressions(r); err != nil {
 		options.warningReporter(err)
-		log.Warnf("Detected invalid role %q: %v", r.GetName(), err)
+		slog.WarnContext(context.Background(), "Detected invalid role", "role", r.GetName(), "error", err)
 	}
 	return nil
 }
@@ -299,7 +300,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_names", r.GetDatabaseNames(condition.condition)},
 			{"db_users", r.GetDatabaseUsers(condition.condition)},
 			{"host_groups", r.GetHostGroups(condition.condition)},
-			{"host_sudeoers", r.GetHostSudoers(condition.condition)},
+			{"host_sudoers", r.GetHostSudoers(condition.condition)},
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
 			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
@@ -391,7 +392,7 @@ func filterInvalidUnixLogins(candidates []string) []string {
 		// Log any invalid logins which were added by a user but ignore any
 		// Teleport internal logins which are known to be invalid.
 		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+			slog.DebugContext(context.Background(), "Skipping invalid Unix login.", "login", candidate)
 		}
 	}
 	return output
@@ -405,7 +406,7 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 
 	for _, candidate := range candidates {
 		if strings.ContainsAny(candidate, invalidChars) {
-			log.Debugf("Skipping Windows login %v, not a valid Windows login.", candidate)
+			slog.DebugContext(context.Background(), "Skipping invalid Windows login.", "login", candidate)
 			continue
 		}
 
@@ -418,7 +419,7 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 func warnInvalidAzureIdentities(candidates []string) {
 	for _, candidate := range candidates {
 		if !MatchValidAzureIdentity(candidate) {
-			log.Warningf("Invalid format of Azure identity %q", candidate)
+			slog.WarnContext(context.Background(), "Invalid format of Azure identity", "identity", candidate)
 		}
 	}
 }
@@ -527,7 +528,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		for i, ext := range options.CertExtensions {
 			vals, err := ApplyValueTraits(ext.Value, traits)
 			if err != nil && !trace.IsNotFound(err) {
-				log.Warnf("Did not apply trait to cert_extensions.value: %v", err)
+				slog.WarnContext(context.Background(), "Failed to apply trait to cert_extensions.value", "error", err)
 				continue
 			}
 			if len(vals) != 0 {
@@ -557,7 +558,7 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 		outputs, err := ApplyValueTraits(value, traits)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				log.WithError(err).Debugf("Skipping %s %q.", fieldName, value)
+				slog.DebugContext(context.Background(), "Skipping trait value.", "field", fieldName, "value", value, "error", err)
 			}
 			continue
 		}
@@ -587,7 +588,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 		keyVars, err := ApplyValueTraits(key, traits)
 		if err != nil {
 			// empty key will not match anything
-			log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
+			slog.DebugContext(context.Background(), "Setting empty node label pair", "key", key, "values", vals, "error", err)
 			keyVars = []string{""}
 		}
 
@@ -595,7 +596,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 		for _, val := range vals {
 			valVars, err := ApplyValueTraits(val, traits)
 			if err != nil {
-				log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
+				slog.DebugContext(context.Background(), "Setting empty node label value", "key", key, "value", val, "error", err)
 				// empty value will not match anything
 				valVars = []string{""}
 			}
@@ -871,10 +872,10 @@ func ExtractFromIdentity(ctx context.Context, access UserGetter, identity tlsca.
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
-			"from backend. If the identity provider allows username changes, this can "+
-			"potentially allow an attacker to change the role of the existing user.",
-			identity.Username)
+		const msg = "Failed to find roles in x509 identity. Fetching " +
+			"from backend. If the identity provider allows username changes, this can " +
+			"potentially allow an attacker to change the role of the existing user."
+		slog.WarnContext(ctx, msg, "username", identity.Username)
 		return u.GetRoles(), u.GetTraits(), nil
 	}
 

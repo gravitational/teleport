@@ -616,6 +616,8 @@ const (
 	ClusterNetworkingConfigUpdateCode = "TCNET002I"
 	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
 	SessionRecordingConfigUpdateCode = "TCREC003I"
+	// AccessGraphSettingsUpdateCode is the access graph settings updated event code.
+	AccessGraphSettingsUpdateCode = "TCAGC003I"
 
 	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
 	AccessGraphAccessPathChangedCode = "TAG001I"
@@ -628,6 +630,13 @@ const (
 	DiscoveryConfigDeleteCode = "DC003I"
 	// DiscoveryConfigDeleteAllCode is the discovery config delete all event code.
 	DiscoveryConfigDeleteAllCode = "DC004I"
+
+	// IntegrationCreateCode is the integration resource create event code.
+	IntegrationCreateCode = "IG001I"
+	// IntegrationUpdateCode is the integration resource update event code.
+	IntegrationUpdateCode = "IG002I"
+	// IntegrationDeleteCode is the integration resource delete event code.
+	IntegrationDeleteCode = "IG003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

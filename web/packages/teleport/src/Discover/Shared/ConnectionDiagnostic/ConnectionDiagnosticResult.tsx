@@ -18,12 +18,12 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonSecondary, Text, Box, Flex, ButtonText } from 'design';
+import { ButtonSecondary, Text, Box, Flex, ButtonText, Mark } from 'design';
 import * as Icons from 'design/Icon';
 
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 
-import { StyledBox, TextIcon, Mark } from '..';
+import { StyledBox, TextIcon } from '..';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { ConnectionDiagnostic } from 'teleport/services/agents';

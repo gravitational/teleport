@@ -14,12 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build vnetdaemon
+// +build vnetdaemon
+
 package daemon
 
 // #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
+// #include "protocol_darwin.h"
 import "C"
 
 import (
@@ -28,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -44,29 +49,30 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
-func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func RegisterAndCall(ctx context.Context, config Config) error {
 	bundlePath, err := bundlePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	log.DebugContext(ctx, "Registering (if needed) and calling daemon", "bundle_path", bundlePath)
 	initialStatus := daemonStatus(bundlePath)
+
 	// If the status is equal to "requires approval" before RegisterAndCall called register, it means
 	// that it's not the first time the user tries to start the daemon. In that case, macOS is not
 	// going to show the notification about a new login item. Instead, we just open the login items
 	// ourselves to direct the user towards enabling the login item.
-	if initialStatus == serviceStatusRequiresApproval {
+	if initialStatus == ServiceStatusRequiresApproval {
 		C.OpenSystemSettingsLoginItems()
 	}
 
-	if initialStatus != serviceStatusEnabled {
+	if initialStatus != ServiceStatusEnabled {
 		status, err := register(ctx, bundlePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Once registered for the first time, the status is likely going to be serviceStatusRequiresApproval.
-		if status != serviceStatusEnabled {
+		if status != ServiceStatusEnabled {
 			fmt.Println("To start VNet, please enable the background item for tsh.app in the Login Items section of System Settings.\nWaiting for the background item to be enabled…")
 			if err := waitForEnablement(ctx, bundlePath); err != nil {
 				return trace.Wrap(err, "waiting for the login item to get enabled")
@@ -74,10 +80,36 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		}
 	}
 
-	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
+	if err = startByCalling(ctx, bundlePath, config); err != nil {
+		if !errors.Is(err, errAlreadyRunning) {
+			return trace.Wrap(err)
+		}
+
+		// If the daemon was already running, it might mean two things:
+		//
+		// 1. The user attempted to start a second instance of VNet.
+		// 2. The user has stopped the previous instance of VNet and immediately started a new one,
+		// before the daemon had a chance to notice that the previous instance was stopped and exit too.
+		//
+		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
+		// just about to quit.
+		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
+		if err := sleepOrDone(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := startByCalling(ctx, bundlePath, config); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// TODO(ravicious): Implement monitoring the state of the daemon.
+	// Meanwhile, simply block until ctx is canceled.
+	<-ctx.Done()
+	return trace.Wrap(ctx.Err())
 }
 
-func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
+func register(ctx context.Context, bundlePath string) (ServiceStatus, error) {
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
@@ -89,7 +121,7 @@ func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
 	C.RegisterDaemon(cBundlePath, &result)
 
 	if !result.ok {
-		status := serviceStatus(result.service_status)
+		status := ServiceStatus(result.service_status)
 		// Docs for [registerAndReturnError][1] don't seem to cover a situation in which the user adds
 		// the launch daemon for the first time. In that case, that method returns "Operation not
 		// permitted" error (Code=1, Domain=SMAppServiceErrorDomain). That error doesn't seem to exist
@@ -100,7 +132,7 @@ func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
 		//
 		// [1]: https://developer.apple.com/documentation/servicemanagement/smappservice/register()?language=objc
 		// [2]: https://developer.apple.com/documentation/servicemanagement/service-management-errors?language=objc
-		if status == serviceStatusRequiresApproval {
+		if status == ServiceStatusRequiresApproval {
 			log.DebugContext(ctx, "Daemon successfully added, but it requires approval",
 				"ignored_error", C.GoString(result.error_description))
 			return status, nil
@@ -110,12 +142,8 @@ func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
 		return -1, trace.Errorf("registering daemon failed, %s", C.GoString(result.error_description))
 	}
 
-	return serviceStatus(result.service_status), nil
+	return ServiceStatus(result.service_status), nil
 }
-
-const waitingForEnablementTimeout = time.Minute
-
-var waitingForEnablementTimeoutExceeded = errors.New("the login item was not enabled within the timeout")
 
 // waitForEnablement periodically checks if the status of the daemon has changed to
 // [serviceStatusEnabled]. This happens when the user approves the login item in system settings.
@@ -123,7 +151,11 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout, waitingForEnablementTimeoutExceeded)
+	// It should be less than receiveTunTimeout in the vnet package
+	// so that the user sees the error about the background item first.
+	const waitingForEnablementTimeout = 50 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout,
+		errors.New("the background item was not enabled within the timeout"))
 	defer cancel()
 
 	for {
@@ -132,11 +164,11 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 			return context.Cause(ctx)
 		case <-ticker.C:
 			switch status := daemonStatus(bundlePath); status {
-			case serviceStatusEnabled:
+			case ServiceStatusEnabled:
 				return nil
-			case serviceStatusRequiresApproval:
+			case ServiceStatusRequiresApproval:
 				// Continue waiting for the user to approve the login item.
-			case serviceStatusNotRegistered, serviceStatusNotFound:
+			case ServiceStatusNotRegistered, ServiceStatusNotFound:
 				// Something happened to the service since we started waiting, abort.
 				return trace.Errorf("encountered unexpected service status %q", status)
 			default:
@@ -146,32 +178,42 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 	}
 }
 
-func daemonStatus(bundlePath string) serviceStatus {
+// DaemonStatus returns the status of the background item responsible for launching the daemon.
+func DaemonStatus() (ServiceStatus, error) {
+	bundlePath, err := bundlePath()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return daemonStatus(bundlePath), nil
+}
+
+func daemonStatus(bundlePath string) ServiceStatus {
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
-	return serviceStatus(C.DaemonStatus(cBundlePath))
+	return ServiceStatus(C.DaemonStatus(cBundlePath))
 }
 
-type serviceStatus int
-
 // https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
+type ServiceStatus int
+
 const (
-	serviceStatusNotRegistered    serviceStatus = 0
-	serviceStatusEnabled          serviceStatus = 1
-	serviceStatusRequiresApproval serviceStatus = 2
-	serviceStatusNotFound         serviceStatus = 3
+	ServiceStatusNotRegistered    ServiceStatus = 0
+	ServiceStatusEnabled          ServiceStatus = 1
+	ServiceStatusRequiresApproval ServiceStatus = 2
+	ServiceStatusNotFound         ServiceStatus = 3
 )
 
-func (s serviceStatus) String() string {
+func (s ServiceStatus) String() string {
 	switch s {
-	case serviceStatusNotRegistered:
+	case ServiceStatusNotRegistered:
 		return "not registered"
-	case serviceStatusEnabled:
+	case ServiceStatusEnabled:
 		return "enabled"
-	case serviceStatusRequiresApproval:
+	case ServiceStatusRequiresApproval:
 		return "requires approval"
-	case serviceStatusNotFound:
+	case ServiceStatusNotFound:
 		return "not found"
 	default:
 		return strconv.Itoa(int(s))
@@ -201,9 +243,99 @@ func bundlePath() (string, error) {
 
 	const appBundleSuffix = "/Contents/MacOS"
 	if !strings.HasSuffix(dir, appBundleSuffix) {
+		exeName := filepath.Base(exe)
 		log.DebugContext(context.Background(), "Current executable is likely outside of app bundle", "exe", absExe)
-		return "", trace.NotFound("the current executable is not in an app bundle")
+		return "", trace.NotFound("%s is not in an app bundle", exeName)
 	}
 
 	return strings.TrimSuffix(dir, appBundleSuffix), nil
+}
+
+func startByCalling(ctx context.Context, bundlePath string, config Config) error {
+	// C.StartVnet might hang if the daemon cannot be successfully spawned.
+	const daemonStartTimeout = 20 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, daemonStartTimeout,
+		errors.New("could not connect to the VNet daemon within the timeout"))
+	defer cancel()
+
+	defer C.InvalidateDaemonClient()
+
+	errC := make(chan error, 1)
+
+	go func() {
+		var pinner runtime.Pinner
+		defer pinner.Unpin()
+
+		req := C.StartVnetRequest{
+			bundle_path: C.CString(bundlePath),
+			vnet_config: &C.VnetConfig{
+				socket_path: C.CString(config.SocketPath),
+				ipv6_prefix: C.CString(config.IPv6Prefix),
+				dns_addr:    C.CString(config.DNSAddr),
+				home_path:   C.CString(config.HomePath),
+			},
+		}
+		defer func() {
+			C.free(unsafe.Pointer(req.bundle_path))
+			C.free(unsafe.Pointer(req.vnet_config.socket_path))
+			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
+			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
+			C.free(unsafe.Pointer(req.vnet_config.home_path))
+		}()
+		// Structs passed directly as arguments to cgo functions are automatically pinned.
+		// However, structs within structs have to be pinned by hand.
+		pinner.Pin(req.vnet_config)
+
+		var res C.StartVnetResult
+		defer func() {
+			C.free(unsafe.Pointer(res.error_domain))
+			C.free(unsafe.Pointer(res.error_description))
+		}()
+
+		// This call gets unblocked when C.InvalidateDaemonClient is called when startByCalling exits.
+		C.StartVnet(&req, &res)
+
+		if !res.ok {
+			errorDomain := C.GoString(res.error_domain)
+			errorCode := int(res.error_code)
+
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeAlreadyRunning {
+				errC <- trace.Wrap(errAlreadyRunning)
+				return
+			}
+
+			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
+			return
+		}
+
+		errC <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(context.Cause(ctx))
+	case err := <-errC:
+		return trace.Wrap(err, "connecting to the VNet daemon")
+	}
+}
+
+var (
+	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
+	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
+	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
+	// received a message to start after it was already running.
+	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
+	errAlreadyRunning       = errors.New("VNet is already running")
+)
+
+func sleepOrDone(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }

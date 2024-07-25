@@ -63,7 +63,7 @@ terraform {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = "mytenant.teleport.sh:443"
   identity_file_path = "terraform-identity/identity"
 }
@@ -86,7 +86,7 @@ The identity file can be obtained via several ways:
 
 #### Obtaining an identity file via `tbot`
 
-Tbot relies on [MachineID](../machine-id/introduction.mdx) to obtain and automatically renew short-lived credentials.
+Tbot relies on [MachineID](../enroll-resources/machine-id/introduction.mdx) to obtain and automatically renew short-lived credentials.
 Such credentials are harder to exfiltrate, and you can control more precisely who has access to which roles
 (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
 
@@ -127,7 +127,7 @@ This auth method has the following limitations:
 
 ### Optional
 
-- `addr` (String) host:port where Teleport Auth server is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.
+- `addr` (String) host:port where Teleport Auth Service is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.
 - `cert_base64` (String) Base64 encoded TLS auth certificate. This can also be set with the environment variable `TF_TELEPORT_CERT_BASE64`.
 - `cert_path` (String) Path to Teleport auth certificate file. This can also be set with the environment variable `TF_TELEPORT_CERT`.
 - `dial_timeout_duration` (String) DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `TF_TELEPORT_DIAL_TIMEOUT_DURATION`.

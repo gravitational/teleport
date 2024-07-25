@@ -331,6 +331,26 @@ export function isSharingClipboard(
 }
 
 /**
+ * Provides a user-friendly message indicating whether clipboard sharing is enabled,
+ * and the reason it is disabled.
+ */
+export function clipboardSharingMessage(state: ClipboardSharingState): string {
+  if (!state.allowedByAcl) {
+    return 'Clipboard Sharing disabled by Teleport RBAC.';
+  }
+  if (!state.browserSupported) {
+    return 'Clipboard Sharing is not supported in this browser.';
+  }
+  if (state.readState === 'denied' || state.writeState === 'denied') {
+    return 'Clipboard Sharing disabled due to browser permissions.';
+  }
+
+  return isSharingClipboard(state)
+    ? 'Clipboard Sharing enabled.'
+    : 'Clipboard Sharing disabled.';
+}
+
+/**
  * Determines whether directory sharing is/should-be possible based on whether it's allowed by the acl
  * and whether it's supported by the browser.
  */

@@ -319,6 +319,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		RDSType:   req.RdsType,
 		Engines:   req.Engines,
 		NextToken: req.NextToken,
+		VpcId:     req.VpcId,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -669,5 +670,49 @@ func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb
 	return &integrationpb.ListEKSClustersResponse{
 		Clusters:  clustersList,
 		NextToken: listEKSClustersResp.NextToken,
+	}, nil
+}
+
+// ListSubnets returns a list of AWS VPC subnets.
+func (s *AWSOIDCService) ListSubnets(ctx context.Context, req *integrationpb.ListSubnetsRequest) (*integrationpb.ListSubnetsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClient, err := awsoidc.NewListSubnetsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListSubnets(ctx, awsClient, awsoidc.ListSubnetsRequest{
+		VPCID:     req.VpcId,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subnets := make([]*integrationpb.Subnet, 0, len(resp.Subnets))
+	for _, s := range resp.Subnets {
+		subnets = append(subnets, &integrationpb.Subnet{
+			Name:             s.Name,
+			Id:               s.ID,
+			AvailabilityZone: s.AvailabilityZone,
+		})
+	}
+
+	return &integrationpb.ListSubnetsResponse{
+		Subnets:   subnets,
+		NextToken: resp.NextToken,
 	}, nil
 }

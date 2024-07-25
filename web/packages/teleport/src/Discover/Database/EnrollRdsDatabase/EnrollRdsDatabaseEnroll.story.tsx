@@ -18,9 +18,9 @@
 
 import React, { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { Info } from 'design/Alert';
+import { withoutQuery } from 'web/packages/build/storybook';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -40,12 +40,11 @@ import {
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
-initialize();
 const defaultIsCloud = cfg.isCloud;
+const databasesPathWithoutQuery = withoutQuery(cfg.api.databasesPath);
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
-  loaders: [mswLoader],
   decorators: [
     Story => {
       useEffect(() => {
@@ -63,26 +62,22 @@ export const InstanceList = () => <Component />;
 InstanceList.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(ctx.json({ databases: rdsInstances }))
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json({ databases: rdsInstances })
       ),
-      rest.get(cfg.api.databasesPath, (req, res, ctx) =>
-        res(ctx.json({ items: [rdsInstances[2]] }))
+      http.get(databasesPathWithoutQuery, () =>
+        HttpResponse.json({ items: [rdsInstances[2]] })
       ),
-      rest.post(cfg.api.databasesPath, (req, res, ctx) => res(ctx.json({}))),
-      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
-        res(ctx.json({}))
+      http.post(databasesPathWithoutQuery, () => HttpResponse.json({})),
+      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+      http.get(cfg.api.databaseServicesPath, () =>
+        HttpResponse.json({
+          services: [{ name: 'test', matchers: { '*': ['*'] } }],
+        })
       ),
-      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
-        res(
-          ctx.json({ services: [{ name: 'test', matchers: { '*': ['*'] } }] })
-        )
-      ),
-      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
-        res(ctx.json({}))
-      ),
-      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
-        res(ctx.json({ vpcMapOfSubnets: {} }))
+      http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
+      http.post(cfg.api.awsRdsDbRequiredVpcsPath, () =>
+        HttpResponse.json({ vpcMapOfSubnets: {} })
       ),
     ],
   },
@@ -95,29 +90,23 @@ export const InstanceListForCloud = () => {
 InstanceListForCloud.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(ctx.json({ databases: rdsInstances }))
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json({ databases: rdsInstances })
       ),
-      rest.get(cfg.api.databasesPath, (req, res, ctx) =>
-        res(ctx.json({ items: [rdsInstances[2]] }))
+      http.get(databasesPathWithoutQuery, () =>
+        HttpResponse.json({ items: [rdsInstances[2]] })
       ),
-      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
-        res(ctx.json({}))
+      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+      http.get(cfg.api.databaseServicesPath, () =>
+        HttpResponse.json({
+          items: [
+            { name: 'test', resource_matchers: [{ labels: { '*': ['*'] } }] },
+          ],
+        })
       ),
-      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
-        res(
-          ctx.json({
-            items: [
-              { name: 'test', resource_matchers: [{ labels: { '*': ['*'] } }] },
-            ],
-          })
-        )
-      ),
-      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
-        res(ctx.json({}))
-      ),
-      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
-        res(ctx.json({ vpcMapOfSubnets: { 'vpc-1': ['subnet1'] } }))
+      http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
+      http.post(cfg.api.awsRdsDbRequiredVpcsPath, () =>
+        HttpResponse.json({ vpcMapOfSubnets: { 'vpc-1': ['subnet1'] } })
       ),
     ],
   },
@@ -129,11 +118,7 @@ export const InstanceListLoading = () => {
 };
 InstanceListLoading.parameters = {
   msw: {
-    handlers: [
-      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(ctx.delay('infinite'))
-      ),
-    ],
+    handlers: [http.post(cfg.api.awsRdsDbListPath, () => delay('infinite'))],
   },
 };
 
@@ -141,10 +126,12 @@ export const WithAwsPermissionsError = () => <Component />;
 WithAwsPermissionsError.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(
-          ctx.status(403),
-          ctx.json({ message: 'StatusCode: 403, RequestID: operation error' })
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json(
+          {
+            message: 'StatusCode: 403, RequestID: operation error',
+          },
+          { status: 403 }
         )
       ),
     ],
@@ -155,8 +142,13 @@ export const WithOtherError = () => <Component />;
 WithOtherError.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(ctx.status(404))
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 404 }
+        )
       ),
     ],
   },
