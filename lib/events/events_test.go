@@ -20,6 +20,7 @@ package events
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -29,6 +30,189 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// eventsMap maps event names to event types for testing. Be sure to update
+// this map if you add a new event type.
+var eventsMap = map[string]apievents.AuditEvent{
+	SessionPrintEvent:                              &apievents.SessionPrint{},
+	SessionStartEvent:                              &apievents.SessionStart{},
+	SessionEndEvent:                                &apievents.SessionEnd{},
+	SessionUploadEvent:                             &apievents.SessionUpload{},
+	SessionJoinEvent:                               &apievents.SessionJoin{},
+	SessionLeaveEvent:                              &apievents.SessionLeave{},
+	SessionDataEvent:                               &apievents.SessionData{},
+	ClientDisconnectEvent:                          &apievents.ClientDisconnect{},
+	UserLoginEvent:                                 &apievents.UserLogin{},
+	UserDeleteEvent:                                &apievents.UserDelete{},
+	UserCreateEvent:                                &apievents.UserCreate{},
+	UserUpdatedEvent:                               &apievents.UserUpdate{},
+	UserPasswordChangeEvent:                        &apievents.UserPasswordChange{},
+	AccessRequestCreateEvent:                       &apievents.AccessRequestCreate{},
+	AccessRequestReviewEvent:                       &apievents.AccessRequestCreate{},
+	AccessRequestUpdateEvent:                       &apievents.AccessRequestCreate{},
+	AccessRequestResourceSearch:                    &apievents.AccessRequestResourceSearch{},
+	BillingCardCreateEvent:                         &apievents.BillingCardCreate{},
+	BillingCardUpdateEvent:                         &apievents.BillingCardCreate{},
+	BillingCardDeleteEvent:                         &apievents.BillingCardDelete{},
+	BillingInformationUpdateEvent:                  &apievents.BillingInformationUpdate{},
+	ResetPasswordTokenCreateEvent:                  &apievents.UserTokenCreate{},
+	ExecEvent:                                      &apievents.Exec{},
+	SubsystemEvent:                                 &apievents.Subsystem{},
+	X11ForwardEvent:                                &apievents.X11Forward{},
+	PortForwardEvent:                               &apievents.PortForward{},
+	AuthAttemptEvent:                               &apievents.AuthAttempt{},
+	SCPEvent:                                       &apievents.SCP{},
+	ResizeEvent:                                    &apievents.Resize{},
+	SessionCommandEvent:                            &apievents.SessionCommand{},
+	SessionDiskEvent:                               &apievents.SessionDisk{},
+	SessionNetworkEvent:                            &apievents.SessionNetwork{},
+	RoleCreatedEvent:                               &apievents.RoleCreate{},
+	RoleUpdatedEvent:                               &apievents.RoleUpdate{},
+	RoleDeletedEvent:                               &apievents.RoleDelete{},
+	TrustedClusterCreateEvent:                      &apievents.TrustedClusterCreate{},
+	TrustedClusterDeleteEvent:                      &apievents.TrustedClusterDelete{},
+	TrustedClusterTokenCreateEvent:                 &apievents.TrustedClusterTokenCreate{}, //nolint:staticcheck // SA1019. We want to test every event type, even if they're deprecated.
+	ProvisionTokenCreateEvent:                      &apievents.ProvisionTokenCreate{},
+	GithubConnectorCreatedEvent:                    &apievents.GithubConnectorCreate{},
+	GithubConnectorUpdatedEvent:                    &apievents.GithubConnectorUpdate{},
+	GithubConnectorDeletedEvent:                    &apievents.GithubConnectorDelete{},
+	OIDCConnectorCreatedEvent:                      &apievents.OIDCConnectorCreate{},
+	OIDCConnectorUpdatedEvent:                      &apievents.OIDCConnectorUpdate{},
+	OIDCConnectorDeletedEvent:                      &apievents.OIDCConnectorDelete{},
+	SAMLConnectorCreatedEvent:                      &apievents.SAMLConnectorCreate{},
+	SAMLConnectorUpdatedEvent:                      &apievents.SAMLConnectorUpdate{},
+	SAMLConnectorDeletedEvent:                      &apievents.SAMLConnectorDelete{},
+	SessionRejectedEvent:                           &apievents.SessionReject{},
+	AppSessionStartEvent:                           &apievents.AppSessionStart{},
+	AppSessionEndEvent:                             &apievents.AppSessionEnd{},
+	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
+	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
+	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
+	AppCreateEvent:                                 &apievents.AppCreate{},
+	AppUpdateEvent:                                 &apievents.AppUpdate{},
+	AppDeleteEvent:                                 &apievents.AppDelete{},
+	DatabaseCreateEvent:                            &apievents.DatabaseCreate{},
+	DatabaseUpdateEvent:                            &apievents.DatabaseUpdate{},
+	DatabaseDeleteEvent:                            &apievents.DatabaseDelete{},
+	DatabaseSessionStartEvent:                      &apievents.DatabaseSessionStart{},
+	DatabaseSessionEndEvent:                        &apievents.DatabaseSessionEnd{},
+	DatabaseSessionQueryEvent:                      &apievents.DatabaseSessionQuery{},
+	DatabaseSessionQueryFailedEvent:                &apievents.DatabaseSessionQuery{},
+	DatabaseSessionMalformedPacketEvent:            &apievents.DatabaseSessionMalformedPacket{},
+	DatabaseSessionPermissionsUpdateEvent:          &apievents.DatabasePermissionUpdate{},
+	DatabaseSessionUserCreateEvent:                 &apievents.DatabaseUserCreate{},
+	DatabaseSessionUserDeactivateEvent:             &apievents.DatabaseUserDeactivate{},
+	DatabaseSessionPostgresParseEvent:              &apievents.PostgresParse{},
+	DatabaseSessionPostgresBindEvent:               &apievents.PostgresBind{},
+	DatabaseSessionPostgresExecuteEvent:            &apievents.PostgresExecute{},
+	DatabaseSessionPostgresCloseEvent:              &apievents.PostgresClose{},
+	DatabaseSessionPostgresFunctionEvent:           &apievents.PostgresFunctionCall{},
+	DatabaseSessionMySQLStatementPrepareEvent:      &apievents.MySQLStatementPrepare{},
+	DatabaseSessionMySQLStatementExecuteEvent:      &apievents.MySQLStatementExecute{},
+	DatabaseSessionMySQLStatementSendLongDataEvent: &apievents.MySQLStatementSendLongData{},
+	DatabaseSessionMySQLStatementCloseEvent:        &apievents.MySQLStatementClose{},
+	DatabaseSessionMySQLStatementResetEvent:        &apievents.MySQLStatementReset{},
+	DatabaseSessionMySQLStatementFetchEvent:        &apievents.MySQLStatementFetch{},
+	DatabaseSessionMySQLStatementBulkExecuteEvent:  &apievents.MySQLStatementBulkExecute{},
+	DatabaseSessionMySQLInitDBEvent:                &apievents.MySQLInitDB{},
+	DatabaseSessionMySQLCreateDBEvent:              &apievents.MySQLCreateDB{},
+	DatabaseSessionMySQLDropDBEvent:                &apievents.MySQLDropDB{},
+	DatabaseSessionMySQLShutDownEvent:              &apievents.MySQLShutDown{},
+	DatabaseSessionMySQLProcessKillEvent:           &apievents.MySQLProcessKill{},
+	DatabaseSessionMySQLDebugEvent:                 &apievents.MySQLDebug{},
+	DatabaseSessionMySQLRefreshEvent:               &apievents.MySQLRefresh{},
+	DatabaseSessionSQLServerRPCRequestEvent:        &apievents.SQLServerRPCRequest{},
+	DatabaseSessionElasticsearchRequestEvent:       &apievents.ElasticsearchRequest{},
+	DatabaseSessionOpenSearchRequestEvent:          &apievents.OpenSearchRequest{},
+	DatabaseSessionDynamoDBRequestEvent:            &apievents.DynamoDBRequest{},
+	KubeRequestEvent:                               &apievents.KubeRequest{},
+	MFADeviceAddEvent:                              &apievents.MFADeviceAdd{},
+	MFADeviceDeleteEvent:                           &apievents.MFADeviceDelete{},
+	DeviceEvent:                                    &apievents.DeviceEvent{},
+	DeviceCreateEvent:                              &apievents.DeviceEvent2{},
+	DeviceDeleteEvent:                              &apievents.DeviceEvent2{},
+	DeviceUpdateEvent:                              &apievents.DeviceEvent2{},
+	DeviceEnrollEvent:                              &apievents.DeviceEvent2{},
+	DeviceAuthenticateEvent:                        &apievents.DeviceEvent2{},
+	DeviceEnrollTokenCreateEvent:                   &apievents.DeviceEvent2{},
+	DeviceWebTokenCreateEvent:                      &apievents.DeviceEvent2{},
+	DeviceAuthenticateConfirmEvent:                 &apievents.DeviceEvent2{},
+	LockCreatedEvent:                               &apievents.LockCreate{},
+	LockDeletedEvent:                               &apievents.LockDelete{},
+	RecoveryCodeGeneratedEvent:                     &apievents.RecoveryCodeGenerate{},
+	RecoveryCodeUsedEvent:                          &apievents.RecoveryCodeUsed{},
+	RecoveryTokenCreateEvent:                       &apievents.UserTokenCreate{},
+	PrivilegeTokenCreateEvent:                      &apievents.UserTokenCreate{},
+	WindowsDesktopSessionStartEvent:                &apievents.WindowsDesktopSessionStart{},
+	WindowsDesktopSessionEndEvent:                  &apievents.WindowsDesktopSessionEnd{},
+	DesktopClipboardSendEvent:                      &apievents.DesktopClipboardSend{},
+	DesktopClipboardReceiveEvent:                   &apievents.DesktopClipboardReceive{},
+	SessionConnectEvent:                            &apievents.SessionConnect{},
+	AccessRequestDeleteEvent:                       &apievents.AccessRequestDelete{},
+	CertificateCreateEvent:                         &apievents.CertificateCreate{},
+	RenewableCertificateGenerationMismatchEvent:    &apievents.RenewableCertificateGenerationMismatch{},
+	SFTPEvent:                                   &apievents.SFTP{},
+	UpgradeWindowStartUpdateEvent:               &apievents.UpgradeWindowStartUpdate{},
+	SessionRecordingAccessEvent:                 &apievents.SessionRecordingAccess{},
+	SSMRunEvent:                                 &apievents.SSMRun{},
+	KubernetesClusterCreateEvent:                &apievents.KubernetesClusterCreate{},
+	KubernetesClusterUpdateEvent:                &apievents.KubernetesClusterUpdate{},
+	KubernetesClusterDeleteEvent:                &apievents.KubernetesClusterDelete{},
+	DesktopSharedDirectoryStartEvent:            &apievents.DesktopSharedDirectoryStart{},
+	DesktopSharedDirectoryReadEvent:             &apievents.DesktopSharedDirectoryRead{},
+	DesktopSharedDirectoryWriteEvent:            &apievents.DesktopSharedDirectoryWrite{},
+	BotJoinEvent:                                &apievents.BotJoin{},
+	InstanceJoinEvent:                           &apievents.InstanceJoin{},
+	BotCreateEvent:                              &apievents.BotCreate{},
+	BotUpdateEvent:                              &apievents.BotUpdate{},
+	BotDeleteEvent:                              &apievents.BotDelete{},
+	LoginRuleCreateEvent:                        &apievents.LoginRuleCreate{},
+	LoginRuleDeleteEvent:                        &apievents.LoginRuleDelete{},
+	SAMLIdPAuthAttemptEvent:                     &apievents.SAMLIdPAuthAttempt{},
+	SAMLIdPServiceProviderCreateEvent:           &apievents.SAMLIdPServiceProviderCreate{},
+	SAMLIdPServiceProviderUpdateEvent:           &apievents.SAMLIdPServiceProviderUpdate{},
+	SAMLIdPServiceProviderDeleteEvent:           &apievents.SAMLIdPServiceProviderDelete{},
+	SAMLIdPServiceProviderDeleteAllEvent:        &apievents.SAMLIdPServiceProviderDeleteAll{},
+	OktaGroupsUpdateEvent:                       &apievents.OktaResourcesUpdate{},
+	OktaApplicationsUpdateEvent:                 &apievents.OktaResourcesUpdate{},
+	OktaSyncFailureEvent:                        &apievents.OktaSyncFailure{},
+	OktaAssignmentProcessEvent:                  &apievents.OktaAssignmentResult{},
+	OktaAssignmentCleanupEvent:                  &apievents.OktaAssignmentResult{},
+	OktaUserSyncEvent:                           &apievents.OktaUserSync{},
+	OktaAccessListSyncEvent:                     &apievents.OktaAccessListSync{},
+	AccessGraphAccessPathChangedEvent:           &apievents.AccessPathChanged{},
+	AccessListCreateEvent:                       &apievents.AccessListCreate{},
+	AccessListUpdateEvent:                       &apievents.AccessListUpdate{},
+	AccessListDeleteEvent:                       &apievents.AccessListDelete{},
+	AccessListReviewEvent:                       &apievents.AccessListReview{},
+	AccessListMemberCreateEvent:                 &apievents.AccessListMemberCreate{},
+	AccessListMemberUpdateEvent:                 &apievents.AccessListMemberUpdate{},
+	AccessListMemberDeleteEvent:                 &apievents.AccessListMemberDelete{},
+	AccessListMemberDeleteAllForAccessListEvent: &apievents.AccessListMemberDeleteAllForAccessList{},
+	SecReportsAuditQueryRunEvent:                &apievents.AuditQueryRun{},
+	SecReportsReportRunEvent:                    &apievents.SecurityReportRun{},
+	ExternalAuditStorageEnableEvent:             &apievents.ExternalAuditStorageEnable{},
+	ExternalAuditStorageDisableEvent:            &apievents.ExternalAuditStorageDisable{},
+	CreateMFAAuthChallengeEvent:                 &apievents.CreateMFAAuthChallenge{},
+	ValidateMFAAuthResponseEvent:                &apievents.ValidateMFAAuthResponse{},
+	SPIFFESVIDIssuedEvent:                       &apievents.SPIFFESVIDIssued{},
+	AuthPreferenceUpdateEvent:                   &apievents.AuthPreferenceUpdate{},
+	ClusterNetworkingConfigUpdateEvent:          &apievents.ClusterNetworkingConfigUpdate{},
+	SessionRecordingConfigUpdateEvent:           &apievents.SessionRecordingConfigUpdate{},
+	DatabaseSessionSpannerRPCEvent:              &apievents.SpannerRPC{},
+	UnknownEvent:                                &apievents.Unknown{},
+	DatabaseSessionCassandraBatchEvent:          &apievents.CassandraBatch{},
+	DatabaseSessionCassandraRegisterEvent:       &apievents.CassandraRegister{},
+	DatabaseSessionCassandraPrepareEvent:        &apievents.CassandraPrepare{},
+	DatabaseSessionCassandraExecuteEvent:        &apievents.CassandraExecute{},
+	DiscoveryConfigCreateEvent:                  &apievents.DiscoveryConfigCreate{},
+	DiscoveryConfigUpdateEvent:                  &apievents.DiscoveryConfigUpdate{},
+	DiscoveryConfigDeleteEvent:                  &apievents.DiscoveryConfigDelete{},
+	DiscoveryConfigDeleteAllEvent:               &apievents.DiscoveryConfigDeleteAll{},
+	IntegrationCreateEvent:                      &apievents.IntegrationCreate{},
+	IntegrationUpdateEvent:                      &apievents.IntegrationUpdate{},
+	IntegrationDeleteEvent:                      &apievents.IntegrationDelete{},
+}
 
 // TestJSON tests JSON marshal events
 func TestJSON(t *testing.T) {
@@ -773,6 +957,27 @@ func TestJSON(t *testing.T) {
 			err = json.Unmarshal(outJSON, outEvent.Interface())
 			require.NoError(t, err)
 			require.Equal(t, tc.event, outEvent.Elem().Interface())
+		})
+	}
+}
+
+// TestEvents tests that all events can be converted and processed correctly.
+func TestEvents(t *testing.T) {
+	t.Parallel()
+
+	for eventName, eventType := range eventsMap {
+		t.Run(fmt.Sprintf("%s OneOf", eventName), func(t *testing.T) {
+			converted, err := apievents.ToOneOf(eventType)
+			require.NoError(t, err, "failed to convert event type to OneOf, is the event type added to api/types/events/oneof.go?")
+			auditEvent, err := apievents.FromOneOf(*converted)
+			require.NoError(t, err, "failed to convert OneOf back to an Audit event")
+			require.IsType(t, eventType, auditEvent, "FromOneOf did not convert the event type correctly")
+		})
+
+		t.Run(fmt.Sprintf("%s EventFields", eventName), func(t *testing.T) {
+			auditEvent, err := FromEventFields(EventFields{EventType: eventName})
+			require.NoError(t, err, "failed to convert EventFields to an Audit event, is the event type added to lib/events/dynamic.go?")
+			require.IsType(t, eventType, auditEvent, "FromEventFields did not convert the event type correctly")
 		})
 	}
 }
