@@ -407,21 +407,6 @@ func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn) error 
 	return nil
 }
 
-// pgxConnect connects to the database using pgx driver which is higher-level
-// than pgconn and is easier to use for executing queries.
-func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
-	config, err := e.getConnectConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgxConf, err := pgx.ParseConfig("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgxConf.Config = *config
-	return pgx.ConnectConfig(ctx, pgxConf)
-}
-
 // callProcedure calls the procedure with the provided arguments.
 func (e *Engine) callProcedure(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, procName string, args ...any) error {
 	query, err := buildCallQuery(sessionCtx, procName)
