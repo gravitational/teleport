@@ -24,6 +24,8 @@ import { EventEmitter } from 'node:events';
 import * as nodePTY from 'node-pty';
 import which from 'which';
 
+import { wait } from 'shared/utils/wait';
+
 import Logger from 'teleterm/logger';
 
 import { PtyProcessOptions, IPtyProcess } from './types';
@@ -137,10 +139,38 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     }
   }
 
-  dispose() {
+  async dispose() {
+    if (this._disposed) {
+      this._logger.info(`PTY process is not running. Nothing to kill`);
+      return;
+    }
+    const controller = new AbortController();
+    const processExit = promisifyProcessExit(this._process);
+
     this.removeAllListeners();
-    this._process?.kill();
-    this._disposed = true;
+    this._process.kill();
+
+    // Wait for the process to exit.
+    // It's needed for ssh sessions on Windows with ConPTY enabled.
+    // When we didn't wait, conhost.exe processes started by node-pty
+    // were left running after closing the app.
+    // Killing a process doesn't happen immediately, but instead appears to be
+    // queued, so we need to give it time to execute.
+    //
+    // Although this was added specifically for Windows,
+    // we run the same cleanup code for all platforms.
+    const hasExited = await Promise.race([
+      processExit.then(() => controller.abort()).then(() => true),
+      // timeout for killing the shared process is 5 seconds
+      wait(4_000, controller.signal)
+        .catch(() => {}) // ignore abort errors
+        .then(() => false),
+    ]);
+    if (hasExited) {
+      this._disposed = true;
+    } else {
+      this._logger.error('Failed to dispose PTY process within the timeout');
+    }
   }
 
   onData(cb: (data: string) => void) {
@@ -258,4 +288,8 @@ function getDefaultCwd(env: Record<string, string>): string {
   const userDir = process.platform === 'win32' ? env.USERPROFILE : env.HOME;
 
   return userDir || process.cwd();
+}
+
+function promisifyProcessExit(childProcess: nodePTY.IPty): Promise<void> {
+  return new Promise(resolve => childProcess.onExit(() => resolve()));
 }

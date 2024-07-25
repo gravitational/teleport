@@ -44,6 +44,7 @@ import {
   ChildProcessAddresses,
   MainProcessIpc,
   RendererIpc,
+  GRACEFUL_KILL_MESSAGE,
 } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -143,7 +144,11 @@ export default class MainProcess {
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
       }),
-      terminateWithTimeout(this.sharedProcess),
+      terminateWithTimeout(this.sharedProcess, 5_000, process =>
+        // process.kill doesn't allow running a cleanup code in the child process
+        // on Windows
+        process.send(GRACEFUL_KILL_MESSAGE)
+      ),
       this.agentRunner.killAll(),
     ]);
   }

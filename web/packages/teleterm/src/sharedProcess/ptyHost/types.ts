@@ -30,7 +30,7 @@ export type IPtyProcess = {
   start(cols: number, rows: number): void;
   write(data: string): void;
   resize(cols: number, rows: number): void;
-  dispose(): void;
+  dispose(): Promise<void>;
   getCwd(): Promise<string>;
   getPtyId(): string;
   // The listener removal functions are used only on the frontend app side from the renderer process.

@@ -28,7 +28,10 @@ import {
   readGrpcCert,
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
-import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import {
+  RuntimeSettings,
+  GRACEFUL_KILL_MESSAGE,
+} from 'teleterm/mainProcess/types';
 import Logger from 'teleterm/logger';
 
 import { ptyHostDefinition } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb.grpc-server';
@@ -74,7 +77,8 @@ async function initializeServer(
   }
 
   const server = new Server();
-  server.addService(ptyHostDefinition, createPtyHostService());
+  const ptyHostService = createPtyHostService();
+  server.addService(ptyHostDefinition, ptyHostService);
 
   // grpc-js requires us to pass localhost:port for TCP connections,
   const grpcServerAddress = address.replace('tcp://', '');
@@ -95,8 +99,13 @@ async function initializeServer(
     logger.error('Could not start shared server', e);
   }
 
-  process.once('exit', () => {
-    server.forceShutdown();
+  process.on('message', async message => {
+    if (message === GRACEFUL_KILL_MESSAGE) {
+      new Logger('Process').info('Received graceful kill, exiting');
+      server.forceShutdown();
+      await ptyHostService.dispose();
+      process.exit(0);
+    }
   });
 }
 

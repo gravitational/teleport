@@ -276,3 +276,5 @@ export enum MainProcessIpc {
 export enum WindowsManagerIpc {
   SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
 }
+
+export const GRACEFUL_KILL_MESSAGE = 'GRACEFUL_KILL';

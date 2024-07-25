@@ -27,7 +27,9 @@ import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyCwd, PtyId } from './../api/protogen/ptyHostService_pb';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 
-export function createPtyHostService(): IPtyHost {
+export function createPtyHostService(): IPtyHost & {
+  dispose(): Promise<void>;
+} {
   const logger = new Logger('PtyHostService');
   const ptyProcesses = new Map<string, PtyProcess>();
 
@@ -74,5 +76,10 @@ export function createPtyHostService(): IPtyHost {
         });
     },
     exchangeEvents: stream => new PtyEventsStreamHandler(stream, ptyProcesses),
+    dispose: async () => {
+      await Promise.all(
+        Array.from(ptyProcesses).map(([, ptyProcess]) => ptyProcess.dispose())
+      );
+    },
   };
 }
