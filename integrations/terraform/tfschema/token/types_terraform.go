@@ -366,7 +366,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Optional:    true,
 				},
 				"join_method": {
-					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: - azure - circleci - ec2 - gcp - github - gitlab - iam - kubernetes - spacelift - token - tpm",
+					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
