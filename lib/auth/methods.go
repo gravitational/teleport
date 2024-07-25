@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -39,9 +38,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -646,72 +643,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	return sess, nil
-}
-
-func (a *Server) augmentSessionForDeviceTrust(
-	ctx context.Context,
-	session types.WebSession,
-	loginIP, userAgent string,
-) error {
-	// IP and user agent are mandatory for device web authentication.
-	if loginIP == "" || userAgent == "" {
-		return nil
-	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-		WebSessionId:     session.GetName(),
-		BrowserUserAgent: userAgent,
-		BrowserIp:        loginIP,
-		User:             session.GetUser(),
-	})
-	switch {
-	case err != nil:
-		log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-	case webToken != nil: // May be nil even if err==nil.
-		session.SetDeviceWebToken(&types.DeviceWebToken{
-			Id:    webToken.Id,
-			Token: webToken.Token,
-		})
-	}
-
-	return nil
-}
-
-func (a *Server) calculateTrustedDeviceMode(
-	ctx context.Context,
-	getRoles func() ([]types.Role, error),
-) (types.TrustedDeviceRequirement, error) {
-	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
-
-	// Don't evaluate for OSS.
-	if !modules.GetModules().IsEnterpriseBuild() {
-		return unspecified, nil
-	}
-
-	// Required by cluster mode?
-	ap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	if dtconfig.GetEffectiveMode(ap.GetDeviceTrust()) == constants.DeviceTrustModeRequired {
-		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-	}
-
-	// Required by roles?
-	roles, err := getRoles()
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	for _, role := range roles {
-		if role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-		}
-	}
-
-	return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED, nil
 }
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
