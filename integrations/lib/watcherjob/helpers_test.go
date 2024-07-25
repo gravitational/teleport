@@ -195,8 +195,9 @@ func NewMockEventsProcessWithConfirmedWatchJobs(ctx context.Context, t *testing.
 	}
 	t.Cleanup(func() {
 		process.Terminate()
-		err := process.Shutdown(ctx)
-		assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
+		if err := process.Shutdown(ctx); err != nil {
+			assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
+		}
 		process.Close()
 	})
 	var err error
