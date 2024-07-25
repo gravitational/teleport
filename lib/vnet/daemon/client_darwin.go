@@ -319,15 +319,6 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	}
 }
 
-var (
-	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
-	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
-	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
-	// received a message to start after it was already running.
-	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
-	errAlreadyRunning       = errors.New("VNet is already running")
-)
-
 func sleepOrDone(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
