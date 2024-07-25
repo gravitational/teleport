@@ -140,7 +140,7 @@ func (i *singleDatabaseImporter) deleteObjects(ctx context.Context, deleted []st
 	}
 
 	if len(errs) > 0 {
-		i.cfg.Log.ErrorContext(ctx, "Failed to delete some objects: ", "error_count", len(errs), "errs", errs)
+		i.cfg.Log.ErrorContext(ctx, "Failed to delete some objects.", "error_count", len(errs), "errs", errs)
 	}
 }
 
