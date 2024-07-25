@@ -141,7 +141,12 @@ func (a *applyRulesFetcher) FetchOneDatabase(ctx context.Context, dbName string)
 func (a *applyRulesFetcher) transform(ctx context.Context, dbName string, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, fetched []*dbobjectv1.DatabaseObject) []*dbobjectv1.DatabaseObject {
 	transformed, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(ctx, a.cfg.Log, rules, a.database, fetched)
 	if errCount > 0 {
-		a.cfg.Log.WarnContext(ctx, "Failed to apply import rules to some objects.", "db_name", dbName, "error_count", errCount, "transformed", len(transformed), "fetched", len(fetched))
+		a.cfg.Log.WarnContext(ctx, "Failed to apply import rules to some objects.",
+			"db_name", dbName,
+			"error_count", errCount,
+			"transformed", len(transformed),
+			"fetched", len(fetched),
+		)
 	}
 	return transformed
 }
