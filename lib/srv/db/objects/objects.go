@@ -61,6 +61,7 @@ type Config struct {
 	Log   *slog.Logger
 }
 
+// loadEnvVar parses the named env vars as a duration.
 func (c *Config) loadEnvVar(ctx context.Context, name string) (bool, time.Duration) {
 	envVar := os.Getenv(name)
 	if envVar == "" {
@@ -82,6 +83,7 @@ func (c *Config) loadEnvVarOverrides(ctx context.Context) {
 	needInfo := false
 	// overriding scan interval modifies the other variables, but not the other way around.
 	if found, value := c.loadEnvVar(ctx, "TELEPORT_UNSTABLE_DB_OBJECTS_SCAN_INTERVAL"); found {
+		// multipliers 12 and 3 mimic the interval length proportions of default configuration (15/180/45 minutes).
 		c.ScanInterval = value
 		c.ObjectTTL = value * 12
 		c.RefreshThreshold = value * 3
@@ -133,6 +135,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	c.loadEnvVarOverrides(ctx)
 
 	return nil
+}
+
+func (c *Config) disabled() bool {
+	return c.ObjectTTL <= 0 || c.ScanInterval <= 0
 }
 
 type objects struct {
@@ -204,5 +210,5 @@ func (o *objects) StopImporter(name string) error {
 }
 
 func (o *objects) disabled() bool {
-	return o.cfg.ObjectTTL == 0
+	return o.cfg.disabled()
 }

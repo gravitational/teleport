@@ -121,3 +121,44 @@ func TestLoadEnvVarOverrides(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigDisabled(t *testing.T) {
+	testCases := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name: "default config",
+			cfg: &Config{
+				ScanInterval:     time.Minute * 15,
+				ObjectTTL:        time.Minute * 180,
+				RefreshThreshold: time.Minute * 45,
+			},
+			expected: false,
+		},
+		{
+			name: "disabled through object TTL",
+			cfg: &Config{
+				ScanInterval:     time.Minute * 15,
+				ObjectTTL:        0,
+				RefreshThreshold: time.Minute * 45,
+			},
+			expected: true,
+		},
+		{
+			name: "disabled through scan interval",
+			cfg: &Config{
+				ScanInterval:     0,
+				ObjectTTL:        time.Minute * 180,
+				RefreshThreshold: time.Minute * 45,
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, tc.cfg.disabled())
+		})
+	}
+}
