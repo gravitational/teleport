@@ -23,6 +23,11 @@ clusterName: ""
 # </Admonition>
 teleportVersionOverride: ""
 
+# imagePullSecrets(list) -- sets the image pull secrets for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
+# for more details.
+imagePullSecrets: []
+
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 # for more details.

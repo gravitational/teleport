@@ -27,6 +27,9 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
+    {{- if .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+    {{- end }}
       containers:
         - name: tbot
           image: {{ .Values.image }}:{{ .Chart.Version }}
