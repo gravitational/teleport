@@ -57,7 +57,7 @@ function ConnectDialog(props: Props) {
       open={true}
     >
       <DialogHeader>
-        <DialogTitle>connect to kubernetes cluster</DialogTitle>
+        <DialogTitle>Connect to Kubernetes Cluster</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <Box mb={4}>

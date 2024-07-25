@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport/integrations/lib"
@@ -88,20 +88,21 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	for {
 		select {
 		case s := <-j.sessions:
+			logger := log.WithField("id", s.ID).WithField("index", s.Index)
+
+			logger.Info("Starting session ingest")
+
 			if err := j.semaphore.Acquire(ctx, 1); err != nil {
-				log.WithError(err).Error("Failed to acquire semaphore")
+				logger.WithError(err).Error("Failed to acquire semaphore")
 				continue
 			}
 
-			log.WithField("id", s.ID).WithField("index", s.Index).Info("Starting session ingest")
-
-			func(s session) {
+			func(s session, log logrus.FieldLogger) {
 				j.app.SpawnCritical(func(ctx context.Context) error {
 					defer j.semaphore.Release(1)
 
 					backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
 					backoffCount := sessionBackoffNumTries
-					log := logger.Get(ctx).WithField("id", s.ID).WithField("index", s.Index)
 
 					for {
 						retry, err := j.consumeSession(ctx, s)
@@ -119,7 +120,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 							// Check if there are number of tries left
 							backoffCount--
 							if backoffCount < 0 {
-								log.WithField("err", err).Error("Session ingestion failed")
+								log.WithField("limit", sessionBackoffNumTries).Error("Session ingestion exceeded attempt limit, aborting")
 								return nil
 							}
 							continue
@@ -136,7 +137,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 						return nil
 					}
 				})
-			}(s)
+			}(s, logger)
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
 				return nil
@@ -160,7 +161,7 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 	for id, idx := range sessions {
 		func(id string, idx int64) {
 			j.app.SpawnCritical(func(ctx context.Context) error {
-				log.WithField("id", id).WithField("index", idx).Info("Restarting session ingestion")
+				logrus.WithField("id", id).WithField("index", idx).Info("Restarting session ingestion")
 
 				s := session{ID: id, Index: idx}
 
@@ -243,7 +244,7 @@ Loop:
 	return false, nil
 }
 
-// Register starts session event ingestion
+// RegisterSession starts session event ingestion
 func (j *SessionEventsJob) RegisterSession(ctx context.Context, e *TeleportEvent) error {
 	err := j.app.State.SetSessionIndex(e.SessionID, 0)
 	if err != nil {
@@ -257,7 +258,9 @@ func (j *SessionEventsJob) RegisterSession(ctx context.Context, e *TeleportEvent
 		case j.sessions <- s:
 			return
 		case <-ctx.Done():
-			log.Error(ctx.Err())
+			if !lib.IsCanceled(ctx.Err()) {
+				logrus.Error(ctx.Err())
+			}
 			return
 		}
 	}()

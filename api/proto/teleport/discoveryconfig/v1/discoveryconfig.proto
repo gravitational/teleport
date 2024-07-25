@@ -66,6 +66,9 @@ message DiscoveryConfigStatus {
   uint64 discovered_resources = 3;
   // last_sync_time is the timestamp when the Discovery Config was last sync.
   google.protobuf.Timestamp last_sync_time = 4;
+
+  reserved 5;
+  reserved "aws_ec2_instances_discovered";
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.

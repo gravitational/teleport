@@ -78,5 +78,14 @@ const props = {
     status: '',
     statusText: '',
   } as any,
-  token: { id: 'join-token', expiryText: '1 hour', expiry: null },
+  token: {
+    id: 'join-token',
+    expiryText: '1 hour',
+    expiry: null,
+    safeName: '',
+    isStatic: false,
+    method: 'kubernetes',
+    roles: [],
+    content: '',
+  },
 };

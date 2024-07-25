@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, Indicator, Text } from 'design';
+import { Box, Flex, H2, Indicator, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
@@ -229,7 +229,7 @@ export function Account({
               header={
                 <Header
                   title={
-                    <Flex gap={2}>
+                    <Flex gap={2} alignItems="center">
                       Multi-factor Authentication
                       <StatePill
                         data-testid="mfa-state-pill"
@@ -356,7 +356,7 @@ function PasskeysHeader({
         >
           <Icon.Key />
         </Box>
-        <Text typography="h4">Passwordless sign-in using Passkeys</Text>
+        <H2 mb={1}>Passwordless sign-in using Passkeys</H2>
         <Text
           typography="body1"
           color={theme.colors.text.slightlyMuted}
@@ -383,7 +383,7 @@ function PasskeysHeader({
   return (
     <Header
       title={
-        <Flex gap={2}>
+        <Flex gap={2} alignItems="center">
           Passkeys
           <StatePill
             data-testid="passwordless-state-pill"

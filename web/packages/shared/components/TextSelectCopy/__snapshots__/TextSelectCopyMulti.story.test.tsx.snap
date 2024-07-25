@@ -3,10 +3,10 @@
 exports[`render multi bash texts 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -20,8 +20,8 @@ exports[`render multi bash texts 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 8px;
   padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .c5 {
@@ -35,8 +35,8 @@ exports[`render multi bash texts 1`] = `
 
 .c14 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c10 {
@@ -59,7 +59,7 @@ exports[`render multi bash texts 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -72,8 +72,8 @@ exports[`render multi bash texts 1`] = `
 .c10:focus-visible,
 .teleport-button__force-focus-visible .c10 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -95,7 +95,7 @@ exports[`render multi bash texts 1`] = `
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -420,10 +420,10 @@ exports[`render multi bash texts 1`] = `
 exports[`render multi bash texts with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -437,8 +437,8 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 8px;
   padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .c6 {
@@ -452,8 +452,8 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c15 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c11 {
@@ -476,7 +476,7 @@ exports[`render multi bash texts with comment 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -489,8 +489,8 @@ exports[`render multi bash texts with comment 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -512,7 +512,7 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -858,10 +858,10 @@ https://apt.releases.teleport.dev/stable/v10" \\
 exports[`render non bash single text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -875,8 +875,8 @@ exports[`render non bash single text 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c5 {
@@ -908,7 +908,7 @@ exports[`render non bash single text 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -921,8 +921,8 @@ exports[`render non bash single text 1`] = `
 .c10:focus-visible,
 .teleport-button__force-focus-visible .c10 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -944,7 +944,7 @@ exports[`render non bash single text 1`] = `
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1108,10 +1108,10 @@ exports[`render non bash single text 1`] = `
 exports[`render single bash text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -1125,8 +1125,8 @@ exports[`render single bash text 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c5 {
@@ -1158,7 +1158,7 @@ exports[`render single bash text 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -1171,8 +1171,8 @@ exports[`render single bash text 1`] = `
 .c10:focus-visible,
 .teleport-button__force-focus-visible .c10 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1194,7 +1194,7 @@ exports[`render single bash text 1`] = `
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1363,10 +1363,10 @@ exports[`render single bash text 1`] = `
 exports[`render single bash text with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 40px;
   padding-top: 8px;
+  padding-right: 40px;
+  padding-bottom: 0;
   min-height: 50px;
   max-height: none;
   background-color: #010B1C;
@@ -1380,8 +1380,8 @@ exports[`render single bash text with comment 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
+  padding-bottom: 0;
 }
 
 .c6 {
@@ -1413,7 +1413,7 @@ exports[`render single bash text with comment 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -1426,8 +1426,8 @@ exports[`render single bash text with comment 1`] = `
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1449,7 +1449,7 @@ exports[`render single bash text with comment 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;

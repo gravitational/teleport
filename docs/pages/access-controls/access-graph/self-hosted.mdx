@@ -1,20 +1,13 @@
 ---
-title: Run Teleport Access Graph on Self-Hosted Clusters
-description: Describes how to deploy Teleport Access Graph on self-hosted clusters.
+title: Run Teleport Policy on Self-Hosted Clusters
+description: Describes how to deploy Access Graph on self-hosted clusters.
 ---
 
-Using Access Graph with a self-hosted Teleport cluster requires
-setting up the Teleport Access Graph (TAG) service.
-TAG is a dedicated service which uses PostgreSQL as its backing storage
-and communicates with Auth Service and Proxy Service
-to collect information about resources and access.
+Teleport Policy's Access Graph with a self-hosted Teleport cluster requires setting up 
+Access Graph, a dedicated service which uses PostgreSQL as its backing storage and communicates 
+with Auth Service and Proxy Service to collect information about resources and access.
 
-This guide will help you set up the TAG service
-and enable the Access Graph feature in your Teleport cluster.
-
-Teleport Access Graph is a feature of the [Teleport
-Policy](https://goteleport.com/platform/policy/) product that is only available
-to Teleport Enterprise customers.
+This guide will help you set up the service and enable Access Graph in your Teleport cluster.
 
 ## Prerequisites
 
@@ -23,12 +16,12 @@ to Teleport Enterprise customers.
 - Docker version v(=docker.version=) or later.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
-    The user that TAG connects to the database with needs to be the owner of this database, or have similar broad permissions:
+    The user that Access Graph connects to the database with needs to be the owner of this database, or have similar broad permissions:
     at least the `CREATE TABLE` privilege on the `public` schema, and the `CREATE SCHEMA` privilege.
   - Amazon RDS for PostgreSQL is supported.
 - A TLS certificate for the Access Graph service
   - The TLS certificate must be issued for "server authentication" key usage,
-    and must list the IP or DNS name of the TAG service in an X.509 v3 `subjectAltName` extension.
+    and must list the IP or DNS name of the Access Graph service in an X.509 v3 `subjectAltName` extension.
   - Starting from version 1.20.4 of the Access Graph service, the container runs as a non-root user by default.
     Make sure the certificate files are readable by the user running the container. You can set correct permissions with the following command:
     ```code
@@ -38,14 +31,14 @@ to Teleport Enterprise customers.
 
 <Notice type="warning">
     The deployment with Docker is suitable for testing and development purposes. For production deployments,
-    consider using the Teleport Access Graph Helm chart to deploy this service on Kubernetes.
+    consider using the Access Graph Helm chart to deploy this service on Kubernetes.
     Refer to [Helm chart for Access Graph](self-hosted-helm.mdx) for instructions.
 </Notice>
 
-## Step 1/3. Set up the Teleport Access Graph service
+## Step 1/3. Set up Access Graph
 
 You will need a copy of your Teleport cluster's host certificate authority (CA) on the machine that hosts the Access Graph service.
-TAG requires incoming connections to be authenticated via host certificates that the host CA issues to the Auth Service and Proxy Service.
+The service requires incoming connections to be authenticated via host certificates that the host CA issues to the Auth Service and Proxy Service.
 
 The host CA can be retrieved and saved into a file in one of the following ways:
 
@@ -68,7 +61,7 @@ $ tctl get cert_authorities --format=json \
 </TabItem>
 </Tabs>
 
-Then, on the same machine, create a configuration file for the TAG service, similar to this:
+Then, on the same machine, create a configuration file for the Access Graph service, similar to this:
 
 ```yaml
 backend:
@@ -83,22 +76,22 @@ backend:
     # iam:
     #   aws_region: us-west-2
 
-# IP address (optional) and port for the TAG service to listen to.
+# IP address (optional) and port for the Access Graph service to listen to.
 # This is the default value. This key can be omitted to listen on port 50051 on all interfaces.
 address: ":50051"
 
 tls:
-  # File paths of PEM-encoded TLS certificate and private key for the TAG server.
+  # File paths of PEM-encoded TLS certificate and private key for the Access Graph server.
   cert: /etc/access_graph/tls.crt
   key: /etc/access_graph/tls.key
 
-# This lists the file paths for host CAs of Teleport clusters that are allowed to register with this TAG service.
-# Several paths can be included to allow several Teleport clusters to connect to the TAG service.
+# This lists the file paths for host CAs of Teleport clusters that are allowed to register with this Access Graph service.
+# Several paths can be included to allow several Teleport clusters to connect to the Access Graph service.
 registration_cas:
   - /etc/access_graph/teleport_host_ca.pem # A full path to the file containing the Teleport cluster's host CA certificate.
 ```
 
-Finally, start the TAG service using Docker as follows:
+Finally, start the Access Graph service using Docker as follows:
 
 ```console
 $ docker run -p 50051:50051 -v <path-to-config>:/app/config.yaml -v /etc/access_graph:/etc/access_graph public.ecr.aws/gravitational/access-graph:(=access_graph.version=)
@@ -111,9 +104,9 @@ In the YAML config for the Auth Service, add a new top-level section for Access 
 ```yaml
 access_graph:
   enabled: true
-  # host:port where the TAG service is listening
+  # host:port where the Access Graph service is listening
   endpoint: access-graph.example.com:50051
-  # Specify a trusted CA we expect the TAG server certificate to be signed by.
+  # Specify a trusted CA we expect the Access Graph server certificate to be signed by.
   # If not specified, the system trust store will be used.
   ca: /etc/access_graph_ca.pem
 ```

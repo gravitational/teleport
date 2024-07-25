@@ -73,7 +73,7 @@ func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, authclient.Trust
 	}, nil
 }
 
-func newClientKey(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.Key {
+func newClientKey(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.KeyRing {
 	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
@@ -143,7 +143,7 @@ func TestWrite(t *testing.T) {
 	// key is OK:
 	out, err := os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.PrivateKeyPEM()))
+	require.Equal(t, string(out), string(key.PrivateKey.PrivateKeyPEM()))
 
 	// cert is OK:
 	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
@@ -168,7 +168,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		key.PrivateKeyPEM(),
+		key.PrivateKey.PrivateKeyPEM(),
 		key.Cert,
 		key.TLSCert,
 		[]byte(knownHosts),

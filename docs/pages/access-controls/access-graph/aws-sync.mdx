@@ -14,23 +14,21 @@ enhancing the permission model within your AWS environment. This functionality e
 - Which resources can be reached via identities associated with EC2 instances?
 - What AWS resources can Teleport users access when connecting to EC2 nodes?
 
-Utilizing the Access Graph to analyze IAM permissions within an AWS
-account necessitates the setup of the Teleport Access Graph (TAG)
+Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph (AG)
 service, a Discovery Service, and integration with your AWS account.
 
-Teleport Access Graph is a feature of the [Teleport
-Policy](https://goteleport.com/platform/policy/) product that is only available
-to Teleport Enterprise customers.
+Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is 
+available to Teleport Enterprise customers.
 
 After logging in to the Teleport UI, go to the Management tab. If enabled, 
 Access Graph options can be found under the Permission Management section.
 
 ## How it works
 
-Teleport Access Graph discovers AWS access patterns, synchronizes various AWS resources,
+Access Graph discovers AWS access patterns, synchronizes various AWS resources,
 including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases. 
 These resources are then visualized using the graph representation detailed in the
-[Access Graph page](../teleport-policy/getting-started-policy.mdx).
+[Teleport Policy usage page](../teleport-policy/policy-how-to-use.mdx).
 
 The importing process involves two primary steps:
 
@@ -49,14 +47,12 @@ At intervals of 15 minutes, it retrieves the following resources from your AWS a
 - RDS Databases
 - S3 Buckets
 
-Once all the necessary resources are fetched, the Teleport Discovery
-Service pushes them to the Teleport Access Graph (TAG) service, 
-ensuring that the Access Graph remains updated with the latest
-information from your AWS environment.
+Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the 
+Access Graph, ensuring that it remains updated with the latest information from your AWS environment.
 
 ### Importing resources
 
-Teleport Access Graph delves into the IAM policies, identities,
+Teleport Policy’s Access Graph feature delves into the IAM policies, identities,
 and resources retrieved from your AWS account, crafting a 
 graphical representation thereof.
 
@@ -65,9 +61,9 @@ graphical representation thereof.
 
 - A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
-- For self-hosted clusters, a running Teleport Access Graph node v1.17.0 or later. 
+- For self-hosted clusters, a running Access Graph node v1.17.0 or later. 
 Check [Access Graph page](../teleport-policy/getting-started-policy.mdx) for details on
-how to setup Teleport Access Graph.
+how to set up Access Graph.
 - The node running the Access Graph service must be reachable
 from Teleport Auth Service and Discovery Service. 
 

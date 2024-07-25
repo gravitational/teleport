@@ -54,12 +54,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1943,14 +1943,19 @@ func (c *testContext) cassandraClientWithAddr(ctx context.Context, proxyAddress,
 
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
-	key, err := client.GenerateRSAKey()
+	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	clientCert, err := c.authServer.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       key.MarshalSSHPublicKey(),
+			PublicKey:       publicKeyPEM,
 			Cluster:         c.clusterName,
 			Username:        teleportUser,
 			RouteToDatabase: route,
@@ -2535,6 +2540,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(p.Recorder),
 				Database: cfg.Database,
+				Clock:    c.clock,
 			})
 		},
 		CADownloader:             p.CADownloader,

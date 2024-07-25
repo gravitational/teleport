@@ -29,10 +29,6 @@ ButtonLink.propTypes = {
   ...Button.propTypes,
 };
 
-ButtonLink.defaultProps = {
-  size: 'medium',
-};
-
 ButtonLink.displayName = 'ButtonLink';
 
 const StyledButtonLink = styled.a`
@@ -46,6 +42,7 @@ const StyledButtonLink = styled.a`
   &:hover,
   &:focus {
     color: ${({ theme }) => theme.colors.buttons.link.hover};
+    box-shadow: none;
   }
 
   &:active {

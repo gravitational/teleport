@@ -82,9 +82,7 @@ export default function ResourceEditor(props) {
       <Flex flex="1">
         <Flex flex="1" m={5} flexDirection="column">
           <DialogHeader>
-            <DialogTitle typography="body1" bold>
-              {title}
-            </DialogTitle>
+            <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
@@ -108,7 +106,7 @@ export default function ResourceEditor(props) {
               disabled={attempt.isProcessing}
               onClick={handleClose}
             >
-              CANCEL
+              Cancel
             </ButtonSecondary>
           </Box>
         </Flex>
@@ -146,7 +144,7 @@ export default function ResourceEditor(props) {
                 }
               }}
             >
-              VIEW DOCUMENTATION
+              View Documentation
             </ButtonBorder>
           </Flex>
         )}

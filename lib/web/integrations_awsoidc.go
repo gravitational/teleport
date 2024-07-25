@@ -78,6 +78,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		RdsType:     req.RDSType,
 		Engines:     req.Engines,
 		NextToken:   req.NextToken,
+		VpcId:       req.VPCID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1209,4 +1210,48 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
+}
+
+// awsOIDCListSubnets returns a list of VPC subnets using the ListSubnets action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListSubnets(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListSubnetsRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSOIDCClient().ListSubnets(ctx, &integrationv1.ListSubnetsRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		VpcId:       req.VPCID,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subnets := make([]awsoidc.Subnet, 0, len(listResp.Subnets))
+	for _, s := range listResp.Subnets {
+		subnets = append(subnets, awsoidc.Subnet{
+			Name:             s.Name,
+			ID:               s.Id,
+			AvailabilityZone: s.AvailabilityZone,
+		})
+	}
+
+	return ui.AWSOIDCListSubnetsResponse{
+		NextToken: listResp.NextToken,
+		Subnets:   subnets,
+	}, nil
 }

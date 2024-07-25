@@ -14,6 +14,7 @@ jobs:
     outputs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
+      has_proto: ${{ steps.changes.outputs.has_proto }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -68,18 +69,24 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run `go mod tidy`
-        run: rm go.sum api/go.sum && go mod tidy && (cd api && go mod tidy)
+      - name: Check for untidy go modules
+        shell: bash
+        run: |
+          find . -path ./e -prune -o -name go.mod -print | while read f; do 
+            echo "checking $f"
+            pushd $(dirname "$f") > /dev/null; 
+            go mod tidy;
+            popd > /dev/null;
+          done
 
-      - name: Check for no changes after `go mod tidy`
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
+          # We have to add the current directory as a safe directory or else git commands will not work as expected.
+          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
 
       - name: Set linter versions
         run: |
@@ -179,7 +186,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
 
     steps:
       - name: Checkout
@@ -218,4 +225,4 @@ jobs:
 
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make terraform-resources-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@main && make terraform-resources-up-to-date
