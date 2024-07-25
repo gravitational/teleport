@@ -3670,7 +3670,7 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {

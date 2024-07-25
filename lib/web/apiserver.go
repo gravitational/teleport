@@ -2746,6 +2746,21 @@ func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels,
 	return logins, trace.Wrap(err)
 }
 
+// calculateAppLogins determines the app logins allowed for the provided
+// resource.
+//
+// TODO(gabrielcorado): DELETE IN V18.0.0
+// This is here for backward compatibility in case the auth server
+// does not support enriched resources yet.
+func calculateAppLogins(loginGetter loginGetter, r types.AppServer, allowedLogins []string) ([]string, error) {
+	if len(allowedLogins) > 0 {
+		return allowedLogins, nil
+	}
+
+	logins, err := loginGetter.GetAllowedLoginsForResource(r.GetApp())
+	return logins, trace.Wrap(err)
+}
+
 // getUserGroupLookup is a generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
 // If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
 // The returned function is not thread safe.
@@ -2829,7 +2844,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetApp())
+			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
