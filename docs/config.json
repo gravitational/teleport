@@ -681,6 +681,22 @@
                 "cloud",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze Entra ID policies",
+              "slug": "/access-controls/access-graph/entra-id/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
+            },
+            {
+              "title": "Analyze GitLab permissions",
+              "slug": "/access-controls/access-graph/gitlab/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
@@ -2671,129 +2687,274 @@
       "permanent": true
     },
     {
-    	"source": "/database-access/guides/rds-proxy-postgres/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
-    	"permanent": true
+      "source": "/database-access/guides/rds-proxy-postgres/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/rds-proxy-sqlserver/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
-    	"permanent": true
+      "source": "/database-access/guides/rds-proxy-sqlserver/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/rds-proxy-mysql/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
-    	"permanent": true
+      "source": "/database-access/guides/rds-proxy-mysql/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/ha/",
-    	"destination": "/enroll-resources/database-access/guides/ha/",
-    	"permanent": true
+      "source": "/database-access/guides/ha/",
+      "destination": "/enroll-resources/database-access/guides/ha/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/dynamic-registration/",
-    	"destination": "/enroll-resources/database-access/guides/dynamic-registration/",
-    	"permanent": true
+      "source": "/database-access/guides/dynamic-registration/",
+      "destination": "/enroll-resources/database-access/guides/dynamic-registration/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/aws-dynamodb/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
-    	"permanent": true
+      "source": "/database-access/guides/aws-dynamodb/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/redis-aws/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/redis-aws/",
-    	"permanent": true
+      "source": "/database-access/guides/redis-aws/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/redis-aws/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/aws-cassandra-keyspaces/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
-    	"permanent": true
+      "source": "/database-access/guides/aws-cassandra-keyspaces/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/postgres-redshift/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/postgres-redshift/",
-    	"permanent": true
+      "source": "/database-access/guides/postgres-redshift/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/postgres-redshift/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/redshift-serverless/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
-    	"permanent": true
+      "source": "/database-access/guides/redshift-serverless/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/azure-redis/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
-    	"permanent": true
+      "source": "/database-access/guides/azure-redis/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/azure-postgres-mysql/",
-    	"destination": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
-    	"permanent": true
+      "source": "/database-access/guides/azure-postgres-mysql/",
+      "destination": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/azure-postgres-mysql/",
-    	"destination": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
-    	"permanent": true
+      "source": "/database-access/guides/azure-postgres-mysql/",
+      "destination": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/azure-sql-server-ad/",
-    	"destination": "/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad/",
-    	"permanent": true
+      "source": "/database-access/guides/azure-sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/sql-server-ad/",
-    	"destination": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
-    	"permanent": true
+      "source": "/database-access/guides/sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/mysql-cloudsql/",
-    	"destination": "/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql/",
-    	"permanent": true
+      "source": "/database-access/guides/mysql-cloudsql/",
+      "destination": "/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/postgres-cloudsql/",
-    	"destination": "/enroll-resources/database-access/enroll-google-cloud-databases/postgres-cloudsql/",
-    	"permanent": true
+      "source": "/database-access/guides/postgres-cloudsql/",
+      "destination": "/enroll-resources/database-access/enroll-google-cloud-databases/postgres-cloudsql/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/mongodb-atlas/",
-    	"destination": "/enroll-resources/database-access/enroll-managed-databases/mongodb-atlas/",
-    	"permanent": true
+      "source": "/database-access/guides/mongodb-atlas/",
+      "destination": "/enroll-resources/database-access/enroll-managed-databases/mongodb-atlas/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/cassandra-self-hosted/",
-    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/cassandra-self-hosted/",
-    	"permanent": true
+      "source": "/database-access/guides/cassandra-self-hosted/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/cassandra-self-hosted/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/cockroachdb-self-hosted/",
-    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted/",
-    	"permanent": true
+      "source": "/database-access/guides/cockroachdb-self-hosted/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/elastic/",
-    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/elastic/",
-    	"permanent": true
+      "source": "/database-access/guides/elastic/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/elastic/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/mongodb-self-hosted/",
-    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted/",
-    	"permanent": true
+      "source": "/database-access/guides/mongodb-self-hosted/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/redis/",
-    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis/",
-    	"permanent": true
+      "source": "/database-access/guides/redis/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/redis-cluster/",
-    	"destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster/",
-    	"permanent": true
+      "source": "/database-access/guides/snowflake/",
+      "destination": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
+      "permanent": true
     },
     {
-    	"source": "/database-access/guides/snowflake/",
-    	"destination": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
-    	"permanent": true
+      "source": "/get-started/",
+      "destination": "/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/redis-cluster/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/get-started/",
+      "destination": "/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/snowflake/",
+      "destination": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/google-workspace/",
+      "destination": "/access-controls/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/",
+      "destination": "/access-controls/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/device-trust/",
+      "destination": "/access-controls/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/okta/guide/",
+      "destination": "/enroll-resources/application-access/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rds/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rdsproxy/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-redshift-serverless/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-opensearch/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/aws-opensearch/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty/",
+      "destination": "/connect-your-client/putty-winscp/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/jenkins/",
+      "destination": "/enroll-resources/machine-id/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/databases/",
+      "destination": "/enroll-resources/machine-id/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/host-certificate/",
+      "destination": "/enroll-resources/machine-id/access-guides/ssh/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/applications/",
+      "destination": "/enroll-resources/machine-id/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/kubernetes/",
+      "destination": "/enroll-resources/machine-id/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/upgrading/",
+      "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/networking/",
+      "destination": "/reference/networking/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/backends/",
+      "destination": "/reference/backends/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/backup-restore/",
+      "destination": "/management/operations/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ec2-discovery/",
+      "destination": "/enroll-resources/auto-discovery/servers/ec2-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/introduction/",
+      "destination": "/api/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/getting-started/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/architecture/",
+      "destination": "/api/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/u2f/",
+      "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/user-manual/",
+      "destination": "/",
+      "permanent": true
     }
   ]
 }

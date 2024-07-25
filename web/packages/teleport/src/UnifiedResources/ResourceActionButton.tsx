@@ -195,7 +195,7 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
       event: DiscoverEventResource.SamlApplication,
       kind: ResourceKind.SamlApplication,
       samlMeta: { preset: samlAppPreset },
-      icon: 'Application',
+      icon: 'application',
       keywords: 'saml',
     });
   }
@@ -226,8 +226,9 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
           href={samlAppSsoUrl}
           rel="noreferrer"
           textTransform="none"
+          title="Log in to SAML application"
         >
-          Login
+          Log In
         </ButtonBorder>
       );
     }

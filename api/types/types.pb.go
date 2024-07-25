@@ -7422,7 +7422,7 @@ type RoleOptions struct {
 	// MaxSessions defines the maximum number of
 	// concurrent sessions per connection.
 	MaxSessions int64 `protobuf:"varint,10,opt,name=MaxSessions,proto3" json:"max_sessions,omitempty"`
-	// RequestAccess defines the access request strategy (optional|note|always)
+	// RequestAccess defines the request strategy (optional|note|always)
 	// where optional is the default.
 	RequestAccess RequestStrategy `protobuf:"bytes,11,opt,name=RequestAccess,proto3,casttype=RequestStrategy" json:"request_access,omitempty"`
 	// RequestPrompt is an optional message which tells users what they aught to request.

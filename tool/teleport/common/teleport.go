@@ -518,6 +518,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd := integrationConfigureCmd.Command("externalauditstorage", "Bootstraps required infrastructure and adds required IAM permissions for External Audit Storage logs.")
 	integrationConfExternalAuditCmd.Flag("bootstrap", "Bootstrap required infrastructure.").Default("false").BoolVar(&ccf.IntegrationConfExternalAuditStorageArguments.Bootstrap)
 	integrationConfExternalAuditCmd.Flag("aws-region", "AWS region.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Region)
+	integrationConfExternalAuditCmd.Flag("cluster-name", "Teleport Cluster name.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.ClusterName)
+	integrationConfExternalAuditCmd.Flag("integration", "AWS OIDC Integration name.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.IntegrationName)
 	integrationConfExternalAuditCmd.Flag("role", "The IAM Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Role)
 	integrationConfExternalAuditCmd.Flag("policy", "The name for the Policy to attach to the IAM role.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Policy)
 	integrationConfExternalAuditCmd.Flag("session-recordings", "The S3 URI where session recordings are stored.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.SessionRecordingsURI)
@@ -917,7 +919,7 @@ func onConfigDump(flags dumpFlags) error {
 				fmt.Fprintf(flags.stdout, "- The Teleport configuration is located at %q.\n", configPath)
 			}
 			if !canWriteToDataDir {
-				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, edit the \"data_dir\" field in %q.", flags.DataDir, configPath)
 			}
 			fmt.Fprintf(flags.stdout, "\n")
 		} else {

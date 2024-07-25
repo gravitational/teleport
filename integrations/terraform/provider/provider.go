@@ -107,7 +107,7 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 			"addr": {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "host:port where Teleport Auth server is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.",
+				Description: "host:port where Teleport Auth Service is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.",
 			},
 			"cert_path": {
 				Type:        types.StringType,
