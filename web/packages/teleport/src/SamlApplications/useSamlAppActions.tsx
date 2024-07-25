@@ -30,9 +30,9 @@ import type { Access } from 'teleport/services/user';
  */
 export interface SamlAppAction {
   /**
-   * action controls Saml menu button view and edit and delete onClick behaviour.
+   * actions controls Saml menu button view and edit and delete onClick behaviour.
    */
-  action: {
+  actions: {
     /**
      * showActions dictates whether to show or hide the Saml menu button.
      */
@@ -101,7 +101,7 @@ export function SamlAppActionProvider({
   children: React.ReactNode;
 }) {
   const value: SamlAppAction = {
-    action: {
+    actions: {
       showActions: false,
       startEdit: null,
       startDelete: null,

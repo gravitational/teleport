@@ -157,7 +157,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     samlAppSsoUrl,
     samlAppPreset,
   } = app;
-  const { action, userSamlIdPPerm } = useSamlAppAction();
+  const { actions, userSamlIdPPerm } = useSamlAppAction();
   if (awsConsole) {
     return (
       <AwsLaunchButton
@@ -188,7 +188,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     );
   }
   if (samlApp) {
-    if (action.showActions) {
+    if (actions.showActions) {
       const currentSamlAppSpec: ResourceSpec = {
         name: name,
         event: DiscoverEventResource.SamlApplication,
@@ -210,13 +210,13 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           title="Log in to SAML application"
         >
           <MenuItem
-            onClick={() => action.startEdit(currentSamlAppSpec)}
+            onClick={() => actions.startEdit(currentSamlAppSpec)}
             disabled={!userSamlIdPPerm.edit} // disable props does not disable onClick
           >
             Edit
           </MenuItem>
           <MenuItem
-            onClick={() => action.startDelete(currentSamlAppSpec)}
+            onClick={() => actions.startDelete(currentSamlAppSpec)}
             disabled={!userSamlIdPPerm.remove} // disable props does not disable onClick
           >
             Delete

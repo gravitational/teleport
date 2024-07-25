@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -155,7 +155,12 @@ export function ClusterResources({
     getClusterPinnedResources: getCurrentClusterPinnedResources,
   };
 
-  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+  const {
+    fetch,
+    resources: unfilteredResources,
+    attempt,
+    clear,
+  } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
         const response = await teleCtx.resourceService.fetchUnifiedResources(
@@ -193,19 +198,20 @@ export function ClusterResources({
     ),
   });
   const { samlAppToDelete } = useSamlAppAction();
-  if (samlAppToDelete?.backendDeleted) {
-    const index = resources.findIndex(e => {
-      switch (e.kind) {
-        case 'app':
-          return e.name === samlAppToDelete.name && e.samlApp;
-        default:
-          return false;
-      }
-    });
-    if (index >= 0) {
-      resources.splice(index, 1);
-    }
-  }
+  const resources = useMemo(
+    () =>
+      samlAppToDelete?.backendDeleted
+        ? unfilteredResources.filter(
+            res =>
+              !(
+                res.kind === 'app' &&
+                res.samlApp &&
+                res.name === samlAppToDelete.name
+              )
+          )
+        : unfilteredResources,
+    [samlAppToDelete, unfilteredResources]
+  );
 
   // This state is used to recognize when the `params` value has changed,
   // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a

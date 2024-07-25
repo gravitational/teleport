@@ -103,34 +103,34 @@ const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 export const Cards: Story = {
   render() {
     return (
-      <Grid gap={2}>
-        {[
-          ...apps.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, {
-              ActionButton: <ResourceActionButton resource={resource} />,
-            })
-          ),
-          ...databases.map(resource =>
-            makeUnifiedResourceViewItemDatabase(resource, {
-              ActionButton,
-            })
-          ),
-          ...kubes.map(resource =>
-            makeUnifiedResourceViewItemKube(resource, { ActionButton })
-          ),
-          ...nodes.map(resource =>
-            makeUnifiedResourceViewItemNode(resource, {
-              ActionButton,
-            })
-          ),
-          ...additionalResources.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
-          ),
-          ...desktops.map(resource =>
-            makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-          ),
-        ].map((res, i) => (
-          <SamlAppActionProvider>
+      <SamlAppActionProvider>
+        <Grid gap={2}>
+          {[
+            ...apps.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, {
+                ActionButton: <ResourceActionButton resource={resource} />,
+              })
+            ),
+            ...databases.map(resource =>
+              makeUnifiedResourceViewItemDatabase(resource, {
+                ActionButton,
+              })
+            ),
+            ...kubes.map(resource =>
+              makeUnifiedResourceViewItemKube(resource, { ActionButton })
+            ),
+            ...nodes.map(resource =>
+              makeUnifiedResourceViewItemNode(resource, {
+                ActionButton,
+              })
+            ),
+            ...additionalResources.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            ),
+            ...desktops.map(resource =>
+              makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+            ),
+          ].map((res, i) => (
             <ResourceCard
               key={i}
               pinned={false}
@@ -145,9 +145,9 @@ export const Cards: Story = {
               labels={res.labels}
               ActionButton={res.ActionButton}
             />
-          </SamlAppActionProvider>
-        ))}
-      </Grid>
+          ))}
+        </Grid>
+      </SamlAppActionProvider>
     );
   },
 };
