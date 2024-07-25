@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -40,6 +41,10 @@ import (
 // also provide other functionality, such as automatic address discovery and
 // ssh connectivity.
 //
+// Note: starting with v17, all Credentials must have an Expiry method.
+// For compatibility guarantees, the future interface is optional and called
+// CredentialsWithExpiry.
+//
 // See the examples below for an example of each loader.
 type Credentials interface {
 	// TLSConfig returns TLS configuration used to authenticate the client.
@@ -47,6 +52,21 @@ type Credentials interface {
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+}
+
+// CredentialsWithExpiry are credentials implementing the Expiry() function.
+// This interface is here to avoid breaking changes in v15 and v16. Starting with
+// v17, Expiry() will be part of the Credentials interface.
+type CredentialsWithExpiry interface {
+	Credentials
+
+	// Expiry returns the Credentials expiry if it's possible to know its expiry.
+	// When expiry can be determined returns true, else returns false.
+	// If the Credentials don't expire, returns the zero time.
+	// If the Credential is dynamically refreshed or reloaded, (e.g filesystem
+	// reload or tbot renewal), Expiry returns the expiry of the currently active
+	// Credentials.
+	Expiry() (time.Time, bool)
 }
 
 // CredentialsWithDefaultAddrs additionally provides default addresses sourced
@@ -58,6 +78,17 @@ type CredentialsWithDefaultAddrs interface {
 	// explicitly configured with an address to connect to. It may return a
 	// slice of addresses to be tried.
 	DefaultAddrs() ([]string, error)
+}
+
+// Expiry checks if the Credentials has an Expiry function and invokes it.
+// Starting with v17, this is part of the Credentials interface but we must be backward compatible with v16 and below.
+// If the Credentials don't implement Expiry, returns false.
+func Expiry(c Credentials) (time.Time, bool) {
+	credsWithExpiry, ok := c.(CredentialsWithExpiry)
+	if !ok {
+		return time.Time{}, false
+	}
+	return credsWithExpiry.Expiry()
 }
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
@@ -85,6 +116,12 @@ func (c *tlsConfigCreds) TLSConfig() (*tls.Config, error) {
 // SSHClientConfig returns SSH configuration.
 func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
+}
+
+// Expiry returns the credential expiry. As the tlsConfigCreds are built from an existing tlsConfig
+// we have no way of knowing which certificate will be returned and if it's expired.
+func (c *tlsConfigCreds) Expiry() (time.Time, bool) {
+	return time.Time{}, false
 }
 
 // LoadKeyPair is used to load Credentials from a certicate keypair on disk.
@@ -115,7 +152,7 @@ type keypairCreds struct {
 
 // TLSConfig returns TLS configuration.
 func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
+	cert, err := keys.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,6 +178,19 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+// Expiry returns the credential expiry.
+func (c *keypairCreds) Expiry() (time.Time, bool) {
+	certPEMBlock, err := os.ReadFile(c.certFile)
+	if err != nil {
+		return time.Time{}, false
+	}
+	cert, _, err := keys.X509Certificate(certPEMBlock)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
+}
+
 // LoadIdentityFile is used to load Credentials from an identity file on disk.
 //
 // Identity Credentials can be used to connect to an auth server directly
@@ -162,12 +212,16 @@ func LoadIdentityFile(path string) Credentials {
 
 // identityCredsFile use an identity file to provide client credentials.
 type identityCredsFile struct {
+	// mutex protects identityFile
+	mutex        sync.Mutex
 	identityFile *identityfile.IdentityFile
 	path         string
 }
 
 // TLSConfig returns TLS configuration.
 func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,6 +236,8 @@ func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns SSH configuration.
 func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,6 +248,16 @@ func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// Expiry returns the credential expiry.
+func (c *identityCredsFile) Expiry() (time.Time, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+	return c.identityFile.Expiry()
 }
 
 // load is used to lazy load the identity file from persistent storage.
@@ -258,6 +324,15 @@ func (c *identityCredsString) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// Expiry returns the credential expiry.
+func (c *identityCredsString) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+
+	return c.identityFile.Expiry()
 }
 
 // load is used to lazy load the identity file from a string.
@@ -327,6 +402,13 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+func (c *profileCreds) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+	return c.profile.Expiry()
 }
 
 // DefaultAddrs implements CredentialsWithDefaultAddrs by providing the
@@ -562,4 +644,21 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 		User: "-teleport-internal-join",
 	}
 	return cfg, nil
+}
+
+// Expiry returns the current credential expiry.
+func (d *DynamicIdentityFileCreds) Expiry() (time.Time, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.tlsCert == nil || len(d.tlsCert.Certificate) == 0 {
+		return time.Time{}, false
+	}
+
+	x509Cert, err := x509.ParseCertificate(d.tlsCert.Certificate[0])
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return x509Cert.NotAfter, true
 }
