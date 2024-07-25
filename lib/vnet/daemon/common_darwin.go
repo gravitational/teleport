@@ -31,8 +31,23 @@ import (
 var (
 	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
 	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
+
 	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
 	// received a message to start after it was already running.
 	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
 	errAlreadyRunning       = errors.New("VNet is already running")
+
+	// errorCodeMissingCodeSigningIdentifiers is returned within [vnetErrorDomain] Obj-C errors and
+	// transformed to [errMissingCodeSigningIdentifiers] in Go.
+	errorCodeMissingCodeSigningIdentifiers = int(C.VNEMissingCodeSigningIdentifiersError)
+	errMissingCodeSigningIdentifiers       = errors.New("either identifier or team identifier is missing in code signing information; is the binary signed?")
+)
+
+var (
+	// nsCocoaErrorDomain is a generic error domain used in a lot of Apple's Cocoa frameworks.
+	nsCocoaErrorDomain = "NSCocoaErrorDomain"
+
+	// https://developer.apple.com/documentation/foundation/1448136-nserror_codes/nsxpcconnectioninterrupted?changes=latest_major&language=objc
+	errorCodeNSXPCConnectionInterrupted = int(C.NSXPCConnectionInterrupted)
+	errXPCConnectionInterrupted         = errors.New("XPC connection interrupted")
 )

@@ -47,7 +47,23 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
-	C.DaemonStart(cBundlePath)
+	var result C.DaemonStartResult
+	defer func() {
+		C.free(unsafe.Pointer(result.error_domain))
+		C.free(unsafe.Pointer(result.error_description))
+	}()
+	C.DaemonStart(cBundlePath, &result)
+	if !result.ok {
+		errorDomain := C.GoString(result.error_domain)
+		errorCode := int(result.error_code)
+
+		if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+			return trace.Wrap(errMissingCodeSigningIdentifiers)
+		}
+
+		return trace.Errorf("could not start daemon: %s", C.GoString(result.error_description))
+	}
+
 	defer func() {
 		log.InfoContext(ctx, "Stopping daemon")
 		C.DaemonStop()
