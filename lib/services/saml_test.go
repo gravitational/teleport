@@ -20,8 +20,11 @@ package services
 
 import (
 	"context"
+	"crypto/x509/pkix"
+	"github.com/gravitational/teleport/lib/utils"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -123,6 +126,115 @@ func TestValidateRoles(t *testing.T) {
 
 			err = ValidateSAMLConnector(connector, validRoles)
 			require.ErrorIs(t, err, tc.expectedErr)
+		})
+	}
+}
+
+type mockSAMLGetter map[string]types.SAMLConnector
+
+func (m mockSAMLGetter) GetSAMLConnector(_ context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+	connector, ok := m[id]
+	if !ok {
+		return nil, trace.NotFound("%s not found", id)
+	}
+	return connector, nil
+}
+
+func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
+	t.Parallel()
+
+	// Test setup: generate the fixtures
+	existingKeyPEM, existingCertPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport OSS"},
+		CommonName:   "teleport.localhost.localdomain",
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	existingSkp := &types.AsymmetricKeyPair{
+		PrivateKey: string(existingKeyPEM),
+		Cert:       string(existingCertPEM),
+	}
+
+	existingConnectorName := "existing"
+	existingConnectors := mockSAMLGetter{
+		existingConnectorName: &types.SAMLConnectorV2{
+			Spec: types.SAMLConnectorSpecV2{
+				SigningKeyPair: existingSkp,
+			},
+		},
+	}
+
+	_, unrelatedCertPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport OSS"},
+		CommonName:   "teleport.localhost.localdomain",
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	// Test setup: define test cases
+	testCases := []struct {
+		name          string
+		connectorName string
+		connectorSpec types.SAMLConnectorSpecV2
+		assertErr     require.ErrorAssertionFunc
+		assertResult  require.ValueAssertionFunc
+	}{
+		{
+			name:          "should read singing key from existing connector with matching cert",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				SigningKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: "",
+					Cert:       string(existingCertPEM),
+				},
+			},
+			assertErr: require.NoError,
+			assertResult: func(t require.TestingT, value interface{}, args ...interface{}) {
+				require.Implements(t, (*types.SAMLConnector)(nil), value)
+				connector := value.(types.SAMLConnector)
+				skp := connector.GetSigningKeyPair()
+				require.Equal(t, existingSkp, skp)
+			},
+		},
+		{
+			name:          "should error when there's no existing connector",
+			connectorName: "non-existing",
+			connectorSpec: types.SAMLConnectorSpecV2{
+				SigningKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: "",
+					Cert:       string(unrelatedCertPEM),
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name:          "should error when existing connector cert is not matching",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				SigningKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: "",
+					Cert:       string(unrelatedCertPEM),
+				},
+			},
+			assertErr: require.Error,
+		},
+	}
+
+	// Test execution
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			connector := &types.SAMLConnectorV2{
+				Metadata: types.Metadata{
+					Name: tc.connectorName,
+				},
+				Spec: tc.connectorSpec,
+			}
+
+			err := FillSAMLSigningKeyFromExisting(ctx, connector, existingConnectors)
+			tc.assertErr(t, err)
+			if tc.assertResult != nil {
+				tc.assertResult(t, connector)
+			}
 		})
 	}
 }
