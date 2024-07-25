@@ -664,27 +664,13 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		}
 	}
 
-	// Calculate the trusted device requirement for the session. Helps inform the
-	// frontend if the user might run into access problems without a trusted
-	// device.
-	trustedDeviceRequirement, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		// TODO(codingllama): Levegare the checker inside CreateWebSessionFromReq to
-		//  avoid duplicate work here.
-		roles, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return roles, nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess.SetTrustedDeviceRequirement(trustedDeviceRequirement)
-
 	return sess, nil
 }
 
-func (a *Server) calculateTrustedDeviceMode(ctx context.Context, getRoles func() ([]types.Role, error)) (types.TrustedDeviceRequirement, error) {
+func (a *Server) calculateTrustedDeviceMode(
+	ctx context.Context,
+	getRoles func() ([]types.Role, error),
+) (types.TrustedDeviceRequirement, error) {
 	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
 
 	// Don't evaluate for OSS.

@@ -99,7 +99,7 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.newWebSession(ctx, req, nil /* opts */)
+	session, sessionChecker, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,6 +107,19 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 	err = a.upsertWebSession(ctx, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Assign the TrustedDeviceRequirement to the session, but do not persist it,
+	// so only the initial session gets it.
+	// This avoids persisting a possibly stale value.
+	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+		return sessionChecker.Roles(), nil
+	}); err != nil {
+		log.
+			WithError(err).
+			Warnf("Failed to calculate trusted device mode for session")
+	} else {
+		session.SetTrustedDeviceRequirement(tdr)
 	}
 
 	return session, nil
@@ -127,10 +140,10 @@ func (a *Server) newWebSession(
 	ctx context.Context,
 	req NewWebSessionRequest,
 	opts *newWebSessionOpts,
-) (types.WebSession, error) {
+) (types.WebSession, services.AccessChecker, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if req.LoginIP == "" {
 		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
@@ -139,7 +152,7 @@ func (a *Server) newWebSession(
 
 	clusterName, err := a.GetClusterName()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
@@ -148,24 +161,24 @@ func (a *Server) newWebSession(
 		AllowedResourceIDs: req.RequestedResourceIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	idleTimeout, err := a.getWebIdleTimeout(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	var sshKey, tlsKey crypto.Signer
 	if req.SSHPrivateKey != nil || req.TLSPrivateKey != nil {
 		if req.SSHPrivateKey == nil || req.TLSPrivateKey == nil {
-			return nil, trace.BadParameter("invalid to set only one of SSHPrivateKey or TLSPrivateKey (this is a bug)")
+			return nil, nil, trace.BadParameter("invalid to set only one of SSHPrivateKey or TLSPrivateKey (this is a bug)")
 		}
 		sshKey, tlsKey = req.SSHPrivateKey.Signer, req.TLSPrivateKey.Signer
 	} else {
 		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, a)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
@@ -180,23 +193,23 @@ func (a *Server) newWebSession(
 			// will be marked with the web session private key policy.
 			webAttData, err := services.NewWebSessionAttestationData(pubKey)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
 			}
 			if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
-				return nil, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
 			}
 		}
 	}
 
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	tlsPublicKeyPEM, err := keys.MarshalPublicKey(tlsKey.Public())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	certReq := certRequest{
@@ -218,15 +231,15 @@ func (a *Server) newWebSession(
 
 	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	bearerToken, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
 
@@ -237,11 +250,11 @@ func (a *Server) newWebSession(
 
 	sshPrivateKeyPEM, err := keys.MarshalPrivateKey(sshKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	tlsPrivateKeyPEM, err := keys.MarshalPrivateKey(tlsKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	sessionSpec := types.WebSessionSpecV2{
@@ -261,9 +274,9 @@ func (a *Server) newWebSession(
 
 	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return sess, nil
+	return sess, checker, nil
 }
 
 func (a *Server) getWebIdleTimeout(ctx context.Context) (time.Duration, error) {
