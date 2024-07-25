@@ -71,7 +71,7 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 		// As trying broken credentials takes 30 seconds this is a very bad UX and we should get rid of this.
 		// Credentials from profile are not passing MFA4Admin anyway.
 		summary := inactiveReason.String() +
-			"\nThe provider will fallback to your current local profile (this behaviour is deprecated and will be removed in v17, you should specify the profile name or directory)."
+			"\nThe provider will fallback to your current local profile (this behavior is deprecated and will be removed in v17, you should specify the profile name or directory)."
 		return CredentialSources{CredentialsFromProfile{isDefault: true}}, diag.Diagnostics{diag.NewWarningDiagnostic(
 			"No active Teleport credentials source found",
 			summary,
@@ -191,7 +191,7 @@ const brokenCredentialErrorTemplate = `The Terraform provider tried to build cre
 
 The provider tried to use the credential source because {{ .Reason }}. You must either address the error or disable the credential source by removing its values.`
 
-// brokenCredentialErrorSummary returns a user-friendly message expalining why we failed to
+// brokenCredentialErrorSummary returns a user-friendly message explaining why we failed to
 func brokenCredentialErrorSummary(name, activeReason string, err error) string {
 	tpl := template.Must(template.New("broken-credential-error-summary").Parse(brokenCredentialErrorTemplate))
 	values := struct {
