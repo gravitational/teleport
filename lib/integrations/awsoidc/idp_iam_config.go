@@ -167,7 +167,7 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 
 // ConfigureIdPIAM creates a new IAM OIDC IdP in AWS.
 //
-// The Provider URL is Teleport's Public Address.
+// The provider URL is Teleport's public address.
 // It also creates a new Role configured to trust the recently created IdP.
 // If the role already exists, it will create another trust relationship for the IdP (if it doesn't exist).
 //
@@ -203,7 +203,6 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 }
 
 func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
-
 	thumbprint, err := ThumbprintIdP(ctx, req.ProxyPublicAddress)
 	if err != nil {
 		return trace.Wrap(err)
