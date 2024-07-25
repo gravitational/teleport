@@ -1,4 +1,4 @@
-.version: &version "16.1.0"
+.version: &version "16.1.2-dev.edwarddowling.4"
 
 apiVersion: v2
 name: teleport-plugin-msteams
