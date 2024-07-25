@@ -25,15 +25,15 @@ import (
 	"text/template"
 	"time"
 
-	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
-	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
+	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var supportedCredentialSources = CredentialSources{

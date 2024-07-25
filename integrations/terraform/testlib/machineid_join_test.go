@@ -3,23 +3,26 @@ package testlib
 import (
 	"context"
 	"fmt"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
-	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	"github.com/gravitational/teleport/integrations/terraform/provider"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
-	"github.com/gravitational/teleport/lib/services"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
+	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
 
 func TestTerraformJoin(t *testing.T) {
