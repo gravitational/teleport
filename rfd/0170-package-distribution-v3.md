@@ -22,8 +22,8 @@ RFD 58 defined our current OS package repo solution. The solution built based
 off of this does not meet our current needs, which were primarily missed
 because:
 * When I wrote the RFD I was new to Teleport, and did not fully understand the
-  impact of the work,
-* The requirements for this project were not fully captured,
+  impact of the work, and
+* The requirements for this project were not fully captured, and
 * We did not fully anticipate how moving to GHA would affect the specified
   solution.
 
@@ -106,7 +106,14 @@ Any new solution must meet the following:
 * The customer-facing portion of the solution (the repos themselves) must be
   highly available and fault-tolerant. No regular maintenance tasks (such as
   upgrades of the solution) may result in downtime or outages of the
-  customer-facing portion.
+  customer-facing portion. Customer-facing requests (such as those generated
+  when a customer runs `apt install`) must not run through a service that we are
+  responsible for keeping online.
+* We cannot go with any SaaS solution except one provided by a major Cloud
+  provider (AWS, GCP, Azure) that we already trust.
+* The solution must be manageable via some form of "GitOps", where all changes
+  are checked into a git repository after being peer reviewed. Ths likely means
+  that the solution will need to include a Terraform provider for the product.
 
 The following would be nice to have, but not required:
 * Support for other binary artifact types. This could help standardize how we
@@ -114,15 +121,12 @@ The following would be nice to have, but not required:
   other in-house tools that we've built over the years.
 * Download metrics. This would help us in several ways, from gauging when we can
   deprecate certain channels, to the impact of a customer-facing issue.
-* Management via IaC. Ideally we should be able to deploy new repositories and
-  manage permissions in a way that meshes with how we manage these elsewhere in
-  the org.
 
 ### Potential solutions
 
-I have evaluated several potential solutions. Some of these were evaluated as a
-part of RFD 58, but have undergone significant changes and have been
-re-evaluated.
+I have exhaustively evaluated all potential solutions on the market today. Some
+of these were evaluated as a part of RFD 58, but have undergone significant
+changes and have been re-evaluated.
 
 #### Home-grown solutions
 
@@ -149,7 +153,7 @@ couple of years, and decided against as the development and maintenance costs
 would be high.
 
 I looked for deb and rpm repo libraries for JS/TS, Python, Rust, C#/.NET, and
-Java. Of all these languages, the only ones that I found both [deb and rpm
+Java. Of all these languages, the only one that I found both [deb and rpm
 repository libraries](https://pypi.org/project/mkrepo/) for was Python. This
 could _potentially_ be used with Temporal to build a package deployment service,
 but it has some major drawbacks:
@@ -171,6 +175,13 @@ get it into a state where we could use it, and then we'd need to continue to
 maintain it long-term. I do not believe that doing this would save us
 significant effort over implementing the entire deb and rpm repo specs from
 scratch in Go.
+
+I estimate that we would need a minimum of a full engineering-quarter worth of
+work for either of these routes. Excluding the opportunity cost of not being
+able to work on other projects, I estimate that the development costs of this
+would be $100k worth of engineering at absolute minimum. The infra and
+maintenance costs would likely be similar to our current in-house solution,
+costing a minimum of $300k/year on top of the initial development costs.
 
 ##### Pulp-based tooling
 
@@ -194,18 +205,19 @@ It is my strong opinion that this would be a maintenance and security nightmare.
 
 #### Third party solutions
 
-There are many options for third party solutions to our problem:
+There are many options for third party solutions (both SaaS and on-prem) to our
+problem:
 
-* Artifactory
-* PackageCloud (requires providing signing key)
-* Nexus Repository
-* Gitea
-* GitLab
-* ProGet
-* AWS CodeArtifact (does not support apt/yum)
-* Azure Artifacts (does not support apt/yum)
-* GCP Artifact Registry (requires providing signing key)
+* AWS CodeArtifact
+* Azure Artifacts
 * Cloudsmith (requires providing signing key)
+* PackageCloud (requires providing signing key)
+* GCP Artifact Registry (requires providing signing key)
+* GitLab
+* Gitea
+* ProGet
+* Artifactory
+* Nexus Repository
 
 I've taken a look at all of them and demoed a few. Here's what I found.
 
@@ -215,27 +227,37 @@ Both AWS and Azure offer package hosting solutions. An AWS service would be
 great, as we already trust AWS with many of our sensitive secrets.
 Unfortunately, neither of these products support APT or YUM repos.
 
-##### PackageCloud, Cloudsmith, and GCP Artifact Registry
+##### Cloudsmith and Packagecloud
 
 All three of these would be potentially viable options for OS package hosting,
-except they violate one of the core requirements for a replacement: they all
+except they violate one of the core requirements for a replacement: they both
 require handing over our signing key.
 
-GCP _might_ be the only case where we are willing to make an exception. We would
-still need to provide them our signing key, but given that they are one of the
-"big three" cloud providers, they are arguably more trustworthy than the other
-two SaaS vendors.
+##### GCP Artifact Registry
 
-###### GCP Artifact Registry TCO
-My estimate of the GCP infra cost, based off of our current repo usage, is
-$167k/year. This is broken down into:
-* $3k/year in storage costs.
-* $164k/year in data transfer costs.
+GCP Artifact Registry is a SaaS solution that requires handing over our signing
+key, however, GCP is a "big three" Cloud vendor.
 
-The cost to properly secure and integrate with GHA for one of our most sensitive
-processes is much harder to calculate. Unfortunately I don't have remotely close
-to enough information to even guess at this, so the best I can estimate for the
-TCO is that it's >= $167k/year.
+However, GCP Artifact Registry fails several requirements:
+* We would need to implement major customer-facing changes that would break
+  current installs and the auto updater. This would include:
+  * A complete restructuring of our repository layout and installation scheme
+  * Switching to a GCP-branded domain name (i.e. `us-central1-yum.pkg.dev`
+    instead of `yum.releases.teleport.dev`)
+  * Potential namespace collisions with other third parties, as APT/YUM repos in
+    GCP Artifact Registry are region-global, similar to AWS's S3 buckets
+* The solution would be relatively complex in that we would need to onboard
+  another major cloud vendor. One of the reasons we moved off of them several
+  years ago is because the benefit we gained by using a couple of smaller
+  services provided by GCP did not outweigh the security and compliance costs.
+
+This solution was reviewed several years ago as a part of RFD 58, and since then
+there have been no significant changes to the service. The docs also reference
+long deprecated `apt` commands. Additionally, the docs are primarily focused
+around usage as a private, internal company service. This implies that this
+service is not a priority for GCP, not a good fit for our use case, and is
+probably not something that we should even consider using even if we are willing
+to accept the breaking changes.
 
 ##### Gitea and GitLab
 
@@ -249,25 +271,25 @@ requirements.
 
 Gitea does support both APT and YUM repositories, as well as a host of other
 package repository types. The downside is that all requests for the APT and YUM
-repos must go through a self-hosted Gitea web service. Unlike our current
-S3/CloudFront based solution, if we wanted to guarantee of uptime, then this
-would likely require a 24/7/365 on-call schedule for the team that would manage
-it.
+repos must go through a self-hosted Gitea web service. This fails our
+"customer-facing requests must not run through a service that we are responsible
+for keeping online" requirement.
 
 ##### ProGet
 
-ProGet is a paid, self-hosted tool for hosting package
-repositories. It's primary focus is delivering packages for the Microsoft
-ecosystem for Microsoft shops, but it does have support for APT and YUM repos.
-However, there are several downsides to this product:
+ProGet is a paid, self-hosted tool for hosting package repositories. It's
+primary focus is delivering packages for the Microsoft ecosystem for Microsoft
+shops, but it does have support for APT and YUM repos.
+
+However, this fails our "customer-facing requests must not run through a service
+that we are responsible for keeping online" requirement.
+
+Additionally, there are several other downsides to this product:
 
 * The licensing cost alone would be $25k-$50k per year, which is in the realm of
   other possible solutions. However, other competing solutions at a similar
   price point are more polished, and appear to support our needs better (more on
   this in their respective sections).
-* As with Gitea, this approach would require all customer requests for the repos
-  to flow through the ProGet web service. This would likely require a 24/7/365
-  on call schedule for the team that manages it.
 * The container image for this solution is massive, and contains an entire Linux
   distribution inside. This results in a large attack area that we would be
   responsible for securing, for one of our most sensitive services.
@@ -285,168 +307,101 @@ However, there are several downsides to this product:
   docs
   pages](https://docs.inedo.com/docs/proget-feeds-other-types#:~:text=For%20example%2C%20when,use%20these%20languages).
 
-##### Artifactory and Nexus Repository
+This is not a viable solution for us.
 
-Both Artifactory and Nexus Repository are similar in their design, features, and
-price. Here's where they are similar:
-* Both support APT and YUM repos, as well as a host of other package repo types.
-  We could potentially replace several other package repositories with one of
-  these solutions. Doing so would reduce both our tooling complexity, dev time,
-  and costs. Here's a list of other artifact types that we support today that we
-  could shift to one of these solutions:
+##### Nexus Repository
+
+Sonatype Nexus Repository could be a great fit for us. It can be self hosted,
+supports both APT and YUM repos without customer-facing changes, and can be
+managed via GitOps (with a third-party Terraform provider). However,
+customer-facing download requests would need to flow through a service that we
+are responsible for keeping online and available, failing this requirement.
+
+##### Artifactory
+
+JFrog Artifactory meets all of our requirements, and is the *only* solution on
+the market today that does so. In addition to meeting our requirements, we would
+see several other benefits with this solution:
+
+* Artifactory has support for several other repository types that we currently
+  have. By (eventually) using Artifactory for these, we could get rid of a lot
+  of tooling and infrastructure. Here's a list of repos types that we could
+  shift to this solution:
   * Helm
+    * Currently requires custom tooling for our release pipelines
   * Terraform (Nexus Repository requires a third-party plugin)
+    * Currently requires extensive custom tooling for our release pipelines, as
+      well as tooling for disaster recovery
   * Release server/raw binary artifacts
+    * Currently requires a large amount of tooling in a monolithic service that
+      struggles to support our current needs
+* There is support for pull-through caches and/or mirroring for all major
+  toolchains that we use in our product today. By using Artifactory (eventually)
+  as a pull-through cache, we could scan all dependencies for vulnerabilities,
+  malicious code, and changes in licensing prior to download. This would not
+  only increase stability of our release pipelines, but also improve the
+  security of our developer endpoints. here's a list of package types that are
+  supported here:
+  * OS packages (debs, rpms)
+    * We don't pin these at all in our release pipelines, meaning we currently
+      blindly trust the upstream sources
+  * Go modules
+    * We pin these currently but do not actively scan these for new/unreported
+      vulnerabilities
+  * Rust creates
+    * We pin these currently but do not actively scan these for new/unreported
+      vulnerabilities
+  * NPM packages
+    * We have constant failures due to issues with upstream sources
+    * NPM has a history of being used for distributing malware, and JFrog's
+      solution [has a history of detecting
+      it](https://jfrog.com/blog/malware-civil-war-malicious-npm-packages-targeting-malware-authors/)
+  * Container images
+    * We don't often hit rate limiting here, but only because we pass around
+      shared dockerhub credentials, which this solution could eliminate
+    * We scan our built images for security issues, but not the images we pull
+      in to build our releases (which have huge amounts of access to sensitive
+      data)
+* We could replace several of our current security tools **and vendors** with
+  tools that come included with a self-hosted JFrog license. This aligns with
+  our high-level objective of reducing our dependence on vendor services,
+  despite adding a new vendor. This includes:
+  * Orca (SaaS service)
+  * FOSSA (SaaS service)
+  * Trivy (OSS tool)
+  * govulncheck (OSS tool)
+  * actions/dependency-review-action (OSS tool)
+  * Git pre-commit hook for secrets scanning (in-house tool)
+* The entire security-reports repo could be replaced with JFrog's tools, at no
+  additional cost.
+* JFrog's solution has support for automated risk estimation of third party
+  dependencies, which is something that we can't do today.
 
-  They both also support pull-through caches and/or mirroring for Go modules,
-  Rust crates, NPM packages, and container images. With their built-in security
-  and license compliance tool, eventually using one of these solutions as a
-  proxy for upstream repos could go a long way towards improving our
-  supply-chain security.
-* Both would need to be self hosted. This negates the signing key possession
-  issue.
-* Artifactory supports the S3/CloudFront architecture that we currently have,
-  meaning that the team that manages the service does not need to be on call
-  24/7/365. Additionally, this does not mean that there would be a new cost
-  overhead associated with every download. I'm waiting to hear back from
-  Sonatype to confirm if Nexus Repository supports the S3/CloudFront
-  architecture as well.
-* Neither solution would require any customer-facing change. Our repos would
-  continue being structured as they are now.
-* Both appear to support our general security requirements, with IdP support,
-  fine-grained RBAC, and audit logs. Artifactory even supports passwordless
-  authentication with GHA, similar to GHA AWS authentication.
-* Artifactory and Nexus Repository can be deployed via Helm charts with fairly
-  minimal effort. The system architecture for each is a n-tier webapp, with a
-  handful of smaller services. They both rely on an external database, as well
-  as blob storage. We would probably need to implement this as a RDS cluster +
-  S3 bucket(s).
-
-  While this is more complex than some of the other solutions, this is still
-  notably less complex than our current system.
-* Both can be configured via IaC/Terraform. This allows us to review changes
-  before they're deployed, and allows us to keep a historical record of what
-  changed, when, and why.
-
-  Note that Nexus Repostory's Terraform provider is managed by a third party,
-  and does not have first-class support from Sonatype.
-* Both support some degree of download statistics. However, support for download
-  statistics on each is not great. Artifactory statistics are only available via
-  API, and Nexus Repository does not support statistics in a HA environment. I
-  expect that both would have additional issues issues with generating accurate
-  statistics, when they are fronted by a CDN that routes to S3 rather than their
-  web service.
-
-The license pricing is one place that they both differ. **Assuming** that the
-pricing information for self-hosted Nexus Repository is similar to their SaaS
-offering, licenses for Nexus Repository would cost around $24k/year, and would
-scale with the number of employees we have.
-
-###### Nexus Repository TCO
-My estimate of the AWS infra cost, based on [this
-architecture](https://help.sonatype.com/en/nexus-repository-reference-architecture-5.html),
-is $280k/year. This is broken down into:
-* $30k/year via 5x `m5a.4xlarge` EC2 instances.
-* $40k/year via 3x `m4.2xlarge` EC2 instances in an RDS PostgreSQL cluster, as
-  well as other misc. related charges. Note that I have very little to go on
-  here - the docs are unclear on the database performance requirements. This may
-  be wildly inaccurate.
-* $200k/year on S3 + CloudFront transfer costs. This assumes that we won't need
-  to store any additional data, and carries all the same assumptions about
-  traffic pattern that I've made for our current solution.
-* $10k/year on misc. other charges, such as internal network costs, increased
-  monitoring costs, KMS costs, and anything else that I missed.
-
-My estimate of employee time, under the same burden rate assumed for estimates
-of our current solution, is $5k/year. This is broken down into:
-* $5k/year for 30 minutes per week spent managing this solution once deployed
-* $0k/year spent waiting on OS package publishing pipelines, as OS package
-  publishing will no longer be the longest running job.
-
-This comes out to about $306k/year. **It is important to note** that if we can
-route all traffic through S3/CloudFront, then the load will be significantly
-lower, which means that we may be able to reduce the AWS costs from $280k/year
-to $20k-$50k/year.
-
-###### Artifactory TCO
-Artifactory licensing pricing is higher. Licensing fees would cost us $3.8k per
-month ($45.9k/year), or more if we end up needing their "Enterprise+" plan.
-However, this would not increase with employee count.
-
-My estimate of the AWS infra cost, based off of various places in their docs, is
-$217k/year. This is broken down into:
-* $2.7k/year via 1x `m6g.2xlarge` EC2 instances.
-* $40k/year via 3x `m4.2xlarge` EC2 instances in an RDS PostgreSQL cluster, as
-  well as other misc. related charges. Note that I have very little to go on
-  here. This may be wildly inaccurate.
-* $200k/year on S3 + CloudFront transfer costs. This assumes that we won't need
-  to store any additional data, and carries all the same assumptions about
-  traffic pattern that I've made for our current solution.
-* $10k/year on misc. other charges, such as internal network costs, increased
-  monitoring costs, KMS costs, and anything else that I missed.
-
-My estimate of employee time is the same as Nexus Repository.
-
-This comes out to about $268k/year. As with Nexus Repository, our actual cost
-will likely be lower (I'd estimate about $30k/year lower) if we can route all
-traffic through S3/CloudFront.
-
-###### Other impacts on TCO
-Artifactory comes bundled with a large number of additional optional tools.
-Of note, these include:
-* A complete CI/CD pipeline service (competitor to GHA)
-* Supply chain security tools:
-  * Package vulnerability scanning
-  * SBOM production from multiple sources
-  * Secrets scanning
-  * Multi-source vulnerability database
-  * PR-time IaC scanning (we can't do this today)
-  * Automated risk estimation of third party dependencies (we can't do this today)
-  * Single pane of glass overview of entire org
-
-In my opinion, the benefit of some of their security tools is enormous and would
-go a long way towards satisfying some of our security-related OKRs.
-Additionally, these tools could replace several separate third-party tools,
-which would reduce our attack surface and potentially reduce the number of
-vendors we contract with.
-
-### Comparison of viable solutions
-
-Out of the twelve solutions investigated, only the following can meet our
-requirements:
-* Scratch-built in-house solution
-* Gitea
-* GCP Artifact Registry
-* Nexus Repository
-* Artifactory
-
-Here's a table showing their tradeoffs:
-| Name                  | TCO                     | Requires on-call rotation | Requires giving away signing key | Supports other high-level goals |
-| --------------------- | ----------------------- | ------------------------- | -------------------------------- | ------------------------------- |
-| Current solution      | $300k/year              | No                        | No                               | No                              |
-| In-house solution     | Unclear - likely high   | Unlikely                  | No                               | No                              |
-| Gitea                 | Unclear - likely high   | Yes                       | No                               | No                              |
-| GCP Artifact Registry | >= $167k/year           | No                        | Yes                              | No                              |
-| Nexus Repository      | $256k/year - $356k/year | Unclear                   | No                               | Yes                             |
-| Artifactory           | $238k/year - $268k/year | No                        | No                               | Yes                             |
-
-One thing that has not been addressed yet in this RFD is the package deployment
-time for each solution. I will not be able to determine this until I demo any
-solutions that we are interested in. My recommendation is that this RFD goes
-through a first round of review, and then I'll demo any desired solutions and
-get an estimate of the deployment time. I'll then update the above table with
-this information, and remove this section.
+I don't have a quote from JFrog yet, but they have stated that the total cost of
+ownership (including infra and maintenance) of their solution is in-line with
+the cost of our current solution.
 
 ### Recommendation
-My recommendation is that we explore replacing our current solution with
-Artifactory. This is the lowest cost solution with the fewest drawbacks and most
-advantages.
+
+Of the eleven evaluated solutions, only two meet our minimum requirements:
+rewriting our in-house solution, or deploying JFrog's solution.
+
+Given our long history of failing to build an adequate in-house solution (hence
+the third iteration of this project), and the clear benefits that JFrog brings
+to the table, I strongly believe that we should choose JFrog's offering. As
+outlined above, JFrog's solution isn't just the only option that meets our
+requirements for this project, but it also heavily aligns with other high-level
+objectives.
+
+### Next steps
 
 Here are the next steps if we choose to go this route (after testing other
 competing solutions that we are interested in):
-1. Contact JFrog and negotiate with them for a PoV deployment.
-2. Attempt to replace our staging OS package repo tooling and infra with
-   Artifactory.
+
+1. Define a specific technical architecture for a production deployment with
+   JFrog's help, and get an official quote from them.
+2. Deploy a PoV deployment and load test, as a replacement for our staging OS
+   package repo tooling and infra.
 3. Load our production packages (several TB) and load test.
 4. Use Artifactory as a replacement for our current solution in staging for a
    month or two.
@@ -457,18 +412,12 @@ competing solutions that we are interested in):
 ### Future work
 If we decide to go with Artifactory, then there are several pieces of future
 work that we should take on to fully realize it's benefits:
+* Move other package repos to Artifactory.
 * Setup mirrors and/or pull-through caches for build time dependencies (i.e. Go
-  modules, third-party OS packages, NPM packages, etc.). This would increase the
-  stability and speed of our build process, and potentially reduce costs due to
-  the decrease in build time.
+  modules, third-party OS packages, NPM packages, etc.).
 * Replace some of our security tools with the security product that comes
-  bundled with Artifactory (Xray). This would reduce the number of third-party
-  dependencies we have, improve security, and potentially eliminate some other
-  vendors.
-* (Long term) Evaluate the CI/CD product that comes bundled with Artifactory
-  (Pipelines) as a potential replacement for GHA. I currently have no knowledge
-  of this product or if it's a viable alternative, but I think that it is worth
-  evaluating.
+  bundled with Artifactory (Xray).
+* Replace or just remove the security-reports repo.
 
 [^1]: _Technically we can, but it takes enormous effort (entire team needs to
     drop everything to spend hours working on this) and is error prone_
