@@ -20,21 +20,21 @@ import "errors"
 
 // ErrFetcherDisabled is a custom error that can be returned from fetcher constructor that will be reported with lower severity.
 type ErrFetcherDisabled struct {
-	Reason string
+	reason string
 }
 
 func (e ErrFetcherDisabled) Error() string {
-	return e.Reason
+	return e.reason
 }
 
 // NewErrFetcherDisabled returns a new instance of ErrFetcherDisabled error.
 func NewErrFetcherDisabled(reason string) *ErrFetcherDisabled {
-	return &ErrFetcherDisabled{Reason: reason}
+	return &ErrFetcherDisabled{reason: reason}
 }
 
 // IsErrFetcherDisabled returns true if the error is ErrFetcherDisabled.
 func IsErrFetcherDisabled(err error) (bool, string) {
 	other := &ErrFetcherDisabled{}
 	matched := errors.As(err, &other)
-	return matched, other.Reason
+	return matched, other.reason
 }
