@@ -378,7 +378,7 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 		}
 		return cluster, nil
 	default:
-		a.Log.Warnf("EKS cluster %q has unsupported authentication mode %q. Skipping setup access for ARN %q.",
+		a.Log.Infof("EKS cluster %q does not support access bootstrap due to its authentication mode %q. Skipping access setup. Access for ARN %q must be manually configured.",
 			clusterName, st, a.SetupAccessForARN)
 		return cluster, nil
 	}

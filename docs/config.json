@@ -675,6 +675,22 @@
                 "cloud",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze Entra ID policies",
+              "slug": "/access-controls/access-graph/entra-id/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
+            },
+            {
+              "title": "Analyze GitLab permissions",
+              "slug": "/access-controls/access-graph/gitlab/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
@@ -1363,7 +1379,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.4.4",
+      "version": "15.4.7",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
