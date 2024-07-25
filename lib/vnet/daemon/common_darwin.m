@@ -21,6 +21,11 @@
 
 #include <string.h>
 
+const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
+
+const int VNEAlreadyRunningError = 1;
+const int VNEMissingCodeSigningIdentifiersError = 2;
+
 NSString *DaemonLabel(NSString *bundlePath) {
   NSBundle *main = [NSBundle bundleWithPath:bundlePath];
   if (!main) {

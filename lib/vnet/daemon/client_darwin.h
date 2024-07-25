@@ -2,7 +2,6 @@
 #define TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_
 
 #include "common_darwin.h"
-#include "protocol_darwin.h"
 
 #import <Foundation/Foundation.h>
 
