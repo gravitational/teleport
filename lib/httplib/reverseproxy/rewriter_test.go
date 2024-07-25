@@ -98,6 +98,7 @@ func TestRewriter(t *testing.T) {
 			hostReq:    "teleport.dev:3543",
 			remoteAddr: "1.2.3.4:1234",
 			expected: http.Header{
+				XForwardedFor:    []string{"1.2.3.4"},
 				XForwardedHost:   []string{"teleport.dev:3543"},
 				XForwardedPort:   []string{"3543"},
 				XForwardedProto:  []string{"https"},
@@ -115,6 +116,7 @@ func TestRewriter(t *testing.T) {
 			hostReq:    "teleport.dev:3543",
 			remoteAddr: "1.2.3.4:1234",
 			expected: http.Header{
+				XForwardedFor:    []string{"1.2.3.4"},
 				XForwardedHost:   []string{"teleport.dev:3543"},
 				XForwardedPort:   []string{"3543"},
 				XForwardedProto:  []string{"http"},
@@ -131,6 +133,7 @@ func TestRewriter(t *testing.T) {
 			hostReq:    "teleport.dev",
 			remoteAddr: "1.2.3.4:1234",
 			expected: http.Header{
+				XForwardedFor:    []string{"1.2.3.4"},
 				XForwardedHost:   []string{"teleport.dev"},
 				XForwardedPort:   []string{"80"},
 				XForwardedProto:  []string{"http"},
@@ -139,9 +142,11 @@ func TestRewriter(t *testing.T) {
 			},
 		},
 	}
+
 	rewriter := NewHeaderRewriter()
 	// set hostname to make sure it's the same in all tests.
 	rewriter.Hostname = hostname
+
 	for _, test := range testCases {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
