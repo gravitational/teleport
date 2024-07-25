@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -46,28 +44,6 @@ const (
 	oktaErrorMsg = "Okta sourced access lists cannot be modified"
 
 	componentAccessListService = "access_list_crud_service"
-)
-
-var (
-	// ignoreEphemeralFields will be used to ignore fields that are irrelevant to determining
-	// equivalence of a resource.
-	ignoreEphemeralFields = []cmp.Option{
-		cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
-		// ID is handled by the backend, so it'll be ignored here.
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-		// Ignore the IneligibleStatus field for owners since
-		// it's managed by the reconciler.
-		cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-	}
-
-	// reviewValidOwnerChanges lists the fields that owners are allowed to modify as part of a review.
-	reviewValidOwnerChanges = []cmp.Option{
-		cmpopts.IgnoreFields(accesslist.ReviewChanges{}, "RemovedMembers"),
-	}
-
-	// oktaValidModifications lists the fields that can be modified in an Okta sourced access list.
-	oktaValidModifications = append([]cmp.Option{cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires", "Audit")},
-		ignoreEphemeralFields...)
 )
 
 type AuthServer interface {
@@ -1417,7 +1393,7 @@ func (s *Service) canUpdateMembership(ctx context.Context, authCtx *authz.Contex
 	// actually modify their own entry, we can say that it's okay for them to
 	// modify the users in this list.
 
-	if !cmp.Equal(oldMember, newMember, ignoreEphemeralFields...) {
+	if !membersEqual(oldMember, newMember) {
 		return trace.Wrap(err)
 	}
 
@@ -1524,7 +1500,7 @@ func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList
 		return true
 	}
 
-	return cmp.Equal(oldAccessList, newAccessList, oktaValidModifications...)
+	return isOktaAccessListModificationAllowed(oldAccessList, newAccessList)
 }
 
 // isOwnerOfAccessList checks if this user owns this access list.
@@ -1699,7 +1675,7 @@ func (s *Service) createAccessListReview(ctx context.Context, review *accesslist
 	// We don't have to check if the error of hasAccessListRBAC is explicitly denied here because
 	// authOrIsOwner would have caught it above.
 	hasRBAC := s.hasAccessListRBAC(ctx, authCtx, accessList, types.VerbCreate, types.VerbUpdate) == nil
-	accessListModified := !cmp.Equal(accesslist.ReviewChanges{}, review.Spec.Changes, reviewValidOwnerChanges...)
+	accessListModified := !isReviewChangesAllowed(review.Spec.Changes)
 
 	// Make sure the owner can't modify the access list.
 	// We don't need to do any Okta specific checks here, as the things that users can modify during a review are
@@ -2187,13 +2163,4 @@ func applyOwnersIneligibleStatus(accessList *accesslist.AccessList, clock clockw
 	}
 
 	return updatedOwners
-}
-
-func accessListEqual(a, b *accesslist.AccessList) bool {
-	cmpOptions := append(
-		ignoreEphemeralFields,
-		// evaluate empty slices/map and nil as equal
-		cmpopts.EquateEmpty(),
-	)
-	return cmp.Equal(a, b, cmpOptions...)
 }
