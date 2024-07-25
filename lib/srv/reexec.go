@@ -79,9 +79,6 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// ErrorFile is used to communicate any errors terminating the child process
-	// to the parent process
-	ErrorFile
 	// PTYFile is a PTY the parent process passes to the child process.
 	PTYFile
 	// TTYFile is a TTY the parent process passes to the child process.
@@ -89,7 +86,7 @@ const (
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = ErrorFile + 1
+	FirstExtraFile FileFD = TerminateFile + 1
 )
 
 func fdName(f FileFD) string {
@@ -231,8 +228,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		_ = readyfd.Close()
 	}()
 
-	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
-	if termiantefd == nil {
+	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
+	if terminatefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
@@ -398,7 +395,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	parkerCancel()
 
-	err = waitForShell(termiantefd, cmd)
+	err = waitForShell(terminatefd, cmd)
 
 	if uaccEnabled {
 		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
@@ -411,14 +408,14 @@ func RunCommand() (errw io.Writer, code int, err error) {
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
-func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
+func waitForShell(terminatefd *os.File, cmd *exec.Cmd) error {
 	terminateChan := make(chan error)
 
 	go func() {
 		buf := make([]byte, 1)
 		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
 		// parent process wants to terminate the remote command and all childs.
-		_, err := termiantefd.Read(buf)
+		_, err := terminatefd.Read(buf)
 		if errors.Is(err, io.EOF) {
 			// Kill the shell process
 			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
@@ -549,16 +546,6 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
-	// Parent receives any errors on the sixth file descriptor.
-	errfd := os.NewFile(ErrorFile, fdName(ErrorFile))
-	if errfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("error pipe not found")
-	}
-
-	defer func() {
-		writeChildError(errfd, err)
-	}()
-
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
@@ -566,8 +553,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
-	// else because PAM is sometimes used to create the local user used to
-	// launch the shell under.
+	// else because PAM is sometimes used to create the local user used for
+	// networking requests.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
@@ -645,7 +632,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
 	}
 
-	// build forwarder from first extra file that was passed to command
+	// Build request listener from first extra file that was passed to command.
 	ffd := os.NewFile(FirstExtraFile, "listener")
 	if ffd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
@@ -677,7 +664,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				// parent connection closed, process should exit.
-				return errorWriter, teleport.RemoteCommandFailure, nil
+				return errorWriter, teleport.RemoteCommandSuccess, nil
 			}
 			slog.ErrorContext(ctx, "Error reading networking request from parent.", "error", err)
 			continue
@@ -939,7 +926,7 @@ func RunAndExit(commandType string) {
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		s := fmt.Sprintf("Failed to launch: %v.\r\n", trace.DebugReport(err))
+		s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
 		io.Copy(w, bytes.NewBufferString(s))
 	}
 	os.Exit(code)
@@ -961,7 +948,7 @@ func IsReexec() bool {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, _ *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1163,8 +1150,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	}
 	executableDir, _ := filepath.Split(executable)
 
-	// The channel/request type determines the subcommand to execute (execution or
-	// port forwarding).
+	// The channel/request type determines the subcommand to execute.
 	var subCommand string
 	switch ctx.ExecType {
 	case teleport.NetworkingSubCommand:
@@ -1192,7 +1178,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.contr,
 			ctx.readyw,
 			ctx.killShellr,
-			ctx.errw,
 		},
 	}
 	// Add extra files if applicable.

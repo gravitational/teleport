@@ -1077,7 +1077,7 @@ func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
 }
 
-// dialTCPIP dials the given tcpip address through the network forwarding process.
+// dialTCPIP dials the given tcpip address through the network process.
 func (s *Server) dialTCPIP(scx *srv.ServerContext, addr string) (net.Conn, error) {
 	proc, err := s.getNetworkingProcess(scx)
 	if err != nil {
@@ -1092,7 +1092,7 @@ func (s *Server) dialTCPIP(scx *srv.ServerContext, addr string) (net.Conn, error
 	return conn, nil
 }
 
-// listenTCPIP creates a new listener in the networking forwarding process.
+// listenTCPIP creates a new listener in the networking process.
 func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener, error) {
 	proc, err := s.getNetworkingProcess(scx)
 	if err != nil {
@@ -1133,9 +1133,8 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 	return proc, nil
 }
 
-// startNetworkingProcess launches the forwarding process. It returns a
-// conn to communicate with the process and a close func to close the process
-// when finished.
+// startNetworkingProcess launches a new networking process. It should be closed once
+// the server connection is closed.
 func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
 	// The networking process runs with the user's local credentials.
 	// Ensure that the user has been created first.
