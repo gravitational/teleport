@@ -77,15 +77,17 @@ void OpenSystemSettingsLoginItems(void) {
 
 @property(nonatomic, strong, readwrite) NSXPCConnection *connection;
 @property(nonatomic, strong, readonly) NSString *bundlePath;
+@property(nonatomic, strong, readonly) NSString *codeSigningRequirement;
 
 @end
 
 @implementation VNEDaemonClient
 
-- (id)initWithBundlePath:(NSString *)bundlePath {
+- (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement {
   self = [super init];
   if (self) {
     _bundlePath = bundlePath;
+    _codeSigningRequirement = codeSigningRequirement;
   }
   return self;
 }
@@ -100,6 +102,12 @@ void OpenSystemSettingsLoginItems(void) {
     _connection.invalidationHandler = ^{
       self->_connection = nil;
     };
+
+    // The daemon won't even be started on macOS < 13.0, so we don't have to handle the else branch
+    // of this condition.
+    if (@available(macOS 13, *)) {
+      [_connection setCodeSigningRequirement:_codeSigningRequirement];
+    }
 
     // New connections always start in a suspended state.
     [_connection resume];
@@ -133,7 +141,18 @@ static VNEDaemonClient *daemonClient = NULL;
 
 void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
   if (!daemonClient) {
-    daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path)];
+    NSString *requirement = nil;
+    NSError *error = nil;
+    bool ok = getCodeSigningRequirement(&requirement, &error);
+    if (!ok) {
+      outResult->ok = false;
+      outResult->error_domain = VNECopyNSString([error domain]);
+      outResult->error_code = (int)[error code];
+      outResult->error_description = VNECopyNSString([error description]);
+      return;
+    }
+
+    daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path) codeSigningRequirement:requirement];
   }
 
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
@@ -141,6 +160,7 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
   [daemonClient startVnet:request->vnet_config
                completion:^(NSError *error) {
                  if (error) {
+                   outResult->ok = false;
                    outResult->error_domain = VNECopyNSString([error domain]);
                    outResult->error_code = (int)[error code];
                    outResult->error_description = VNECopyNSString([error description]);

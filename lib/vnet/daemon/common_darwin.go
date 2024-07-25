@@ -50,4 +50,8 @@ var (
 	// https://developer.apple.com/documentation/foundation/1448136-nserror_codes/nsxpcconnectioninterrupted?changes=latest_major&language=objc
 	errorCodeNSXPCConnectionInterrupted = int(C.NSXPCConnectionInterrupted)
 	errXPCConnectionInterrupted         = errors.New("XPC connection interrupted")
+
+	// https://developer.apple.com/documentation/foundation/1448136-nserror_codes/nsxpcconnectioncodesigningrequirementfailure?language=objc
+	errorCodeNSXPCConnectionCodeSigningRequirementFailure = int(C.NSXPCConnectionCodeSigningRequirementFailure)
+	errXPCConnectionCodeSigningRequirementFailure         = errors.New("code signing requirement failed")
 )
