@@ -18,7 +18,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common_darwin.h"
-#include "protocol_darwin.h"
 #include "service_darwin.h"
 
 #import <Foundation/Foundation.h>

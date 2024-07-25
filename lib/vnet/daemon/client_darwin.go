@@ -23,7 +23,7 @@ package daemon
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
-// #include "protocol_darwin.h"
+// #include "common_darwin.h"
 import "C"
 
 import (
