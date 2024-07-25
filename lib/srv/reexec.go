@@ -698,6 +698,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
 			slog.ErrorContext(ctx, "Error parsing networking request.", "error", err)
+			_ = controlConn.Close()
 			continue
 		}
 
@@ -732,7 +733,6 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 						}
 					}()
 				}
-				defer cleanup()
 			}
 		case networking.NetworkingOperationListenAgent, networking.NetworkingOperationListenX11:
 			// Agent and X11 forwarding requests should occur very rarely, so handling
@@ -801,7 +801,7 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 
 	case networking.NetworkingOperationListenAgent:
 		// Create a temp directory to hold the agent socket.
-		sockDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
+		sockDir, err := os.MkdirTemp("", "teleport-")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -818,7 +818,7 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, nil, trace.Wrap(err)
 		}
 
-		socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
+		socketPath := filepath.Join(sockDir, "agent.sock")
 
 		listener, err := net.Listen("unix", socketPath)
 		if err != nil {
