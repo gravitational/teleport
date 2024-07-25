@@ -75,14 +75,6 @@ func RegisterObjectFetcher(fn ObjectFetcherFn, names ...string) {
 	}
 }
 
-func unregisterObjectFetcher(names ...string) {
-	objectFetchersMutex.Lock()
-	defer objectFetchersMutex.Unlock()
-	for _, name := range names {
-		delete(objectFetchers, name)
-	}
-}
-
 // GetObjectFetcher returns a new object fetcher for given database, respecting global import rules.
 func GetObjectFetcher(ctx context.Context, db types.Database, fetcherConfig ObjectFetcherConfig) (ObjectFetcher, error) {
 	name := db.GetProtocol()

@@ -83,3 +83,12 @@ func TestGetObjectFetcher(t *testing.T) {
 		})
 	}
 }
+
+// unregisterObjectFetcher is reverse of RegisterObjectFetcher, but only used in tests.
+func unregisterObjectFetcher(names ...string) {
+	objectFetchersMutex.Lock()
+	defer objectFetchersMutex.Unlock()
+	for _, name := range names {
+		delete(objectFetchers, name)
+	}
+}
