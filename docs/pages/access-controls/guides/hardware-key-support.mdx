@@ -13,15 +13,15 @@ By default, `tsh`, Teleport Connect, and other Teleport clients store a user's k
 on their filesystem. If a user's filesystem is compromised, any of their active Teleport user keys and certificates
 would also be compromised.
 
-You can configure [per-session MFA](per-session-mfa.mdx) to require a multi-factor authentication check 
-when users start new sessions with Teleport services, such as the SSH Service, Kubernetes Service, Database Service, and so on. 
-However, per-session MFA doesn't prevent compromised session credentials from taking other actions, such as 
-running administrative commands with `tctl`. 
+You can configure [per-session MFA](per-session-mfa.mdx) to require a multi-factor authentication check
+when users start new sessions with Teleport services, such as the SSH Service, Kubernetes Service, Database Service, and so on.
+However, per-session MFA doesn't prevent compromised session credentials from taking other actions, such as
+running administrative commands with `tctl`.
 
-To prevent these types of attacks, Teleport supports hardware-based private keys. 
-Unlike disk-based private keys, hardware-based private keys are generated and stored directly 
-on a hardware device and are impossible to export. 
-With hardware-based private keys, a login session is only functional if there's also access to the 
+To prevent these types of attacks, Teleport supports hardware-based private keys.
+Unlike disk-based private keys, hardware-based private keys are generated and stored directly
+on a hardware device and are impossible to export.
+With hardware-based private keys, a login session is only functional if there's also access to the
 hardware device where the key was generated and stored.
 
 Additionally, you can configure this feature to require a touch for every Teleport request, including non-session requests
@@ -33,9 +33,9 @@ like `tctl edit`. With touch required, hardware key support provides better secu
 
 <Admonition type="warning" title="Compatibility">
   Hardware key support provides the best security available. However, not all services are compatible with hardware keys.
-  
+
   Supported:
-    
+
     - Teleport clients `tsh`, `tctl`, and Teleport Connect.
     - Standard Teleport API requests such as `tsh ls`, `tctl create`, and so on.
     - Server access.
@@ -46,7 +46,7 @@ like `tctl edit`. With touch required, hardware key support provides better secu
     - Application access.
 
   Not supported:
-  
+
     - Desktop access.
     - Legacy OpenSSH server access
 
@@ -76,14 +76,14 @@ like `tctl edit`. With touch required, hardware key support provides better secu
 </Admonition>
 
 - Install a smart card driver for you operating system. Teleport clients will connect to your YubiKey through the smart card driver to generate keys and perform cryptographic operations.
-  - MacOS and Windows both ship with smart card drivers.
+  - macOS and Windows both ship with smart card drivers.
     - If you run into problems on Windows, try the official [YubiKey Smart Card Minidriver](https://www.yubico.com/support/download/smart-card-drivers-tools/).
-  - On Linux distributions, download the [YubiKey Manager or Yubico PIV tool](https://www.yubico.com/support/download/smart-card-drivers-tools/), which both include the Linux smart card driver as a dependency. 
+  - On Linux distributions, download the [YubiKey Manager or Yubico PIV tool](https://www.yubico.com/support/download/smart-card-drivers-tools/), which both include the Linux smart card driver as a dependency.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Enforce hardware key support
 
-Hardware key support is not required by default. 
+Hardware key support is not required by default.
 
 There are three primary options for hardware key support:
   - `hardware_key`: User keys are stored on their hardware key without touch/PIN protection. A separate MFA check is used for
@@ -131,10 +131,10 @@ cluster auth preference has been updated
 
 ## Step 2/2. Log in
 
-After you configure a role or cluster to require a hardware key, all users signing in with that 
+After you configure a role or cluster to require a hardware key, all users signing in with that
 role or to that cluster must use their hardware key for all Teleport requests.
 
-Affected users will be prompted to connect and touch their YubiKey to sign in. 
+Affected users will be prompted to connect and touch their YubiKey to sign in.
 The first time users sign in with their hardware key they might be required to immediately sign in again.
 
 <Tabs>
@@ -201,9 +201,9 @@ $ tsh clusters
 # Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
-# Cluster Name Status Cluster Type Labels Selected 
-# ----------- ------ ------------ ------ -------- 
-# example.com online root                *        
+# Cluster Name Status Cluster Type Labels Selected
+# ----------- ------ ------------ ------ --------
+# example.com online root                *
 ```
 
 ## Custom PIV setup
@@ -250,22 +250,22 @@ This can be done with the [YubiKey Manager CLI](https://developers.yubico.com/yu
 
 `ykman piv keys generate -a ECCP256 [slot] --touch-policy=[never|cached|always] --pin-policy=[never|once|always] -`
 
-After running this command, you're prompted to enter your management key to complete the request. 
+After running this command, you're prompted to enter your management key to complete the request.
 Make sure that the touch and PIN policy satisfy the hardware key requirement for your cluster and roles.
 
 ## Troubleshooting
 
 ### `ERROR: private key policy not met`
 
-This error is returned by the Auth and Proxy services if a user does not meet the required private key policy. 
-Both `tsh` and Teleport Connect automatically catch these errors and require the user to sign in again with a valid hardware-based private key. 
+This error is returned by the Auth and Proxy services if a user does not meet the required private key policy.
+Both `tsh` and Teleport Connect automatically catch these errors and require the user to sign in again with a valid hardware-based private key.
 
 ### `ERROR: authenticating with management key: auth challenge: smart card error 6982: security status not satisfied`
 
 Smart card auth challenge errors can appear when the wrong management key is used.
 
-Teleport clients expect a fresh PIV key with the default management key. 
-You can reset this key, along with any existing PIV keys and certificates, with the 
+Teleport clients expect a fresh PIV key with the default management key.
+You can reset this key, along with any existing PIV keys and certificates, with the
 [YubiKey Manager CLI](https://developers.yubico.com/yubikey-manager/) `ykman piv reset`.
 
 If you want to use a different management key, follow the [custom PIV setup instructions](#custom-piv-setup).
@@ -282,7 +282,7 @@ Yubikey for Hardware Key support, you might get an error on rare occasions.
 Depending on your settings, you might be asked to tap your Yubikey many times.
 Each tap is necessary to safely authenticate you.
 
-For example, if you have `second_factor: webauthn` set in your `cluster_auth_preference`, 
+For example, if you have `second_factor: webauthn` set in your `cluster_auth_preference`,
 and `require_session_mfa: hardware_key_touch` set on your role,
 you'll see the following output when you first sign in:
 
@@ -300,7 +300,7 @@ Detected security key tap
 
 Unmet private key policy "hardware_key_touch".
 
-# At this point, `tsh` can infer from the error that the user's role requires 
+# At this point, `tsh` can infer from the error that the user's role requires
 # "hardware_key_touch", so it generates a private key directly on the hardware key
 # with a tap and re-initiates the sign in process.
 
