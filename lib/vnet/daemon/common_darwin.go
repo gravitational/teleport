@@ -21,7 +21,7 @@ package daemon
 
 // #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
-// #include "protocol_darwin.h"
+// #include "common_darwin.h"
 import "C"
 
 import (
