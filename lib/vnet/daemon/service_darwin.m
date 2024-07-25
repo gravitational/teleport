@@ -43,13 +43,18 @@
 
 @implementation VNEDaemonService
 
-- (id)initWithBundlePath:(NSString *)bundlePath {
+- (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement {
   self = [super init];
   if (self) {
-    // Launch daemons must configure their listener with the machServiceName
-    // initializer.
+    // Launch daemons must configure their listener with the machServiceName initializer.
     _listener = [[NSXPCListener alloc] initWithMachServiceName:DaemonLabel(bundlePath)];
     _listener.delegate = self;
+
+    // The daemon won't even be started on macOS < 13.0, so we don't have to handle the else branch
+    // of this condition.
+    if (@available(macOS 13, *)) {
+      [_listener setConnectionCodeSigningRequirement:codeSigningRequirement];
+    }
 
     _started = NO;
     _gotVnetConfigSema = dispatch_semaphore_create(0);
@@ -125,12 +130,26 @@
 
 static VNEDaemonService *daemonService = NULL;
 
-void DaemonStart(const char *bundle_path) {
+void DaemonStart(const char *bundle_path, DaemonStartResult *outResult) {
   if (daemonService) {
+    outResult->ok = true;
     return;
   }
-  daemonService = [[VNEDaemonService alloc] initWithBundlePath:@(bundle_path)];
+
+  NSString *requirement = nil;
+  NSError *error = nil;
+  bool ok = getCodeSigningRequirement(&requirement, &error);
+  if (!ok) {
+    outResult->ok = false;
+    outResult->error_domain = VNECopyNSString([error domain]);
+    outResult->error_code = (int)[error code];
+    outResult->error_description = VNECopyNSString([error description]);
+    return;
+  }
+  
+  daemonService = [[VNEDaemonService alloc] initWithBundlePath:@(bundle_path) codeSigningRequirement:requirement];
   [daemonService start];
+  outResult->ok = true;
 }
 
 void DaemonStop(void) {
