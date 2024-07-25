@@ -227,8 +227,8 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
-	// GetProxyClientTLSConfig returns the client TLS config of the proxy
-	GetProxyClientTLSConfig func(ciphersuites []uint16) (*tls.Config, error)
+	// GetProxyClientCertificate returns the proxy client certificate.
+	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
@@ -986,13 +986,16 @@ func (h *Handler) GetProxyClient() authclient.ClientI {
 	return h.cfg.ProxyClient
 }
 
-// GetProxyClientTLSConfig returns the client TLS config of the proxy
-func (h *Handler) GetProxyClientTLSConfig(ciphersuites []uint16) (*tls.Config, error) {
-	if h.cfg.GetProxyClientTLSConfig == nil {
-		return nil, trace.BadParameter("GetProxyClientTLSConfig function is not set")
+// GetProxyClientCertificate returns the proxy client certificate.
+func (h *Handler) GetProxyClientCertificate() (*tls.Certificate, error) {
+	if h.cfg.GetProxyClientCertificate == nil {
+		return nil, trace.BadParameter("GetProxyClientCertificate is not set")
 	}
-	tlsConfig, err := h.cfg.GetProxyClientTLSConfig(ciphersuites)
-	return tlsConfig, trace.Wrap(err)
+	tlsCert, err := h.cfg.GetProxyClientCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }
 
 // GetAccessPoint returns the caching access point.
