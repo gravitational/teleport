@@ -290,7 +290,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 // onJiraWebhook processes Jira webhook and updates the status of an issue
 func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
-	ctx, cancel := context.WithTimeout(ctx, webhookIssueAPIRetryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), webhookIssueAPIRetryTimeout)
 	defer cancel()
 
 	webhookEvent := webhook.WebhookEvent
