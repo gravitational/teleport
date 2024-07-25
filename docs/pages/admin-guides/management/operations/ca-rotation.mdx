@@ -35,9 +35,9 @@ following order:
    [`host` CA](#host).
    1. `standby`: No rotation in progress. All operations have completed.
 
-Before the final `standby` phase, you an also put the rotation in the `rollback`
-phase, aborting the rotation and returning to the original certificate
-authority.
+Before the final `standby` phase, you can also put the rotation in the
+`rollback` phase, aborting the rotation and returning to the original
+certificate authority.
 
 CA rotations can be **manual** or **semi-automatic**. In manual mode, admins
 must instruct the Teleport Auth Service to advance from one phase to the next.
@@ -59,18 +59,18 @@ infrastructure. Choose one of the CAs below to determine how to keep it up to
 date during the migration.
 
 We recommend rotating a single CA at a time in order to reduce complexity. The
-exception is rotating the `db` and `db_client` CAs. 
+exceptions are the `db` and `db_client` CAs, which must be rotated together.
 
 |CA type|Certificate subjects|
 |---|---|
 |[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|
-|[`user`](#user)|Teleport users. Teleport SSH Service and Windows Desktop Service instances.|
+|[`user`](#user)|Teleport users.|
 |[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|
 |[`db_client`](#db-and-db_client)|The Teleport Database Service.|
 |[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
-|[`jwt`](#jwt)|Teleport users|
-|[`saml_idp`](#saml_idp)|The Teleport SAML IdP|
-|[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration|
+|[`jwt`](#jwt)|Teleport users accessing web applications.|
+|[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
+|[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
 
 ### `host`
 
@@ -102,40 +102,40 @@ for state transitions.
 You can use the `tctl get` command with the following resources to determine
 the rotation state of the `host` CA on each agent kind:
 
-| Role                | `tctl get` value |
-|---------------------|------------------|
-| Application Service | `app_server`     |
-| Database Service    | `db_server`      |
-| Kubernetes Service  | `kube_server`    |
-| Proxy Service       | `proxies`        |
-| SSH Service         | `nodes`          |
+| Role                    | `tctl get` value          |
+|-------------------------|---------------------------|
+| Application Service     | `app_server`              |
+| Database Service        | `db_server`               |
+| Kubernetes Service      | `kube_server`             |
+| Proxy Service           | `proxies`                 |
+| SSH Service             | `nodes`                   |
+| Windows Desktop Service | `windows_desktop_service` |
 
 During each phase of the `host` CA rotation, make sure all Agents and Proxy
 Service instances have completed the transition to target phase before
 proceeding to the next phase. We will explain the phases in [Step
 2](#step-2-4-start-a-manual-rotation).
 
-If you are joining Teleport processes to a cluster via the Teleport Auth Service
-using a [join token](../../agents/join-services-to-your-cluster/join-token.mdx),
-each Teleport process will need a CA pin to trust the Auth Service. The CA pin
-will change after each `host` CA rotation. Make sure you use the *new* CA pin
-when adding Teleport services after `host` CA rotation.
+If you are joining Teleport processes to a cluster via the Teleport Auth
+Service, each Teleport process will need a CA pin to trust the Auth Service.
+The CA pin will change after each `host` CA rotation. Make sure you use the
+*new* CA pin when adding Teleport services after `host` CA rotation.
 
 ### `user`
 
 The `user` CA issues a certificate when a user authenticates to Teleport. It
-also signs client certificates for the Windows Desktop Service and Teleport SSH
-Service. Teleport-protected servers and Windows desktops use these certificates
-to verify connecting clients.
+also signs client certificates for users connecting to Windows desktops and
+Teleport SSH servers. Teleport-protected servers and Windows desktops use these
+certificates.
 
 Once you have completed the rotation and reached the final `standby` phase,
 users who have signed into Teleport must reauthenticate to receive a user
 certificate from the new CA, otherwise Teleport client commands fail.
 
 If you have registered Windows desktops with Teleport, [follow the
-guide](../../desktop-access/active-directory-manual.mdx) to exporting the
-Teleport user CA so the Windows Desktop Service can authenticate to RDP hosts.
-Verify that you can connect to registered desktops throughout the rotation.
+guide](../../desktop-access/active-directory-manual.mdx) to export the Teleport
+user CA so the Windows Desktop Service can authenticate to RDP hosts. Verify
+that you can connect to registered desktops throughout the rotation.
 
 ### `db` and `db_client`
 
@@ -240,47 +240,16 @@ metadata file and make it available to your service provider.
 
 ### `oidc_idp`
 
-The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration. AWS
-verifies these messages to authenticate your Teleport account for features like
-EICE EC2 Access, External Audit Storage, Auto-Discovery, and AWS Sync for Access
-Graph. There are two ways to serve the public key for the Teleport `oidc_idp`
-certificate authority:
+The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
+Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
+account for features like External Audit Storage, Auto-Discovery, and AWS Sync
+for Access Graph. 
 
-- From the `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API.
-- From an Amazon S3 bucket.
+The Teleport Proxy Service serves the public key for the Teleport `oidc_idp`
+certificate authority from the `/.well-known/jwks-oidc` path of the Web API.
 
 The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
-always enabled. To check whether you have enabled an S3 bucket for the Teleport
-OIDC public key, run the following command:
-
-```code
-$ tctl get integrations --format=json | jq '.[] | select(.sub_kind == "aws-oidc")'
-```
-
-If you have enabled the S3 bucket, the `spec.aws_oidc.issuer_s3_uri` and
-`spec.aws_oidc.role_arn` fields will be nonempty.
-
-If you use the Web API endpoint, then you do not need to take further action.
-The Teleport Proxy Service updates the endpoint automatically.
-
-If you choose to use an S3 bucket, then you need to upload both the original and
-new public keys to S3:
-
-1. After the `init` phase, run the following script to upload both the original
-   and new public keys to the S3 bucket.
-
-   Assign <Var name="proxy.example.com" /> to the domain of your Teleport
-   Proxy Service, <Var name="my-aws-oidc" /> to the name of the AWS OIDC
-   integration you fetched earlier, and <Var name="aws-role" /> to the name of
-   the AWS IAM role created for the integration (the value of the
-   `spec.aws_oidc.role_arn` field in the `integration` resource):
-
-   ```code
-   $ bash -c "$(curl 'https://<Var name="proxy.example.com" />/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=<Var name="my-aws-oidc" />&role=<Var name="aws-role" />')"
-   ```
-
-1. After rotation, we recommend re-running the script to remove the original
-   public key and upload only the new one to S3.
+always enabled. The Teleport Proxy Service updates the endpoint automatically.
 
 ## Step 2/4. Start a manual rotation
 
