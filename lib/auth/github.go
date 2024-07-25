@@ -713,20 +713,18 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-			User:             userState.GetName(),
-			Roles:            userState.GetRoles(),
-			Traits:           userState.GetTraits(),
-			SessionTTL:       params.SessionTTL,
-			LoginTime:        a.clock.Now().UTC(),
-			LoginIP:          req.ClientLoginIP,
-			AttestWebSession: true,
+			User:                 userState.GetName(),
+			Roles:                userState.GetRoles(),
+			Traits:               userState.GetTraits(),
+			SessionTTL:           params.SessionTTL,
+			LoginTime:            a.clock.Now().UTC(),
+			LoginIP:              req.ClientLoginIP,
+			LoginUserAgent:       req.ClientUserAgent,
+			AttestWebSession:     true,
+			CreateDeviceWebToken: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
-		}
-		// Modifies the session with a DeviceWebToken.
-		if err := a.augmentSessionForDeviceTrust(ctx, session, req.ClientLoginIP, req.ClientUserAgent); err != nil {
-			return nil, trace.Wrap(err, "Failed to issue device web token.")
 		}
 
 		auth.Session = session

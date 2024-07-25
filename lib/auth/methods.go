@@ -632,18 +632,16 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:             user.GetName(),
-		LoginIP:          loginIP,
-		Roles:            user.GetRoles(),
-		Traits:           user.GetTraits(),
-		LoginTime:        a.clock.Now().UTC(),
-		AttestWebSession: true,
+		User:                 user.GetName(),
+		LoginIP:              loginIP,
+		LoginUserAgent:       userAgent,
+		Roles:                user.GetRoles(),
+		Traits:               user.GetTraits(),
+		LoginTime:            a.clock.Now().UTC(),
+		AttestWebSession:     true,
+		CreateDeviceWebToken: true,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Modifies the session with a DeviceWebToken.
-	if err := a.augmentSessionForDeviceTrust(ctx, sess, loginIP, userAgent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

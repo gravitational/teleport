@@ -52,6 +52,9 @@ type NewWebSessionRequest struct {
 	User string
 	// LoginIP is an observed IP of the client, it will be embedded into certificates.
 	LoginIP string
+	// LoginUserAgent is the user agent of the client's browser, as captured by
+	// the Proxy.
+	LoginUserAgent string
 	// Roles optionally lists additional user roles
 	Roles []string
 	// Traits optionally lists role traits
@@ -79,6 +82,13 @@ type NewWebSessionRequest struct {
 	// This should be provided when extending an attested web session in order
 	// to maintain the session attested status.
 	TLSPrivateKey *keys.PrivateKey
+	// CreateDeviceWebToken informs Auth to issue a DeviceWebToken when creating
+	// this session.
+	// A DeviceWebToken must only be issued for users that have been authenticated
+	// in the same RPC.
+	// May only be set internally by Auth (and Auth-related logic), not allowed
+	// for external requests.
+	CreateDeviceWebToken bool
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -107,6 +117,14 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 	err = a.upsertWebSession(ctx, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Issue and assign the DeviceWebToken, but never persist it with the
+	// session.
+	if req.CreateDeviceWebToken {
+		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Assign the TrustedDeviceRequirement to the session, but do not persist it,
@@ -403,6 +421,10 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
+	}
+
+	if req.CreateDeviceWebToken {
+		return nil, trace.BadParameter("parameter CreateDeviceWebToken disallowed for App Sessions")
 	}
 
 	user, err := a.GetUserOrLoginState(ctx, req.User)
