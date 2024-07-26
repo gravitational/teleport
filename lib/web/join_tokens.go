@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
@@ -114,8 +115,13 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.Wrap(err)
 	}
 
+	uiTokens, err := ui.MakeJoinTokens(tokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return GetTokensResponse{
-		Items: ui.MakeJoinTokens(tokens),
+		Items: uiTokens,
 	}, nil
 }
 
@@ -137,14 +143,53 @@ func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params htt
 	return OK(), nil
 }
 
-func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req types.ProvisionTokenSpecV2
-	if err := httplib.ReadJSON(r, &req); err != nil {
+type CreateTokenRequest struct {
+	Content string `json:"content"`
+}
+
+func (h *Handler) upsertTokenContent(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+	var yaml CreateTokenRequest
+	if err := httplib.ReadJSON(r, &yaml); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	extractedRes, err := ExtractResourceAndValidate(yaml.Content)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := services.UnmarshalProvisionToken(extractedRes.Raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertToken(r.Context(), token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiToken, err := ui.MakeJoinToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiToken, trace.Wrap(err)
+
+}
+
+func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.ProvisionTokenSpecV2
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

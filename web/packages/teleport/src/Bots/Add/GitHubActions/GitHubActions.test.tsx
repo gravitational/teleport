@@ -69,6 +69,11 @@ describe('gitHub component', () => {
     jest.spyOn(ctx.joinTokenService, 'fetchJoinToken').mockResolvedValue({
       id: tokenName,
       expiry: new Date('2020-01-01'),
+      safeName: '',
+      isStatic: false,
+      method: 'kubernetes',
+      roles: [],
+      content: '',
     });
     jest.spyOn(botService, 'createBot').mockResolvedValue();
     jest.spyOn(botService, 'createBotToken').mockResolvedValue({

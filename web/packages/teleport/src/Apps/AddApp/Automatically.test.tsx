@@ -24,7 +24,16 @@ import { act } from '@testing-library/react';
 import { Automatically, createAppBashCommand } from './Automatically';
 
 test('render command only after form submit', async () => {
-  const token = { id: 'token', expiryText: '', expiry: null };
+  const token = {
+    id: 'token',
+    expiryText: '',
+    expiry: null,
+    safeName: '',
+    isStatic: false,
+    method: 'kubernetes',
+    roles: [],
+    content: '',
+  };
   render(
     <Automatically
       token={token}
