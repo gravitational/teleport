@@ -771,8 +771,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// join token handlers
-	h.PUT("/webapi/token/yaml", h.WithAuth(h.upsertTokenContent))
-	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+	h.PUT("/webapi/tokens/yaml", h.WithAuth(h.updateTokenYAML))
+	// used for creating a new token
+	h.POST("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// used for updating a token
+	h.PUT("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// used for creating tokens used during guided discover flows
+	h.POST("/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
@@ -895,6 +900,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))

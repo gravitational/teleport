@@ -4506,6 +4506,10 @@ message OIDCAuthRequest {
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4648,6 +4652,10 @@ message SAMLAuthRequest {
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
