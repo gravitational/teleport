@@ -891,6 +891,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
