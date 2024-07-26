@@ -82,6 +82,10 @@ const (
 	attributeTerraformRetryMaxTries = "retry_max_tries"
 	// attributeTerraformDialTimeoutDuration is the attribute configuring the Terraform provider dial timeout.
 	attributeTerraformDialTimeoutDuration = "dial_timeout_duration"
+	// attributeTerraformJoinMethod is the attribute configuring the Terraform provider native MachineID join method.
+	attributeTerraformJoinMethod = "join_method"
+	// attributeTerraformJoinToken is the attribute configuring the Terraform provider native MachineID join token.
+	attributeTerraformJoinToken = "join_token"
 )
 
 type RetryConfig struct {
@@ -95,6 +99,7 @@ type Provider struct {
 	configured  bool
 	Client      *client.Client
 	RetryConfig RetryConfig
+	cancel      context.CancelFunc
 }
 
 // providerData provider schema struct
@@ -131,6 +136,10 @@ type providerData struct {
 	RetryMaxTries types.String `tfsdk:"retry_max_tries"`
 	// DialTimeout sets timeout when trying to connect to the server.
 	DialTimeoutDuration types.String `tfsdk:"dial_timeout_duration"`
+	// JoinMethod is the MachineID join method.
+	JoinMethod types.String `tfsdk:"join_method"`
+	// JoinMethod is the MachineID join token.
+	JoinToken types.String `tfsdk:"join_token"`
 }
 
 // New returns an empty provider struct
@@ -229,6 +238,18 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Optional:    true,
 				Description: fmt.Sprintf("DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformDialTimeoutDuration),
 			},
+			attributeTerraformJoinMethod: {
+				Type:        types.StringType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](./join-methods.mdx) for possible values, you must use [a delegated join method](./join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
+			},
+			attributeTerraformJoinToken: {
+				Type:        types.StringType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](./join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
+			},
 		},
 	}, nil
 }
@@ -248,6 +269,13 @@ func (p *Provider) IsConfigured(diags diag.Diagnostics) bool {
 // Configure configures the Teleport client
 func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
 	p.configureLog()
+
+	// We wrap the provider's context into a cancellable one.
+	// This allows us to cancel the context and properly close the client and any background task potentially running
+	// (e.g. MachineID bot renewing creds). This is required during the tests as the provider is run multiple times.
+	// You can cancel the context by calling Provider.Close()
+	ctx, cancel := context.WithCancel(ctx)
+	p.cancel = cancel
 
 	var config providerData
 	diags := req.Config.Get(ctx, &config)
@@ -485,4 +513,17 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
 	}, nil
+}
+
+// Close closes the provider's client and cancels its context.
+// This is needed in the tests to avoid accumulating clients and running out of file descriptors.
+func (p *Provider) Close() error {
+	var err error
+	if p.Client != nil {
+		err = p.Client.Close()
+	}
+	if p.cancel != nil {
+		p.cancel()
+	}
+	return err
 }
