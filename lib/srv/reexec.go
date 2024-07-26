@@ -790,15 +790,9 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, nil, trace.Wrap(err)
 		}
 
-		// Cleanup the temporary socket dir at the end of the process in case the parent
-		// process fails to due to a fileystem namespace discrepency (pam_namespace).
-		cleanupDir := func() error {
-			return os.RemoveAll(sockDir)
-		}
-
 		// Update the agent forwarding socket dir with more restrictive permissions.
 		if err = os.Chmod(sockDir, teleport.PrivateDirMode); err != nil {
-			cleanupDir()
+			os.RemoveAll(sockDir)
 			return nil, nil, trace.Wrap(err)
 		}
 
@@ -806,14 +800,14 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 
 		listener, err := net.Listen("unix", sockPath)
 		if err != nil {
-			cleanupDir()
+			os.RemoveAll(sockDir)
 			return nil, nil, trace.Wrap(err)
 		}
 		defer listener.Close()
 
 		listenerFD, err := getListenerFile(listener)
 		if err != nil {
-			cleanupDir()
+			os.RemoveAll(sockDir)
 			return nil, nil, trace.Wrap(err)
 		}
 
