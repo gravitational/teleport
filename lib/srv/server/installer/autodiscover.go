@@ -20,7 +20,10 @@ package installer
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -180,6 +183,9 @@ const (
 	// etcOSReleaseFile is the location of the OS Release information.
 	// This is valid for most linux distros, that rely on systemd.
 	etcOSReleaseFile = "/etc/os-release"
+
+	// teleportYamlConfigNewExtension is the extension used to indicate that this is a new target teleport.yaml version
+	teleportYamlConfigNewExtension = ".new"
 )
 
 var imdsClientTypeToJoinMethod = map[types.InstanceMetadataType]types.JoinMethod{
@@ -198,21 +204,9 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	}
 	defer func() {
 		if err := unlockFn(); err != nil {
-			ani.Logger.WarnContext(ctx, "Failed to remove lock. Please remove it manually.", "file", exclusiveInstallFileLock)
+			ani.Logger.WarnContext(ctx, "Failed to remove lock. Please remove it manually.", "file", lockFile)
 		}
 	}()
-
-	// Check if teleport is already installed.
-	if _, err := os.Stat(ani.binariesLocation.Teleport); err == nil {
-		ani.Logger.InfoContext(ctx, "Teleport is already installed in the system.")
-		return nil
-	}
-
-	teleportYamlConfigurationPath := ani.buildAbsoluteFilePath(defaults.ConfigFilePath)
-	// Check is teleport was already configured.
-	if _, err := os.Stat(teleportYamlConfigurationPath); err == nil {
-		return trace.BadParameter("Teleport configuration already exists at %s. Please remove it manually.", teleportYamlConfigurationPath)
-	}
 
 	imdsClient, err := ani.getIMDSClient(ctx)
 	if err != nil {
@@ -220,25 +214,55 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	}
 	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
-	if err := ani.installTeleportFromRepo(ctx); err != nil {
-		return trace.Wrap(err)
+	// Check if teleport is already installed and install it, if it's absent.
+	if _, err := os.Stat(ani.binariesLocation.Teleport); err != nil {
+		ani.Logger.InfoContext(ctx, "Installing teleport")
+		if err := ani.installTeleportFromRepo(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if err := ani.configureTeleportNode(ctx, imdsClient, teleportYamlConfigurationPath); err != nil {
+	if err := ani.configureTeleportNode(ctx, imdsClient); err != nil {
+		if trace.IsAlreadyExists(err) {
+			ani.Logger.InfoContext(ctx, "Configuration at /etc/teleport.yaml already exists and has the same values, skipping teleport.service restart")
+			// Restarting teleport is not required because the target teleport.yaml
+			// is up to date with the existing one.
+			return nil
+		}
+
 		return trace.Wrap(err)
 	}
+	ani.Logger.InfoContext(ctx, "Configuration written at /etc/teleport.yaml")
 
-	ani.Logger.InfoContext(ctx, "Enabling and starting teleport service")
-	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", "--now", "teleport")
-	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
-	if err != nil {
-		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
+	ani.Logger.InfoContext(ctx, "Enabling and starting teleport.service")
+	if err := ani.enableAndRestartTeleportService(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client, teleportYamlConfigurationPath string) error {
+// enableAndRestartTeleportService will enable and (re)start the teleport.service.
+// This function must be idempotent because we can call it in either one of the following scenarios:
+// - teleport was just installed and teleport.service is inactive
+// - teleport was already installed but the service is failing
+func (ani *AutoDiscoverNodeInstaller) enableAndRestartTeleportService(ctx context.Context) error {
+	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", "teleport")
+	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
+	}
+
+	systemctlRestartCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "restart", "teleport")
+	systemctlRestartCMDOutput, err := systemctlRestartCMD.CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err, string(systemctlRestartCMDOutput))
+	}
+
+	return nil
+}
+
+func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client) error {
 	nodeLabels, err := fetchNodeAutoDiscoverLabels(ctx, imdsClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -262,7 +286,9 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		return trace.BadParameter("Unsupported cloud provider: %v", imdsClient.GetType())
 	}
 
-	teleportNodeConfigureArgs := []string{"node", "configure", "--output=file://" + teleportYamlConfigurationPath,
+	teleportYamlConfigurationPath := ani.buildAbsoluteFilePath(defaults.ConfigFilePath)
+	teleportYamlConfigurationPathNew := teleportYamlConfigurationPath + teleportYamlConfigNewExtension
+	teleportNodeConfigureArgs := []string{"node", "configure", "--output=file://" + teleportYamlConfigurationPathNew,
 		fmt.Sprintf(`--proxy=%s`, shsprintf.EscapeDefaultContext(ani.ProxyPublicAddr)),
 		fmt.Sprintf(`--join-method=%s`, shsprintf.EscapeDefaultContext(string(joinMethod))),
 		fmt.Sprintf(`--token=%s`, shsprintf.EscapeDefaultContext(ani.TokenName)),
@@ -273,14 +299,56 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 			fmt.Sprintf(`--azure-client-id=%s`, shsprintf.EscapeDefaultContext(ani.AzureClientID)))
 	}
 
-	ani.Logger.InfoContext(ctx, "Writing teleport configuration", "teleport", ani.binariesLocation.Teleport, "args", teleportNodeConfigureArgs)
+	ani.Logger.InfoContext(ctx, "Generating teleport configuration", "teleport", ani.binariesLocation.Teleport, "args", teleportNodeConfigureArgs)
 	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.Teleport, teleportNodeConfigureArgs...)
 	teleportNodeConfigureCmdOutput, err := teleportNodeConfigureCmd.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(teleportNodeConfigureCmdOutput))
 	}
 
+	defer func() {
+		// If an error occurs before the os.Rename, let's remove the `.new` file to prevent any leftovers.
+		// Error is ignored because the file might be already removed.
+		_ = os.Remove(teleportYamlConfigurationPathNew)
+	}()
+
+	// Check if file already exists and has the same content that we are about to write
+	if _, err := os.Stat(teleportYamlConfigurationPath); err == nil {
+		hashExistingFile, err := checksum(teleportYamlConfigurationPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		hashNewFile, err := checksum(teleportYamlConfigurationPathNew)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if hashExistingFile == hashNewFile {
+			return trace.AlreadyExists("teleport.yaml is up to date")
+		}
+	}
+
+	if err := os.Rename(teleportYamlConfigurationPathNew, teleportYamlConfigurationPath); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+func checksum(filename string) (string, error) {
+	f, err := utils.OpenFileNoUnsafeLinks(filename)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Context) error {

@@ -18,13 +18,9 @@ package provider
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +41,47 @@ import (
 const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "15.0.0-0"
+)
+
+const (
+	// attributeTerraformAddress is the attribute configuring the Teleport address the Terraform provider connects to.
+	attributeTerraformAddress = "addr"
+	// attributeTerraformCertificates is the attribute configuring the path the Terraform provider loads its
+	// client certificates from. This only works for direct auth joining.
+	attributeTerraformCertificates = "cert_path"
+	// attributeTerraformCertificatesBase64 is the attribute configuring the client certificates used by the
+	// Terraform provider. This only works for direct auth joining.
+	attributeTerraformCertificatesBase64 = "cert_base64"
+	// attributeTerraformKey is the attribute configuring the path the Terraform provider loads its
+	// client key from. This only works for direct auth joining.
+	attributeTerraformKey = "key_path"
+	// attributeTerraformKeyBase64 is the attribute configuring the client key used by the
+	// Terraform provider. This only works for direct auth joining.
+	attributeTerraformKeyBase64 = "key_base64"
+	// attributeTerraformRootCertificates is the attribute configuring the path the Terraform provider loads its
+	// trusted CA certificates from. This only works for direct auth joining.
+	attributeTerraformRootCertificates = "root_ca_path"
+	// attributeTerraformRootCertificatesBase64 is the attribute configuring the CA certificates trusted by the
+	// Terraform provider. This only works for direct auth joining.
+	attributeTerraformRootCertificatesBase64 = "root_ca_base64"
+	// attributeTerraformProfileName is the attribute containing name of the profile used by the Terraform provider.
+	attributeTerraformProfileName = "profile_name"
+	// attributeTerraformProfilePath is the attribute containing the profile directory used by the Terraform provider.
+	attributeTerraformProfilePath = "profile_dir"
+	// attributeTerraformIdentityFilePath is the attribute containing the path to the identity file used by the provider.
+	attributeTerraformIdentityFilePath = "identity_file_path"
+	// attributeTerraformIdentityFile is the attribute containing the identity file used by the Terraform provider.
+	attributeTerraformIdentityFile = "identity_file"
+	// attributeTerraformIdentityFileBase64 is the attribute containing the base64-encoded identity file used by the Terraform provider.
+	attributeTerraformIdentityFileBase64 = "identity_file_base64"
+	// attributeTerraformRetryBaseDuration is the attribute configuring the base duration between two Terraform provider retries.
+	attributeTerraformRetryBaseDuration = "retry_base_duration"
+	// attributeTerraformRetryCapDuration is the attribute configuring the maximum duration between two Terraform provider retries.
+	attributeTerraformRetryCapDuration = "retry_cap_duration"
+	// attributeTerraformRetryMaxTries is the attribute configuring the maximum number of Terraform provider retries.
+	attributeTerraformRetryMaxTries = "retry_max_tries"
+	// attributeTerraformDialTimeoutDuration is the attribute configuring the Terraform provider dial timeout.
+	attributeTerraformDialTimeoutDuration = "dial_timeout_duration"
 )
 
 type RetryConfig struct {
@@ -105,92 +142,92 @@ func New() tfsdk.Provider {
 func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{
-			"addr": {
+			attributeTerraformAddress: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "host:port where Teleport Auth server is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.",
+				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
 			},
-			"cert_path": {
+			attributeTerraformCertificates: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Path to Teleport auth certificate file. This can also be set with the environment variable `TF_TELEPORT_CERT`.",
+				Description: fmt.Sprintf("Path to Teleport auth certificate file. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCertificates),
 			},
-			"cert_base64": {
+			attributeTerraformCertificatesBase64: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Base64 encoded TLS auth certificate. This can also be set with the environment variable `TF_TELEPORT_CERT_BASE64`.",
+				Description: fmt.Sprintf("Base64 encoded TLS auth certificate. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCertificatesBase64),
 			},
-			"key_path": {
+			attributeTerraformKey: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Path to Teleport auth key file. This can also be set with the environment variable `TF_TELEPORT_KEY`.",
+				Description: fmt.Sprintf("Path to Teleport auth key file. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformKey),
 			},
-			"key_base64": {
+			attributeTerraformKeyBase64: {
 				Type:        types.StringType,
 				Sensitive:   true,
 				Optional:    true,
-				Description: "Base64 encoded TLS auth key. This can also be set with the environment variable `TF_TELEPORT_KEY_BASE64`.",
+				Description: fmt.Sprintf("Base64 encoded TLS auth key. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformKeyBase64),
 			},
-			"root_ca_path": {
+			attributeTerraformRootCertificates: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Path to Teleport Root CA. This can also be set with the environment variable `TF_TELEPORT_ROOT_CA`.",
+				Description: fmt.Sprintf("Path to Teleport Root CA. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRootCertificates),
 			},
-			"root_ca_base64": {
+			attributeTerraformRootCertificatesBase64: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Base64 encoded Root CA. This can also be set with the environment variable `TF_TELEPORT_CA_BASE64`.",
+				Description: fmt.Sprintf("Base64 encoded Root CA. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRootCertificatesBase64),
 			},
-			"profile_name": {
+			attributeTerraformProfileName: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Teleport profile name. This can also be set with the environment variable `TF_TELEPORT_PROFILE_NAME`.",
+				Description: fmt.Sprintf("Teleport profile name. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformProfileName),
 			},
-			"profile_dir": {
+			attributeTerraformProfilePath: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Teleport profile path. This can also be set with the environment variable `TF_TELEPORT_PROFILE_PATH`.",
+				Description: fmt.Sprintf("Teleport profile path. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformProfilePath),
 			},
-			"identity_file_path": {
+			attributeTerraformIdentityFilePath: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: "Teleport identity file path. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_PATH`.",
+				Description: fmt.Sprintf("Teleport identity file path. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFilePath),
 			},
-			"identity_file": {
-				Type:        types.StringType,
-				Sensitive:   true,
-				Optional:    true,
-				Description: "Teleport identity file content. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE`.",
-			},
-			"identity_file_base64": {
+			attributeTerraformIdentityFile: {
 				Type:        types.StringType,
 				Sensitive:   true,
 				Optional:    true,
-				Description: "Teleport identity file content base64 encoded. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`.",
+				Description: fmt.Sprintf("Teleport identity file content. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFile),
 			},
-			"retry_base_duration": {
+			attributeTerraformIdentityFileBase64: {
+				Type:        types.StringType,
+				Sensitive:   true,
+				Optional:    true,
+				Description: fmt.Sprintf("Teleport identity file content base64 encoded. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFileBase64),
+			},
+			attributeTerraformRetryBaseDuration: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_BASE_DURATION`.",
+				Description: fmt.Sprintf("Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRetryBaseDuration),
 			},
-			"retry_cap_duration": {
+			attributeTerraformRetryCapDuration: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "Retry algorithm when the API returns 'not found': max duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_CAP_DURATION`.",
+				Description: fmt.Sprintf("Retry algorithm when the API returns 'not found': max duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRetryCapDuration),
 			},
-			"retry_max_tries": {
+			attributeTerraformRetryMaxTries: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "Retry algorithm when the API returns 'not found': max tries. This can also be set with the environment variable `TF_TELEPORT_RETRY_MAX_TRIES`.",
+				Description: fmt.Sprintf("Retry algorithm when the API returns 'not found': max tries. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRetryMaxTries),
 			},
-			"dial_timeout_duration": {
+			attributeTerraformDialTimeoutDuration: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: "DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `TF_TELEPORT_DIAL_TIMEOUT_DURATION`.",
+				Description: fmt.Sprintf("DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformDialTimeoutDuration),
 			},
 		},
 	}, nil
@@ -210,8 +247,6 @@ func (p *Provider) IsConfigured(diags diag.Diagnostics) bool {
 
 // Configure configures the Teleport client
 func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
-	var creds []client.Credentials
-
 	p.configureLog()
 
 	var config providerData
@@ -221,22 +256,11 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	addr := p.stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
-	certPath := p.stringFromConfigOrEnv(config.CertPath, constants.EnvVarTerraformCertificates, "")
-	certBase64 := p.stringFromConfigOrEnv(config.CertBase64, constants.EnvVarTerraformCertificatesBase64, "")
-	keyPath := p.stringFromConfigOrEnv(config.KeyPath, constants.EnvVarTerraformKey, "")
-	keyBase64 := p.stringFromConfigOrEnv(config.KeyBase64, constants.EnvVarTerraformKeyBase64, "")
-	caPath := p.stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
-	caBase64 := p.stringFromConfigOrEnv(config.RootCaBase64, constants.EnvVarTerraformRootCertificatesBase64, "")
-	profileName := p.stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
-	profileDir := p.stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
-	identityFilePath := p.stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
-	identityFile := p.stringFromConfigOrEnv(config.IdentityFile, constants.EnvVarTerraformIdentityFile, "")
-	identityFileBase64 := p.stringFromConfigOrEnv(config.IdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64, "")
-	retryBaseDurationStr := p.stringFromConfigOrEnv(config.RetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, "1s")
-	retryCapDurationStr := p.stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
-	maxTriesStr := p.stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
-	dialTimeoutDurationStr := p.stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
+	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
+	retryBaseDurationStr := stringFromConfigOrEnv(config.RetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, "1s")
+	retryCapDurationStr := stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
+	maxTriesStr := stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
+	dialTimeoutDurationStr := stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
 
 	if !p.validateAddr(addr, resp) {
 		return
@@ -244,83 +268,26 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 
 	log.WithFields(log.Fields{"addr": addr}).Debug("Using Teleport address")
 
-	if certPath != "" && keyPath != "" {
-		l := log.WithField("cert_path", certPath).WithField("key_path", keyPath).WithField("root_ca_path", caPath)
-		l.Debug("Using auth with certificate, private key and (optionally) CA read from files")
-
-		cred, ok := p.getCredentialsFromKeyPair(certPath, keyPath, caPath, resp)
-		if !ok {
-			return
-		}
-		creds = append(creds, cred)
-	}
-
-	if certBase64 != "" && keyBase64 != "" {
-		log.Debug("Using auth with certificate, private key and (optionally) CA read from base64 encoded vars")
-		cred, ok := p.getCredentialsFromBase64(certBase64, keyBase64, caBase64, resp)
-		if !ok {
-			return
-		}
-		creds = append(creds, cred)
-	}
-
-	if identityFilePath != "" {
-		log.WithField("identity_file_path", identityFilePath).Debug("Using auth with identity file")
-
-		if !p.fileExists(identityFilePath) {
-			resp.Diagnostics.AddError(
-				"Identity file not found",
-				fmt.Sprintf(
-					"File %v not found! Use `tctl auth sign --user=example@example.com --format=file --out=%v` to generate identity file",
-					identityFilePath,
-					identityFilePath,
-				),
-			)
-			return
-		}
-
-		creds = append(creds, client.LoadIdentityFile(identityFilePath))
-	}
-
-	if identityFile != "" {
-		log.Debug("Using auth from identity file provided with environment variable TF_TELEPORT_IDENTITY_FILE")
-		creds = append(creds, client.LoadIdentityFileFromString(identityFile))
-	}
-
-	if identityFileBase64 != "" {
-		log.Debug("Using auth from base64 encoded identity file provided with environment variable TF_TELEPORT_IDENTITY_FILE_BASE64")
-		decoded, err := base64.StdEncoding.DecodeString(identityFileBase64)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to decode Identity file using base 64",
-				fmt.Sprintf("Error when trying to decode: %v", err),
-			)
-			return
-		}
-
-		creds = append(creds, client.LoadIdentityFileFromString(string(decoded)))
-	}
-
-	if profileDir != "" || len(creds) == 0 {
-		log.WithFields(log.Fields{
-			"dir":  profileDir,
-			"name": profileName,
-		}).Debug("Using profile as the default auth method")
-		creds = append(creds, client.LoadProfile(profileDir, profileName))
-	}
-
 	dialTimeoutDuration, err := time.ParseDuration(dialTimeoutDurationStr)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to parse Dial Timeout Duration Cap Duration",
-			fmt.Sprintf("Please check if dial_timeout_duration (or TF_TELEPORT_DIAL_TIMEOUT_DURATION) is set correctly. Error: %s", err),
+			fmt.Sprintf(
+				"Please check if %s (or %s) is set correctly. Error: %s",
+				attributeTerraformDialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, err,
+			),
 		)
 		return
 	}
 
-	client, err := client.New(ctx, client.Config{
+	activeSources, diags := supportedCredentialSources.ActiveSources(ctx, config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	clientConfig := client.Config{
 		Addrs:       []string{addr},
-		Credentials: creds,
 		DialTimeout: dialTimeoutDuration,
 		DialOpts: []grpc.DialOption{
 			grpc.WithReturnConnectionError(),
@@ -328,15 +295,15 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 				grpc.WaitForReady(true),
 			),
 		},
-	})
+	}
 
-	if err != nil {
-		log.WithError(err).Debug("Error connecting to Teleport!")
-		resp.Diagnostics.AddError("Error connecting to Teleport!", err.Error())
+	clt, diags := activeSources.BuildClient(ctx, clientConfig, config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !p.checkTeleportVersion(ctx, client, resp) {
+	if !p.checkTeleportVersion(ctx, clt, resp) {
 		return
 	}
 
@@ -344,7 +311,10 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to parse Retry Base Duration",
-			fmt.Sprintf("Please check if retry_cap_duration (or TF_TELEPORT_RETRY_BASE_DURATION) is set correctly. Error: %s", err),
+			fmt.Sprintf(
+				"Please check if %s (or %s) is set correctly. Error: %s",
+				attributeTerraformRetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, err,
+			),
 		)
 		return
 	}
@@ -353,7 +323,10 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to parse Retry Cap Duration",
-			fmt.Sprintf("Please check if retry_cap_duration (or TF_TELEPORT_RETRY_CAP_DURATION) is set correctly. Error: %s", err),
+			fmt.Sprintf(
+				"Please check if %s (or %s) is set correctly. Error: %s",
+				attributeTerraformRetryCapDuration, constants.EnvVarTerraformRetryCapDuration, err,
+			),
 		)
 		return
 	}
@@ -362,7 +335,10 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to parse Retry Max Tries",
-			fmt.Sprintf("Please check if retry_max_tries (or TF_TELEPORT_RETRY_MAX_TRIES) is set correctly. Error: %s", err),
+			fmt.Sprintf(
+				"Please check if %s (or %s) is set correctly. Error: %s",
+				attributeTerraformRetryMaxTries, constants.EnvVarTerraformRetryMaxTries, err,
+			),
 		)
 		return
 	}
@@ -372,7 +348,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		Cap:      retryCapDuration,
 		MaxTries: int(maxTries),
 	}
-	p.Client = client
+	p.Client = clt
 	p.configured = true
 }
 
@@ -402,7 +378,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 }
 
 // stringFromConfigOrEnv returns value from config or from env var if config value is empty, default otherwise
-func (p *Provider) stringFromConfigOrEnv(value types.String, env string, def string) string {
+func stringFromConfigOrEnv(value types.String, env string, def string) string {
 	if value.Unknown || value.Null {
 		value := os.Getenv(env)
 		if value != "" {
@@ -424,109 +400,25 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 	if addr == "" {
 		resp.Diagnostics.AddError(
 			"Teleport address is empty",
-			"Please, specify either TF_TELEPORT_ADDR or addr in provider configuration",
+			fmt.Sprintf("Please, specify either %s in provider configuration, or the %s environment variable",
+				attributeTerraformAddress, constants.EnvVarTerraformAddress),
 		)
 		return false
 	}
 
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.WithField("addr", addr).WithError(err).Debug("Teleport addr format error!")
+		log.WithField("addr", addr).WithError(err).Debug("Teleport address format error!")
 		resp.Diagnostics.AddError(
-			"Invalid Teleport addr format",
-			"Teleport addr must be specified as host:port",
+			"Invalid Teleport address format",
+			fmt.Sprintf("Teleport address must be specified as host:port. Got %q", addr),
 		)
 		return false
 	}
 	return true
 }
 
-// getCredentialsFromBase64 returns client.Credentials built from base64 encoded keys
-func (p *Provider) getCredentialsFromBase64(certBase64, keyBase64, caBase64 string, resp *tfsdk.ConfigureProviderResponse) (client.Credentials, bool) {
-	cert, err := base64.StdEncoding.DecodeString(certBase64)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to base64 decode cert",
-			fmt.Sprintf("Please check if cert_base64 (or TF_TELEPORT_CERT_BASE64) is set correctly. Error: %s", err),
-		)
-		return nil, false
-	}
-	key, err := base64.StdEncoding.DecodeString(keyBase64)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to base64 decode key",
-			fmt.Sprintf("Please check if key_base64 (or TF_TELEPORT_KEY_BASE64) is set correctly. Error: %s", err),
-		)
-		return nil, false
-	}
-	rootCa, err := base64.StdEncoding.DecodeString(caBase64)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to base64 decode root ca",
-			fmt.Sprintf("Please check if root_ca_base64 (or TF_TELEPORT_CA_BASE64) is set correctly. Error: %s", err),
-		)
-		return nil, false
-	}
-	tlsConfig, err := createTLSConfig(cert, key, rootCa)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to create TLS config",
-			fmt.Sprintf("Error: %s", err),
-		)
-		return nil, false
-	}
-	return client.LoadTLS(tlsConfig), true
-}
-
-// getCredentialsFromKeyPair returns client.Credentials built from path to key files
-func (p *Provider) getCredentialsFromKeyPair(certPath string, keyPath string, caPath string, resp *tfsdk.ConfigureProviderResponse) (client.Credentials, bool) {
-	if !p.fileExists(certPath) {
-		resp.Diagnostics.AddError(
-			"Certificate file not found",
-			fmt.Sprintf("File %v not found! Use 'tctl auth sign --user=example@example.com --format=tls --out=%v' to generate keys",
-				certPath,
-				filepath.Dir(certPath),
-			),
-		)
-		return nil, false
-	}
-
-	if !p.fileExists(keyPath) {
-		resp.Diagnostics.AddError(
-			"Private key file not found",
-			fmt.Sprintf("File %v not found! Use 'tctl auth sign --user=example@example.com --format=tls --out=%v' to generate keys",
-				keyPath,
-				filepath.Dir(keyPath),
-			),
-		)
-		return nil, false
-	}
-
-	if !p.fileExists(caPath) {
-		resp.Diagnostics.AddError(
-			"Root CA certificate file not found",
-			fmt.Sprintf("File %v not found! Use 'tctl auth sign --user=example@example.com --format=tls --out=%v' to generate keys",
-				caPath,
-				filepath.Dir(caPath),
-			),
-		)
-		return nil, false
-	}
-
-	return client.LoadKeyPair(certPath, keyPath, caPath), true
-}
-
-// fileExists returns true if file exists
-func (p *Provider) fileExists(path string) bool {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return false
-	}
-	if err != nil {
-		return false
-	}
-	return true
-}
+// TODO(hugoShaka): fix logging in a future release by converting to tflog.
 
 // configureLog configures logging
 func (p *Provider) configureLog() {
@@ -545,21 +437,6 @@ func (p *Provider) configureLog() {
 		l := grpclog.NewLoggerV2(log.StandardLogger().Out, log.StandardLogger().Out, log.StandardLogger().Out)
 		grpclog.SetLoggerV2(l)
 	}
-}
-
-// createTLSConfig returns tls.Config build from keys
-func createTLSConfig(cert, key, rootCa []byte) (*tls.Config, error) {
-	keyPair, err := tls.X509KeyPair(cert, key)
-	if err != nil {
-		return nil, err
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(rootCa)
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{keyPair},
-		RootCAs:      caCertPool,
-	}, nil
 }
 
 // GetResources returns the map of provider resources

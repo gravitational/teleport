@@ -40,19 +40,17 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 )
 
-// connectAsAdmin connect to the database from db route as admin user.
-// If useDefaultDatabase is true and a default database is configured for the admin user, it will be used instead.
-func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session, useDefaultDatabase bool) (*pgx.Conn, error) {
-	loginDatabase := sessionCtx.DatabaseName
-	if useDefaultDatabase && sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
-		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
-	} else {
-		e.Log.InfoContext(ctx, "Connecting to session database", "database", loginDatabase)
-	}
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
-	return conn, trace.Wrap(err)
+// connectAsAdmin connects as the admin user to the default database, per database settings, or as a fallback to the one specified in sessionCtx.
+func (e *Engine) connectAsAdminDefaultDatabase(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	return e.newConnector(sessionCtx).withDefaultDatabase().connectAsAdmin(ctx)
+}
+
+// connectAsAdmin connects as the admin user to the database specified in sessionCtx.
+func (e *Engine) connectAsAdminSessionDatabase(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	return e.newConnector(sessionCtx).connectAsAdmin(ctx)
 }
 
 // ActivateUser creates or enables the database user.
@@ -66,7 +64,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.BadParameter("auto-user provisioning is not supported for RDS reader endpoints")
 	}
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -77,9 +75,13 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	// bookkeeping group or stored procedures get deleted or changed offband.
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	err = withRetry(ctx, logger, func() error {
-		return trace.Wrap(e.initAutoUsers(ctx, sessionCtx, conn))
+		return trace.Wrap(e.updateAutoUsersRole(ctx, conn))
 	})
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{activateProcName, deactivateProcName}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -90,8 +92,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 	logger.InfoContext(ctx, "Activating PostgreSQL user", "roles", roles)
 	err = withRetry(ctx, logger, func() error {
-		_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
-		return trace.Wrap(err)
+		return trace.Wrap(e.callProcedure(ctx, sessionCtx, conn, activateProcName, sessionCtx.DatabaseUser, roles))
 	})
 	if err != nil {
 		logger.DebugContext(ctx, "Call teleport_activate_user failed.", "error", err)
@@ -100,13 +101,6 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.Wrap(errOut)
 	}
 	e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, nil)
-
-	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			return trace.AlreadyExists("user %q already exists in this PostgreSQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
-		}
-		return trace.Wrap(err)
-	}
 
 	err = e.applyPermissions(ctx, sessionCtx)
 	if err != nil {
@@ -205,33 +199,25 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("fine-grained database permissions and database roles are mutually exclusive, yet both were provided.")
 	}
 
-	rules, err := e.AuthClient.GetDatabaseObjectImportRules(ctx)
+	fetcher, err := objects.GetObjectFetcher(ctx, sessionCtx.Database, objects.ObjectFetcherConfig{
+		ImportRules:  e.AuthClient,
+		Auth:         e.Auth,
+		CloudClients: e.CloudClients,
+		Log:          e.Log,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
-	if err != nil {
-		e.Log.ErrorContext(e.Context, "Failed to connect to the database.", "error", err)
-		return trace.Wrap(err)
-	}
-	defer conn.Close(ctx)
-
-	objsFetched, err := fetchDatabaseObjects(ctx, sessionCtx, conn)
+	objsImported, err := fetcher.FetchOneDatabase(ctx, sessionCtx.DatabaseName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	counts, _ := permissions.CountObjectKinds(objsFetched)
-	e.Log.InfoContext(ctx, "Database objects fetched from the database.", "counts", counts, "total", len(objsFetched))
-
-	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(ctx, e.Log, rules, sessionCtx.Database, objsFetched)
-	counts, _ = permissions.CountObjectKinds(objsImported)
-	e.Log.InfoContext(ctx, "Database objects imported.", "counts", counts, "err_count", errCount, "total", len(objsFetched))
 
 	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsImported)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	summary, eventData := permissions.SummarizePermissions(permissionSet)
 	e.Log.InfoContext(ctx, "Calculated database permissions.", "summary", summary, "user", sessionCtx.DatabaseUser)
 	e.auditUserPermissions(sessionCtx, eventData)
@@ -241,22 +227,20 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
+	if err != nil {
+		e.Log.ErrorContext(ctx, "Failed to connect to the database.", "error", err)
+		return trace.Wrap(err)
+	}
+	defer conn.Close(ctx)
+
 	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
 	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
-	_, err = conn.Exec(ctx, removePermissionsProc)
-	if err != nil {
-		e.Log.ErrorContext(e.Context, "Creating temporary stored procedure failed.", "procedure", removePermissionsProcName, "error", err)
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName, updatePermissionsProcName}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = conn.Exec(ctx, updatePermissionsProc)
-	if err != nil {
-		e.Log.ErrorContext(e.Context, "Creating temporary stored procedure failed.", "procedure", updatePermissionsProcName, "error", err)
-		return trace.Wrap(err)
-	}
-
-	_, err = conn.Exec(ctx, updatePermissionsQuery, sessionCtx.DatabaseUser, perms)
-	if err != nil {
+	if err := e.callProcedure(ctx, sessionCtx, conn, updatePermissionsProcName, sessionCtx.DatabaseUser, perms); err != nil {
 		var pgErr *pq.Error
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == common.SQLStatePermissionsChanged {
@@ -278,21 +262,18 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 	}
 
 	logger.InfoContext(ctx, "Removing permissions from PostgreSQL user.")
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer conn.Close(ctx)
 
 	// teleport_remove_permissions is created in pg_temp table of the session database.
-	_, err = conn.Exec(ctx, removePermissionsProc)
-	if err != nil {
-		logger.ErrorContext(e.Context, "Creating temporary stored procedure failed.", "procedure", removePermissionsProcName, "error", err)
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = conn.Exec(ctx, removePermissionsQuery, sessionCtx.DatabaseUser)
-	if err != nil {
+	if err := e.callProcedure(ctx, sessionCtx, conn, removePermissionsProcName, sessionCtx.DatabaseUser); err != nil {
 		logger.ErrorContext(ctx, "Removing permissions from user failed.", "error", err)
 		return trace.Wrap(err)
 	}
@@ -308,17 +289,20 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	// removal may yield errors, but we will still attempt to deactivate the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
 	defer conn.Close(ctx)
 
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{deactivateProcName}); err != nil {
+		return trace.Wrap(err)
+	}
+
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	logger.InfoContext(ctx, "Deactivating PostgreSQL user.")
 	err = withRetry(ctx, logger, func() error {
-		_, err = conn.Exec(ctx, deactivateQuery, sessionCtx.DatabaseUser)
-		return trace.Wrap(err)
+		return trace.Wrap(e.callProcedure(ctx, sessionCtx, conn, deactivateProcName, sessionCtx.DatabaseUser))
 	})
 	if err != nil {
 		e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, err)
@@ -338,11 +322,15 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	// removal may yield errors, but we will still attempt to delete the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
 	defer conn.Close(ctx)
+
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{deleteProcName, deactivateProcName}); err != nil {
+		return trace.Wrap(err)
+	}
 
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	logger.InfoContext(ctx, "Deleting PostgreSQL user.")
@@ -353,6 +341,10 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		case sessionCtx.Database.IsRedshift():
 			return trace.Wrap(e.deleteUserRedshift(ctx, sessionCtx, conn, &state))
 		default:
+			deleteQuery, err := buildCallQuery(sessionCtx, deleteProcName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			return trace.Wrap(conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state))
 		}
 	})
@@ -382,7 +374,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 // into the returned error instead of doing this on state returned (like regular
 // PostgreSQL).
 func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, state *string) error {
-	_, err := conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	err := e.callProcedure(ctx, sessionCtx, conn, deleteProcName, sessionCtx.DatabaseUser)
 	if err == nil {
 		*state = common.SQLStateUserDropped
 		return nil
@@ -399,10 +391,9 @@ func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Sess
 	return trace.Wrap(err)
 }
 
-// initAutoUsers installs procedures for activating and deactivating users and
-// creates the bookkeeping role for auto-provisioned users.
-func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn) error {
-	// Create a role/group which all auto-created users will be a part of.
+// updateAutoUsersRole ensures the bookkeeping role for auto-provisioned users
+// is present.
+func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn) error {
 	_, err := conn.Exec(ctx, fmt.Sprintf("create role %q", teleportAutoUserRole))
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
@@ -413,30 +404,73 @@ func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, 
 		e.Log.DebugContext(ctx, "Created PostgreSQL role.", "role", teleportAutoUserRole)
 	}
 
-	// Install stored procedures for creating and disabling database users.
-	for name, sql := range pickProcedures(sessionCtx) {
-		_, err := conn.Exec(ctx, sql)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		e.Log.DebugContext(ctx, "Installed PostgreSQL stored procedure.", "procedure", name)
-	}
 	return nil
 }
 
-// pgxConnect connects to the database using pgx driver which is higher-level
-// than pgconn and is easier to use for executing queries.
-func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
-	config, err := e.getConnectConfig(ctx, sessionCtx)
+// callProcedure calls the procedure with the provided arguments.
+func (e *Engine) callProcedure(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, procName string, args ...any) error {
+	query, err := buildCallQuery(sessionCtx, procName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	pgxConf, err := pgx.ParseConfig("")
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	_, err = conn.Exec(ctx, query, args...)
+	return trace.Wrap(err)
+}
+
+// createProcedures executes the create procedures for the provided list of
+// procedures.
+func (e *Engine) createProcedures(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, procNames []string) error {
+	selectedProcs := pickProcedures(sessionCtx)
+
+	for _, procName := range procNames {
+		proc, ok := selectedProcs[procName]
+		if !ok {
+			return trace.NotImplemented("procedure %q is not available for %s databases", procName, sessionCtx.Database.GetType())
+		}
+
+		logger := e.Log.With("procedure", procName)
+
+		if _, err := conn.Exec(ctx, proc); err != nil {
+			logger.ErrorContext(ctx, "Failed to install procedure.")
+			return trace.Wrap(err)
+		}
+
+		logger.DebugContext(ctx, "Installed procedure.")
 	}
-	pgxConf.Config = *config
-	return pgx.ConnectConfig(ctx, pgxConf)
+
+	return nil
+}
+
+// buildCallQuery builds the call query based on the procedure name and session.
+func buildCallQuery(sessionCtx *common.Session, procName string) (string, error) {
+	if _, ok := pickProcedures(sessionCtx)[procName]; !ok {
+		return "", trace.NotImplemented("procedure %q is not available for %s databases", procName, sessionCtx.Database.GetType())
+	}
+
+	var schema string
+	switch {
+	case sessionCtx.Database.IsRedshift():
+		// TODO(gabrielcorado): support customizing the schema the procedures
+		// will be stored on RedShift. For now, let the database decide where
+		// to store them.
+		schema = ""
+	default:
+		// Always use `pg_temp` if the database type supports it. This reduces
+		// the number of permissions required by the admin user.
+		schema = "pg_temp"
+	}
+
+	procCall, ok := procsCall[procName]
+	if !ok {
+		return "", trace.BadParameter("procedure %q doesn't have a call statement", procName)
+	}
+
+	if schema != "" {
+		return fmt.Sprintf("call %s.%s", schema, procCall), nil
+	}
+
+	return "call " + procCall, nil
 }
 
 func prepareRoles(sessionCtx *common.Session) (any, error) {
@@ -489,10 +523,10 @@ const (
 	deleteProcName = "teleport_delete_user"
 	// updatePermissionsProcName is the name of the stored procedure Teleport will use
 	// to automatically update database permissions.
-	updatePermissionsProcName = "pg_temp.teleport_update_permissions"
+	updatePermissionsProcName = "teleport_update_permissions"
 	// removePermissionsProcName is the name of the stored procedure Teleport will use
 	// to automatically remove all database permissions.
-	removePermissionsProcName = "pg_temp.teleport_remove_permissions"
+	removePermissionsProcName = "teleport_remove_permissions"
 	// teleportAutoUserRole is the name of a PostgreSQL role that all Teleport
 	// managed users will be a part of.
 	teleportAutoUserRole = "teleport-auto-user"
@@ -501,18 +535,21 @@ const (
 var (
 	//go:embed sql/activate-user.sql
 	activateProc string
-	// activateQuery is the query for calling user activation procedure.
-	activateQuery = fmt.Sprintf(`call %v($1, $2)`, activateProcName)
+	// activateProcCall contains the procedure name and arguments used to call
+	// the activate user procedure.
+	activateProcCall = fmt.Sprintf(`%v($1, $2)`, activateProcName)
 
 	//go:embed sql/deactivate-user.sql
 	deactivateProc string
-	// deactivateQuery is the query for calling user deactivation procedure.
-	deactivateQuery = fmt.Sprintf(`call %v($1)`, deactivateProcName)
+	// deactivateProcCall contains the procedure name and arguments used to call
+	// the deactivate user procedure.
+	deactivateProcCall = fmt.Sprintf(`%v($1)`, deactivateProcName)
 
 	//go:embed sql/delete-user.sql
 	deleteProc string
-	// deleteQuery is the query for calling user deletion procedure.
-	deleteQuery = fmt.Sprintf(`call %v($1)`, deleteProcName)
+	// deleteProcCall contains the procedure name and arguments used to call
+	// the delete user procedure.
+	deleteProcCall = fmt.Sprintf(`%v($1)`, deleteProcName)
 
 	//go:embed sql/redshift-activate-user.sql
 	redshiftActivateProc string
@@ -523,20 +560,22 @@ var (
 
 	//go:embed sql/update-permissions.sql
 	updatePermissionsProc string
-	// updatePermissionsQuery is the query for calling update permissions procedure.
-	// the procedure is created on demand in the pg_temp table in the session database.
-	updatePermissionsQuery = fmt.Sprintf(`call %v($1, $2::jsonb)`, updatePermissionsProcName)
+	// updatePermissionsProcCall contains the procedure name and arguments used
+	// to call the update permissions procedure.
+	updatePermissionsProcCall = fmt.Sprintf(`%v($1, $2::jsonb)`, updatePermissionsProcName)
 
 	//go:embed sql/remove-permissions.sql
 	removePermissionsProc string
-	// removePermissionsQuery is the query for calling update permissions procedure.
-	// the procedure is created on demand in the pg_temp table in the session database.
-	removePermissionsQuery = fmt.Sprintf(`call %v($1)`, removePermissionsProcName)
+	// removePermissionsProcCall contains the procedure name and arguments used
+	// to call the remove permissions procedure.
+	removePermissionsProcCall = fmt.Sprintf(`%v($1)`, removePermissionsProcName)
 
 	procs = map[string]string{
-		activateProcName:   activateProc,
-		deactivateProcName: deactivateProc,
-		deleteProcName:     deleteProc,
+		activateProcName:          activateProc,
+		deactivateProcName:        deactivateProc,
+		deleteProcName:            deleteProc,
+		updatePermissionsProcName: updatePermissionsProc,
+		removePermissionsProcName: removePermissionsProc,
 	}
 
 	redshiftProcs = map[string]string{
@@ -545,9 +584,13 @@ var (
 		deleteProcName:     redshiftDeleteProc,
 	}
 
-	ephemeralProcs = map[string]string{
-		updatePermissionsProcName: updatePermissionsProc,
-		removePermissionsProcName: removePermissionsProc,
+	// procsCall maps procedures names to their call statements.
+	procsCall = map[string]string{
+		activateProcName:          activateProcCall,
+		deactivateProcName:        deactivateProcCall,
+		deleteProcName:            deleteProcCall,
+		updatePermissionsProcName: updatePermissionsProcCall,
+		removePermissionsProcName: removePermissionsProcCall,
 	}
 )
 

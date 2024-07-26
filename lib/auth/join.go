@@ -367,13 +367,6 @@ func (a *Server) generateCertsBot(
 		},
 	}
 
-	// req.PublicSSHKey is in SSH Authorized Keys format. For consistency, we
-	// only store public keys in PEM wrapped PKIX, DER format within
-	// BotInstances.
-	pkixPEM, err := sshPublicKeyToPKIXPEM(req.PublicSSHKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "converting key")
-	}
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		// TODO: GetSafeName may not return an appropriate value for later
@@ -381,7 +374,9 @@ func (a *Server) generateCertsBot(
 		// secrets. Should we hash it?
 		JoinToken:  provisionToken.GetSafeName(),
 		JoinMethod: string(provisionToken.GetJoinMethod()),
-		PublicKey:  pkixPEM,
+		// TODO(nklaassen): consider logging the SSH public key as well, for now
+		// the SSH and TLS public keys are still identical for tbot.
+		PublicKey: req.PublicTLSKey,
 
 		// Note: Generation will be set during `generateInitialBotCerts()` as
 		// needed.
@@ -403,12 +398,22 @@ func (a *Server) generateCertsBot(
 		}
 	}
 
-	certs, err := a.generateInitialBotCerts(
-		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable, auth,
+	certs, botInstanceID, err := a.generateInitialBotCerts(
+		ctx,
+		botName,
+		machineidv1.BotResourceName(botName),
+		req.RemoteAddr,
+		req.PublicSSHKey,
+		req.PublicTLSKey,
+		expires,
+		renewable,
+		auth,
+		req.BotInstanceID,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinEvent.BotInstanceID = botInstanceID
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
@@ -420,8 +425,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	// Emit audit event for bot join.
-	log.Infof("Bot %q has joined the cluster.", botName)
-
+	log.Infof("Bot %q (instance: %s) has joined the cluster.", botName, botInstanceID)
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}

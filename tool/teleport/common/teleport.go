@@ -299,7 +299,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&dbConfigCreateFlags.DatabaseGCPInstanceID)
 	dbConfigureCreate.Flag("ca-cert-file", "Database CA certificate path.").StringVar(&dbConfigCreateFlags.DatabaseCACertFile)
 	dbConfigureCreate.Flag("output",
-		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
 	dbConfigureCreate.Flag("dynamic-resources-labels", "Comma-separated list(s) of labels to match dynamic resources, for example env=dev,dept=it. Required to enable dynamic resources matching.").StringsVar(&dbConfigCreateFlags.DynamicResourcesRawLabels)
 	dbConfigureCreate.Flag("trust-system-cert-pool", "Allows Teleport to trust certificate authorities available on the host system for self-hosted databases.").BoolVar(&dbConfigCreateFlags.DatabaseTrustSystemCertPool)
@@ -367,7 +367,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
 	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
 	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
-	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
+	systemdInstall.Flag("output", `Write to stdout with "--output=stdout" or custom path with --output=file:///path`).Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
 
 	// This command is hidden because it is only meant to be used by the AutoDiscover script.
@@ -395,7 +395,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
 	dump.Flag("output",
-		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dumpFlags.output)
 	dump.Flag("acme",
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
@@ -423,7 +423,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
 	dumpNodeConfigure.Flag("output",
-		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dumpFlags.output)
 	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dumpNodeConfigure.Flag("public-addr", "The hostport that the node advertises for the SSH endpoint.").StringVar(&dumpFlags.PublicAddr)
@@ -518,6 +518,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd := integrationConfigureCmd.Command("externalauditstorage", "Bootstraps required infrastructure and adds required IAM permissions for External Audit Storage logs.")
 	integrationConfExternalAuditCmd.Flag("bootstrap", "Bootstrap required infrastructure.").Default("false").BoolVar(&ccf.IntegrationConfExternalAuditStorageArguments.Bootstrap)
 	integrationConfExternalAuditCmd.Flag("aws-region", "AWS region.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Region)
+	integrationConfExternalAuditCmd.Flag("cluster-name", "Teleport Cluster name.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.ClusterName)
+	integrationConfExternalAuditCmd.Flag("integration", "AWS OIDC Integration name.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.IntegrationName)
 	integrationConfExternalAuditCmd.Flag("role", "The IAM Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Role)
 	integrationConfExternalAuditCmd.Flag("policy", "The name for the Policy to attach to the IAM role.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Policy)
 	integrationConfExternalAuditCmd.Flag("session-recordings", "The S3 URI where session recordings are stored.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.SessionRecordingsURI)
@@ -917,7 +919,7 @@ func onConfigDump(flags dumpFlags) error {
 				fmt.Fprintf(flags.stdout, "- The Teleport configuration is located at %q.\n", configPath)
 			}
 			if !canWriteToDataDir {
-				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, edit the \"data_dir\" field in %q.", flags.DataDir, configPath)
 			}
 			fmt.Fprintf(flags.stdout, "\n")
 		} else {

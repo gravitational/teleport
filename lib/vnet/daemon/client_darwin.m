@@ -117,8 +117,8 @@ void OpenSystemSettingsLoginItems(void) {
   }];
 
   [(id<VNEDaemonProtocol>)proxy startVnet:vnetConfig
-                               completion:^(void) {
-                                 completion(nil);
+                               completion:^(NSError *error) {
+                                 completion(error);
                                }];
 }
 
@@ -143,6 +143,7 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
                completion:^(NSError *error) {
                  if (error) {
                    outResult->error_domain = VNECopyNSString([error domain]);
+                   outResult->error_code = (int)[error code];
                    outResult->error_description = VNECopyNSString([error description]);
                    dispatch_semaphore_signal(sema);
                    return;

@@ -665,9 +665,9 @@ func buildIAMARN(partitionID, accountID, resourceType, resource string) string {
 // Rather than returning errors about why it failed, this message suggests a
 // simple fix for the user to specify a role or user to attach policies to.
 func failedToResolveAssumeRoleARN(roleIdentity string) string {
-	return fmt.Sprintf("Running with assumed-role credentials for %s. "+
-		"Policies cannot be attached to an assumed-role. "+
-		"Provide the name or ARN of the IAM user (--atttach-to-user) or role (--atttach-to-role) to attach policies to. ",
+	return fmt.Sprintf("running with assumed-role credentials for %s, but "+
+		"policies cannot be attached to an assumed-role; "+
+		"provide the name or ARN of an IAM role (--attach-to-role) or user (--attach-to-user) to attach policies to",
 		roleIdentity)
 }
 

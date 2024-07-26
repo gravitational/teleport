@@ -63,7 +63,7 @@ terraform {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = "mytenant.teleport.sh:443"
   identity_file_path = "terraform-identity/identity"
 }
@@ -127,7 +127,7 @@ This auth method has the following limitations:
 
 ### Optional
 
-- `addr` (String) host:port where Teleport Auth server is running. This can also be set with the environment variable `TF_TELEPORT_ADDR`.
+- `addr` (String) host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `TF_TELEPORT_ADDR`.
 - `cert_base64` (String) Base64 encoded TLS auth certificate. This can also be set with the environment variable `TF_TELEPORT_CERT_BASE64`.
 - `cert_path` (String) Path to Teleport auth certificate file. This can also be set with the environment variable `TF_TELEPORT_CERT`.
 - `dial_timeout_duration` (String) DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `TF_TELEPORT_DIAL_TIMEOUT_DURATION`.

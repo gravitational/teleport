@@ -23,6 +23,7 @@ package daemon
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
+// #include "protocol_darwin.h"
 import "C"
 
 import (
@@ -79,8 +80,27 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		}
 	}
 
-	if err := startByCalling(ctx, bundlePath, config); err != nil {
-		return trace.Wrap(err)
+	if err = startByCalling(ctx, bundlePath, config); err != nil {
+		if !errors.Is(err, errAlreadyRunning) {
+			return trace.Wrap(err)
+		}
+
+		// If the daemon was already running, it might mean two things:
+		//
+		// 1. The user attempted to start a second instance of VNet.
+		// 2. The user has stopped the previous instance of VNet and immediately started a new one,
+		// before the daemon had a chance to notice that the previous instance was stopped and exit too.
+		//
+		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
+		// just about to quit.
+		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
+		if err := sleepOrDone(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := startByCalling(ctx, bundlePath, config); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// TODO(ravicious): Implement monitoring the state of the daemon.
@@ -125,17 +145,17 @@ func register(ctx context.Context, bundlePath string) (ServiceStatus, error) {
 	return ServiceStatus(result.service_status), nil
 }
 
-const waitingForEnablementTimeout = time.Minute
-
-var waitingForEnablementTimeoutExceeded = errors.New("the login item was not enabled within the timeout")
-
 // waitForEnablement periodically checks if the status of the daemon has changed to
 // [serviceStatusEnabled]. This happens when the user approves the login item in system settings.
 func waitForEnablement(ctx context.Context, bundlePath string) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout, waitingForEnablementTimeoutExceeded)
+	// It should be less than receiveTunTimeout in the vnet package
+	// so that the user sees the error about the background item first.
+	const waitingForEnablementTimeout = 50 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout,
+		errors.New("the background item was not enabled within the timeout"))
 	defer cancel()
 
 	for {
@@ -276,7 +296,15 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		C.StartVnet(&req, &res)
 
 		if !res.ok {
-			errC <- trace.Errorf("could not start VNet daemon: %v (%v)", C.GoString(res.error_description), C.GoString(res.error_domain))
+			errorDomain := C.GoString(res.error_domain)
+			errorCode := int(res.error_code)
+
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeAlreadyRunning {
+				errC <- trace.Wrap(errAlreadyRunning)
+				return
+			}
+
+			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
 			return
 		}
 
@@ -288,5 +316,26 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		return trace.Wrap(context.Cause(ctx))
 	case err := <-errC:
 		return trace.Wrap(err, "connecting to the VNet daemon")
+	}
+}
+
+var (
+	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
+	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
+	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
+	// received a message to start after it was already running.
+	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
+	errAlreadyRunning       = errors.New("VNet is already running")
+)
+
+func sleepOrDone(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-timer.C:
+		return nil
 	}
 }

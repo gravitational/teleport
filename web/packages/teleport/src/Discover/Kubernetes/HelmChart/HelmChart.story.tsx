@@ -18,111 +18,184 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { StoryObj } from '@storybook/react';
+import { withoutQuery } from 'web/packages/build/storybook';
 
+import { http, delay, HttpResponse } from 'msw';
+
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
 import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { getUserContext } from 'teleport/mocks/contexts';
+import {
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 
 import HelmChart from './HelmChart';
 
-const { worker, rest } = window.msw;
+const kubePathWithoutQuery = withoutQuery(cfg.api.kubernetesPath);
 
 export default {
   title: 'Teleport/Discover/Kube/HelmChart',
   decorators: [
     Story => {
       // Reset request handlers added in individual stories.
-      worker.resetHandlers();
       clearCachedJoinTokenResult([ResourceKind.Kubernetes]);
       return <Story />;
     },
   ],
 };
 
-export const Init = () => {
-  return (
-    <Provider>
-      <HelmChart />
-    </Provider>
-  );
+export const Polling: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(kubePathWithoutQuery, async () => {
+          await delay('infinite');
+        }),
+        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const Polling = () => {
-  // Use default fetch token handler defined in mocks/handlers
-
-  worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-      return res(ctx.delay('infinite'));
-    })
-  );
-  return (
-    <Provider>
-      <HelmChart />
-    </Provider>
-  );
+export const PollingSuccess: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(kubePathWithoutQuery, () => {
+          return HttpResponse.json({ items: [{}] });
+        }),
+        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider interval={5}>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const PollingSuccess = () => {
-  // Use default fetch token handler defined in mocks/handlers
-
-  worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-      return res(ctx.json({ items: [{}] }));
-    })
-  );
-  return (
-    <Provider interval={5}>
-      <HelmChart />
-    </Provider>
-  );
+// TODO(lisa): state will show up after 5 minutes, in order
+// to reduce this time, requires rewriting component in a way
+// that can mock the SHOW_HINT_TIMEOUT for window.setTimeout
+export const PollingError: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(kubePathWithoutQuery, async () => {
+          await delay('infinite');
+        }),
+        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider interval={50}>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const PollingError = () => {
-  // Use default fetch token handler defined in mocks/handlers
-
-  worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-      return res(ctx.delay('infinite'));
-    })
-  );
-  return (
-    <Provider timeout={50}>
-      <HelmChart />
-    </Provider>
-  );
+export const Processing: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.post(cfg.api.joinTokenPath, async () => {
+          await delay('infinite');
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider interval={5}>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const Processing = () => {
-  worker.use(
-    rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-      return res(ctx.delay('infinite'));
-    })
-  );
-  return (
-    <Provider interval={5}>
-      <HelmChart />
-    </Provider>
-  );
-};
-
-export const Failed = () => {
-  worker.use(
-    rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-      return res.once(ctx.status(500));
-    })
-  );
-  return (
-    <Provider>
-      <HelmChart />
-    </Provider>
-  );
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.post(cfg.getJoinTokenUrl(), () =>
+          HttpResponse.json(
+            {
+              error: { message: 'Whoops, something went wrong.' },
+            },
+            { status: 400 }
+          )
+        ),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
 const Provider = props => {
-  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      awsIntegration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-name',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+    },
+    currentStep: 0,
+    nextStep: () => null,
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {
+      name: 'kube',
+      kind: ResourceKind.Kubernetes,
+      icon: 'kube',
+      keywords: '',
+      event: DiscoverEventResource.Kubernetes,
+    },
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
 
   return (
     <MemoryRouter
@@ -130,12 +203,14 @@ const Provider = props => {
         { pathname: cfg.routes.discover, state: { entity: 'database' } },
       ]}
     >
-      <ContextProvider ctx={ctx}>
+      <ContextProvider ctx={createTeleportContext()}>
         <PingTeleportProvider
           interval={props.interval || 100000}
           resourceKind={ResourceKind.Kubernetes}
         >
-          {props.children}
+          <DiscoverProvider mockCtx={discoverCtx}>
+            {props.children}
+          </DiscoverProvider>
         </PingTeleportProvider>
       </ContextProvider>
     </MemoryRouter>
@@ -150,3 +225,12 @@ function createTeleportContext() {
 
   return ctx;
 }
+
+const rawJoinToken = {
+  id: 'some-id',
+  roles: ['Node'],
+  method: 'iam',
+  suggestedLabels: [
+    { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'some-value' },
+  ],
+};
