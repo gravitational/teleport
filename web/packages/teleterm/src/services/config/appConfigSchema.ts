@@ -124,7 +124,7 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe('Disables SSH connection resumption.'),
     'feature.vnetDaemon': z
       .boolean()
-      .default(false)
+      .default(true)
       .describe('Use daemon instead of osascript for VNet'),
   });
 };

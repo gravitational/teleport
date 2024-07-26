@@ -185,7 +185,7 @@ export default class MainProcess {
           TELEPORT_HOME: homeDir,
           VNETDAEMON: this.configService.get('feature.vnetDaemon').value
             ? 'yes'
-            : undefined,
+            : 'no',
         },
       }
     );
