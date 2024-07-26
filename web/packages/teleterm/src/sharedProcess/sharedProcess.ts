@@ -28,10 +28,7 @@ import {
   readGrpcCert,
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
-import {
-  RuntimeSettings,
-  GRACEFUL_KILL_MESSAGE,
-} from 'teleterm/mainProcess/types';
+import { RuntimeSettings, TERMINATE_MESSAGE } from 'teleterm/mainProcess/types';
 import Logger from 'teleterm/logger';
 
 import { ptyHostDefinition } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb.grpc-server';
@@ -100,8 +97,8 @@ async function initializeServer(
   }
 
   process.on('message', async message => {
-    if (message === GRACEFUL_KILL_MESSAGE) {
-      new Logger('Process').info('Received graceful kill, exiting');
+    if (message === TERMINATE_MESSAGE) {
+      new Logger('Process').info('Received terminate message, exiting');
       server.forceShutdown();
       await ptyHostService.dispose();
       process.exit(0);
