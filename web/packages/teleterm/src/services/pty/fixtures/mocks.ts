@@ -30,7 +30,7 @@ export class MockPtyProcess implements IPtyProcess {
 
   resize() {}
 
-  dispose() {}
+  async dispose() {}
 
   onData() {
     return () => {};
