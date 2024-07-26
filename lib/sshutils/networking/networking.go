@@ -35,6 +35,7 @@ package networking
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -300,8 +301,15 @@ func readResponse(conn *net.UnixConn) (*os.File, error) {
 		return nil, trace.Wrap(err)
 	} else if fn == 0 {
 		if n > 0 {
-			// the networking process only ever writes to the request conn if an error occurs.
-			return nil, trace.Errorf("error returned by networking process: %v", string(buf[:n]))
+			// The networking process only ever writes to the request conn if an error occurs.
+			// Read the rest of the connection to ensure we don't return just a partial stream.
+			errMsg, err := io.ReadAll(io.LimitReader(conn, int64(cap(buf)-len(buf))))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			errMsg = append(buf[:n], errMsg...)
+			return nil, trace.Errorf("error returned by networking process: %v", string(errMsg))
 		}
 		return nil, trace.BadParameter("networking process did not return a listener")
 	}
