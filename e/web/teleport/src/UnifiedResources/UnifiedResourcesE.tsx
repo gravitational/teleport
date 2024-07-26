@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { Prompt } from 'react-router';
 import { pluralize } from 'shared/utils/text';
@@ -51,18 +51,13 @@ import {
   RequestButton,
 } from 'e-teleport/Workflow/NewRequest/RequestButton';
 import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestCheckout';
-
-import { UpdateSamlApplication } from 'e-teleport/Discover/SamlApplication/shared/UpdateSamlApplication/UpdateSamlApplication';
-
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { SamlAppActionsComponent } from 'e-teleport/Discover/SamlApplication/shared/SamlAppActions';
+import { SamlAppActionProvider } from 'e-teleport/Discover/SamlApplication/shared/SamlAppActions/useSamlAppActionsE';
 
 export function UnifiedResourcesE() {
   const ctx = useTeleportE();
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const includeRequestable = cfg.ui.showResources === 'requestable';
-
-  const userSamlIdPServiceProviderPerm =
-    ctx.storeUser.getSamlIdPServiceProviderAccess();
 
   // TODO (avatus): extract the necessary parts of useNewRequest and useRequestCheckout
   // into a new hook that can be shared between web and Connect
@@ -82,8 +77,6 @@ export function UnifiedResourcesE() {
     });
   const showCheckout =
     numAddedResources > 0 || createAttempt.status === 'success';
-
-  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
 
   const getActionButton = (
     resource: UnifiedResource,
@@ -130,12 +123,7 @@ export function UnifiedResourcesE() {
         />
       );
     }
-    return (
-      <ResourceActionButton
-        resource={resource}
-        setResourceSpec={userSamlIdPServiceProviderPerm.edit && setResourceSpec}
-      />
-    );
+    return <ResourceActionButton resource={resource} />;
   };
 
   function bulkAdd(
@@ -169,33 +157,35 @@ export function UnifiedResourcesE() {
 
   return (
     <FeatureBox px={4}>
-      <UpdateSamlApplication resourceSpec={resourceSpec} />
       <Flex gap={4}>
         <ResizingResourceWrapper showCheckout={showCheckout}>
-          <ClusterResources
-            bulkActions={
-              includeRequestable
-                ? [
-                    {
-                      key: 'requestAccess',
-                      Icon: AddCircle,
-                      text:
-                        numAddedResources > 0
-                          ? 'Add/Remove to Request'
-                          : 'Request Access',
-                      disabled: false,
-                      action: bulkAdd,
-                    },
-                  ]
-                : []
-            }
-            key={clusterId} // when the current cluster changes, remount the component
-            clusterId={clusterId}
-            isLeafCluster={isLeafCluster}
-            getActionButton={getActionButton}
-            availabilityFilter={availabilityFilterFromPreferences}
-            showCheckout={showCheckout}
-          />
+          <SamlAppActionProvider>
+            <SamlAppActionsComponent />
+            <ClusterResources
+              bulkActions={
+                includeRequestable
+                  ? [
+                      {
+                        key: 'requestAccess',
+                        Icon: AddCircle,
+                        text:
+                          numAddedResources > 0
+                            ? 'Add/Remove to Request'
+                            : 'Request Access',
+                        disabled: false,
+                        action: bulkAdd,
+                      },
+                    ]
+                  : []
+              }
+              key={clusterId} // when the current cluster changes, remount the component
+              clusterId={clusterId}
+              isLeafCluster={isLeafCluster}
+              getActionButton={getActionButton}
+              availabilityFilter={availabilityFilterFromPreferences}
+              showCheckout={showCheckout}
+            />
+          </SamlAppActionProvider>
         </ResizingResourceWrapper>
         {showCheckout && (
           <CheckoutWrapper>

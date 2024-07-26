@@ -23,6 +23,9 @@ export class IdpService {
   ): Promise<SamlIdpServiceProvider> {
     return api.put(cfg.api.samlIdpPath + `/${req.name}`, req);
   }
+  deleteSamlIdpServiceProvider(name: string): Promise<void> {
+    return api.delete(cfg.api.samlIdpPath + `/${name}`);
+  }
   getIdPMetadataValues(): Promise<SAMLIdPMetadataResponse> {
     return api.get(cfg.api.samlIdPMetadataValuesPath);
   }
