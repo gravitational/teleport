@@ -25,6 +25,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,6 +66,15 @@ func TestDefaultTags(t *testing.T) {
 			{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 		}
 		require.ElementsMatch(t, expectedEC2Tags, d.ToEC2Tags())
+	})
+
+	t.Run("ssm tags", func(t *testing.T) {
+		expectedTags := []ssmtypes.Tag{
+			{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
+			{Key: aws.String("teleport.dev/integration"), Value: aws.String("myawsaccount")},
+			{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
+		}
+		require.ElementsMatch(t, expectedTags, d.ToSSMTags())
 	})
 
 	t.Run("resource is teleport managed", func(t *testing.T) {
