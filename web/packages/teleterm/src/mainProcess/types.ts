@@ -277,4 +277,11 @@ export enum WindowsManagerIpc {
   SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
 }
 
-export const GRACEFUL_KILL_MESSAGE = 'GRACEFUL_KILL';
+/**
+ * A custom message to gracefully quit a process.
+ * It is sent to the child process with `process.send`.
+ *
+ * We need this because `process.kill('SIGTERM')` doesn't work on Windows,
+ * so we couldn't run any cleanup logic.
+ */
+export const TERMINATE_MESSAGE = 'TERMINATE_MESSAGE';
