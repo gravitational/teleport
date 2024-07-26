@@ -242,8 +242,8 @@ function Reviewers({
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Flex>
-          <Text mr={2} fontSize={1}>
+        <Flex alignItems="baseline">
+          <Text mr={2} typography="body3">
             Reviewers (optional)
           </Text>
           <ButtonBorder

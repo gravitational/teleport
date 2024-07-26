@@ -209,7 +209,7 @@ function JoinMenuItem({
           <Box color="text.main" px={1} mt={1}>
             <Flex>
               <Warning color="error.main" mr={2} size="small" />
-              <Text fontSize="10px" color="text.slightlyMuted">
+              <Text typography="body4" color="text.slightlyMuted">
                 {modeWarningText[participantMode]}
               </Text>
             </Flex>

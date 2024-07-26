@@ -560,7 +560,7 @@ function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
             : ' in a new tab'}
         </Text>
         <Box ml="auto">
-          <Text typography="body3" fontSize={0}>
+          <Text typography="body4">
             {props.getOptionalClusterName(props.searchResult.clusterUri)}
           </Text>
         </Box>
@@ -632,7 +632,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
           </strong>
         </Text>
         <Box ml="auto">
-          <Text typography="body3" fontSize={0}>
+          <Text typography="body4">
             {props.getOptionalClusterName(server.uri)}
           </Text>
         </Box>
@@ -712,9 +712,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
           </strong>
         </Text>
         <Box ml="auto">
-          <Text typography="body3" fontSize={0}>
-            {props.getOptionalClusterName(db.uri)}
-          </Text>
+          <Text typography="body4">{props.getOptionalClusterName(db.uri)}</Text>
         </Box>
       </Flex>
 
@@ -795,7 +793,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
           )}
         </Text>
         <Box ml="auto">
-          <Text typography="body3" fontSize={0}>
+          <Text typography="body4">
             {props.getOptionalClusterName(app.uri)}
           </Text>
         </Box>
@@ -863,7 +861,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
           </strong>
         </Text>
         <Box ml="auto">
-          <Text typography="body3" fontSize={0}>
+          <Text typography="body4">
             {props.getOptionalClusterName(searchResult.resource.uri)}
           </Text>
         </Box>

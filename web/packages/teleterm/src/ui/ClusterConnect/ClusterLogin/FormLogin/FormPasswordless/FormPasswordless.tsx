@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Flex, ButtonText, Box, H3 } from 'design';
+import { Text, Flex, ButtonText, Box } from 'design';
 import { Key, ArrowForward } from 'design/Icon';
 
 import type { Props } from '../FormLogin';
@@ -30,6 +30,7 @@ export const FormPasswordless = ({
 }: Props) => (
   <Box data-testid="passwordless">
     <StyledPaswordlessBtn
+      size="large"
       py={2}
       px={3}
       border={1}
@@ -43,8 +44,8 @@ export const FormPasswordless = ({
         <Flex alignItems="center">
           <Key mr={3} size="medium" />
           <Box>
-            <H3 mb={1}>Passwordless</H3>
-            <Text fontSize={1} color="text.slightlyMuted">
+            <Text mb={1}>Passwordless</Text>
+            <Text typography="subtitle3" color="text.slightlyMuted">
               Follow the prompts
             </Text>
           </Box>

@@ -249,18 +249,14 @@ export function RequestView({
                 </H3>
               </Flex>
               <Flex
-                alignItems="center"
+                alignItems="baseline"
                 justifyContent="flex-end"
                 flexWrap="wrap-reverse"
                 flex="1"
                 gap={2}
               >
                 {request.requestTTLDuration && request.state === 'PENDING' && (
-                  <RequestTtlLabel
-                    fontSize={0}
-                    css={{ lineHeight: 'normal' }}
-                    ml={1}
-                  >
+                  <RequestTtlLabel typography="body4" ml={1}>
                     Request expires in {request.requestTTLDuration}
                   </RequestTtlLabel>
                 )}

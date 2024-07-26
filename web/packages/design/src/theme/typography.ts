@@ -35,7 +35,7 @@ const typography = {
   body2: {
     fontSize: '14px',
     fontWeight: light,
-    lineHeight: '20px',
+    lineHeight: '24px',
     letterSpacing: '0.035px',
   },
   body3: {
