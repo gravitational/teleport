@@ -47,7 +47,9 @@ The solution _in this particular case_ was
 This may work, but it highlights a couple things.
 - we can send any response shape we want with no errors/warnings. 
 - if backward compatibility wasn't forefront of the mind, there was nothing stopping us from just pushing the new code with a break
-- the backend has to check the request shape and the frontend has to check the response shape just to know whats happening.
+- the backend has to check the request shape and the frontend has to check the response shape just to know what type it is receiving.
+
+Using a standard guideline for an rpc service should help us evolve our API overtime in a backward compatible way.
 
 ## Solution
 
@@ -71,8 +73,8 @@ message ListFoosRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
   int32 page_size = 1;
-  // The next_page_token value returned from a previous List request, if any.
-  string page_token = 2;  
+  // The next_token value returned from a previous List request, if any.
+  string next_key = 2;  
 }  
   
 message ListFoosResponse {  
@@ -85,35 +87,15 @@ message ListFoosResponse {
 ```
 Would output generated code for the server and client, and could be used in the client like this
 ```typescript
-import  { createPromiseClient }  from  "@connectrpc/connect";  
-import  { createConnectTransport }  from  "@connectrpc/connect-web";  
-  
-// Import service definition that you want to connect to.  
-import  {  WebService  }  from  "@buf/connectrpc_web.connectrpc_es/connectrpc/web/v1/web_connect";  
-  
-// The transport defines what type of endpoint we're hitting.  
-// In our example we'll be communicating with a Connect endpoint.  
-// If your endpoint only supports gRPC-web, make sure to use  
-// `createGrpcWebTransport` instead.  
-const transport =  createConnectTransport({  
-    baseUrl:  "https://demo.connectrpc.com",  
-});  
-  
-// Here we make the client itself, combining the service  
-// definition with the transport.  
-const client =  createPromiseClient(WebService, transport);
-
-
 // and then used in the react code simply (a bit contrived)
-<form  onSubmit={async  (e)  =>  {  
-    e.preventDefault();  
-    await client.listFoos({  
+<form onSubmit={async(e) => {  
+    const response = await client.listFoos({  
         pageSize,
-        nextKey  
+        nextKey
     });  
 }}>  
-    <input  value={pageSize}  onChange={e =>  setPageSize(e.target.value)}  />  
-    <button  type="submit">Send</button>  
+    <input value={pageSize} onChange={e =>  setPageSize(e.target.value)} />
+    <button type="submit">Send</button>
 </form>
 ```
 
@@ -135,23 +117,23 @@ const config = {
 //..
 }
 
-  getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.unifiedResourcesPath, {
-      clusterId,
-      ...params,
-    });
-  },
+getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
+  return generateResourcePath(cfg.api.unifiedResourcesPath, {
+    clusterId,
+    ...params,
+  });
+},
 ```
 
 - Then each service defines its http calls 
 ```typescript
-  upsertJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
-    return api
-      .put(cfg.getJoinTokenYamlUrl(), {
-        content: req.content,
-      })
-      .then(makeJoinToken);
-  }
+upsertJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+  return api
+    .put(cfg.getJoinTokenYamlUrl(), {
+      content: req.content,
+    })
+    .then(makeJoinToken);
+}
 ```
 
 - THEN we need to wrap this call in `useAsync` and pass in the `makeXResource` method to get the json
@@ -165,7 +147,7 @@ and now we have access to the attempt's status (process, error, etc),
 Using the Connect generate code and the (one time setup client), all of that would boil down to
 ```typescript
 await client.listFoos({ pageSize, nextKey });
-````
+```
 because the client is already set up, we don't need to fiddle with urls, query params, untyped json responses, service wrappers. We would still need to `useAsync` for the client call unless...
 
 #### Tanstack Query
@@ -182,6 +164,9 @@ One of the most popular query libraries in the last few years is Tanstack Query 
 Connect recommends that authentication of api requests to [happen in `net/http` middleware](https://connectrpc.com/docs/governance/rfc/go-cors-authn/#authentication) . Since this is already written for our current http API, we can reuse existing code. (Maybe even take a look at the [cookie/bearer token issue](https://github.com/gravitational/teleport/blob/master/lib/web/apiserver.go#L4616-L4628) at the same time?).
 
 Prehog already uses Connect so we don't need to add a new dependency. If we decided to use Tanstack Query as our fetch library in the frontend, we would have to add it as a web dependency but the library is [quite heavy used/maintained](https://github.com/tanstack/query) and has an MIT license. (We also use this in TAG).
+
+## Forward thinking
+Idealy we could switch over most of the api slowly to use this new service rather than use the old way for everything that wouldn't possibly be changed (like login and what not) but that is an understandably big task. Starting with new services and services that get updated/maintained should be first steps and a decision can be made later to retrofit the api.
 
 ## Alternatives
 ### Incrementing version prefix
