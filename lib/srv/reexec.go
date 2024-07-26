@@ -747,7 +747,7 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 	defer netFile.Close()
 
 	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
-		conn.Write([]byte(trace.Wrap(err, "ailed to write networking file to control conn").Error()))
+		conn.Write([]byte(trace.Wrap(err, "failed to write networking file to control conn").Error()))
 		return nil
 	}
 	return filePaths

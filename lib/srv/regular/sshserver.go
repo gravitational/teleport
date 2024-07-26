@@ -1123,8 +1123,8 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 	// Try to register with the parent context.
 	if otherProc, ok := scx.Parent().SetNetworkingProcess(proc); !ok {
 		// Another networking process was concurrently created. this isn't actually a problem, multiple networking
-		// process being registered is harmless, but it does result in slightly higher resource utilization, so its
-		// preferable to use the existing networking process and close ours in the background.
+		// processes being registered is harmless, but it does result in slightly higher resource utilization, so
+		// it's preferable to use the existing networking process and close ours in the background.
 		go proc.Close()
 		return otherProc, nil
 	}
