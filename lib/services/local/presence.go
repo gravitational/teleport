@@ -1214,6 +1214,28 @@ func (s *PresenceService) GetUserGroups(ctx context.Context, opts ...services.Ma
 	return userGroups, nil
 }
 
+// GetSAMLIdPServiceProviders returns all registered SAML IdP service providers.
+func (s *PresenceService) GetSAMLIdPServiceProviders(ctx context.Context, opts ...services.MarshalOption) ([]types.SAMLIdPServiceProvider, error) {
+	startKey := backend.ExactKey(samlIDPServiceProviderPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serviceProviders := make([]types.SAMLIdPServiceProvider, len(result.Items))
+	for i, item := range result.Items {
+		serviceProvider, err := services.UnmarshalSAMLIdPServiceProvider(
+			item.Value,
+			services.AddOptions(opts,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serviceProviders[i] = serviceProvider
+	}
+	return serviceProviders, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1405,7 +1427,17 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = sortedUserGroups.AsResources()
+	case types.KindSAMLIdPServiceProvider:
+		serviceProviders, err := s.GetSAMLIdPServiceProviders(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
+		sortedServiceProviders := types.SAMLIdPServiceProviders(serviceProviders)
+		if err := sortedServiceProviders.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedServiceProviders.AsResources()
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}
