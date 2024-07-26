@@ -160,7 +160,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		switch {
 		case trace.IsNotFound(err) && c.existingRole == "":
 			return trace.Wrap(err, `The Terraform role %q does not exist in your Teleport cluster.
-This default role is included in Teleport clusters whose version is higher than v16.1 or v17.
+This default role is included in Teleport clusters whose version is higher than v16.2 or v17.
 If you want to use "tctl terraform env" against an older Teleport cluster, you must create the Terraform role
 yourself and set the flag --role <your-terraform-role-name>.`, roleName)
 		case trace.IsNotFound(err) && c.existingRole != "":
