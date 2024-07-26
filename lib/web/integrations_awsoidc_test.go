@@ -1022,7 +1022,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
-					PublicAddr:  "my-integration." + proxyPublicAddr,
+					PublicAddr:  "https://my-integration." + proxyPublicAddr,
 				},
 			},
 		},
@@ -1041,7 +1041,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, appServers)
 
-	t.Run("using the account id as name", func(t *testing.T) {
+	t.Run("using the account id as name works as expected", func(t *testing.T) {
 		// Creating an Integration using the account id as name should not return an error if the proxy is listening at the default HTTPS port
 		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
 			Name: "123456789012",
@@ -1052,23 +1052,8 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 
 		_, err = env.server.Auth().CreateIntegration(ctx, myIntegrationWithAccountID)
 		require.NoError(t, err)
-
-		t.Run("returns an error if the proxy is not using the default port for HTTPS", func(t *testing.T) {
-			endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "123456789012", "aws-app-access")
-			_, err = pack.clt.PostJSON(ctx, endpoint, nil)
-			require.Error(t, err)
-		})
-
-		t.Run("does not return an error, otherwise", func(t *testing.T) {
-			initialAddr := proxy.handler.handler.cfg.PublicProxyAddr
-			t.Cleanup(func() {
-				proxy.handler.handler.cfg.PublicProxyAddr = initialAddr
-			})
-
-			proxy.handler.handler.cfg.PublicProxyAddr = "proxy.example.com:443"
-			endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "123456789012", "aws-app-access")
-			_, err = pack.clt.PostJSON(ctx, endpoint, nil)
-			require.NoError(t, err)
-		})
+		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "123456789012", "aws-app-access")
+		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
+		require.NoError(t, err)
 	})
 }
