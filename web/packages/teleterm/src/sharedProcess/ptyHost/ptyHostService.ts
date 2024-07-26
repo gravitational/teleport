@@ -78,7 +78,9 @@ export function createPtyHostService(): IPtyHost & {
     exchangeEvents: stream => new PtyEventsStreamHandler(stream, ptyProcesses),
     dispose: async () => {
       await Promise.all(
-        Array.from(ptyProcesses).map(([, ptyProcess]) => ptyProcess.dispose())
+        Array.from(ptyProcesses.values()).map(ptyProcess =>
+          ptyProcess.dispose()
+        )
       );
     },
   };
