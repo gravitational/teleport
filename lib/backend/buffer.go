@@ -36,9 +36,10 @@ import (
 )
 
 type bufferConfig struct {
-	gracePeriod time.Duration
-	capacity    int
-	clock       clockwork.Clock
+	gracePeriod         time.Duration
+	creationGracePeriod time.Duration
+	capacity            int
+	clock               clockwork.Clock
 }
 
 type BufferOption func(*bufferConfig)
@@ -57,6 +58,16 @@ func BacklogGracePeriod(d time.Duration) BufferOption {
 	return func(cfg *bufferConfig) {
 		if d > 0 {
 			cfg.gracePeriod = d
+		}
+	}
+}
+
+// CreationGracePeriod sets the amount of time delay after watcher creation before
+// it will be considered for removal due to backlog.
+func CreationGracePeriod(d time.Duration) BufferOption {
+	return func(cfg *bufferConfig) {
+		if d > 0 {
+			cfg.creationGracePeriod = d
 		}
 	}
 }
@@ -83,9 +94,10 @@ type CircularBuffer struct {
 // NewCircularBuffer returns a new uninitialized instance of circular buffer.
 func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
 	cfg := bufferConfig{
-		gracePeriod: DefaultBacklogGracePeriod,
-		capacity:    DefaultBufferCapacity,
-		clock:       clockwork.NewRealClock(),
+		gracePeriod:         DefaultBacklogGracePeriod,
+		creationGracePeriod: DefaultCreationGracePeriod,
+		capacity:            DefaultBufferCapacity,
+		clock:               clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -258,6 +270,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		buffer:   c,
 		Watch:    watch,
 		eventsC:  make(chan Event, watch.QueueSize),
+		created:  c.cfg.clock.Now(),
 		ctx:      closeCtx,
 		cancel:   cancel,
 		capacity: watch.QueueSize,
@@ -297,6 +310,7 @@ type BufferWatcher struct {
 	bmu          sync.Mutex
 	backlog      []Event
 	backlogSince time.Time
+	created      time.Time
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -352,7 +366,7 @@ func (w *BufferWatcher) emit(e Event) (ok bool) {
 	defer w.bmu.Unlock()
 
 	if !w.flushBacklog() {
-		if w.buffer.cfg.clock.Now().After(w.backlogSince.Add(w.buffer.cfg.gracePeriod)) {
+		if now := w.buffer.cfg.clock.Now(); now.After(w.backlogSince.Add(w.buffer.cfg.gracePeriod)) && now.After(w.created.Add(w.buffer.cfg.creationGracePeriod)) {
 			// backlog has existed for longer than grace period,
 			// this watcher needs to be removed.
 			return false
