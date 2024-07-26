@@ -546,6 +546,11 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
+	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
+	if terminatefd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
+	}
+
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
@@ -639,7 +644,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 
 	parentConn, err := uds.FromFile(ffd)
-	ffd.Close()
+	_ = ffd.Close()
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -647,13 +652,25 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	writeErrorToConn := func(conn io.Writer, err error) {
+		conn.Write([]byte(err.Error()))
+	}
+
+	// Maintain a list of file paths to cleanup at the end of the process. This
+	// ensures that file cleanup is handled by the child in cases where the parent
+	// fails to cleanup due to filesystem namespace discrepancy (pam_namespace)
+	var filePathsToCleanup []string
+	defer func() {
+		for _, path := range filePathsToCleanup {
+			os.Remove(path)
+		}
+	}()
+
 	// parentConn is a datagram Unix socket, which is not connection oriented
 	// and thus won't unblock when the parent closes its side of the connection.
 	// Instead we use an interrupt signal from the parent process to unblock.
-	intC := make(chan os.Signal, 1)
-	signal.Notify(intC, os.Interrupt)
 	go func() {
-		<-intC
+		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
 	}()
 
@@ -666,26 +683,26 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 				// parent connection closed, process should exit.
 				return errorWriter, teleport.RemoteCommandSuccess, nil
 			}
-			slog.ErrorContext(ctx, "Error reading networking request from parent.", "error", err)
+			writeErrorToConn(parentConn, trace.Wrap(err, "error reading networking request from parent"))
 			continue
 		}
 
 		if fn == 0 {
-			slog.ErrorContext(ctx, "Networking request requires a control file.")
+			writeErrorToConn(parentConn, trace.BadParameter("networking request requires a control file"))
 			continue
 		}
 
-		controlConn, err := uds.FromFile(fbuf[0])
+		requestConn, err := uds.FromFile(fbuf[0])
 		_ = fbuf[0].Close()
 		if err != nil {
-			slog.ErrorContext(ctx, "Failed to get a connection from control file.")
+			writeErrorToConn(parentConn, trace.Wrap(err, "failed to get a connection from control file"))
 			continue
 		}
 
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
-			slog.ErrorContext(ctx, "Error parsing networking request.", "error", err)
-			_ = controlConn.Close()
+			writeErrorToConn(parentConn, trace.Wrap(err, "error parsing networking request"))
+			_ = requestConn.Close()
 			continue
 		}
 
@@ -697,48 +714,25 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			switch req.Network {
 			case "tcp":
 				// There are currently no known issues with tcp listen/dial in a multithreaded PAM context.
-				go func() {
-					cleanup := handleNetworkingRequest(ctx, controlConn, req)
-					if cleanup != nil {
-						context.AfterFunc(ctx, func() {
-							if err := cleanup(); err != nil {
-								slog.DebugContext(ctx, "Failed to clean up networking request resources", "request", req, "error", err)
-							}
-						})
-					}
-				}()
+				go handleNetworkingRequest(ctx, requestConn, req)
 			default:
 				// Note: we don't currently support non-tcp network forwarding, so this branch is not
 				// currently reached. If in the future we add unix socket forwarding similar to OpenSSH's
 				// direct-streamlocal@openssh.com extension, we should revisit this multithreading limitation
 				// to prevent performance degradation.
-				cleanup := handleNetworkingRequest(ctx, controlConn, req)
-				if cleanup != nil {
-					defer func() {
-						if err := cleanup(); err != nil {
-							slog.DebugContext(ctx, "Failed to clean up networking request resources", "request", req, "error", err)
-						}
-					}()
-				}
+				filePaths := handleNetworkingRequest(ctx, requestConn, req)
+				filePathsToCleanup = append(filePathsToCleanup, filePaths...)
 			}
 		case networking.NetworkingOperationListenAgent, networking.NetworkingOperationListenX11:
 			// Agent and X11 forwarding requests should occur very rarely, so handling
 			// them in the main thread should have negligible performance impact.
-			cleanup := handleNetworkingRequest(ctx, controlConn, req)
-			if cleanup != nil {
-				defer func() {
-					if err := cleanup(); err != nil {
-						slog.DebugContext(ctx, "Failed to clean up networking request resources", "request", req, "error", err)
-					}
-				}()
-			}
+			cleanupFilePaths := handleNetworkingRequest(ctx, requestConn, req)
+			filePathsToCleanup = append(filePathsToCleanup, cleanupFilePaths...)
 		}
 	}
 }
 
-type cleanupFn func() error
-
-func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networking.Request) cleanupFn {
+func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networking.Request) []string {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	go func() {
@@ -749,7 +743,7 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 	log := slog.With("request", req)
 	log.DebugContext(ctx, "Handling networking request")
 
-	netFile, cleanup, err := createNetworkingFile(ctx, req)
+	netFile, filePaths, err := createNetworkingFile(ctx, req)
 	if err != nil {
 		log.With("error", err).ErrorContext(ctx, "Error creating networking file.")
 		conn.Write([]byte(err.Error()))
@@ -760,10 +754,10 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
 		log.With("error", err.Error()).ErrorContext(ctx, "Failed to write networking file to control conn.")
 	}
-	return cleanup
+	return filePaths
 }
 
-func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File, cleanupFn, error) {
+func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File, []string, error) {
 	switch req.Operation {
 	case networking.NetworkingOperationDial:
 		var d net.Dialer
@@ -783,8 +777,11 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		}
 		defer listener.Close()
 
-		listenerFD, cleanup, err := getListenerFile(listener)
-		return listenerFD, cleanup, trace.Wrap(err)
+		listenerFD, err := getListenerFile(listener)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
 
 	case networking.NetworkingOperationListenAgent:
 		// Create a temp directory to hold the agent socket.
@@ -805,22 +802,22 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, nil, trace.Wrap(err)
 		}
 
-		socketPath := filepath.Join(sockDir, "agent.sock")
+		sockPath := filepath.Join(sockDir, "agent.sock")
 
-		listener, err := net.Listen("unix", socketPath)
+		listener, err := net.Listen("unix", sockPath)
 		if err != nil {
 			cleanupDir()
 			return nil, nil, trace.Wrap(err)
 		}
 		defer listener.Close()
 
-		listenerFD, _, err := getListenerFile(listener)
+		listenerFD, err := getListenerFile(listener)
 		if err != nil {
 			cleanupDir()
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return listenerFD, cleanupDir, nil
+		return listenerFD, []string{sockPath, sockDir}, nil
 
 	case networking.NetworkingOperationListenX11:
 		listener, display, err := x11.OpenNewXServerListener(req.X11Request.DisplayOffset, req.X11Request.MaxDisplay, req.X11Request.ScreenNumber)
@@ -843,15 +840,18 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, nil, trace.Wrap(err)
 		}
 
-		listenerFD, cleanup, err := getListenerFile(listener)
-		return listenerFD, cleanup, trace.Wrap(err)
+		listenerFD, err := getListenerFile(listener)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
 
 	default:
 		return nil, nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
 	}
 }
 
-func getListenerFile(listener net.Listener) (*os.File, cleanupFn, error) {
+func getListenerFile(listener net.Listener) (*os.File, error) {
 	switch l := listener.(type) {
 	case *net.UnixListener:
 		// Unlinking the socket here will cause the parent process to open a new
@@ -859,15 +859,13 @@ func getListenerFile(listener net.Listener) (*os.File, cleanupFn, error) {
 		// Instead we close the listener without unlinking the socket, and cleanup
 		// the socket in the child namepsace once the process is closed.
 		l.SetUnlinkOnClose(false)
-		cleanupSocket := func() error { return os.Remove(l.Addr().String()) }
-
 		listenerFD, err := l.File()
-		return listenerFD, cleanupSocket, trace.Wrap(err)
+		return listenerFD, trace.Wrap(err)
 	case *net.TCPListener:
 		listenerFD, err := l.File()
-		return listenerFD, nil, trace.Wrap(err)
+		return listenerFD, trace.Wrap(err)
 	default:
-		return nil, nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
+		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
 	}
 }
 

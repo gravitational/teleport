@@ -1151,7 +1151,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.ExecType = teleport.NetworkingSubCommand
-	defer nsctx.Close()
+	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The
 	// reason it's not done directly is because the PAM stack needs to be called
@@ -1161,7 +1161,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(cmd)
+	proc, err := networking.NewProcess(nsctx.Context, cmd)
 	return proc, trace.Wrap(err)
 }
 

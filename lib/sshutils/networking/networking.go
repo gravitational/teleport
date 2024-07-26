@@ -44,9 +44,16 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
+
+// RequestBufferSize is the maximum amount of data we're comfortable writing at
+// once through a default unix datagram socket. Should fit comfortably in both
+// linux and darwin with default settings.
+const RequestBufferSize = 1024
 
 // Process represents an instance of a networking process.
 type Process struct {
@@ -98,7 +105,7 @@ type X11Request struct {
 
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings.
-func NewProcess(cmd *exec.Cmd) (*Process, error) {
+func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
@@ -122,7 +129,7 @@ func NewProcess(cmd *exec.Cmd) (*Process, error) {
 		done: make(chan struct{}),
 	}
 
-	if err := proc.start(); err != nil {
+	if err := proc.start(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -130,18 +137,37 @@ func NewProcess(cmd *exec.Cmd) (*Process, error) {
 }
 
 // start the the networking process.
-func (p *Process) start() error {
+func (p *Process) start(ctx context.Context) error {
 	if err := p.cmd.Start(); err != nil {
 		p.conn.Close()
 		return trace.Wrap(err)
 	}
+
+	// The child process writes errors to the parent connection for logging purposes.
+	go func() {
+		for {
+			buf := make([]byte, RequestBufferSize)
+			n, err := p.conn.Read(buf)
+			if err != nil {
+				if utils.IsOKNetworkError(err) {
+					return
+				}
+				slog.WarnContext(ctx, "Failed to read error from networking process.", "error", err)
+				return
+			}
+
+			if n > 0 {
+				slog.WarnContext(ctx, "Received unexpected error from networking process.", "error", string(buf[:n]))
+			}
+		}
+	}()
 
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
 		// Ensure unexpected cmd failures get logged.
 		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
-			slog.Warn("Networking process exited early with unexpected error.", "error", err)
+			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
 		}
 	}()
 
@@ -150,19 +176,13 @@ func (p *Process) start() error {
 
 // Close stops the process and frees up its related resources.
 func (p *Process) Close() error {
+	p.conn.Close()
 	select {
 	case <-p.done:
-	default:
-		// We use an interrupt signal because the main control socket is not connection oriented,
-		// meaning reading from the child side won't unblock with the parent closes it.
-		p.cmd.Process.Signal(os.Interrupt)
-		select {
-		case <-p.done:
-		case <-time.After(time.Second * 3):
-			slog.Warn("Forcibly terminating networking subprocess.")
-			p.killed.Store(true)
-			p.cmd.Process.Kill()
-		}
+	case <-time.After(time.Second * 3):
+		slog.WarnContext(context.Background(), "Forcibly terminating networking subprocess.")
+		p.killed.Store(true)
+		p.cmd.Process.Kill()
 	}
 	return nil
 }
@@ -256,15 +276,10 @@ func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListe
 	return unixListener, nil
 }
 
-// requestBufferSize is the maximum amount of data we're comfortable writing at
-// once through a default unix datagram socket. Should fit comfortably in both
-// linux and darwin with default settings.
-const requestBufferSize = 1024
-
 // sendRequest sends a networking request to the networking process and waits
 // for a file corresponding to an open network connection or listener.
 func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
 	defer cancel()
 
 	slog.DebugContext(ctx, "Sending networking request to child process", "request", req)
@@ -274,11 +289,11 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 		return nil, trace.Wrap(err)
 	}
 
-	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	requestConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer localConn.Close()
+	context.AfterFunc(ctx, func() { requestConn.Close() })
 
 	remoteFD, err := remoteConn.File()
 	remoteConn.Close()
@@ -292,34 +307,16 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 	}
 	remoteFD.Close()
 
-	// Read in another goroutine so we can cancel it if the networking process stops or the context closes.
-	fileCh := make(chan *os.File)
-	errC := make(chan error)
-	go func() {
-		defer close(fileCh)
-		file, err := readResponse(localConn)
-		if err != nil {
-			errC <- err
-		} else {
-			fileCh <- file
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	case <-p.done:
-		return nil, trace.Errorf("networking process is closed")
-	case err := <-errC:
+	file, err := readResponse(requestConn)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	case listenerFD := <-fileCh:
-		return listenerFD, nil
 	}
+	return file, nil
 }
 
 // readResponse attempts to read a file descriptor from the given connection until it is closed.
 func readResponse(conn *net.UnixConn) (*os.File, error) {
-	buf := make([]byte, requestBufferSize)
+	buf := make([]byte, RequestBufferSize)
 	fbuf := make([]*os.File, 1)
 	n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
 	if err != nil {
