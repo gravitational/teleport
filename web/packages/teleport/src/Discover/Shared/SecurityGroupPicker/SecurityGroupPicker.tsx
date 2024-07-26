@@ -171,6 +171,7 @@ function CheckboxCell({
             onChange(item, e);
           }}
           checked={isChecked}
+          data-testid={item.id}
         />
       </Flex>
     </Cell>

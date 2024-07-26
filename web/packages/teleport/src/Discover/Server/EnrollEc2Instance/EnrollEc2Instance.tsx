@@ -55,12 +55,9 @@ import {
   isIamPermError,
 } from 'teleport/Discover/Shared/Aws/error';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
+import { ConfigureDiscoveryServiceDirections } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
 
-import {
-  ActionButtons,
-  Header,
-  SelfHostedAutoDiscoverDirections,
-} from '../../Shared';
+import { ActionButtons, Header } from '../../Shared';
 
 import { CreateEc2IceDialog } from '../CreateEc2Ice/CreateEc2IceDialog';
 
@@ -523,7 +520,7 @@ export function EnrollEc2Instance() {
                 </OutlineInfo>
               )}
               {!cfg.isCloud && wantAutoDiscover && (
-                <SelfHostedAutoDiscoverDirections
+                <ConfigureDiscoveryServiceDirections
                   clusterPublicUrl={storeUser.state.cluster.publicURL}
                   discoveryGroupName={discoveryGroupName}
                   setDiscoveryGroupName={setDiscoveryGroupName}
