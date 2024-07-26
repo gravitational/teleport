@@ -3,8 +3,6 @@ title: Machine ID with Application Access
 description: How to use Machine ID to access applications
 ---
 
-(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
-
 Teleport protects and controls access to HTTP and TCP applications. Machine ID
 can be used to grant machines secure, short-lived access to these applications.
 
@@ -58,16 +56,53 @@ with the name of the role you just created:
 $ tctl bots update example --add-roles example-role
 ```
 
-## Step 2/3. Configure an application `tbot` output
+## Step 2/3. Configure `tbot`
 
-Now, `tbot` needs to be configured with an output to produce the
-credentials needed to access applications in your infrastructure. To do this, the `application` output
-type is used.
+There are two implementation options available when using `tbot` to grant
+a client access to an application. The option you choose will depend on your
+specific needs.
 
-The application you want the credentials to have access to must be specified
-using the `app_name` field. In this example, the debug application (`dumper`)
-will be used.
+The first option is the `application-tunnel` service. This operates a local
+proxy that your client can connect to. The service will automatically attach
+the credentials to the connection, meaning that the client does not need to
+support client certificates. However, this does mean that the `tbot` process
+must be running for the client to access the application.
 
+The second option is the `application` output. This will write TLS credentials
+to a destination where your client will read them from. The client must support
+client certificates and reloading them from disk when they are renewed. In
+addition, this option is not compatible with a TLS-terminating load-balancer
+between the client and the Teleport Proxy service. Unlike the
+`application-tunnel`, the `tbot` process does not need to be running for the
+client to access the application - this can be ideal for CI/CD pipelines.
+
+If you aren't sure which to use, we recommend starting with the
+`application-tunnel` service as this is compatible with more clients.
+
+<Tabs>
+<TabItem label="application-tunnel service">
+To configure the `application-tunnel` service, first determine where you want
+the listener to bind to. As any client that can connect to the service listener
+will be able to access the application, it is recommended to bind to the
+loopback interface (e.g `127.0.0.1`) as this will prevent access from other
+hosts.
+
+Modify your `tbot` configuration to add an `application-tunnel` service:
+
+```yaml
+services:
+- type: application-tunnel
+  app_name: dumper
+  listen: tcp://127.0.0.1:1234
+```
+
+Replace:
+- `dumper` with the name of the application you registered in Teleport.
+- `listen` with the address and port you wish the service to bind to.
+
+Restart `tbot` to apply the new configuration.
+</TabItem>
+<TabItem label="application output">
 Outputs must be configured with a destination. In this example, the `directory`
 destination will be used. This will write artifacts to a specified directory on
 disk. Ensure that this directory can be written to by the Linux user that
@@ -95,9 +130,23 @@ Teleport.
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
 one-shot mode, it must be executed before you attempt to use the credentials.
+</TabItem>
+</Tabs>
 
 ## Step 3/3. Connect to your web application with the Machine ID identity
 
+<Tabs>
+<TabItem label="application-tunnel service">
+Once the `application-tunnel` service has been configured, you can connect to
+the application using the listen address you specified.
+
+For example, to access the application using `curl`:
+
+```code
+$ curl http://127.0.0.1:1234/
+```
+</TabItem>
+<TabItem label="application output">
 Once `tbot` has been run, credentials will be output to the directory specified
 in the destination. Using the example of `/opt/machine-id`:
 
@@ -115,9 +164,9 @@ For example, to access the application using `curl`:
 
 ```code
 $ curl \
-  --cert /opt/machine-id/tlscert \
-  --key /opt/machine-id/key \
-  https://dumper.example.teleport.sh/
+--cert /opt/machine-id/tlscert \
+--key /opt/machine-id/key \
+https://dumper.example.teleport.sh/
 ```
 
 No CA certificate needs to be specified so long as your Teleport Proxy is
@@ -126,31 +175,8 @@ certificate authority.
 
 Note that if the certificates are invalid or otherwise misconfigured, clients
 will be redirected to the Teleport login page when attempting to access the app.
-
-### Authenticated tunnel
-
-For cases where the client you wish to use to connect to the application does not
-support client certificates, it is possible to open an authenticated tunnel.
-This will listen on a local port and automatically attach the credentials,
-meaning that the client itself does not need to support them.
-
-To open an authenticated tunnel to the `dumper` application on port 1234, run:
-
-```code
-$ tbot proxy --destination-dir=/opt/machine-id --proxy=example.teleport.sh:443 app --port=1234 dumper
-```
-
-Whilst this command is running, you can connect to the app at
-`http://localhost:1234`:
-
-```code
-$ curl http://localhost:1234/
-```
-
-The tunnel listens only on the loopback interface, meaning that this port
-cannot be used from other hosts. Care should still be taken though, as any
-process running on that host will be able to connect to the application without
-authentication through this port.
+</TabItem>
+</Tabs>
 
 ## Troubleshooting
 

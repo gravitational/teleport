@@ -21,7 +21,7 @@ import React from 'react';
 import { CardAccept, CardDenied } from './Cards';
 
 export default {
-  title: 'Headless Request',
+  title: 'Teleport/HeadlessRequest',
 };
 
 export function Cards() {

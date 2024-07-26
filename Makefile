@@ -60,6 +60,13 @@ ARCH ?= $(GO_ENV_ARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# If we're building inside the cross-compiling buildbox, include the
+# cross compilation definitions so we select the correct compilers and
+# libraries.
+ifeq ($(BUILDBOX_MODE),cross)
+include build.assets/buildbox/cross-compile.mk
+endif
+
 # Include common makefile shared between OSS and Ent.
 include common.mk
 
@@ -94,11 +101,6 @@ TARBINS = $(addprefix teleport/,$(BINS))
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
-
-# Check if pnpm is enabled before using it
-CHECK_PNPM := $(shell pnpm --version 2>/dev/null)
-# Check if Corepack is installed before using it
-CHECK_COREPACK := $(shell corepack --version 2>/dev/null)
 
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
@@ -259,17 +261,20 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-# True if $ARCH == amd64 || $ARCH == arm64
 ifeq ("$(ARCH)","arm64")
-	ifeq (,$(IS_NATIVE_BUILD))
-		CGOFLAG += CC=aarch64-linux-gnu-gcc
-	endif
+ifneq ($(BUILDBOX_MODE),cross)
+ifeq (,$(IS_NATIVE_BUILD))
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+endif
 else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
+ifneq ($(BUILDBOX_MODE),cross)
 ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
+endif
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
@@ -355,7 +360,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
-$(BUILDDIR)/teleport: ensure-js-package-manager ensure-webassets bpf-bytecode rdpclient
+$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
@@ -1636,8 +1641,8 @@ ensure-webassets-e:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/teleport/index.html webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
-# Enables the pnpm package manager if building webassets is not skipped,
-# pnpm is not already enabled and Corepack is available.
+# Enables the pnpm package manager if it is not already enabled and Corepack
+# is available.
 # We check if pnpm is enabled, as the user may not have permission to
 # enable it, but it may already be available.
 # Enabling it merely installs a shim which then needs to be downloaded before first use.
@@ -1645,18 +1650,16 @@ ensure-webassets-e:
 # by issuing a bogus pnpm call with an env var that skips the prompt.
 .PHONY: ensure-js-package-manager
 ensure-js-package-manager:
-ifneq ($(WEBASSETS_SKIP_BUILD),1)
-	@if [ -z "$(CHECK_PNPM)" ]; then \
-		if [ -n "$(CHECK_COREPACK)" ]; then \
+	@if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
+		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
 			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
 			corepack enable pnpm; \
-			COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v; \
+			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
 		else \
 			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
 			exit 1; \
-		fi \
+		fi; \
 	fi
-endif
 
 .PHONY: init-submodules-e
 init-submodules-e:
@@ -1672,7 +1675,7 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else pnpm install --frozen-lockfile; fi
+	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps

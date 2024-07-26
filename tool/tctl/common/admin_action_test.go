@@ -994,6 +994,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 				Users: []string{types.Wildcard},
 				Roles: []string{types.Wildcard},
 			},
+			AppLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.Wildcard},
@@ -1022,6 +1023,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
+		promptCfg.WebauthnSupported = true
 		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
 	}
 
