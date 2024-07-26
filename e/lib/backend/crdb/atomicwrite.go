@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
@@ -101,32 +102,48 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	}
 
 	var attempts int
-	err = pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{}, false, func(tx pgx.Tx) error {
+	_, err = pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
 		attempts++
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
 
-		var condBatch, actBatch pgx.Batch
-		for _, bi := range condBatchItems {
-			condBatch.Queue(bi.query, bi.arguments...).QueryRow(querySuccess)
-		}
-		for _, bi := range actBatchItems {
-			actBatch.Queue(bi.query, bi.arguments...)
-		}
+			err := pgx.BeginTxFunc(ctx, c, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				var condBatch, actBatch pgx.Batch
+				for _, bi := range condBatchItems {
+					condBatch.Queue(bi.query, bi.arguments...).QueryRow(querySuccess)
+				}
+				for _, bi := range actBatchItems {
+					actBatch.Queue(bi.query, bi.arguments...)
+				}
 
-		success = true
-		if condBatch.Len() > 0 {
-			if err := tx.SendBatch(ctx, &condBatch).Close(); err != nil {
+				success = true
+				if condBatch.Len() > 0 {
+					if err := tx.SendBatch(ctx, &condBatch).Close(); err != nil {
+						return trace.Wrap(err)
+					}
+					if !success {
+						return nil
+					}
+				}
+
+				if err := tx.SendBatch(ctx, &actBatch).Close(); err != nil {
+					return trace.Wrap(err)
+				}
+				return nil
+			})
+			if err != nil {
 				return trace.Wrap(err)
 			}
-			if !success {
-				return nil
-			}
+			return nil
+		})
+		if err != nil {
+			return struct{}{}, trace.Wrap(err)
 		}
-
-		if err := tx.SendBatch(ctx, &actBatch).Close(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return struct{}{}, nil
 	})
 
 	if attempts > 1 {

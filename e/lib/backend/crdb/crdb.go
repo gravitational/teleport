@@ -36,10 +36,15 @@ const (
 	component = "crdb"
 )
 
-// defaultPageSize is the page size used for GetRange queries by default.
-// This was chosen based on load testing at 150k ssh nodes. At scale range queries
-// over many rows fail due to ReadWithinUncertaintyIntervalError.
-var defaultPageSize = 1000
+var (
+
+	// defaultPageSize is the page size used for GetRange queries by default.
+	// This was chosen based on load testing at 150k ssh nodes. At scale range queries
+	// over many rows fail due to ReadWithinUncertaintyIntervalError.
+	defaultPageSize = 1000
+	// defaultQueryTimeout is the context timeout set for all queries by default.
+	defaultQueryTimeout = time.Second * 30
+)
 
 var schemas = []string{
 	`CREATE TABLE kv (
@@ -167,10 +172,18 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	revision := newRevision()
 	i.Expires = i.Expires.UTC()
 	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
-		_, err := b.pool.Exec(ctx,
-			// Upsert is cockroachdb-specific.
-			"UPSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)",
-			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			_, err := c.Exec(ctx,
+				// Upsert is cockroachdb-specific.
+				"UPSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)",
+				nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+			return trace.Wrap(err)
+		})
 		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -192,16 +205,30 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	revision := newRevision()
 	i.Expires = i.Expires.UTC()
 	created, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
-				" ON CONFLICT (key) DO UPDATE SET"+
-				" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
-				" WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
-			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+		var created bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+
+			tag, err := c.Exec(ctx,
+				"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
+					" ON CONFLICT (key) DO UPDATE SET"+
+					" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
+					" WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
+				nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			created = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return created, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -224,15 +251,28 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith back
 	revision := newRevision()
 	replaceWith.Expires = replaceWith.Expires.UTC()
 	swapped, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
-				" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
-			nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
-			nonNil(replaceWith.Key), nonNil(expected.Value))
+		var swapped bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			tag, err := c.Exec(ctx,
+				"UPDATE kv SET value = $1, expires = $2, revision = $3"+
+					" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
+				nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
+				nonNil(replaceWith.Key), nonNil(expected.Value))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			swapped = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return swapped, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,14 +291,27 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	revision := newRevision()
 	i.Expires = i.Expires.UTC()
 	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
-				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
-			nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNil(i.Key))
+		var updated bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			tag, err := c.Exec(ctx,
+				"UPDATE kv SET value = $1, expires = $2, revision = $3"+
+					" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
+				nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNil(i.Key))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			updated = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return updated, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -281,16 +334,29 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 	newRevision := newRevision()
 	i.Expires = i.Expires.UTC()
 	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"UPDATE kv SET value = $1, expires = $2, revision = $3 "+
-				"WHERE kv.key = $4 AND kv.revision = $5 AND "+
-				"(kv.expires IS NULL OR kv.expires > now())",
-			nonNil(i.Value), zeronull.Timestamptz(i.Expires), newRevision,
-			nonNil(i.Key), expectedRevision)
+		var updated bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			tag, err := c.Exec(ctx,
+				"UPDATE kv SET value = $1, expires = $2, revision = $3 "+
+					"WHERE kv.key = $4 AND kv.revision = $5 AND "+
+					"(kv.expires IS NULL OR kv.expires > now())",
+				nonNil(i.Value), zeronull.Timestamptz(i.Expires), newRevision,
+				nonNil(i.Key), expectedRevision)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			updated = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return updated, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -307,37 +373,46 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 // Get implements [backend.Backend].
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
-		batch := new(pgx.Batch)
-		// batches run in an implicit transaction
-		batch.Queue("SET transaction_read_only TO on")
-
 		var item *backend.Item
-		batch.Queue("SELECT kv.value, kv.expires, kv.revision FROM kv"+
-			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key),
-		).QueryRow(func(row pgx.Row) error {
-			var value []byte
-			var expires time.Time
-			var revision revision
-			if err := row.Scan(&value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					return nil
-				}
-				return trace.Wrap(err)
-			}
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			batch := new(pgx.Batch)
+			// batches run in an implicit transaction
+			batch.Queue("SET transaction_read_only TO on")
 
-			item = &backend.Item{
-				Key:      key,
-				Value:    value,
-				Expires:  expires.UTC(),
-				Revision: revisionToString(revision),
+			batch.Queue("SELECT kv.value, kv.expires, kv.revision FROM kv"+
+				" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key),
+			).QueryRow(func(row pgx.Row) error {
+				var value []byte
+				var expires time.Time
+				var revision revision
+				if err := row.Scan(&value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						return nil
+					}
+					return trace.Wrap(err)
+				}
+
+				item = &backend.Item{
+					Key:      key,
+					Value:    value,
+					Expires:  expires.UTC(),
+					Revision: revisionToString(revision),
+				}
+				return nil
+			})
+			if err := c.SendBatch(ctx, batch).Close(); err != nil {
+				return trace.Wrap(err)
 			}
 			return nil
 		})
-
-		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		return item, nil
 	})
 	if err != nil {
@@ -361,39 +436,50 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	for {
 		pageLimit := min(limit-len(results.Items), defaultPageSize)
 		items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
-			batch := new(pgx.Batch)
-			// batches run in an implicit transaction
-			batch.Queue("SET transaction_read_only TO on")
-			// TODO(espadolini): figure out if we want transaction_deferred enabled
-			// for GetRange
-
 			var items []backend.Item
+			err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+				// Timers can be expensive at scale. To mitigate this allocate the
+				// timeout context after a connection has been acquired. This limits
+				// the number of timers to at most the size of the connection pool.
+				ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+				defer cancel()
 
-			batch.Queue(
-				"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
-					" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())"+
-					" ORDER BY kv.key LIMIT $4",
-				nonNil(startKey), nonNil(endKey), exclusiveStartKey, pageLimit,
-			).Query(func(rows pgx.Rows) error {
-				var err error
-				items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-					var key, value []byte
-					var expires time.Time
-					var revision revision
-					if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-						return backend.Item{}, err
-					}
-					return backend.Item{
-						Key:      key,
-						Value:    value,
-						Expires:  expires.UTC(),
-						Revision: revisionToString(revision),
-					}, nil
+				batch := new(pgx.Batch)
+				// batches run in an implicit transaction
+				batch.Queue("SET transaction_read_only TO on")
+				// TODO(espadolini): figure out if we want transaction_deferred enabled
+				// for GetRange
+
+				batch.Queue(
+					"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
+						" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())"+
+						" ORDER BY kv.key LIMIT $4",
+					nonNil(startKey), nonNil(endKey), exclusiveStartKey, pageLimit,
+				).Query(func(rows pgx.Rows) error {
+					var err error
+					items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
+						var key, value []byte
+						var expires time.Time
+						var revision revision
+						if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+							return backend.Item{}, err
+						}
+						return backend.Item{
+							Key:      key,
+							Value:    value,
+							Expires:  expires.UTC(),
+							Revision: revisionToString(revision),
+						}, nil
+					})
+					return trace.Wrap(err)
 				})
-				return trace.Wrap(err)
-			})
 
-			if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+				if err := c.SendBatch(ctx, batch).Close(); err != nil {
+					return trace.Wrap(err)
+				}
+				return nil
+			})
+			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return items, nil
@@ -414,12 +500,25 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 // Delete implements [backend.Backend].
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key))
+		var deleted bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			tag, err := c.Exec(ctx,
+				"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			deleted = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return deleted, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -438,14 +537,27 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 	}
 
 	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
-				"(kv.expires IS NULL OR kv.expires > now())",
-			nonNil(key), expectedRevision)
+		var deleted bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			tag, err := c.Exec(ctx,
+				"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
+					"(kv.expires IS NULL OR kv.expires > now())",
+				nonNil(key), expectedRevision)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			deleted = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return deleted, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -463,11 +575,22 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 	// amount of rows at the same time; in actual operation, DeleteRange hardly
 	// ever deletes more than dozens of items at once, so we're good here.
 	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
-		_, err := b.pool.Exec(ctx,
-			"DELETE FROM kv WHERE kv.key BETWEEN $1 AND $2",
-			nonNil(startKey), nonNil(endKey),
-		)
-		return struct{}{}, trace.Wrap(err)
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			_, err := c.Exec(ctx,
+				"DELETE FROM kv WHERE kv.key BETWEEN $1 AND $2",
+				nonNil(startKey), nonNil(endKey),
+			)
+			return trace.Wrap(err)
+		})
+		if err != nil {
+			return struct{}{}, trace.Wrap(err)
+		}
+		return struct{}{}, nil
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -479,14 +602,27 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	revision := newRevision()
 	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
-			"UPDATE kv SET expires = $1, revision = $2"+
-				" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
-			zeronull.Timestamptz(expires.UTC()), revision, nonNil(lease.Key))
+		var updated bool
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+			tag, err := c.Exec(ctx,
+				"UPDATE kv SET expires = $1, revision = $2"+
+					" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
+				zeronull.Timestamptz(expires.UTC()), revision, nonNil(lease.Key))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			updated = tag.RowsAffected() > 0
+			return nil
+		})
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return tag.RowsAffected() > 0, nil
+		return updated, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
