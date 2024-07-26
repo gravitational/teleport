@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -740,19 +739,16 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 		_, _ = conn.Read(make([]byte, 1))
 	}()
 
-	log := slog.With("request", req)
-	log.DebugContext(ctx, "Handling networking request")
-
 	netFile, filePaths, err := createNetworkingFile(ctx, req)
 	if err != nil {
-		log.With("error", err).ErrorContext(ctx, "Error creating networking file.")
-		conn.Write([]byte(err.Error()))
+		conn.Write([]byte(trace.Wrap(err, "failed to create networking file").Error()))
 		return nil
 	}
 	defer netFile.Close()
 
 	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
-		log.With("error", err.Error()).ErrorContext(ctx, "Failed to write networking file to control conn.")
+		conn.Write([]byte(trace.Wrap(err, "ailed to write networking file to control conn").Error()))
+		return nil
 	}
 	return filePaths
 }
