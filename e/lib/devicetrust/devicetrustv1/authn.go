@@ -14,6 +14,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
@@ -78,35 +79,7 @@ func (c *authnCeremony) AuthenticateDevice(
 		return dev, trace.Wrap(err)
 	}
 
-	// Attempt to "backfill" owner and trusted device IDs.
-	if !c.skipOwnerBackfill {
-		owner := dev.Owner
-		backfill := false
-		if owner == "" {
-			owner = user
-			backfill = true
-		} else {
-			u, err := c.cachedUsers.GetUser(ctx, owner, false /* withSecrets */)
-			backfill = err == nil && !slices.Contains(u.GetTrustedDeviceIDs(), dev.Id)
-		}
-		if backfill {
-			c.logger.DebugContext(ctx,
-				"Backfilling device owner",
-				"device_id", dev.Id,
-				"asset_tag", dev.AssetTag,
-				"owner", owner,
-			)
-			if _, err := c.storage.AssignDeviceOwner(ctx, dev.Id, owner); err != nil {
-				c.logger.WarnContext(ctx,
-					"Failed to backfill device owner or user trusted device IDs",
-					"error", err,
-					"device_id", dev.Id,
-					"asset_tag", dev.AssetTag,
-					"owner", owner,
-				)
-			}
-		}
-	}
+	c.backfillDeviceOwner(ctx, dev, user)
 
 	// Success (only send after audit).
 	return dev, trace.Wrap(stream.Send(successResp))
@@ -539,4 +512,52 @@ func (c *authnCeremony) authenticateDeviceTPM(
 	}
 
 	return platformAttestation, nil
+}
+
+func (c *authnCeremony) backfillDeviceOwner(ctx context.Context, dev *devicepb.Device, user string) {
+	if c.skipOwnerBackfill {
+		return
+	}
+
+	owner := dev.Owner
+	backfill := false
+
+	// Is the owner empty? Backfill.
+	if owner == "" {
+		owner = user
+		backfill = true
+	}
+
+	// Is the device written to the owner's devices?
+	// Local users only, SSO users are ephemeral.
+	if !backfill {
+		u, err := c.cachedUsers.GetUser(ctx, owner, false /* withSecrets */)
+		backfill = err == nil && u.GetUserType() == types.UserTypeLocal && !slices.Contains(u.GetTrustedDeviceIDs(), dev.Id)
+	}
+
+	// Is the user->device index up-to-date?
+	if !backfill {
+		deviceIDs, err := c.storage.GetUserTrustedDeviceIDs(ctx, owner)
+		backfill = err != nil || !slices.Contains(deviceIDs, dev.Id)
+	}
+
+	if !backfill {
+		return
+	}
+
+	c.logger.DebugContext(ctx,
+		"Backfilling device owner",
+		"device_id", dev.Id,
+		"asset_tag", dev.AssetTag,
+		"owner", owner,
+	)
+	if _, err := c.storage.AssignDeviceOwner(ctx, dev.Id, owner); err != nil {
+		c.logger.WarnContext(ctx,
+			"Failed to backfill device owner or user trusted device IDs",
+			"error", err,
+			"device_id", dev.Id,
+			"asset_tag", dev.AssetTag,
+			"owner", owner,
+		)
+	}
 }

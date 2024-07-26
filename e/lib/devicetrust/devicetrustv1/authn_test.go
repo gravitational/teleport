@@ -466,17 +466,16 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	identity := env.IdentityService
 	ctx := context.Background()
 
-	legacyKey, err := newFakeEnclaveKey()
-	if err != nil {
-		t.Fatalf("newFakeEnclaveKey failed: %v", err)
-	}
-
 	user, _ := types.NewUser(testenv.DefaultUser)
 	if _, err := identity.CreateUser(ctx, user); err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
 	// legacyDev has no user assigned.
+	legacyKey, err := newFakeEnclaveKey()
+	if err != nil {
+		t.Fatalf("newFakeEnclaveKey failed: %v", err)
+	}
 	legacyDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 		Device: &devicepb.Device{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
@@ -493,8 +492,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
-	// enrolledDev has an owner, but we'll update the user and remove its trusted
-	// device ID
+	// enrolledDev has an owner, but the user is missing its TrustedDeviceIDs.
 	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "enrolled1",
@@ -507,6 +505,34 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 		return true, nil
 	})
 	if err != nil {
+		t.Fatalf("UpdateAndSwapUser failed: %v", err)
+	}
+
+	// missingIndex is missing the devicesByUser index.
+	missingIndexKey, err := newFakeEnclaveKey()
+	if err != nil {
+		t.Fatalf("newFakeEnclaveKey failed: %v", err)
+	}
+	missingIndex, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:       devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag:     "missingIndex",
+			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+			Credential: &devicepb.DeviceCredential{
+				Id:           missingIndexKey.id,
+				PublicKeyDer: missingIndexKey.pubKeyDER,
+			},
+			Owner: user.GetName(),
+		},
+		CreateAsResource: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	if _, err := identity.UpdateAndSwapUser(ctx, user.GetName(), false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		u.SetTrustedDeviceIDs(append(u.GetTrustedDeviceIDs(), missingIndex.Id))
+		return true, nil
+	}); err != nil {
 		t.Fatalf("UpdateAndSwapUser failed: %v", err)
 	}
 
@@ -527,6 +553,11 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 			dev:  enrolledDev,
 			key:  enrolledKey,
 		},
+		{
+			name: "missing devicesByUser index",
+			dev:  missingIndex,
+			key:  missingIndexKey,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -534,6 +565,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 				t.Fatalf("AuthenticateDevice failed: %v", err)
 			}
 
+			// Verify Device.Owner.
 			deviceID := test.dev.Id
 			storedDev, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
 				DeviceId: deviceID,
@@ -545,6 +577,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 				t.Errorf("AuthenticateDevice: Device owner not backfilled, got=%q, want %q", storedDev.Owner, wantOwner)
 			}
 
+			// Verify User.TrustedDeviceIDs.
 			storedUser, err := identity.GetUser(ctx, wantOwner, false /* withSecrets */)
 			switch {
 			case err != nil:

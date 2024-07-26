@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1674,6 +1675,144 @@ func TestS_GetDevicesByAssetTag_errors(t *testing.T) {
 			_, err := s.GetDevicesByAssetTag(ctx, test.assetTag)
 			if !test.assertErr(err) {
 				t.Errorf("GetDevicesByAssetTag assertErr failed, err=%v", err)
+			}
+		})
+	}
+}
+
+func TestS_GetUserTrustedDeviceIDs(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	const userLlama = "llama"
+	const userAlpaca = "alpaca"
+	const userNoDevices = "noDevices"
+
+	for _, user := range []string{userLlama, userAlpaca, userNoDevices} {
+		u, err := types.NewUser(user)
+		if err != nil {
+			t.Fatalf("NewUser failed: %v", err)
+		}
+		if _, err := env.IdentityService.CreateUser(ctx, u); err != nil {
+			t.Fatalf("CreateUser failed: %v", err)
+		}
+	}
+
+	// Assign via enrollment.
+	llama1, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama1",
+	}, userLlama)
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	// Assign via AssignDeviceOwner.
+	var devices []*devicepb.Device
+	for _, spec := range []struct {
+		osType   devicepb.OSType
+		assetTag string
+		owner    string
+	}{
+		{
+			osType:   devicepb.OSType_OS_TYPE_MACOS,
+			assetTag: "llama2",
+			owner:    userLlama,
+		},
+		{
+			osType:   devicepb.OSType_OS_TYPE_WINDOWS,
+			assetTag: "llama3",
+			owner:    userLlama,
+		},
+		{
+			osType:   devicepb.OSType_OS_TYPE_MACOS,
+			assetTag: "alpaca1",
+			owner:    userAlpaca,
+		},
+	} {
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   spec.osType,
+			AssetTag: spec.assetTag,
+		}, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		dev, err = s.AssignDeviceOwner(ctx, dev.Id, spec.owner)
+		if err != nil {
+			t.Fatalf("AssignDeviceOwner failed: %v", err)
+		}
+		devices = append(devices, dev)
+	}
+	llama2 := devices[0]
+	llama3 := devices[1]
+	alpaca1 := devices[2]
+
+	// Assign and unassign noDevices.
+	noDevices1, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "noDevices1",
+		Owner:    userNoDevices,
+	}, userNoDevices)
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	if _, err := s.UpdateDevice(ctx, noDevices1.Id, func(stored *devicepb.Device) *devicepb.Device {
+		stored.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+		return stored
+	}); err != nil {
+		t.Fatalf("UpdateDevice failed: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		user          string
+		wantDeviceIDs []string
+	}{
+		{
+			name: "multiple devices",
+			user: userLlama,
+			wantDeviceIDs: []string{
+				llama1.Id,
+				llama2.Id,
+				llama3.Id,
+			},
+		},
+		{
+			name: "single device",
+			user: userAlpaca,
+			wantDeviceIDs: []string{
+				alpaca1.Id,
+			},
+		},
+		{
+			name: "all devices unassigned",
+			user: userNoDevices,
+		},
+		{
+			name: "unknown user",
+			user: "unknown",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := s.GetUserTrustedDeviceIDs(ctx, test.user)
+			if err != nil {
+				t.Fatalf("GetUserTrustedDeviceIDs failed: %v", err)
+			}
+
+			want := test.wantDeviceIDs
+			slices.Sort(want)
+			slices.Sort(got)
+			if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("GetUserTrustedDeviceIDs mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}

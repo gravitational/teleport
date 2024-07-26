@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -1181,25 +1182,15 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	// Fetch user devices.
-	user, err := s.cachedUsers.GetUser(ctx, token.User, false /* withSecrets */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	userDevices, err := s.getDevicesByID(ctx, user.GetTrustedDeviceIDs())
+	userDevices, err := s.getUserTrustedDevices(ctx, token.User)
 	switch {
-	case err != nil && len(userDevices) == 0:
-		// All reads failed.
-		return nil, trace.Wrap(err)
 	case err != nil:
-		// Some reads failed.
-		s.logger.WarnContext(ctx,
-			"Failed to read all user trusted devices",
-			"error", err,
+		return nil, trace.Wrap(err, "reading user trusted devices")
+	case len(userDevices) == 0:
+		s.logger.DebugContext(ctx,
+			"User has no trusted devices, skipping DeviceWebToken creation",
 			"user", token.User,
 		)
-		// err swallowed on purpose, at least one read succeeded.
-	case len(userDevices) == 0:
-		// User has no trusted devices.
 		return nil, nil
 	}
 
@@ -1257,6 +1248,88 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	})
 
 	return created, nil
+}
+
+func (s *Service) getUserTrustedDevices(ctx context.Context, user string) ([]*devicepb.Device, error) {
+	deviceIDs, err := s.getCombinedUserTrustedDeviceIDs(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading user trusted devices")
+	}
+
+	devs, err := s.getDevicesByID(ctx, deviceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Filter out devices based on ownership.
+	for i := 0; i < len(devs); i++ {
+		dev := devs[i]
+
+		if dev.Owner == user {
+			continue
+		}
+
+		devs = slices.Delete(devs, i, i+1)
+		i--
+	}
+	return devs, nil
+}
+
+// getCombinedUserTrustedDeviceIDs returns the trusted device IDs for the user,
+// combining the values from s.storage.GetTrustedDeviceIDs() and
+// user.GetUserTrustedDeviceIDs().
+//
+// The presence of an ID in the list doesn't necessarily mean the user still
+// owns the device, as we could be looking at outdated (or manually edited)
+// data.
+func (s *Service) getCombinedUserTrustedDeviceIDs(ctx context.Context, user string) ([]string, error) {
+	const numGoroutines = 2
+	deviceIDsC := make(chan []string, numGoroutines)
+	g, gCtx := errgroup.WithContext(ctx)
+
+	// devicesByUser.
+	g.Go(func() error {
+		deviceIDs, err := s.storage.GetUserTrustedDeviceIDs(gCtx, user)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		deviceIDsC <- deviceIDs
+		return nil
+	})
+
+	// User.TrustedDeviceIDs.
+	g.Go(func() error {
+		u, err := s.cachedUsers.GetUser(gCtx, user, false /* withSecrets */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		deviceIDsC <- u.GetTrustedDeviceIDs()
+		return nil
+	})
+
+	// Fail on errors so it fails early. Technically we could take either
+	// response and keep going, but that might create a more confusing failure (or
+	// soft-failure) later on.
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	close(deviceIDsC)
+
+	// Receive and dedup.
+	seenIDs := make(map[string]struct{})
+	var deviceIDs []string
+	for ids := range deviceIDsC {
+		for _, id := range ids {
+			if _, ok := seenIDs[id]; ok {
+				continue
+			}
+			seenIDs[id] = struct{}{}
+			deviceIDs = append(deviceIDs, id)
+		}
+	}
+	return deviceIDs, nil
 }
 
 // CreateAssertCeremony creates a new [assert.Ceremony] backed by this

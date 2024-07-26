@@ -27,8 +27,8 @@ type storedDevice struct {
 
 // deviceRef is stored as reference to a device in manually managed indexes.
 type deviceRef struct {
-	DeviceID string `json:"device_id"` // Required.
-	OSType   int    `json:"os_type"`   // Required. Same as devicepb.OSType.
+	DeviceID string `json:"device_id"`         // Required.
+	OSType   int    `json:"os_type,omitempty"` // Required on byAssetTag, absent on byUser. Same as devicepb.OSType.
 }
 
 // devicesRef is a stored reference to N devices, used by manually managed

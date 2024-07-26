@@ -349,40 +349,49 @@ func isDeviceProfileEmpty(p *devicepb.DeviceProfile) bool {
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
+	return trace.Wrap(s.updateDeviceRefsIndex(ctx, devicesByAssetTagKey(assetTag), ref, true /* dedupMatchingOS */))
+}
+
+// updateDeviceRefsIndex creates or updates a hand-written devicesRef index.
+func (s *S) updateDeviceRefsIndex(
+	ctx context.Context,
+	key []byte,
+	ref *deviceRef,
+	dedupMatchingOS bool,
+) error {
 	logger := s.logger.With(
+		"key", string(key),
 		"device_id", ref.DeviceID,
 		"os_type", ref.OSType,
-		"asset_tag", assetTag,
 	)
 
-	assetTagKey := devicesByAssetTagKey(assetTag)
 	var lastErr error
 	const maxAttempts = 3 // arbitrary
 	for i := 0; i < maxAttempts; i++ {
 		var retry bool
-		current, getErr := s.backend.Get(ctx, assetTagKey)
+		current, getErr := s.backend.Get(ctx, key)
 		switch {
-		case trace.IsNotFound(getErr): // New asset tag
-			retry, lastErr = s.createDeviceRef(ctx, assetTagKey, ref)
+		case trace.IsNotFound(getErr): // New devices ref
+			retry, lastErr = s.createDeviceRef(ctx, key, ref)
 			if lastErr != nil {
 				logger.DebugContext(ctx,
-					"Failed to write new asset tag mapping, retrying",
+					"Failed to write new devices ref entry, retrying",
 					"error", lastErr,
 				)
 			}
 
-		case getErr == nil: // Existing asset tag
-			retry, lastErr = s.appendDeviceRef(ctx, current, ref)
+		case getErr == nil: // Existing devices ref
+			retry, lastErr = s.appendDeviceRef(ctx, current, ref, dedupMatchingOS)
 			if lastErr != nil {
 				logger.DebugContext(ctx,
-					"Failed to append to asset tag mapping, retrying",
+					"Failed to append to devices ref entry, retrying",
 					"error", lastErr,
 				)
 			}
 
 		default: // getErr != nil
 			logger.WarnContext(ctx,
-				"Unexpected error reading asset tag mapping, retrying",
+				"Unexpected error reading devices ref entry, retrying",
 				"error", getErr,
 			)
 
@@ -406,7 +415,7 @@ func (s *S) createDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (re
 		Devices: []*deviceRef{ref},
 	})
 	if err != nil {
-		return false, trace.Wrap(err, "marshal device reference")
+		return false, trace.Wrap(err, "marshal devices reference")
 	}
 
 	if _, err := s.backend.Create(ctx, backend.Item{
@@ -418,10 +427,15 @@ func (s *S) createDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (re
 	return false, nil
 }
 
-func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *deviceRef) (retryable bool, err error) {
+func (s *S) appendDeviceRef(
+	ctx context.Context,
+	current *backend.Item,
+	ref *deviceRef,
+	dedupMatchingOS bool, // byAssetTag only
+) (retryable bool, err error) {
 	refs := &devicesRef{}
 	if err := json.Unmarshal(current.Value, refs); err != nil {
-		return false, trace.Wrap(err, "unmarshal device references")
+		return false, trace.Wrap(err, "unmarshal devices reference")
 	}
 
 	// Is the device already mapped? Nothing to do in that case.
@@ -429,7 +443,7 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 		if existing.DeviceID == ref.DeviceID {
 			return false, nil
 		}
-		if existing.OSType == ref.OSType {
+		if dedupMatchingOS && existing.OSType == ref.OSType {
 			// Does the device _really_ exist?
 			// Let's not have a hanging mapping inutilize an asset tag.
 			if _, getErr := s.backend.Get(ctx, deviceKey(existing.DeviceID)); getErr == nil {
@@ -450,7 +464,7 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 
 	val, err := json.Marshal(refs)
 	if err != nil {
-		return false, trace.Wrap(err, "marshal device references")
+		return false, trace.Wrap(err, "marshal devices reference")
 	}
 
 	if _, err := s.backend.CompareAndSwap(ctx, *current, backend.Item{
@@ -605,16 +619,37 @@ func (s *S) assignDeviceToUser(ctx context.Context, user, deviceID string) error
 		return nil
 	}
 
-	_, err := s.users.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
-		ids := u.GetTrustedDeviceIDs()
-		if slices.Contains(ids, deviceID) {
-			return false, nil // Nothing to do.
-		}
+	g, gCtx := errgroup.WithContext(ctx)
 
-		u.SetTrustedDeviceIDs(append(ids, deviceID))
-		return true, nil
+	// Assign devices to User.TrustedDeviceIDs.
+	// Transient for SSO, but useful informational field for local users.
+	g.Go(func() error {
+		_, err := s.users.UpdateAndSwapUser(gCtx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+			ids := u.GetTrustedDeviceIDs()
+			if slices.Contains(ids, deviceID) {
+				return false, nil // Nothing to do.
+			}
+
+			u.SetTrustedDeviceIDs(append(ids, deviceID))
+			return true, nil
+		})
+		return trace.Wrap(err)
 	})
-	return trace.Wrap(err)
+
+	// Update hand-written user->devices index.
+	g.Go(func() error {
+		return trace.Wrap(s.updateUserDevicesIndex(gCtx, user, deviceID))
+	})
+
+	return trace.Wrap(g.Wait())
+}
+
+func (s *S) updateUserDevicesIndex(ctx context.Context, user, deviceID string) error {
+	ref := &deviceRef{
+		DeviceID: deviceID,
+		// OSType not used by this index.
+	}
+	return trace.Wrap(s.updateDeviceRefsIndex(ctx, devicesByUserKey(user), ref, false /* dedupMatchingOS */))
 }
 
 func (s *S) unassignDeviceFromUser(ctx context.Context, user, deviceID string) error {
@@ -622,25 +657,41 @@ func (s *S) unassignDeviceFromUser(ctx context.Context, user, deviceID string) e
 		return nil // Nothing to do. May happen for legacy devices.
 	}
 
-	_, err := s.users.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
-		ids := u.GetTrustedDeviceIDs()
-		if !slices.Contains(ids, deviceID) {
-			return false, nil // Nothing to do
-		}
+	g, gCtx := errgroup.WithContext(ctx)
 
-		for i := 0; i < len(ids); i++ {
-			if ids[i] == deviceID {
-				ids = slices.Delete(ids, i, i+1)
-				i--
+	// Remove device from User.TrustedDeviceIDs.
+	g.Go(func() error {
+		_, err := s.users.UpdateAndSwapUser(gCtx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+			ids := u.GetTrustedDeviceIDs()
+			if !slices.Contains(ids, deviceID) {
+				return false, nil // Nothing to do
 			}
+
+			for i := 0; i < len(ids); i++ {
+				if ids[i] == deviceID {
+					ids = slices.Delete(ids, i, i+1)
+					i--
+				}
+			}
+			u.SetTrustedDeviceIDs(ids)
+			return true, nil
+		})
+		if trace.IsNotFound(err) {
+			return nil // Nothing to do in this case.
 		}
-		u.SetTrustedDeviceIDs(ids)
-		return true, nil
+		return trace.Wrap(err)
 	})
-	if trace.IsNotFound(err) {
-		return nil // Nothing to do in this case.
-	}
-	return trace.Wrap(err)
+
+	// Remove from hand-written user->devices index.
+	g.Go(func() error {
+		return trace.Wrap(s.removeFromUserDevicesIndex(gCtx, user, deviceID))
+	})
+
+	return trace.Wrap(g.Wait())
+}
+
+func (s *S) removeFromUserDevicesIndex(ctx context.Context, user, deviceID string) error {
+	return trace.Wrap(s.removeFromDeviceRefsIndex(ctx, devicesByUserKey(user), deviceID))
 }
 
 type deviceToDelete struct {
@@ -742,14 +793,24 @@ func (s *S) deleteDevice(ctx context.Context, dev *deviceToDelete) error {
 }
 
 func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag string) error {
-	item, err := s.backend.Get(ctx, devicesByAssetTagKey(assetTag))
+	return trace.Wrap(s.removeFromDeviceRefsIndex(ctx, devicesByAssetTagKey(assetTag), deviceID))
+}
+
+// removeFromDeviceRefsIndex removes a deviceRef from a hand-written devicesRef
+// index.
+func (s *S) removeFromDeviceRefsIndex(
+	ctx context.Context,
+	key []byte,
+	deviceID string,
+) error {
+	item, err := s.backend.Get(ctx, key)
 	if err != nil {
-		return trace.Wrap(err, "reading asset tag mapping")
+		return trace.Wrap(err, "reading devices ref index")
 	}
 
 	refs := &devicesRef{}
 	if err := json.Unmarshal(item.Value, refs); err != nil {
-		return trace.Wrap(err, "unmarshal asset tag mapping")
+		return trace.Wrap(err, "unmarshal devices ref index")
 	}
 
 	// Is the device within the references?
@@ -778,14 +839,14 @@ func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag stri
 
 	val, err := json.Marshal(refs)
 	if err != nil {
-		return trace.Wrap(err, "marshal asset tag mapping")
+		return trace.Wrap(err, "marshal devices ref")
 	}
 
 	if _, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
 		Key:   item.Key,
 		Value: val,
 	}); err != nil {
-		return trace.Wrap(err, "writing asset tag mapping")
+		return trace.Wrap(err, "writing devices ref index")
 	}
 
 	return nil
@@ -998,13 +1059,37 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 }
 
 func (s *S) getDeviceRefsByTag(ctx context.Context, assetTag string) (*devicesRef, error) {
-	item, err := s.backend.Get(ctx, devicesByAssetTagKey(assetTag))
+	return s.getDeviceRefs(ctx, devicesByAssetTagKey(assetTag))
+}
+
+func (s *S) getDeviceRefs(ctx context.Context, key []byte) (*devicesRef, error) {
+	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	refs := &devicesRef{}
 	return refs, trace.Wrap(json.Unmarshal(item.Value, refs))
+}
+
+// GetUserTrustedDeviceIDs reads the devices associated to a user from the
+// "devicesByUser" index.
+// User-device associations are created by [S.EnrollDevice] or
+// [S.AssignDeviceOwner] and may be removed during device updates or deletes.
+func (s *S) GetUserTrustedDeviceIDs(ctx context.Context, user string) ([]string, error) {
+	refs, err := s.getDeviceRefs(ctx, devicesByUserKey(user))
+	switch {
+	case trace.IsNotFound(err): // Unknown user
+		return nil, nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	deviceIDs := make([]string, len(refs.Devices))
+	for i, ref := range refs.Devices {
+		deviceIDs[i] = ref.DeviceID
+	}
+	return deviceIDs, nil
 }
 
 // ListDevices is a paginated search of devices. It returns the found devices
@@ -2110,6 +2195,10 @@ func deviceWebAuthenticationAttemptKey(attemptID string) []byte {
 
 func devicesByAssetTagKey(assetTag string) []byte {
 	return backend.Key("devices", "byTag", assetTag)
+}
+
+func devicesByUserKey(user string) []byte {
+	return backend.Key("devices", "by_user", user)
 }
 
 func collectedDataKey(deviceID, cdID string) []byte {
