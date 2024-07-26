@@ -126,7 +126,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 		}
 
 		now := time.Now()
-		if expiry, ok := creds.Expiry(); ok && !expiry.IsZero() && expiry.Before(now) {
+		if expiry, ok := client.Expiry(creds); ok && !expiry.IsZero() && expiry.Before(now) {
 			diags.AddWarning(
 				fmt.Sprintf("Teleport credentials %s are expired", source.Name()),
 				fmt.Sprintf(`The credentials %s are expired. Expiration is %q while current time is %q). You might need to refresh them. The provider will not attempt to use those credentials.`,
