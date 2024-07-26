@@ -232,11 +232,14 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			Cert:       certs.TLS,
 		}
 	case proto.UserCertsRequest_Database:
-		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, keyRing)
+		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, privKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		keyRing.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
+		keyRing.DBTLSCredentials[params.RouteToDatabase.ServiceName] = TLSCredential{
+			Cert:       dbCert,
+			PrivateKey: privKey,
+		}
 	case proto.UserCertsRequest_Kubernetes:
 		keyRing.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	case proto.UserCertsRequest_WindowsDesktop:
@@ -352,6 +355,15 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 	switch params.usage() {
 	case proto.UserCertsRequest_App:
 		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(privateKey.Public())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	case proto.UserCertsRequest_Database:
+		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserDatabase)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -664,14 +676,17 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			keyRing.KubeTLSCerts[certsReq.KubernetesCluster] = newCerts.TLS
 
 		case proto.UserCertsRequest_Database:
-			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, keyRing)
+			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, params.PrivateKey)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			if keyRing.DBTLSCerts == nil {
-				keyRing.DBTLSCerts = make(map[string][]byte)
+			if keyRing.DBTLSCredentials == nil {
+				keyRing.DBTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.DBTLSCerts[certsReq.RouteToDatabase.ServiceName] = dbCert
+			keyRing.DBTLSCredentials[certsReq.RouteToDatabase.ServiceName] = TLSCredential{
+				Cert:       dbCert,
+				PrivateKey: params.PrivateKey,
+			}
 
 		case proto.UserCertsRequest_WindowsDesktop:
 			if keyRing.WindowsDesktopCerts == nil {

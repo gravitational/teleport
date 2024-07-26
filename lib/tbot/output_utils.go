@@ -122,8 +122,8 @@ func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted
 		// on tsh's end based on cert fields, though.)
-		KubeTLSCerts: make(map[string][]byte),
-		DBTLSCerts:   make(map[string][]byte),
+		KubeTLSCerts:     make(map[string][]byte),
+		DBTLSCredentials: make(map[string]client.TLSCredential),
 	}, nil
 }
 

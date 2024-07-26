@@ -550,7 +550,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
-			profile.KeyPath(),
+			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
 		}
 		out, err := serializeDatabaseConfig(configInfo, format)
 		if err != nil {
@@ -569,7 +569,9 @@ Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
-			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
+			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
+		)
 	}
 	return nil
 }

@@ -706,13 +706,18 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		// modify key to have db cert
 		addKey := *s.keyRing
-		addKey.DBTLSCerts = map[string][]byte{"some-db": addKey.TLSCert}
+		addKey.DBTLSCredentials = map[string]TLSCredential{
+			"some-db": TLSCredential{
+				PrivateKey: addKey.PrivateKey,
+				Cert:       addKey.TLSCert,
+			},
+		}
 		require.NoError(t, lka.SaveTrustedCerts([]authclient.TrustedCerts{s.tlscaCert}))
 		require.NoError(t, lka.AddDatabaseKeyRing(&addKey))
 
 		getKeyRing, err := lka.GetKeyRing(addKey.ClusterName, WithDBCerts{})
 		require.NoError(t, err)
-		require.Contains(t, getKeyRing.DBTLSCerts, "some-db")
+		require.Contains(t, getKeyRing.DBTLSCredentials, "some-db")
 	})
 }
 
