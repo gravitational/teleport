@@ -198,7 +198,7 @@ test('clicking on a resource label constructs predicate query', async () => {
   );
 });
 
-test('select all uses node hostnames in checkout', async () => {
+test('select node hostnames in checkout', async () => {
   cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
 
   render(Component);
@@ -213,6 +213,27 @@ test('select all uses node hostnames in checkout', async () => {
   await userEvent.click(proceedToRequest);
 
   expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
+  hostnames = await screen.findAllByText('hostname-node1');
+
+  // one in list and one in the checkout
+  expect(hostnames).toHaveLength(2);
+});
+
+test('select all nodes hostnames in checkout', async () => {
+  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
+
+  render(Component);
+
+  let hostnames = await screen.findAllByText(/hostname-node/);
+  expect(hostnames).toHaveLength(1);
+  await screen.getByTestId('select_all').click();
+  const addButtons = await screen.findAllByText(/remove from request/i);
+
+  await userEvent.click(addButtons[0]);
+  const proceedToRequest = await screen.findByText('Proceed to Request');
+  await userEvent.click(proceedToRequest);
+
+  expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
   hostnames = await screen.findAllByText('hostname-node1');
 
   // one in list and one in the checkout

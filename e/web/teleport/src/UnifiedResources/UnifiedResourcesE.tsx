@@ -149,10 +149,12 @@ export function UnifiedResourcesE() {
     );
     data.forEach(({ resource }) => {
       const resourceId = getResourceId(resource);
+      const resourceName =
+        resource.kind === 'node' ? resource.hostname : resourceId;
       if (allAdded) {
-        delete newResources[resource.kind][resourceId];
+        delete newResources[resource.kind][resourceName];
       } else {
-        newResources[resource.kind][resourceId] = resourceId;
+        newResources[resource.kind][resourceId] = resourceName;
       }
     });
     setAddedResources(newResources);

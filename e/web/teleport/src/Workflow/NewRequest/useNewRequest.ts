@@ -600,7 +600,8 @@ export function useNewRequest(ctx: Ctx) {
       resources.forEach(({ resource }) => {
         const key = getResourceId(resource);
         const kind = resource.kind;
-        delete newMap[kind][key];
+        const name = kind === 'node' ? resource.hostname : key;
+        delete newMap[kind][name];
       });
       setAddedResources(newMap);
       return;
@@ -609,7 +610,8 @@ export function useNewRequest(ctx: Ctx) {
     resources.forEach(({ resource }) => {
       const key = getResourceId(resource);
       const kind = resource.kind;
-      newMap[kind][key] = key;
+      const name = kind === 'node' ? resource.hostname : key;
+      newMap[kind][key] = name;
     });
     setAddedResources(newMap);
   };
