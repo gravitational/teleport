@@ -1,3 +1,19 @@
+/*
+Copyright 2024 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package testlib
 
 import (
@@ -87,7 +103,7 @@ func TestTerraformJoin(t *testing.T) {
 	bot, err = clt.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
 	require.NoError(t, err)
 
-	// Test setup sign a Kube JWT for our bot to join the cluster
+	// Test setup: sign a Kube JWT for our bot to join the cluster
 	// We sign the token, write it to a temporary file, and point the embedded tbot to it
 	// with an environment variable.
 	pong, err := clt.Ping(ctx)
@@ -127,7 +143,7 @@ func TestTerraformJoin(t *testing.T) {
 		return providerserver.NewProtocol6(terraformProvider)(), nil
 	}
 
-	// Do the test
+	// Test execution: apply a TF resource with the provider joining via MachineID
 	dummyResource, err := fixtures.ReadFile(filepath.Join("fixtures", "app_0_create.tf"))
 	testConfig := terraformConfig + "\n" + string(dummyResource)
 	name := "teleport_app.test"
