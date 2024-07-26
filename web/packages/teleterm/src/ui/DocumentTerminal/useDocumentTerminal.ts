@@ -76,7 +76,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
     return () => {
       if (attempt.status === 'success') {
-        attempt.data.ptyProcess.dispose();
+        void attempt.data.ptyProcess.dispose();
       }
     };
     // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
