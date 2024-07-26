@@ -790,12 +790,6 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, nil, trace.Wrap(err)
 		}
 
-		// Update the agent forwarding socket dir with more restrictive permissions.
-		if err = os.Chmod(sockDir, teleport.PrivateDirMode); err != nil {
-			os.RemoveAll(sockDir)
-			return nil, nil, trace.Wrap(err)
-		}
-
 		sockPath := filepath.Join(sockDir, "agent.sock")
 
 		listener, err := net.Listen("unix", sockPath)
