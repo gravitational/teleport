@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'design';
+import { Box, Mark, Text } from 'design';
 
 import { ButtonPrimary } from 'design/Button';
 
@@ -30,7 +30,7 @@ import {
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
-import { Mark, ResourceKind, useShowHint } from 'teleport/Discover/Shared';
+import { ResourceKind, useShowHint } from 'teleport/Discover/Shared';
 import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import LogoHero from 'teleport/components/LogoHero';
 
