@@ -24,9 +24,14 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
+
+// consumeStreamToErrorIfEOFFunc consumes all messages from the stream until
+// it finds the first error.
+var consumeStreamToErrorIfEOFFunc = apiutils.ConsumeStreamToErrorIfEOF[*devicepb.AuthenticateDeviceResponse]
 
 // Ceremony is the device authentication ceremony.
 // It takes the client role of
@@ -154,7 +159,7 @@ func (c *Ceremony) run(
 			Init: init,
 		},
 	}); err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(consumeStreamToErrorIfEOFFunc(err, stream)))
 	}
 	resp, err := stream.Recv()
 	if err != nil {
@@ -203,7 +208,10 @@ func (c *Ceremony) authenticateDeviceMacOS(
 			},
 		},
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	}
+	return nil
 }
 
 func (c *Ceremony) authenticateDeviceTPM(
@@ -223,5 +231,8 @@ func (c *Ceremony) authenticateDeviceTPM(
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	}
+	return nil
 }

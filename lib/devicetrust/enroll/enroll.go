@@ -26,9 +26,14 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
+
+// consumeStreamToErrorIfEOFFunc consumes all messages from the stream until
+// it finds the first error.
+var consumeStreamToErrorIfEOFFunc = apiutils.ConsumeStreamToErrorIfEOF[*devicepb.EnrollDeviceResponse]
 
 // Ceremony is the device enrollment ceremony.
 // It takes the client role of
@@ -183,7 +188,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 			Init: init,
 		},
 	}); err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(consumeStreamToErrorIfEOFFunc(err, stream)))
 	}
 	resp, err := stream.Recv()
 	if err != nil {
@@ -236,7 +241,10 @@ func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDe
 			},
 		},
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	}
+	return nil
 }
 
 func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse, debug bool) error {
@@ -259,5 +267,8 @@ func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTr
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	}
+	return nil
 }
