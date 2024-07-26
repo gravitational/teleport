@@ -159,6 +159,60 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 	return keys.MarshalPublicKey(cryptoPubKey)
 }
 
+// commitGenerationCounterToBotUser updates the legacy generation counter label
+// for a user, but only when the counter is greater than the previous value. If
+// multiple bot instances exist for a given bot user, only the largest counter
+// value is persisted. This ensures that, if a cluster is downgraded, exactly
+// one bot instance (with the largest generation value) will be able to
+// reauthenticate.
+func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, username string, newValue uint64) error {
+	var err error
+
+	for i := 0; i < 3; i++ {
+		user, err := a.Services.GetUser(ctx, username, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		var currentUserGeneration uint64
+		label := user.BotGenerationLabel()
+		if label != "" {
+			currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
+			if err != nil {
+				return trace.BadParameter("user has invalid value for label %q", types.BotGenerationLabel)
+			}
+		}
+
+		if newValue <= currentUserGeneration {
+			// Nothing to do, value is up to date
+			return nil
+		}
+
+		// Clone the user and update the generation label.
+		userV2, ok := user.(*types.UserV2)
+		if !ok {
+			return trace.BadParameter("unsupported version of user: %T", user)
+		}
+		newUser := apiutils.CloneProtoMsg(userV2)
+		metadata := newUser.GetMetadata()
+		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newValue)
+		newUser.SetMetadata(metadata)
+
+		// Attempt to commit the change. If it fails due to a comparison
+		// failure, try again.
+		err = a.CompareAndSwapUser(ctx, newUser, user)
+		if err == nil {
+			return nil
+		} else if trace.IsCompareFailed(err) {
+			continue
+		} else {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(err)
+}
+
 // tryLockBotDueToGenerationMismatch creates a lock for the given bot user and
 // emits a `RenewableCertificateGenerationMismatch` audit event.
 func (a *Server) tryLockBotDueToGenerationMismatch(ctx context.Context, username string) error {
@@ -307,21 +361,22 @@ func (a *Server) updateBotInstance(
 		return nil
 	}
 
+	l := log.WithFields(logrus.Fields{
+		"bot_name":        botName,
+		"bot_instance_id": botInstanceID,
+	})
+
 	if currentIdentityGeneration == 0 {
 		// Nothing to do.
-		log.WithFields(logrus.Fields{
-			"bot_name":        botName,
-			"bot_instance_id": botInstanceID,
-		}).Warn("bot attempted to fetch certificates without providing a current identity generation, this is not allowed")
+		l.Warn("bot attempted to fetch certificates without providing a current identity generation, this is not allowed")
 
 		return trace.AccessDenied("a current identity generation must be provided")
-	} else if req.renewable && currentIdentityGeneration > 0 {
-		// TODO: if we want to verify the generation counter for all join
-		// types, remove the check for `req.renewable`.
-
-		if currentIdentityGeneration != instanceGeneration {
+	} else if currentIdentityGeneration > 0 && currentIdentityGeneration != instanceGeneration {
+		// For now, continue to only enforce generation counter checks on
+		// renewable (i.e. token) identities.
+		if req.renewable {
 			if err := a.tryLockBotDueToGenerationMismatch(ctx, username); err != nil {
-				log.WithError(err).Warnf("Failed to lock bot %s/%s when a generation mismatch was detected", botName, botInstanceID)
+				l.WithError(err).Warn("Failed to lock bot when a generation mismatch was detected")
 			}
 
 			return trace.AccessDenied(
@@ -329,6 +384,16 @@ func (a *Server) updateBotInstance(
 				botName, botInstanceID,
 				instanceGeneration, currentIdentityGeneration,
 			)
+		} else {
+			// We'll still log the check failure, but won't deny access. This
+			// log data will help make an informed decision about reliability of
+			// the generation counter for all join methods in the future.
+			l.WithFields(logrus.Fields{
+				"bot_instance_generation": instanceGeneration,
+				"bot_identity_generation": currentIdentityGeneration,
+				"bot_join_method":         authRecord.JoinMethod,
+			}).Warn("Bot generation counter mismatch detected. This check is not enforced for this join method, " +
+				"but may indicate multiple uses of a bot identity and possibly a compromised certificate.")
 		}
 	}
 
@@ -338,8 +403,9 @@ func (a *Server) updateBotInstance(
 	authRecord.Generation = newGeneration
 	req.generation = uint64(newGeneration)
 
-	// TODO: Commit this generation counter to the bot user for backwards
-	// compatibility with old pre-experiment behavior.
+	if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
+		l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
+	}
 
 	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
@@ -360,10 +426,7 @@ func (a *Server) updateBotInstance(
 		// An initial auth record should have been added during initial join,
 		// but if not, add it now.
 		if bi.Status.InitialAuthentication == nil {
-			log.WithFields(logrus.Fields{
-				"bot_name":        botName,
-				"bot_instance_id": botInstanceID,
-			}).Warn("bot instance is missing its initial authentication record, a new one will be added")
+			l.Warn("bot instance is missing its initial authentication record, a new one will be added")
 			bi.Status.InitialAuthentication = authRecord
 		}
 
