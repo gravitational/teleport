@@ -712,9 +712,8 @@ $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 # PHONY is set so that we rely on Go's mod cache and not Make's cache.
 #
 CHANGELOG := $(TOOLINGDIR)/bin/changelog
-.PHONY: $(CHANGELOG)
 $(CHANGELOG):
-	@GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@latest
+	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
