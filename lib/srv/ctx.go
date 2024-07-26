@@ -754,7 +754,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 }
 
 // OpenXServerListener opens a new XServer unix listener.
-func (c *ServerContext) HandleX11Listener(l *net.UnixListener, singleConnection bool) error {
+func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool) error {
 	display, err := x11.ParseDisplayFromUnixSocket(l.Addr().String())
 	if err != nil {
 		return trace.Wrap(err)
@@ -777,7 +777,7 @@ func (c *ServerContext) HandleX11Listener(l *net.UnixListener, singleConnection 
 
 	go func() {
 		for {
-			xconn, err := l.AcceptUnix()
+			xconn, err := l.Accept()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
 					c.Logger.WithError(err).Debug("Encountered error accepting XServer connection")

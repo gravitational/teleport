@@ -216,15 +216,7 @@ func (p *Process) Listen(ctx context.Context, network string, addr string) (net.
 	defer listenerFD.Close()
 
 	listener, err := net.FileListener(listenerFD)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if unixListener, ok := listener.(*net.UnixListener); ok {
-		unixListener.SetUnlinkOnClose(true)
-	}
-
-	return listener, nil
+	return listener, trace.Wrap(err)
 }
 
 // ListenAgent requests a local ssh-agent listener from the networking subprocess.
@@ -241,18 +233,11 @@ func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	unixListener, ok := listener.(*net.UnixListener)
-	if !ok {
-		return nil, trace.BadParameter("expected *net.UnixListener but got %T", listener)
-	}
-
-	unixListener.SetUnlinkOnClose(true)
-	return unixListener, nil
+	return listener, trace.Wrap(err)
 }
 
 // ListenX11 requests a local XServer listener from the networking subprocess.
-func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListener, error) {
+func (p *Process) ListenX11(ctx context.Context, req X11Request) (net.Listener, error) {
 	listenerFD, err := p.sendRequest(ctx, Request{
 		Operation:  NetworkingOperationListenX11,
 		X11Request: req,
@@ -263,17 +248,7 @@ func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListe
 	defer listenerFD.Close()
 
 	listener, err := net.FileListener(listenerFD)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	unixListener, ok := listener.(*net.UnixListener)
-	if !ok {
-		return nil, trace.BadParameter("expected *net.UnixListener but got %T", listener)
-	}
-
-	unixListener.SetUnlinkOnClose(true)
-	return unixListener, nil
+	return listener, trace.Wrap(err)
 }
 
 // sendRequest sends a networking request to the networking process and waits
