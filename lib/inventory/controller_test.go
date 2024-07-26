@@ -952,7 +952,7 @@ func TestGetSender(t *testing.T) {
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
-// TestTimeReconciliation verifies basic behaviour of the time reconciliation check.
+// TestTimeReconciliation verifies basic behavior of the time reconciliation check.
 func TestTimeReconciliation(t *testing.T) {
 	const serverID = "test-server"
 	const peerAddr = "1.2.3.4:456"

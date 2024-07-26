@@ -41,6 +41,8 @@ const (
 	// timeShiftThreshold is the duration threshold for triggering a warning
 	// if the time difference exceeds this threshold.
 	timeShiftThreshold = time.Minute
+	// timeCheckNotificationName is id for adding the global notification.
+	timeCheckNotificationName = "cluster-monitor-time-sync"
 )
 
 // inventoryMonitor stores info about resource and time difference with local time.
@@ -95,7 +97,7 @@ func (a *Server) MonitorNodeInfos(ctx context.Context) error {
 			if len(inventories) > 0 {
 				err := upsertGlobalNotification(ctx, a.Services, generateNotificationMessage(inventories))
 				if err != nil {
-					slog.ErrorContext(ctx, "can't set notification about time difference", err)
+					slog.ErrorContext(ctx, "can't set notification about time difference", "error", err)
 				}
 			}
 		}
@@ -106,6 +108,9 @@ func (a *Server) MonitorNodeInfos(ctx context.Context) error {
 // servers related to the time difference in nodes.
 func upsertGlobalNotification(ctx context.Context, services *Services, text string) error {
 	_, err := services.UpsertGlobalNotification(ctx, &notificationsv1.GlobalNotification{
+		Kind:     types.KindGlobalNotification,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{Name: timeCheckNotificationName},
 		Spec: &notificationsv1.GlobalNotificationSpec{
 			Matcher: &notificationsv1.GlobalNotificationSpec_All{
 				All: true,
@@ -114,7 +119,7 @@ func upsertGlobalNotification(ctx context.Context, services *Services, text stri
 				SubKind: types.NotificationDefaultWarningSubKind,
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Name: "cluster-monitor-time-sync",
+					Name: timeCheckNotificationName,
 					Labels: map[string]string{
 						types.NotificationTitleLabel: text,
 					},
@@ -135,7 +140,8 @@ func generateNotificationMessage(inventories []inventoryMonitor) string {
 
 	return "Incorrect system clock detected in the cluster, which may lead to certificate validation issues.\n" +
 		"Ensure that the clock is accurate on all nodes to avoid potential access problems.\n" +
-		"List of servers with a time shift: \n" + strings.Join(messages, "\n")
+		"All comparisons are made with the Auth service system clock." +
+		"List of servers with a time drift: \n" + strings.Join(messages, "\n")
 }
 
 // durationText formats specified duration to text by adding suffix ahead/behind and
