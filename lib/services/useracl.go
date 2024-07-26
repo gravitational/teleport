@@ -150,6 +150,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
+	accessMonitoringRules := newAccess(userRoles, ctx, types.KindAccessMonitoringRule)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
@@ -202,11 +203,9 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
-	var accessMonitoringRules ResourceAccess
 	if accessMonitoringEnabled {
 		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
 		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
-		accessMonitoringRules = newAccess(userRoles, ctx, types.KindAccessMonitoringRule)
 	}
 
 	return UserACL{

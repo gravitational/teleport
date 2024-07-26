@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -113,7 +114,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	var checkpoint string
 
 	ctx := context.Background()
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime,
 			To:       toTime,
@@ -121,11 +122,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			Order:    types.EventOrderAscending,
 			StartKey: checkpoint,
 		})
-		return err
-	})
-	require.NoError(t, err)
-	require.Len(t, arr, 4)
-	require.Empty(t, checkpoint)
+
+		assert.NoError(t, err)
+		assert.Len(t, arr, 4)
+		assert.Empty(t, checkpoint)
+	}, 10*time.Second, 500*time.Millisecond)
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{

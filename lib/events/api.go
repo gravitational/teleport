@@ -753,6 +753,22 @@ const (
 	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
 	// TODO(jakule): Remove once e is updated to the new name.
 	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
+
+	// DiscoveryConfigCreatedEvent is emitted when a discovery config is created.
+	DiscoveryConfigCreateEvent = "discovery_config.create"
+	// DiscoveryConfigUpdatedEvent is emitted when a discovery config is updated.
+	DiscoveryConfigUpdateEvent = "discovery_config.update"
+	// DiscoveryConfigDeletedEvent is emitted when a discovery config is deleted.
+	DiscoveryConfigDeleteEvent = "discovery_config.delete"
+	// DiscoveryConfigDeletedAllEvent is emitted when all discovery configs are deleted.
+	DiscoveryConfigDeleteAllEvent = "discovery_config.delete_all"
+
+	// IntegrationCreateEvent is emitted when an integration resource is created.
+	IntegrationCreateEvent = "integration.create"
+	//IntegrationUpdateEvent is emitted when an integration resource is updated.
+	IntegrationUpdateEvent = "integration.update"
+	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
+	IntegrationDeleteEvent = "integration.delete"
 )
 
 const (

@@ -20,6 +20,9 @@ extraLabels:
   deployment:
     app.kubernetes.io/name: "teleport-kube-agent"
     resource: "deployment"
+  job:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "job"
   pod:
     app.kubernetes.io/name: "teleport-kube-agent"
     resource: "pod"

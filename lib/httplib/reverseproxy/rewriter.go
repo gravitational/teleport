@@ -21,13 +21,14 @@ package reverseproxy
 import (
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"strings"
 )
 
 // Rewriter is an interface for rewriting http requests.
 type Rewriter interface {
-	Rewrite(*http.Request)
+	Rewrite(req *httputil.ProxyRequest)
 }
 
 // NewHeaderRewriter creates a new HeaderRewriter.
@@ -46,29 +47,45 @@ type HeaderRewriter struct {
 }
 
 // Rewrite request headers.
-func (rw *HeaderRewriter) Rewrite(req *http.Request) {
-	if !rw.TrustForwardHeader {
+func (rw *HeaderRewriter) Rewrite(req *httputil.ProxyRequest) {
+	if rw.TrustForwardHeader {
+		// net/http/httputil.ReverseProxy will strip some forwarding
+		// headers from the outbound request when Rewrite is set, which
+		// is what we use. If we trust the forwarding headers ensure they
+		// are added back to the outbound request.
 		for _, h := range XHeaders {
-			req.Header.Del(h)
+			val := req.In.Header.Get(h)
+			if val == "" {
+				continue
+			}
+			req.Out.Header.Set(h, val)
+		}
+	} else {
+		// if we don't trust the forwarding headers, ensure all are removed
+		// as net/http/httputil.ReverseProxy won't remove all the forwarding
+		// headers we care about.
+		for _, h := range XHeaders {
+			req.Out.Header.Del(h)
 		}
 	}
+	outReq := req.Out
 
 	// Set X-Real-IP header if it is not set to the IP address of the client making the request.
-	maybeSetXRealIP(req)
+	maybeSetXRealIP(outReq)
 
 	// Set X-Forwarded-* headers if it is not set to the scheme of the request.
-	maybeSetForwarded(req)
+	maybeSetForwarded(outReq)
 
-	if xfPort := req.Header.Get(XForwardedPort); xfPort == "" {
-		req.Header.Set(XForwardedPort, forwardedPort(req))
+	if xfPort := outReq.Header.Get(XForwardedPort); xfPort == "" {
+		outReq.Header.Set(XForwardedPort, forwardedPort(outReq))
 	}
 
-	if xfHost := req.Header.Get(XForwardedHost); xfHost == "" && req.Host != "" {
-		req.Header.Set(XForwardedHost, req.Host)
+	if xfHost := outReq.Header.Get(XForwardedHost); xfHost == "" && outReq.Host != "" {
+		outReq.Header.Set(XForwardedHost, outReq.Host)
 	}
 
 	if rw.Hostname != "" {
-		req.Header.Set(XForwardedServer, rw.Hostname)
+		outReq.Header.Set(XForwardedServer, rw.Hostname)
 	}
 }
 
@@ -109,9 +126,11 @@ func maybeSetXRealIP(req *http.Request) {
 // maybeSetForwarded sets X-Forwarded-* headers if it is not set to the
 // scheme of the request.
 func maybeSetForwarded(req *http.Request) {
-	// We need to delete the value because httputil.ReverseProxy
-	// appends to the existing value.
-	req.Header.Del(XForwardedFor)
+	// Set X-Forwarded-For since net/http/httputil.ReverseProxy won't
+	// do this when Rewrite is set.
+	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		req.Header.Set(XForwardedFor, clientIP)
+	}
 
 	if req.Header.Get(XForwardedProto) != "" {
 		return

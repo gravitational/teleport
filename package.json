@@ -39,6 +39,7 @@
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
+    "@emotion/core": "^10.0.9",
     "prettier": "^3.2.5",
     "typescript": "^5.4.2"
   },
@@ -47,5 +48,6 @@
       "web/packages/*",
       "e/web/*"
     ]
-  }
+  },
+  "packageManager": "yarn@1.22.22"
 }

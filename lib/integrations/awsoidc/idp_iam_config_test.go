@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 func TestIdPIAMConfigReqDefaults(t *testing.T) {
@@ -79,7 +80,7 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 				ProxyPublicAddress: "https://proxy.example.com",
 				issuer:             "proxy.example.com",
 				issuerURL:          "https://proxy.example.com",
-				ownershipTags: AWSTags{
+				ownershipTags: tags.AWSTags{
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "myintegration",
 					"teleport.dev/origin":      "integration_awsoidc",
@@ -110,7 +111,7 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 				S3JWKSContentsB64: base64EncodedString,
 				issuer:            "bucket-1.s3.amazonaws.com/prefix-2",
 				issuerURL:         "https://bucket-1.s3.amazonaws.com/prefix-2",
-				ownershipTags: AWSTags{
+				ownershipTags: tags.AWSTags{
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "myintegration",
 					"teleport.dev/origin":      "integration_awsoidc",

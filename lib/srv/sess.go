@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -326,20 +325,18 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
 
-	// session not found? need to create one. start by getting/generating an ID for it
-	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
-	if !found {
-		sid = string(rsession.NewID())
-		scx.SetEnv(sshutils.SessionEnvVar, sid)
+	sid := scx.SessionID()
+	if sid.IsZero() {
+		return trace.BadParameter("session ID is not set")
 	}
 
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	sess, p, err := newSession(ctx, rsession.ID(sid), s, scx, ch, sessionTypeInteractive)
+	sess, p, err := newSession(ctx, sid, s, scx, ch, sessionTypeInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(sess)
+	scx.setSession(sess, ch)
 	s.addSession(sess)
 	scx.Infof("Creating (interactive) session %v.", sid)
 
@@ -354,17 +351,14 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 
 // OpenExecSession opens a non-interactive exec session.
 func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	var sessionID rsession.ID
+	sessionID := scx.SessionID()
 
-	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
-	if !found {
-		// Create a new session ID. These sessions can not be joined
+	if sessionID.IsZero() {
 		sessionID = rsession.NewID()
 		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
-		sessionID = rsession.ID(sid)
 		scx.Tracef("Session found, reusing it %s", sessionID)
 	}
 
@@ -394,7 +388,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(sess)
+	scx.setSession(sess, channel)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
