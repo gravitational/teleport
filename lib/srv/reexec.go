@@ -701,7 +701,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
-			writeErrorToConn(parentConn, trace.Wrap(err, "error parsing networking request"))
+			writeErrorToConn(requestConn, trace.Wrap(err, "error parsing networking request"))
 			_ = requestConn.Close()
 			continue
 		}
