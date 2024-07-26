@@ -35,7 +35,9 @@ message ProcessSAMLIdPRequestRequest {
   // Metadata_url is the metadata URL of the SAML IdP.
   string metadata_url = 4;
   // signature_method is the signature method to use.
-  string signature_method = 5;
+  //
+  // Deprecated: the server will choose the signature method.
+  string signature_method = 5 [deprecated = true];
   // assertion is the SAML assertion to sign.
   bytes assertion = 6;
   // service_provider_sso_descriptor is the raw bytes of the service provider's SSO descriptor.
