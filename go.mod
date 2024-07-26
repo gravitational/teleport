@@ -532,23 +532,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-require (
-	github.com/microsoft/kiota-authentication-azure-go v1.0.2
-	github.com/microsoftgraph/msgraph-sdk-go v1.46.0
-	github.com/microsoftgraph/msgraph-sdk-go-core v1.2.0
-)
-
-require (
-	github.com/cjlapao/common-go v0.0.39 // indirect
-	github.com/microsoft/kiota-abstractions-go v1.6.1 // indirect
-	github.com/microsoft/kiota-http-go v1.4.1 // indirect
-	github.com/microsoft/kiota-serialization-form-go v1.0.0 // indirect
-	github.com/microsoft/kiota-serialization-json-go v1.0.7 // indirect
-	github.com/microsoft/kiota-serialization-multipart-go v1.0.0 // indirect
-	github.com/microsoft/kiota-serialization-text-go v1.0.0 // indirect
-	github.com/std-uritemplate/std-uritemplate/go v0.0.57 // indirect
-)
-
 // Update also `ignore` in .github/dependabot.yml.
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
