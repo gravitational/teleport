@@ -1,13 +1,20 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Alert, ButtonBorder, Flex, Text, ButtonText, Box } from 'design';
+import {
+  Alert,
+  ButtonBorder,
+  Flex,
+  Text,
+  ButtonText,
+  Box,
+  Label,
+} from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { useInfiniteScroll } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import {
   Plugin,
   PluginMattermostSpec,
-  PluginOpsgenieSpec,
   PluginSlackSpec,
 } from 'teleport/services/integrations';
 import { capitalizeFirstLetter } from 'shared/utils/text';
@@ -21,7 +28,7 @@ import {
 type RowBase = {
   name: string;
   integration: string;
-  recipients: string;
+  recipients: string[];
 };
 
 type TableRowRule = RowBase & {
@@ -63,7 +70,7 @@ export function NotificationRoutingRuleList({
   const rulesForTable: TableRowRule[] = rules.map(r => ({
     name: r.object.metadata.name,
     integration: r.object.spec.notification?.name,
-    recipients: r.object.spec.notification?.recipients?.join(', '),
+    recipients: r.object.spec.notification?.recipients,
     item: r,
   }));
 
@@ -101,9 +108,8 @@ export function NotificationRoutingRuleList({
           {
             key: 'recipients',
             headerText: 'Recipients',
-            render: ({ recipients, plugin }) => (
-              <StyledCell $plugin={!!plugin}>{recipients}</StyledCell>
-            ),
+            render: ({ recipients, plugin }) =>
+              renderLabelCell(recipients, !!plugin),
           },
           {
             altKey: 'view-btn',
@@ -133,13 +139,13 @@ function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
   return plugins.map(plugin => {
     const name = `Fallback ${capitalizeFirstLetter(plugin.kind)} Rule`;
     const integration = plugin.name;
-    let recipients = '';
+    let recipients: string[] = [];
 
     if (!plugin.spec) {
       return {
         name,
         integration,
-        recipients: 'unknown',
+        recipients: ['unknown'],
         plugin,
       };
     }
@@ -147,27 +153,20 @@ function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
     switch (plugin.kind) {
       case 'slack': {
         const { fallbackChannel } = plugin.spec as PluginSlackSpec;
-        recipients = fallbackChannel;
+        recipients = [fallbackChannel];
         break;
       }
       case 'mattermost': {
-        const { channel, reportToEmail } = plugin.spec as PluginMattermostSpec;
-        if (channel && reportToEmail) {
-          recipients = `${channel} (channel), ${reportToEmail} (email)`;
-        } else if (channel) {
-          recipients = `${channel} (channel)`;
-        } else if (reportToEmail) {
-          recipients = `${reportToEmail} (email)`;
-        }
-        break;
-      }
-      case 'opsgenie': {
-        const { defaultSchedules } = plugin.spec as PluginOpsgenieSpec;
-        recipients = defaultSchedules?.join(', ');
+        const { channel, reportToEmail, team } =
+          plugin.spec as PluginMattermostSpec;
+        recipients = [
+          channel && team && `${team}/${channel}`,
+          reportToEmail,
+        ].filter(Boolean);
         break;
       }
       default: {
-        recipients = 'unknown';
+        recipients = ['unknown'];
       }
     }
 
@@ -179,6 +178,22 @@ function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
     };
   });
 }
+
+const renderLabelCell = (recipients: string[] = [], mute: boolean) => {
+  const $labels = recipients.map((label, index) => (
+    <Label key={`${label}${index}`} kind="secondary">
+      {label}
+    </Label>
+  ));
+
+  return (
+    <StyledCell $plugin={mute}>
+      <Flex flexWrap="wrap" gap={1}>
+        {$labels}
+      </Flex>
+    </StyledCell>
+  );
+};
 
 const renderActionCell = (
   thisRule: AccessMonitoringRuleWithYaml,
@@ -204,20 +219,36 @@ const renderActionCell = (
   );
 };
 
-// "The default channel will receive all notifications about access requests.
-// Request notifications will also be sent directly to assigned reviewers (if any)."
 const renderInfoCell = (plugin: Plugin) => {
+  const commonText = (
+    <>
+      This rule will <i>not</i> be used for access requests that are matched by
+      custom rules.
+    </>
+  );
   if (plugin.kind === 'slack') {
     return (
       <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
         <Flex alignItems="center" width="60px">
           <Box css={{ margin: '0 auto' }}>
             <ToolTipInfo>
-              Fallback notification rule for{' '}
-              {capitalizeFirstLetter(plugin.kind)}. The default channel will
-              receive all notifications about access requests. This rule will{' '}
-              <b>not</b> be used for access requests that are matched by custom
-              rules.
+              Fallback notification rule for Slack. The default channel will
+              receive all notifications about access requests. {commonText}
+            </ToolTipInfo>
+          </Box>
+        </Flex>
+      </Cell>
+    );
+  }
+  if (plugin.kind === 'mattermost') {
+    return (
+      <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
+        <Flex alignItems="center" width="60px">
+          <Box css={{ margin: '0 auto' }}>
+            <ToolTipInfo>
+              Fallback notification rule for Mattermost. The default email and
+              or team/channel will receive all notifications about access
+              requests. {commonText}
             </ToolTipInfo>
           </Box>
         </Flex>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { components, MultiValueGenericProps } from 'react-select';
-import { Box, Text } from 'design';
+import { Box, Text, Mark } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -308,14 +308,23 @@ const SelectCreateRoles = ({
 function getRecipientToolTipInfo(pluginName: string) {
   const lowerCasedName = pluginName.toLowerCase();
   if (lowerCasedName.includes('slack')) {
-    return 'Recipients can be emails and channel names. \
-    For any channels you define, you will need to /invite the integration \
-    to those channels.';
+    return (
+      <>
+        Recipients can be emails and channel names. For any channels you define,
+        you will need to <Mark>/invite</Mark> the integration to those channels.
+      </>
+    );
   }
-  if (lowerCasedName.includes('opsgenie')) {
-    return 'Recipients can be schedule names that will receive the alerts';
+  if (lowerCasedName.includes('mattermost')) {
+    return (
+      <>
+        Recipients can be emails and team/channel names. You must define
+        team/channel names with format{' '}
+        <Mark>{'<team-name>/<channel-name>'}</Mark>. Make sure to invite the
+        integration to every team/channel.
+      </>
+    );
   }
-  return '';
 }
 
 const MultiValueContainer = (props: MultiValueGenericProps) => {

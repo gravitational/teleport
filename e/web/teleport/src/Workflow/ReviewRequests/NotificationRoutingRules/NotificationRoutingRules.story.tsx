@@ -31,13 +31,25 @@ export default {
   ],
 };
 
-const validRuleObject = {
+const validRuleObjectSlack = {
   metadata: { name: 'valid-default-to-standard-editor' },
   spec: {
     subjects: ['access_request'],
     condition: 'contains_any(access_request.spec.roles, set("access"))',
     notification: {
       name: 'slack-plugin',
+      recipients: ['apple', 'banana', 'carrot'],
+    },
+  },
+};
+
+const validRuleObjectMattermost = {
+  metadata: { name: 'sample-mattermost' },
+  spec: {
+    subjects: ['access_request'],
+    condition: 'contains_any(access_request.spec.roles, set("access"))',
+    notification: {
+      name: 'mattermost-plugin',
       recipients: ['apple', 'banana', 'carrot'],
     },
   },
@@ -84,14 +96,18 @@ const withPlugins = http.get(cfg.getPluginUrl(), () =>
       details: '',
       statusCode: '',
       type: 'mattermost',
-      spec: { channel: 'some-channel', reportToEmail: 'foo@example.com' },
+      spec: {
+        channel: 'some-channel',
+        reportToEmail: 'foo@example.com',
+        team: 'some-team',
+      },
     },
     {
       name: 'mattermost-plugin-with-only-channel',
       details: '',
       statusCode: '',
       type: 'mattermost',
-      spec: { channel: 'some-channel' },
+      spec: { channel: 'some-channel', team: 'some-team' },
     },
     {
       name: 'mattermost-plugin-with-only-email',
@@ -115,8 +131,14 @@ const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
     rules: [
       {
         object: {
-          ...validRuleObject,
+          ...validRuleObjectSlack,
           metadata: { name: 'valid-default-to-standard-editor' },
+        },
+        yaml: ``,
+      },
+      {
+        object: {
+          ...validRuleObjectMattermost,
         },
         yaml: ``,
       },
@@ -144,10 +166,10 @@ const createRule = http.post(
   }
 );
 
-export const WithValidRule = () => {
+export const CreateAndViewValidRule = () => {
   return <Component />;
 };
-WithValidRule.parameters = {
+CreateAndViewValidRule.parameters = {
   msw: {
     handlers: [
       withRule,
@@ -156,7 +178,7 @@ WithValidRule.parameters = {
       createRule,
       http.post(cfg.oss.api.yaml.parse, () =>
         HttpResponse.json({
-          resource: validRuleObject,
+          resource: validRuleObjectSlack,
         })
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
@@ -168,10 +190,10 @@ WithValidRule.parameters = {
   },
 };
 
-export const WithAnInvalidRule = () => {
+export const ViewRuleThatRequireReset = () => {
   return <Component />;
 };
-WithAnInvalidRule.parameters = {
+ViewRuleThatRequireReset.parameters = {
   msw: {
     handlers: [
       http.get(accessMonitoringRuleListWithoutQuery, () =>
@@ -259,10 +281,10 @@ WithPluginError.parameters = {
   },
 };
 
-export const WithDeleteError = () => {
+export const WithDeleteRuleError = () => {
   return <Component />;
 };
-WithDeleteError.parameters = {
+WithDeleteRuleError.parameters = {
   msw: {
     handlers: [
       withRule,
@@ -280,10 +302,10 @@ WithDeleteError.parameters = {
   },
 };
 
-export const WithCreateError = () => {
+export const WithCreateRuleError = () => {
   return <Component />;
 };
-WithCreateError.parameters = {
+WithCreateRuleError.parameters = {
   msw: {
     handlers: [
       withRule,
@@ -303,10 +325,10 @@ WithCreateError.parameters = {
   },
 };
 
-export const WithNoPerm = () => {
+export const WithNoCreateAccess = () => {
   return <Component noAccess={true} />;
 };
-WithNoPerm.parameters = {
+WithNoCreateAccess.parameters = {
   msw: {
     handlers: [
       withRule,
@@ -314,7 +336,7 @@ WithNoPerm.parameters = {
       deleteRule,
       createRule,
       http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: validRuleObject })
+        HttpResponse.json({ resource: validRuleObjectSlack })
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({ yaml: ruleYaml })

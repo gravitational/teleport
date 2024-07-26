@@ -97,7 +97,9 @@ export const NotificationRoutingRulesDialog = ({
     // is added. Currently only supports slack.
     pluginRun(() =>
       pluginsService.fetchPlugins().then(resp => {
-        const filteredPlugins = resp.filter(r => r.kind === 'slack');
+        const filteredPlugins = resp.filter(
+          r => r.kind === 'slack' || r.kind === 'mattermost'
+        );
         setPlugins(filteredPlugins);
       })
     );
