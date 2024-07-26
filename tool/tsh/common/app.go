@@ -79,7 +79,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.LocalAgent().AddAppKey(key); err != nil {
+	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -103,15 +103,15 @@ func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
 // identityfile.ConfigWriter interface
 var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
-// NewClientKey returns a sane client.Key for the given bot identity.
-func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
+// NewClientKeyRing returns a sane client.KeyRing for the given bot identity.
+func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &client.KeyRing{
-		KeyIndex: client.KeyIndex{
+		KeyRingIndex: client.KeyRingIndex{
 			ClusterName: ident.ClusterName,
 		},
 		PrivateKey:   pk,
@@ -128,7 +128,7 @@ func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*cli
 }
 
 func writeIdentityFile(
-	ctx context.Context, log *slog.Logger, key *client.KeyRing, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -139,7 +139,7 @@ func writeIdentityFile(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.IdentityFilePath,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -160,7 +160,7 @@ func writeIdentityFile(
 // useful when writing out TLS certificates with alternative prefix and file
 // extensions for application compatibility reasons.
 func writeIdentityFileTLS(
-	ctx context.Context, log *slog.Logger, key *client.KeyRing, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -171,7 +171,7 @@ func writeIdentityFileTLS(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultTLSPrefix,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

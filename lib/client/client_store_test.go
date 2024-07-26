@@ -60,8 +60,8 @@ func newTestAuthority(t *testing.T) testAuthority {
 	}
 }
 
-// makeSignedKey helper returns a new user key signed by CAPriv key.
-func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *KeyRing {
+// makeSignedKeyRing helper returns a new user key ring signed by CAPriv key.
+func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeExpired bool) *KeyRing {
 	priv, err := s.keygen.GeneratePrivateKey()
 	require.NoError(t, err)
 
@@ -72,6 +72,7 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
+	// TODO(nklaassen): don't
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
@@ -101,14 +102,14 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	})
 	require.NoError(t, err)
 
-	key := NewKeyRing(priv)
-	key.KeyIndex = idx
-	key.PrivateKey = priv
-	key.Cert = cert
-	key.TLSCert = tlsCert
-	key.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
-	key.DBTLSCerts["example-db"] = tlsCert
-	return key
+	keyRing := NewKeyRing(priv)
+	keyRing.KeyRingIndex = idx
+	keyRing.PrivateKey = priv
+	keyRing.Cert = cert
+	keyRing.TLSCert = tlsCert
+	keyRing.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
+	keyRing.DBTLSCerts["example-db"] = tlsCert
+	return keyRing
 }
 
 func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
@@ -161,33 +162,33 @@ func TestClientStore(t *testing.T) {
 	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
 		t.Parallel()
 
-		idx := KeyIndex{
+		idx := KeyRingIndex{
 			ProxyHost:   "proxy.example.com",
 			ClusterName: "root",
 			Username:    "test-user",
 		}
-		key := a.makeSignedKey(t, idx, false)
+		keyRing := a.makeSignedKeyRing(t, idx, false)
 
 		// Add key should add the key and trusted certs to their respective stores.
-		err := clientStore.AddKey(key)
+		err := clientStore.AddKeyRing(keyRing)
 		require.NoError(t, err)
 
 		// the key's trusted certs should be added to the trusted certs store.
 		retrievedTrustedCerts, err := clientStore.GetTrustedCerts(idx.ProxyHost)
 		require.NoError(t, err)
-		require.Equal(t, key.TrustedCerts, retrievedTrustedCerts)
+		require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
 
 		// Getting the key from the key store should have no trusted certs.
-		retrievedKey, err := clientStore.KeyStore.GetKey(idx, WithAllCerts...)
+		retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, WithAllCerts...)
 		require.NoError(t, err)
-		expectKey := key.Copy()
-		expectKey.TrustedCerts = nil
-		require.Equal(t, expectKey, retrievedKey)
+		expectKeyRing := keyRing.Copy()
+		expectKeyRing.TrustedCerts = nil
+		require.Equal(t, expectKeyRing, retrievedKeyRing)
 
 		// Getting the key from the client store should fill in the trusted certs.
-		retrievedKey, err = clientStore.GetKey(idx, WithAllCerts...)
+		retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
 		require.NoError(t, err)
-		require.Equal(t, key, retrievedKey)
+		require.Equal(t, keyRing, retrievedKeyRing)
 
 		var profileDir string
 		if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
@@ -202,7 +203,7 @@ func TestClientStore(t *testing.T) {
 		}
 		err = clientStore.SaveProfile(profile, true)
 		require.NoError(t, err)
-		expectStatus, err := profileStatusFromKey(key, profileOptions{
+		expectStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
 			ProfileName:   profile.Name(),
 			WebProxyAddr:  profile.WebProxyAddr,
 			ProfileDir:    profileDir,
@@ -221,9 +222,9 @@ func TestClientStore(t *testing.T) {
 
 		// FullProfileStatus should return the current profile status, and any
 		// other available profiles' statuses.
-		otherKey := key.Copy()
+		otherKey := keyRing.Copy()
 		otherKey.ProxyHost = "other.example.com"
-		err = clientStore.AddKey(otherKey)
+		err = clientStore.AddKeyRing(otherKey)
 		require.NoError(t, err)
 
 		otherProfile := profile.Copy()
@@ -231,7 +232,7 @@ func TestClientStore(t *testing.T) {
 		err = clientStore.SaveProfile(otherProfile, false)
 		require.NoError(t, err)
 
-		expectOtherStatus, err := profileStatusFromKey(key, profileOptions{
+		expectOtherStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
 			ProfileName:   otherProfile.Name(),
 			WebProxyAddr:  otherProfile.WebProxyAddr,
 			ProfileDir:    profileDir,
@@ -259,23 +260,23 @@ func TestProxySSHConfig(t *testing.T) {
 	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
 		t.Parallel()
 
-		idx := KeyIndex{"host.a", "bob", "root"}
-		key := auth.makeSignedKey(t, idx, false)
+		idx := KeyRingIndex{"host.a", "bob", "root"}
+		keyRing := auth.makeSignedKeyRing(t, idx, false)
 
 		caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 		require.NoError(t, err)
 
-		err = clientStore.AddKey(key)
+		err = clientStore.AddKeyRing(keyRing)
 		require.NoError(t, err)
 
 		firsthost := "127.0.0.1"
 		err = clientStore.AddTrustedHostKeys(idx.ProxyHost, firsthost, caPub)
 		require.NoError(t, err)
 
-		retrievedKey, err := clientStore.GetKey(idx, WithSSHCerts{})
+		retrievedKeyRing, err := clientStore.GetKeyRing(idx, WithSSHCerts{})
 		require.NoError(t, err)
 
-		clientConfig, err := retrievedKey.ProxyClientSSHConfig(firsthost)
+		clientConfig, err := retrievedKeyRing.ProxyClientSSHConfig(firsthost)
 		require.NoError(t, err)
 
 		var called atomic.Int32
@@ -345,9 +346,9 @@ func TestProxySSHConfig(t *testing.T) {
 
 		// The ProxyClientSSHConfig should create configuration that validates server authority only based on
 		// second-host instead of all known hosts.
-		retrievedKey, err = clientStore.GetKey(idx, WithSSHCerts{})
+		retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithSSHCerts{})
 		require.NoError(t, err)
-		clientConfig, err = retrievedKey.ProxyClientSSHConfig("second-host")
+		clientConfig, err = retrievedKeyRing.ProxyClientSSHConfig("second-host")
 		require.NoError(t, err)
 
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
