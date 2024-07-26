@@ -19,7 +19,6 @@
 import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 import { Popover, Flex, Text } from 'design';
-import { JustifyContentProps } from 'design/system';
 
 type OriginProps = {
   vertical: string;
@@ -33,7 +32,7 @@ export const HoverTooltip: React.FC<
     className?: string;
     anchorOrigin?: OriginProps;
     transformOrigin?: OriginProps;
-    justifyContentProps?: JustifyContentProps;
+    justifyContentProps?: { justifyContent: string };
   }>
 > = ({
   tipContent,
