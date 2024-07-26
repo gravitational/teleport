@@ -257,8 +257,6 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return trace.BadParameter("unexpected downstream hello")
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
-			case proto.DownstreamInventoryClockRequest:
-				h.handleClock(sender, m)
 			case proto.DownstreamInventoryUpdateLabels:
 				h.handleUpdateLabels(m)
 			default:
@@ -564,16 +562,14 @@ type upstreamHandle struct {
 
 	ticker *interval.MultiInterval[intervalKey]
 
-	pingC  chan pingRequest
-	clockC chan clockRequest
+	pingC chan pingRequest
 
 	stateTracker instanceStateTracker
 
 	// --- fields below this point only safe for access by handler goroutine
 
 	// pings are in-flight pings to be multiplexed by ID.
-	pings         map[uint64]pendingPing
-	clockRequests map[uint64]pendingClock
+	pings map[uint64]pendingPing
 
 	// sshServer track ssh server details.
 	sshServer *heartBeatInfo[*types.ServerV2]
@@ -606,10 +602,8 @@ func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
-		clockC:                         make(chan clockRequest),
 		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
-		clockRequests:                  make(map[uint64]pendingClock),
 		ticker:                         ticker,
 	}
 }
@@ -625,8 +619,9 @@ type pingRequest struct {
 }
 
 type pingResponse struct {
-	d   time.Duration
-	err error
+	reqDuration time.Duration
+	clockDiff   time.Duration
+	err         error
 }
 
 func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, err error) {
@@ -641,7 +636,35 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 
 	select {
 	case rsp := <-rspC:
-		return rsp.d, rsp.err
+		return rsp.reqDuration, rsp.err
+	case <-h.Done():
+		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")
+	case <-ctx.Done():
+		return 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
+	}
+}
+
+// TimeReconciliation makes ping request to compare time difference between upstream and downstream.
+func (h *upstreamHandle) TimeReconciliation(ctx context.Context, id uint64) (d time.Duration, err error) {
+	rspC := make(chan pingResponse, 1)
+	select {
+	case h.pingC <- pingRequest{rspC: rspC, id: id}:
+	case <-h.Done():
+		return 0, trace.Errorf("failed to send downstream ping (stream closed)")
+	case <-ctx.Done():
+		return 0, trace.Errorf("failed to send downstream ping: %v", ctx.Err())
+	}
+
+	select {
+	case rsp := <-rspC:
+		switch {
+		case rsp.clockDiff == 0:
+			return 0, nil
+		case rsp.clockDiff > 0:
+			return rsp.clockDiff - rsp.reqDuration, nil
+		default:
+			return rsp.clockDiff + rsp.reqDuration, nil
+		}
 	case <-h.Done():
 		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")
 	case <-ctx.Done():

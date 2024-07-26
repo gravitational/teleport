@@ -17,9 +17,10 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/trace"
 	"sort"
 	"strings"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"

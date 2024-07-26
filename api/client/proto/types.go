@@ -100,8 +100,6 @@ func (h InventoryHeartbeat) sealedUpstreamInventoryMessage() {}
 
 func (p UpstreamInventoryPong) sealedUpstreamInventoryMessage() {}
 
-func (p UpstreamInventoryClockResponse) sealedUpstreamInventoryMessage() {}
-
 func (a UpstreamInventoryAgentMetadata) sealedUpstreamInventoryMessage() {}
 
 func (h UpstreamInventoryGoodbye) sealedUpstreamInventoryMessage() {}
@@ -115,7 +113,5 @@ type DownstreamInventoryMessage interface {
 func (h DownstreamInventoryHello) sealedDownstreamInventoryMessage() {}
 
 func (p DownstreamInventoryPing) sealedDownstreamInventoryMessage() {}
-
-func (p DownstreamInventoryClockRequest) sealedDownstreamInventoryMessage() {}
 
 func (u DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}

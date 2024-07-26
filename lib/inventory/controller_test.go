@@ -993,8 +993,8 @@ func TestTimeReconciliation(t *testing.T) {
 	go func() {
 		select {
 		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryClockResponse{
-				ID:        msg.(proto.DownstreamInventoryClockRequest).ID,
+			downstream.Send(ctx, proto.UpstreamInventoryPong{
+				ID:        msg.(proto.DownstreamInventoryPing).ID,
 				LocalTime: time.Now().Add(-time.Minute).UTC(),
 			})
 		case <-downstream.Done():

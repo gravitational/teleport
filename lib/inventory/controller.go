@@ -396,8 +396,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
-			case proto.UpstreamInventoryClockResponse:
-				c.handleClockResponse(handle, m)
 			case proto.UpstreamInventoryGoodbye:
 				handle.goodbye = m
 			default:
@@ -424,11 +422,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			// pings require multiplexing, so we need to do the sending from this
 			// goroutine rather than sending directly via the handle.
 			if err := c.handlePingRequest(handle, req); err != nil {
-				handle.CloseWithError(err)
-				return
-			}
-		case req := <-handle.clockC:
-			if err := c.handleClockRequest(handle, req); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
@@ -500,9 +493,13 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		log.Warnf("Unexpected upstream pong from server %q (id=%d).", handle.Hello().ServerID, msg.ID)
 		return
 	}
-	pending.rspC <- pingResponse{
-		d: c.clock.Since(pending.start),
+	rsp := pingResponse{
+		reqDuration: c.clock.Since(pending.start),
 	}
+	if !msg.LocalTime.IsZero() {
+		rsp.clockDiff = c.clock.Since(msg.LocalTime)
+	}
+	pending.rspC <- rsp
 	delete(handle.pings, msg.ID)
 }
 

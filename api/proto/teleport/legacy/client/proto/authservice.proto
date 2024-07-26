@@ -2291,8 +2291,6 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
     // UpstreamInventoryGoodbye advertises that the instance is terminating.
     UpstreamInventoryGoodbye Goodbye = 5;
-    // UpstreamInventoryClockResponse is a response of the clock check.
-    UpstreamInventoryClockResponse Clock = 6;
   }
 }
 
@@ -2306,8 +2304,6 @@ message DownstreamInventoryOneOf {
     DownstreamInventoryPing Ping = 2;
     // UpdateLabels updates the instance's labels.
     DownstreamInventoryUpdateLabels UpdateLabels = 3;
-    // DownstreamInventoryClockRequest is a request to compare clocks.
-    DownstreamInventoryClockRequest Clock = 4;
   }
 }
 
@@ -2320,18 +2316,6 @@ message DownstreamInventoryPing {
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
 // ping (used for testing/debug purposes).
 message UpstreamInventoryPong {
-  uint64 ID = 1;
-}
-
-// DownstreamInventoryClockRequest is sent down the inventory control stream to get
-// local time of the upstream.
-message DownstreamInventoryClockRequest {
-  uint64 ID = 1;
-}
-
-// UpstreamInventoryClockResponse is sent up the inventory control stream in response to a downstream
-// request with data about local time in upstream.
-message UpstreamInventoryClockResponse {
   uint64 ID = 1;
   // LocalTime advertises the local time of the upstream.
   google.protobuf.Timestamp LocalTime = 9 [
