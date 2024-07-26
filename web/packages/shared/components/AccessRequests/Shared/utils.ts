@@ -37,6 +37,7 @@ export function getNumAddedResources(addedResources: ResourceMap) {
     Object.keys(addedResources.app).length +
     Object.keys(addedResources.kube_cluster).length +
     Object.keys(addedResources.user_group).length +
-    Object.keys(addedResources.windows_desktop).length
+    Object.keys(addedResources.windows_desktop).length +
+    Object.keys(addedResources.saml_idp_service_provider).length
   );
 }

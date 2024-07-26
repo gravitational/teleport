@@ -670,6 +670,8 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
+    case 'saml_idp_service_provider':
+      return 'SAML Application';
     default:
       kind satisfies never;
       return kind;
