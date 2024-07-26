@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'xterm/css/xterm.css';
-import { IDisposable, ITheme, Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
+import '@xterm/xterm/css/xterm.css';
+import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
 import { debounce } from 'shared/utils/highbar';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
