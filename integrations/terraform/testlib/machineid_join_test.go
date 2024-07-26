@@ -100,7 +100,7 @@ func TestTerraformJoin(t *testing.T) {
 			Roles: []string{tfRole.GetName()},
 		},
 	}
-	bot, err = clt.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
+	_, err = clt.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
 	require.NoError(t, err)
 
 	// Test setup: sign a Kube JWT for our bot to join the cluster
@@ -145,6 +145,7 @@ func TestTerraformJoin(t *testing.T) {
 
 	// Test execution: apply a TF resource with the provider joining via MachineID
 	dummyResource, err := fixtures.ReadFile(filepath.Join("fixtures", "app_0_create.tf"))
+	require.NoError(t, err)
 	testConfig := terraformConfig + "\n" + string(dummyResource)
 	name := "teleport_app.test"
 
