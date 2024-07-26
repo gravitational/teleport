@@ -60,6 +60,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   Roles = 'User Roles',
+  JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
   EnrollNewResource = 'Enroll New Resource',
