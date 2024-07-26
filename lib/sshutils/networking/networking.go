@@ -289,7 +289,9 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 		return nil, trace.Wrap(err)
 	}
 
-	requestConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	// We can use a stream instead of a datagram because we only expect bytes
+	// or a file descriptor in response, not both.
+	requestConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
