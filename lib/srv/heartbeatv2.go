@@ -575,7 +575,6 @@ func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 	// so there is a chance that the Auth server is unable to process the request via the inventory
 	// control stream. If the Auth server is detected to be running an incompatible version, then use
 	// the fallback mechanism.
-	// TODO(tross) DELETE IN 16.0.0
 	if (authVersion.Major == 15 && authVersion.LessThan(*minAppVersion15)) ||
 		(authVersion.Major == 14 && authVersion.LessThan(*minAppVersion14)) ||
 		(authVersion.Major == 13 && authVersion.LessThan(*minAppVersion13)) {

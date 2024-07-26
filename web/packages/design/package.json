@@ -4,11 +4,6 @@
   "description": "Gravitational design system",
   "main": "index.js",
   "license": "Apache-2.0",
-  "scripts": {
-    "storybook": "start-storybook -p 9002 -c .storybook",
-    "test": "jest",
-    "tdd": "jest . --watch"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/gravitational/webapps/webapps.git",
@@ -19,6 +14,6 @@
     "styled-system": "^3.1.11"
   },
   "devDependencies": {
-    "@gravitational/build": "^1.0.0"
+    "@gravitational/build": "workspace:*"
   }
 }

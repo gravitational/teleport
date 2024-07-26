@@ -161,6 +161,8 @@ const (
 	DatabaseSessionUserDeactivateCode = "TDB09I"
 	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
 	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
+	// DatabaseSessionCommandResultCode is the db.session.result event code.
+	DatabaseSessionCommandResultCode = "TDB10I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -617,6 +619,22 @@ const (
 
 	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
 	AccessGraphAccessPathChangedCode = "TAG001I"
+
+	// DiscoveryConfigCreateCode is the discovery config created event code.
+	DiscoveryConfigCreateCode = "DC001I"
+	// DiscoveryConfigUpdateCode is the discovery config updated event code.
+	DiscoveryConfigUpdateCode = "DC002I"
+	// DiscoveryConfigDeleteCode is the discovery config delete event code.
+	DiscoveryConfigDeleteCode = "DC003I"
+	// DiscoveryConfigDeleteAllCode is the discovery config delete all event code.
+	DiscoveryConfigDeleteAllCode = "DC004I"
+
+	// IntegrationCreateCode is the integration resource create event code.
+	IntegrationCreateCode = "IG001I"
+	// IntegrationUpdateCode is the integration resource update event code.
+	IntegrationUpdateCode = "IG002I"
+	// IntegrationDeleteCode is the integration resource delete event code.
+	IntegrationDeleteCode = "IG003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -80,7 +80,7 @@ spec:
                 type: string
               cert:
                 description: Cert is the identity provider certificate PEM. IDP signs
-                  <Response> responses using this certificate.
+                  `<Response>` responses using this certificate.
                 type: string
               client_redirect_settings:
                 description: ClientRedirectSettings defines which client redirect

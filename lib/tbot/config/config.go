@@ -287,8 +287,9 @@ type BotConfig struct {
 	Version    Version          `yaml:"version"`
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
-	Outputs    Outputs          `yaml:"outputs,omitempty"`
-	Services   ServiceConfigs   `yaml:"services,omitempty"`
+	// Deprecated: Use Services
+	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
+	Services ServiceConfigs `yaml:"services,omitempty"`
 
 	Debug      bool   `yaml:"debug"`
 	AuthServer string `yaml:"auth_server,omitempty"`
@@ -363,6 +364,14 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	// We've migrated Outputs to Services, so copy all Outputs to Services.
+	conf.Services = append(conf.Services, conf.Outputs...)
+	for i, service := range conf.Services {
+		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
+		}
+	}
+
 	destinationPaths := map[string]int{}
 	addDestinationToKnownPaths := func(d bot.Destination) {
 		switch d := d.(type) {
@@ -372,11 +381,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
-	for _, output := range conf.Outputs {
-		if err := output.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+	for _, svc := range conf.Services {
+		v, ok := svc.(interface{ GetDestination() bot.Destination })
+		if ok {
+			addDestinationToKnownPaths(v.GetDestination())
 		}
-		addDestinationToKnownPaths(output.GetDestination())
 	}
 
 	// Check for identical destinations being used. This is a deeply
@@ -391,13 +400,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error",
 				"path", path,
 			)
-		}
-	}
-
-	// Validate configured services
-	for i, service := range conf.Services {
-		if err := service.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validating service[%d]", i)
 		}
 	}
 
@@ -490,55 +492,8 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		default:
-			return trace.BadParameter("unrecognized service type (%s)", header.Type)
-		}
-	}
-
-	*o = out
-	return nil
-}
-
-// Outputs assists polymorphic unmarshaling of a slice of Outputs
-type Outputs []Output
-
-func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
-	var out []Output
-	for _, node := range node.Content {
-		header := struct {
-			Type string `yaml:"type"`
-		}{}
-		if err := node.Decode(&header); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch header.Type {
-		case IdentityOutputType:
-			v := &IdentityOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case ApplicationOutputType:
-			v := &ApplicationOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
 		case KubernetesOutputType:
 			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case DatabaseOutputType:
-			v := &DatabaseOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case SSHHostOutputType:
-			v := &SSHHostOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -549,8 +504,38 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case SSHHostOutputType:
+			v := &SSHHostOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case ApplicationOutputType:
+			v := &ApplicationOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case DatabaseOutputType:
+			v := &DatabaseOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case IdentityOutputType:
+			v := &IdentityOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case ApplicationTunnelServiceType:
+			v := &ApplicationTunnelService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
-			return trace.BadParameter("unrecognized output type (%s)", header.Type)
+			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
 	}
 
@@ -604,44 +589,22 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 }
 
-// GetOutputByPath attempts to fetch a Destination by its filesystem path.
-// Only valid for filesystem destinations; returns nil if no matching
-// Destination exists.
-func (conf *BotConfig) GetOutputByPath(path string) (Output, error) {
-	for _, output := range conf.Outputs {
-		destImpl := output.GetDestination()
-
-		destDir, ok := destImpl.(*DestinationDirectory)
-		if !ok {
-			continue
-		}
-
-		// Note: this compares only paths as written in the config file. We
-		// might want to compare .Abs() if that proves to be confusing (though
-		// this may have its own problems)
-		if destDir.Path == path {
-			return output, nil
-		}
-	}
-
-	return nil, nil
+// Initable represents any ServiceConfig which is compatible with
+// `tbot init`.
+type Initable interface {
+	GetDestination() bot.Destination
+	Init(ctx context.Context) error
+	Describe() []FileDescription
 }
 
-// newTestConfig creates a new minimal bot configuration from defaults for use
-// in tests
-func newTestConfig(authServer string) (*BotConfig, error) {
-	// Note: we need authServer for CheckAndSetDefaults to succeed.
-	cfg := BotConfig{
-		AuthServer: authServer,
-		Onboarding: OnboardingConfig{
-			JoinMethod: types.JoinMethodToken,
-		},
+func (conf *BotConfig) GetInitables() []Initable {
+	var out []Initable
+	for _, service := range conf.Services {
+		if v, ok := service.(Initable); ok {
+			out = append(out, v)
+		}
 	}
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &cfg, nil
+	return out
 }
 
 func destinationFromURI(uriString string) (bot.Destination, error) {
@@ -768,7 +731,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 		// CLI only supports a single filesystem Destination with SSH client config
 		// and all roles.
-		if len(config.Outputs) > 0 {
+		if len(config.Services) > 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding destinations",
@@ -778,7 +741,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 		// When using the CLI --Destination-dir we configure an Identity type
 		// output for that directory.
-		config.Outputs = []Output{
+		config.Services = []ServiceConfig{
 			&IdentityOutput{
 				Destination: &DestinationDirectory{
 					Path: cf.DestinationDir,

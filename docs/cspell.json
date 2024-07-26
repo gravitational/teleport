@@ -884,6 +884,7 @@
     "tenantname",
     "testuser",
     "tfvars",
+    "tfplugindocs",
     "thisisunsafe",
     "thred",
     "timechart",
@@ -977,5 +978,6 @@
   ],
   "flagWords": [
     "hte"
-  ]
+  ],
+  "ignorePaths": ["**/reference/terraform-provider/**"]
 }

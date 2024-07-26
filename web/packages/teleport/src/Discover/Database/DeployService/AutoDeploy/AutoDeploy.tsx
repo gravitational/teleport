@@ -18,7 +18,7 @@
 
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -49,7 +49,6 @@ import {
   Header,
   DiscoverLabel,
   AlternateInstructionButton,
-  Mark,
 } from '../../../Shared';
 
 import { DeployServiceProp } from '../DeployService';

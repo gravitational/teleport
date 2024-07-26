@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -427,6 +426,8 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 
 // ApplyFileConfig applies configuration from a YAML file to Teleport
 // runtime config
+//
+// ApplyFileConfig is used by both teleport and tctl binaries.
 func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
 
@@ -946,9 +947,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := dtconfig.ValidateConfigAgainstModules(cfg.Auth.Preference.GetDeviceTrust()); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	if fc.Auth.MessageOfTheDay != "" {
@@ -1215,6 +1213,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		switch cfg.Proxy.UI.ShowResources {
 		case constants.ShowResourcesaccessibleOnly,
 			constants.ShowResourcesRequestable:
+		case "":
+			{
+				cfg.Proxy.UI.ShowResources = constants.ShowResourcesRequestable
+			}
 		default:
 			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
 		}

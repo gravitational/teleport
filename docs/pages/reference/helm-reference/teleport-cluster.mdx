@@ -4,7 +4,7 @@ description: Values that can be set using the teleport-cluster Helm chart
 ---
 
 The `teleport-cluster` Helm chart deploys a Teleport cluster on Kubernetes.
-This includes deploying proxies, auth servers, and [kubernetes-access](../../kubernetes-access/introduction.mdx).
+This includes deploying proxies, auth servers, and [kubernetes-access](../../enroll-resources/kubernetes-access/introduction.mdx).
 See the [Teleport HA Architecture page](../../deploy-a-cluster/high-availability.mdx)
 for more details.
 
@@ -16,7 +16,7 @@ The `teleport-cluster` chart runs three Teleport services, split into two sets o
 | Teleport service | Running in | Purpose | Documentation |
 | - | - | - | - |
 | `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../../architecture/authentication.mdx)
-| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Kubernetes Access documentation](../../kubernetes-access/introduction.mdx) |
+| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Kubernetes Access documentation](../../enroll-resources/kubernetes-access/introduction.mdx) |
 | `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../../architecture/proxy.mdx) |
 
 <Admonition type="tip" title="Additional Kubernetes Clusters and Teleport Services">
@@ -71,7 +71,7 @@ When using a fully qualified domain name as your `clusterName`, you will also
 need to configure the DNS provider for this domain to point to the external
 load balancer address of your Teleport cluster.
 
-(!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/kubernetes-externaladdress.mdx!)
 
 You will need to manually add a DNS A record pointing `teleport.example.com` to
 the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
@@ -1891,6 +1891,26 @@ Boolean value that specifies whether to generate a Kubernetes `Ingress` for the 
   ingress:
     enabled: true
   ```
+
+## `ingress.useExisting`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+
+`ingress.useExisting` indicates to the chart that you are managing your own ingress
+(or HTTPRoute, or any other LoadBalancing method that terminates TLS).
+The chart will configure Teleport like it's running behind an ingress, but will not
+create the ingress resource. You are responsible for creating and managing the ingress.
+
+`values.yaml` example:
+
+```yaml
+ingress:
+  enabled: true
+  useExisting: true
+```
 
 ## `ingress.suppressAutomaticWildcards`
 

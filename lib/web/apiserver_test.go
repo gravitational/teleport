@@ -120,6 +120,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -2824,15 +2825,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"    # shellcheck disable=SC2050\n"+
-				"    if [ \"true\" = \"true\" ]; then\n"+
-				"      # automatic upgrades\n",
-			)
-			require.Contains(t, responseString, ""+
-				"  TELEPORT_PACKAGE=\"teleport-ent\"\n"+
-				"  TELEPORT_UPDATER_PACKAGE=\"teleport-ent-updater\"\n",
-			)
+			require.Contains(t, responseString, "--auto-upgrade=true")
+			require.Contains(t, responseString, "--teleport-package=teleport-ent")
 		})
 
 		t.Run("default-agentless-installer", func(t *testing.T) {
@@ -2961,15 +2955,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.NotContains(t, responseString, "stable/cloud")
 			require.Contains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"    # shellcheck disable=SC2050\n"+
-				"    if [ \"false\" = \"true\" ]; then\n"+
-				"      # automatic upgrades\n",
-			)
-			require.Contains(t, responseString, ""+
-				"  TELEPORT_PACKAGE=\"teleport\"\n"+
-				"  TELEPORT_UPDATER_PACKAGE=\"teleport-updater\"\n",
-			)
+			require.Contains(t, responseString, "--auto-upgrade=false")
+			require.Contains(t, responseString, "--teleport-package=teleport ")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -4570,12 +4557,13 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:    true,
-		ProxyClusterName:   env.server.ClusterName(),
-		IsCloud:            false,
-		AutomaticUpgrades:  false,
-		JoinActiveSessions: true,
-		Edition:            modules.BuildOSS, // testBuildType is empty
+		CanJoinSessions:           true,
+		ProxyClusterName:          env.server.ClusterName(),
+		IsCloud:                   false,
+		AutomaticUpgrades:         false,
+		JoinActiveSessions:        true,
+		Edition:                   modules.BuildOSS, // testBuildType is empty
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.
@@ -4690,11 +4678,12 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:              true,
-		IsIGSEnabled:        true,
-		IsStripeManaged:     true,
-		Questionnaire:       true,
-		IsUsageBasedBilling: true,
+		IsTeam:                    true,
+		IsIGSEnabled:              true,
+		IsStripeManaged:           true,
+		Questionnaire:             true,
+		IsUsageBasedBilling:       true,
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.

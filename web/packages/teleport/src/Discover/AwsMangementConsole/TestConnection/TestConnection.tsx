@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, Link } from 'design';
+import { Text, Box, Link, Mark } from 'design';
 import Select from 'shared/components/Select';
 import { OutlineInfo } from 'design/Alert/Alert';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
@@ -29,7 +29,6 @@ import {
   ActionButtons,
   HeaderSubtitle,
   StyledBox,
-  Mark,
 } from 'teleport/Discover/Shared';
 import useTeleport from 'teleport/useTeleport';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';

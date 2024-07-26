@@ -17,7 +17,7 @@ within your infrastructure, such as Kubernetes clusters and Windows desktops.
 A minimal Teleport cluster consists of the **Teleport Auth Service** and
 **Teleport Proxy Service**. In a demo environment, you can run these two
 services from a single `teleport` process on a [Linux
-host](./index.mdx).
+host](./deploy-a-cluster/linux-demo.mdx).
 
 ### Teleport Auth Service
 
@@ -68,7 +68,7 @@ Proxies HTTP and TCP traffic to user-configured endpoints, e.g., internal web
 applications or the AWS Console.
 
 Read more about the [Teleport Application
-Service](./application-access/introduction.mdx).
+Service](./enroll-resources/application-access/introduction.mdx).
 
 ### Teleport Database Service
 
@@ -76,21 +76,21 @@ Proxies TCP traffic in the native protocols of popular databases, including
 PostgreSQL and MySQL. 
 
 Read more about the [Teleport Database
-Service](./database-access/introduction.mdx).
+Service](./enroll-resources/database-access/database-access.mdx).
 
 ### Teleport Desktop Service
 
 Proxies Remote Desktop Protocol traffic to Windows desktops.
 
 Read more about the [Teleport Desktop
-Service](./desktop-access/introduction.mdx).
+Service](./enroll-resources/desktop-access/introduction.mdx).
 
 ### Teleport Kubernetes Service
 
 Proxies HTTP traffic to the Kubernetes API server.
 
 Read more about the [Teleport Kubernetes
-Service](./kubernetes-access/introduction.mdx)
+Service](./enroll-resources/kubernetes-access/introduction.mdx)
 
 ### Teleport SSH Service 
 
@@ -98,7 +98,7 @@ An SSH server implementation that allows users to execute commands on remote
 machines while taking advantage of Teleport's built-in access controls,
 auditing, and session recording.
 
-Read more about the [Teleport SSH Service](./server-access/introduction.mdx).
+Read more about the [Teleport SSH Service](./enroll-resources/server-access/introduction.mdx).
 
 ### Machine ID
 
@@ -113,7 +113,7 @@ vulnerable to attacks the longer they remain in use.
 Unlike other **Teleport services**, Machine ID runs via the `tbot` binary,
 rather than the `teleport` binary.
 
-Read more in our [Machine ID guide](./machine-id/introduction.mdx).
+Read more in our [Machine ID guide](./enroll-resources/machine-id/introduction.mdx).
 
 ### Agent
 

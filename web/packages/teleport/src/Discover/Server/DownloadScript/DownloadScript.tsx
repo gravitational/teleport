@@ -18,7 +18,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 
-import { Box, Indicator, Text } from 'design';
+import { Box, Indicator, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -46,7 +46,6 @@ import {
   ActionButtons,
   HeaderSubtitle,
   Header,
-  Mark,
   ResourceKind,
   TextIcon,
 } from '../../Shared';
