@@ -355,13 +355,12 @@ func (s *Server) getServerInfo(app types.Application) *types.AppServerV3 {
 			Expires: &expires,
 		},
 		Spec: types.AppServerSpecV3{
-			Version:   teleport.Version,
-			Hostname:  s.c.Hostname,
-			HostID:    s.c.HostID,
-			Rotation:  s.getRotationState(),
-			App:       copy,
-			ProxyIDs:  s.c.ConnectedProxyGetter.GetProxyIDs(),
-			LocalTime: s.c.Clock.Now().UTC(),
+			Version:  teleport.Version,
+			Hostname: s.c.Hostname,
+			HostID:   s.c.HostID,
+			Rotation: s.getRotationState(),
+			App:      copy,
+			ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 		},
 	}
 }

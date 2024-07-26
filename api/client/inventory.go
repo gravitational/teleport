@@ -299,6 +299,8 @@ func (i *downstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStr
 			msg = *oneOf.GetHello()
 		case oneOf.GetPing() != nil:
 			msg = *oneOf.GetPing()
+		case oneOf.GetClock() != nil:
+			msg = *oneOf.GetClock()
 		case oneOf.GetUpdateLabels() != nil:
 			msg = *oneOf.GetUpdateLabels()
 		default:
@@ -334,6 +336,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 			case proto.UpstreamInventoryPong:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Pong{
 					Pong: &msg,
+				}
+			case proto.UpstreamInventoryClockResponse:
+				oneOf.Msg = &proto.UpstreamInventoryOneOf_Clock{
+					Clock: &msg,
 				}
 			case proto.UpstreamInventoryAgentMetadata:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_AgentMetadata{
@@ -480,6 +486,8 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 			msg = *oneOf.GetHeartbeat()
 		case oneOf.GetPong() != nil:
 			msg = *oneOf.GetPong()
+		case oneOf.GetClock() != nil:
+			msg = *oneOf.GetClock()
 		case oneOf.GetAgentMetadata() != nil:
 			msg = *oneOf.GetAgentMetadata()
 		case oneOf.GetGoodbye() != nil:
@@ -513,6 +521,10 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 			case proto.DownstreamInventoryPing:
 				oneOf.Msg = &proto.DownstreamInventoryOneOf_Ping{
 					Ping: &msg,
+				}
+			case proto.DownstreamInventoryClockRequest:
+				oneOf.Msg = &proto.DownstreamInventoryOneOf_Clock{
+					Clock: &msg,
 				}
 			case proto.DownstreamInventoryUpdateLabels:
 				oneOf.Msg = &proto.DownstreamInventoryOneOf_UpdateLabels{

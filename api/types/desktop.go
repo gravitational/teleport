@@ -17,11 +17,9 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/trace"
 	"sort"
 	"strings"
-	"time"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
@@ -44,8 +42,6 @@ type WindowsDesktopService interface {
 	GetTeleportVersion() string
 	// GetHostname returns the hostname of this service
 	GetHostname() string
-	// GetLocalTime gets the local time of the current server.
-	GetLocalTime() time.Time
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -121,11 +117,6 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
-}
-
-// GetLocalTime gets the local time of the current server.
-func (s *WindowsDesktopServiceV3) GetLocalTime() time.Time {
-	return s.Spec.LocalTime
 }
 
 // MatchSearch goes through select field values and tries to

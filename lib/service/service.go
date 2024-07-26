@@ -1183,7 +1183,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Hostname:                cfg.Hostname,
 		ExternalUpgrader:        externalUpgrader,
 		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
-	})
+	}, inventory.WithDownstreamClock(process.Clock))
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.", "id", ping.ID)

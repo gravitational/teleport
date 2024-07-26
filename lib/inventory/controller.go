@@ -396,6 +396,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
+			case proto.UpstreamInventoryClockResponse:
+				c.handleClockResponse(handle, m)
 			case proto.UpstreamInventoryGoodbye:
 				handle.goodbye = m
 			default:
@@ -422,6 +424,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			// pings require multiplexing, so we need to do the sending from this
 			// goroutine rather than sending directly via the handle.
 			if err := c.handlePingRequest(handle, req); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+		case req := <-handle.clockC:
+			if err := c.handleClockRequest(handle, req); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
@@ -494,7 +501,7 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		return
 	}
 	pending.rspC <- pingResponse{
-		d: time.Since(pending.start),
+		d: c.clock.Since(pending.start),
 	}
 	delete(handle.pings, msg.ID)
 }
@@ -631,10 +638,6 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
-	if !m.LocalTime.IsZero() {
-		m.TimeDifference = c.clock.Since(m.LocalTime).Nanoseconds()
-	}
-
 	handle.SetAgentMetadata(m)
 
 	svcs := make([]string, 0, len(handle.Hello().Services))

@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	insecurerand "math/rand"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ import (
 const (
 	// timeCheckCycle is the period when local times are compared
 	// for collected resources from heartbeats, and notification must be added.
-	timeCheckCycle = 5 * time.Second
+	timeCheckCycle = 10 * time.Minute
 	// timeShiftThreshold is the duration threshold for triggering a warning
 	// if the time difference exceeds this threshold.
 	timeShiftThreshold = time.Minute
@@ -73,9 +74,13 @@ func (a *Server) MonitorNodeInfos(ctx context.Context) error {
 			var resources []inventoryMonitor
 			a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 				info := handle.Hello()
-				metadata := handle.AgentMetadata()
 
-				diff := time.Duration(metadata.TimeDifference)
+				id := insecurerand.Uint64()
+				diff, err := handle.TimeReconciliation(ctx, id)
+				if err != nil {
+					slog.ErrorContext(ctx, "error getting time reconciliation")
+				}
+
 				if (diff > 0 && diff > timeShiftThreshold) || (diff < 0 && -diff > timeShiftThreshold) {
 					resources = append(resources, inventoryMonitor{
 						serverID: info.GetServerID(),
@@ -107,7 +112,8 @@ func upsertGlobalNotification(ctx context.Context, services *Services, text stri
 				All: true,
 			},
 			Notification: &notificationsv1.Notification{
-				Spec: &notificationsv1.NotificationSpec{},
+				SubKind: types.NotificationDefaultWarningSubKind,
+				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
 					Name: "cluster-monitor-time-sync",
 					Labels: map[string]string{

@@ -895,7 +895,6 @@ func TestGoodbye(t *testing.T) {
 }
 
 func TestGetSender(t *testing.T) {
-
 	controller := NewController(
 		&fakeAuth{},
 		usagereporter.DiscardUsageReporter{},
@@ -951,6 +950,64 @@ func TestGetSender(t *testing.T) {
 		assert.True(t, ok)
 		assert.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// TestTimeReconciliation verifies basic behaviour of the time reconciliation check.
+func TestTimeReconciliation(t *testing.T) {
+	const serverID = "test-server"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events := make(chan testEvent, 1024)
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withTestEventsChannel(events),
+	)
+	t.Cleanup(func() {
+		require.NoError(t, controller.Close())
+	})
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// Launch goroutine to respond to clock request.
+	go func() {
+		select {
+		case msg := <-downstream.Recv():
+			downstream.Send(ctx, proto.UpstreamInventoryClockResponse{
+				ID:        msg.(proto.DownstreamInventoryClockRequest).ID,
+				LocalTime: time.Now().Add(-time.Minute).UTC(),
+			})
+		case <-downstream.Done():
+		case <-ctx.Done():
+		}
+	}()
+
+	clockCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	d, err := handle.TimeReconciliation(clockCtx, 1)
+	require.NoError(t, err)
+	require.InDelta(t, time.Minute, d, float64(time.Second))
 }
 
 type eventOpts struct {

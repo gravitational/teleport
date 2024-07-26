@@ -91,7 +91,7 @@ type DownstreamSender interface {
 
 // NewDownstreamHandle creates a new downstream inventory control handle which will create control streams via the
 // supplied create func and manage hello exchange with the supplied upstream hello.
-func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
+func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello, opts ...DownstreamHandleOption) DownstreamHandle {
 	ctx, cancel := context.WithCancel(context.Background())
 	handle := &downstreamHandle{
 		senderC:      make(chan DownstreamSender),
@@ -100,9 +100,22 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 		cancel:       cancel,
 		clock:        clockwork.NewRealClock(),
 	}
+	for _, opt := range opts {
+		opt(handle)
+	}
 	go handle.run(fn, hello)
 	go handle.autoEmitMetadata()
 	return handle
+}
+
+// DownstreamHandleOption is option type for downstream handle.
+type DownstreamHandleOption func(c *downstreamHandle)
+
+// WithDownstreamClock overrides existing clock for downstream handle.
+func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
+	return func(handle *downstreamHandle) {
+		handle.clock = clock
+	}
 }
 
 type downstreamHandle struct {
@@ -151,7 +164,6 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		case <-h.CloseContext().Done():
 			return
 		}
-		msg.LocalTime = h.clock.Now().UTC()
 
 		// Send metadata.
 		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
@@ -245,6 +257,8 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return trace.BadParameter("unexpected downstream hello")
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
+			case proto.DownstreamInventoryClockRequest:
+				h.handleClock(sender, m)
 			case proto.DownstreamInventoryUpdateLabels:
 				h.handleUpdateLabels(m)
 			default:
@@ -370,6 +384,11 @@ type UpstreamHandle interface {
 	AgentMetadata() proto.UpstreamInventoryAgentMetadata
 
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
+
+	// TimeReconciliation compares the time difference between downstream and upstream,
+	// disregarding transport request/response time.
+	TimeReconciliation(ctx context.Context, id uint64) (d time.Duration, err error)
+
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
 	HasService(types.SystemRole) bool
@@ -545,14 +564,16 @@ type upstreamHandle struct {
 
 	ticker *interval.MultiInterval[intervalKey]
 
-	pingC chan pingRequest
+	pingC  chan pingRequest
+	clockC chan clockRequest
 
 	stateTracker instanceStateTracker
 
 	// --- fields below this point only safe for access by handler goroutine
 
 	// pings are in-flight pings to be multiplexed by ID.
-	pings map[uint64]pendingPing
+	pings         map[uint64]pendingPing
+	clockRequests map[uint64]pendingClock
 
 	// sshServer track ssh server details.
 	sshServer *heartBeatInfo[*types.ServerV2]
@@ -585,8 +606,10 @@ func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
+		clockC:                         make(chan clockRequest),
 		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
+		clockRequests:                  make(map[uint64]pendingClock),
 		ticker:                         ticker,
 	}
 }

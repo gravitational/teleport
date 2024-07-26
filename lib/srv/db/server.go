@@ -720,13 +720,12 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.DatabaseServerSpecV3{
-		Version:   teleport.Version,
-		Hostname:  s.cfg.Hostname,
-		HostID:    s.cfg.HostID,
-		Rotation:  s.getRotationState(),
-		Database:  copy,
-		ProxyIDs:  s.cfg.ConnectedProxyGetter.GetProxyIDs(),
-		LocalTime: s.cfg.Clock.Now().UTC(),
+		Version:  teleport.Version,
+		Hostname: s.cfg.Hostname,
+		HostID:   s.cfg.HostID,
+		Rotation: s.getRotationState(),
+		Database: copy,
+		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

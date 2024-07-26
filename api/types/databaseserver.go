@@ -55,8 +55,6 @@ type DatabaseServer interface {
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
 	SetDatabase(Database) error
-	// GetLocalTime gets the local time of the current server.
-	GetLocalTime() time.Time
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -184,11 +182,6 @@ func (s *DatabaseServerV3) GetProxyIDs() []string {
 // SetProxyIDs sets the proxy ids this server is connected to.
 func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
-}
-
-// GetLocalTime gets the local time of the current server.
-func (s *DatabaseServerV3) GetLocalTime() time.Time {
-	return s.Spec.LocalTime
 }
 
 // String returns the server string representation.
