@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useParams } from 'react-router';
 import { Transition } from 'react-transition-group';
-import { Text, Flex, ButtonPrimary, Box, ButtonText } from 'design';
-import { ArrowBack, NewTab } from 'design/Icon';
+import { Text, Flex, ButtonPrimary, Box, ButtonBorder } from 'design';
+import { ArrowBack } from 'design/Icon';
 import {
   FeatureBox,
   FeatureHeader,
@@ -48,49 +48,41 @@ export default function Workflow() {
   const hasReadRulesAccess = amRuleAccess.list && amRuleAccess.read;
 
   const ViewRulesButton = (
-    <ButtonText
+    <ButtonBorder
       onClick={() => setShowRoutingRuleDialog(true)}
-      pl={0}
-      css={{ fontWeight: 'normal' }}
       disabled={!hasReadRulesAccess}
     >
-      <Flex alignItems="center" gap={2}>
-        <Text>View Notification Routing Rules</Text>
-        <NewTab size={18} />
-      </Flex>
-    </ButtonText>
+      View Notification Routing Rules
+    </ButtonBorder>
   );
 
   if (!requestId) {
     return (
       <>
         <FeatureBox px={4}>
-          <Flex alignItems="center" mb={4}>
-            <Box mb={1}>
-              <FeatureHeader
-                alignItems="center"
-                justifyContent="space-between"
-                css={`
-                  border-bottom: none;
-                `}
-                mb={-3}
-              >
-                <FeatureHeaderTitle>Access Requests</FeatureHeaderTitle>
-              </FeatureHeader>
-              {hasReadRulesAccess ? (
-                <>{ViewRulesButton}</>
-              ) : (
-                <HoverTooltip
-                  tipContent={
-                    'You do not have access to read/list Notification Routing Rules'
-                  }
-                >
-                  {ViewRulesButton}
-                </HoverTooltip>
-              )}
+          <FeatureHeader
+            css={`
+              border-bottom: none;
+            `}
+            gap={3}
+          >
+            <Box flex="1">
+              <FeatureHeaderTitle>Access Requests</FeatureHeaderTitle>
             </Box>
+
+            {hasReadRulesAccess ? (
+              <>{ViewRulesButton}</>
+            ) : (
+              <HoverTooltip
+                tipContent={
+                  'You do not have access to read/list Notification Routing Rules'
+                }
+              >
+                {ViewRulesButton}
+              </HoverTooltip>
+            )}
             <NewRequestButton clusterId={clusterId} />
-          </Flex>
+          </FeatureHeader>
           <RequestList />
         </FeatureBox>
         <Transition

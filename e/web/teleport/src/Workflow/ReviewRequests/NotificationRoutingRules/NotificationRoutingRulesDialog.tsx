@@ -6,10 +6,10 @@ import {
   Flex,
   Box,
   ButtonIcon,
-  ButtonBorder,
   Alert,
   ButtonText,
   Indicator,
+  Button,
 } from 'design';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import Dialog from 'design/Dialog';
@@ -180,7 +180,13 @@ export const NotificationRoutingRulesDialog = ({
                     : 'You do not have access to create access monitoring rules'
                 }
               >
-                <ButtonBorder
+                <Button
+                  intent="primary"
+                  fill={
+                    fetchRulesAttempt.status === 'success' && rules.length === 0
+                      ? 'filled'
+                      : 'border'
+                  }
                   disabled={
                     (showEditor && !viewingRule) || !hasAmRuleCreateAccess
                   }
@@ -193,7 +199,7 @@ export const NotificationRoutingRulesDialog = ({
                   }}
                 >
                   Create a Notification Rule
-                </ButtonBorder>
+                </Button>
               </HoverTooltip>
             )}
           </Flex>
