@@ -1783,7 +1783,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: assumedRoleIdentity.GetPartition(),
 			targetString:      "arn:aws:iam::123456789012:role/example-role",
 			iamClient:         &iamMock{unauthorized: true},
-			wantErrContains:   "Policies cannot be attached to an assumed-role",
+			wantErrContains:   "policies cannot be attached to an assumed-role",
 		},
 		"AssumedRoleIdentityWithRoleFromFlags": {
 			flags:             configurators.BootstrapFlags{AttachToRole: "arn:aws:iam::123456789012:role/some/path/example-role"},

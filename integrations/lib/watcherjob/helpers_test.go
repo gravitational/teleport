@@ -133,6 +133,11 @@ func NewMockEventsProcess(ctx context.Context, t *testing.T, config Config, fn E
 	return &process
 }
 
+// WaitReady waits for the job to be ready.
+func (process *MockEventsProcess) WaitReady(ctx context.Context) (bool, error) {
+	return process.eventsJob.WaitReady(ctx)
+}
+
 // Shutdown sends a termination signal and waits for process completion.
 func (process *MockEventsProcess) Shutdown(ctx context.Context) error {
 	process.Terminate()
@@ -180,4 +185,34 @@ func (countdown *Countdown) Wait(ctx context.Context) error {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	}
+}
+
+// NewMockEventsProcessWithConfirmedWatchJobs creates a new mock process that passes confirmed watch kinds back.
+func NewMockEventsProcessWithConfirmedWatchJobs(ctx context.Context, t *testing.T, config Config, fn EventFunc, watchInitFunc WatchInitFunc) *MockEventsProcess {
+	t.Helper()
+	process := MockEventsProcess{
+		Process: lib.NewProcess(ctx),
+	}
+	t.Cleanup(func() {
+		process.Terminate()
+		if err := process.Shutdown(ctx); err != nil {
+			assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
+		}
+		process.Close()
+	})
+	var err error
+
+	process.eventsJob, err = NewJobWithConfirmedWatchKinds(&process.Events, config, fn, watchInitFunc)
+	require.NoError(t, err)
+	process.SpawnCriticalJob(process.eventsJob)
+	require.NoError(t, process.Events.WaitSomeWatchers(ctx))
+	process.Events.Fire(types.Event{
+		Type: types.OpInit,
+		Resource: &types.WatchStatusV1{
+			Spec: types.WatchStatusSpecV1{
+				Kinds: config.Watch.Kinds,
+			},
+		}})
+
+	return &process
 }
