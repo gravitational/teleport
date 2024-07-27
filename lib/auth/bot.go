@@ -578,7 +578,7 @@ func (a *Server) generateInitialBotCerts(
 				certReq.botInstanceID = existingInstanceID
 			}
 		}
-		
+
 	} else {
 		// Unlike the new codepath, legacy generation counters are only nonzero
 		// for renewable certs, so we need to set it conditionally.
