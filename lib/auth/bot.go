@@ -478,13 +478,15 @@ func newBotInstance(
 // care if the current identity is Nop.  This function does not validate the
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
+//
+// Returns a second argument of the bot instance ID for inclusion in audit logs.
 func (a *Server) generateInitialBotCerts(
 	ctx context.Context, botName, username, loginIP string,
 	sshPubKey, tlsPubKey []byte,
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string, currentIdentityGeneration int32,
-) (*proto.Certs, error) {
+) (*proto.Certs, string, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -496,13 +498,13 @@ func (a *Server) generateInitialBotCerts(
 	userState, err := a.GetUserOrLoginState(ctx, username)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
-		return nil, trace.AccessDenied("access denied")
+		return nil, "", trace.AccessDenied("access denied")
 	}
 
 	// Do not allow SSO users to be impersonated.
 	if userState.GetUserType() == types.UserTypeSSO {
 		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
-		return nil, trace.AccessDenied("access denied")
+		return nil, "", trace.AccessDenied("access denied")
 	}
 
 	// Cap the cert TTL to the MaxRenewableCertTTL.
@@ -514,11 +516,11 @@ func (a *Server) generateInitialBotCerts(
 	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	// Generate certificate
@@ -540,7 +542,7 @@ func (a *Server) generateInitialBotCerts(
 			// If no existing instance ID is known, create a new one.
 			uuid, err := uuid.NewRandom()
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
 
 			initialAuth.Generation = 1
@@ -552,7 +554,7 @@ func (a *Server) generateInitialBotCerts(
 
 			_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
 
 			certReq.botInstanceID = uuid.String()
@@ -567,7 +569,7 @@ func (a *Server) generateInitialBotCerts(
 				ctx, &certReq, username, botName, existingInstanceID,
 				initialAuth, currentIdentityGeneration,
 			); err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
 
 			// Only set the bot instance ID if it's empty; `updateBotInstance()`
@@ -576,6 +578,7 @@ func (a *Server) generateInitialBotCerts(
 				certReq.botInstanceID = existingInstanceID
 			}
 		}
+		
 	} else {
 		// Unlike the new codepath, legacy generation counters are only nonzero
 		// for renewable certs, so we need to set it conditionally.
@@ -586,14 +589,14 @@ func (a *Server) generateInitialBotCerts(
 		// If the bot instance experiment is disabled, fall back to old generation
 		// counter behavior.
 		if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	return certs, nil
+	return certs, certReq.botInstanceID, nil
 }

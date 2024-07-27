@@ -1496,6 +1496,13 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if d := r.GetAppServer(); d != nil {
+				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
+				if err != nil {
+					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
+					continue
+				}
+				r.Logins = logins
 			}
 		}
 	}

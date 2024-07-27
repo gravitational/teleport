@@ -58,6 +58,8 @@ jobs:
               - 'integrations/terraform/Makefile'
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
+              # rendered doc changes
+              - 'docs/pages/reference/terraform-provider/**'
 
   lint-go:
     name: Lint (Go)

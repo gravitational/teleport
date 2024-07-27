@@ -3764,6 +3764,21 @@ func TestListResources_WithLogins(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+
+		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
+				Spec: types.AppSpecV3{
+					URI: "https://console.aws.amazon.com/ec2/v2/home",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, awsApp)
+		require.NoError(t, err)
 	}
 
 	// create user and client
@@ -3772,6 +3787,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
 
@@ -3797,10 +3813,10 @@ func TestListResources_WithLogins(t *testing.T) {
 				start = resp.NextKey
 			}
 
-			// Check that only server and desktop resources contain the expected logins
+			// Check that only server, desktop, and app server resources contain the expected logins
 			for _, resource := range results {
 				switch resource.ResourceWithLabels.(type) {
-				case types.Server, types.WindowsDesktop:
+				case types.Server, types.WindowsDesktop, types.AppServer:
 					require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 						return strings.Compare(a, b) < 0
 					})))
@@ -3829,10 +3845,10 @@ func TestListResources_WithLogins(t *testing.T) {
 				start = resp.NextKey
 			}
 
-			// Check that only server and desktop resources contain the expected logins
+			// Check that only server, desktop, and app server resources contain the expected logins
 			for _, resource := range results {
 				switch resource.ResourceWithLabels.(type) {
-				case types.Server, types.WindowsDesktop:
+				case types.Server, types.WindowsDesktop, types.AppServer:
 					require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 						return strings.Compare(a, b) < 0
 					})))
@@ -4753,6 +4769,21 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+
+		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
+				Spec: types.AppSpecV3{
+					URI: "https://console.aws.amazon.com/ec2/v2/home",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, awsApp)
+		require.NoError(t, err)
 	}
 
 	// create user and client
@@ -4761,6 +4792,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
 
@@ -4782,9 +4814,9 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		start = resp.NextKey
 	}
 
-	// Check that only server and desktop resources contain the expected logins
+	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {
-		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil {
+		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil || resource.GetAppServer() != nil {
 			require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 				return strings.Compare(a, b) < 0
 			})))
