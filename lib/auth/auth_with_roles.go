@@ -3312,13 +3312,21 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		botName:                getBotName(user),
+	}
 
+	if experiment.Enabled() {
 		// Always pass through a bot instance ID if available. Legacy bots
 		// joining without an instance ID may have one generated when
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
-		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		// Note that this copy needs to be tied to the experiment for downgrade
+		// compatibility. If a cluster is downgraded the ID needs to be dropped
+		// from certs so a new one can be generated, otherwise the generation
+		// counter in the stored identity will mismatch when auth is upgraded
+		// again.
+		certReq.botInstanceID = a.context.Identity.GetIdentity().BotInstanceID
 	}
+
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
 	} else if isRoleImpersonation(req) {

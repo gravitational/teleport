@@ -335,8 +335,21 @@ func (a *Server) updateBotInstance(
 		// Set the initial generation counter. Note that with bot instances, the
 		// counter is now set for all join methods, but only enforced for token
 		// joins.
-		req.generation = 1
-		authRecord.Generation = 1
+		if currentIdentityGeneration > 0 {
+			// If the incoming identity has a nonzero generation, validate it
+			// using the legacy check. This will increment the counter on the
+			// request automatically
+			if err := a.validateGenerationLabel(ctx, username, req, uint64(currentIdentityGeneration)); err != nil {
+				return trace.Wrap(err)
+			}
+
+			// Copy the value from the request into the auth record.
+			authRecord.Generation = int32(req.generation)
+		} else {
+			// Otherwise, just set it to 1.
+			req.generation = 1
+			authRecord.Generation = 1
+		}
 
 		log.WithFields(logrus.Fields{
 			"bot_name":            botName,
