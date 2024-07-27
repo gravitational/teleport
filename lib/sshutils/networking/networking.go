@@ -280,12 +280,11 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer remoteFD.Close()
 
 	if _, _, err = uds.WriteWithFDs(p.conn, jsonReq, []*os.File{remoteFD}); err != nil {
-		remoteFD.Close()
 		return nil, trace.Wrap(err)
 	}
-	remoteFD.Close()
 
 	file, err := readResponse(requestConn)
 	if err != nil {
