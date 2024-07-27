@@ -564,6 +564,12 @@ func (a *Server) generateInitialBotCerts(
 			}
 		}
 	} else {
+		// Unlike the new codepath, legacy generation counters are only nonzero
+		// for renewable certs, so we need to set it conditionally.
+		if renewable {
+			certReq.generation = 1
+		}
+
 		// If the bot instance experiment is disabled, fall back to old generation
 		// counter behavior.
 		if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
