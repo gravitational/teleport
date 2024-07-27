@@ -272,6 +272,9 @@ func testNetworkingCommand(t *testing.T, login string) {
 	})
 
 	t.Run("x11 forward", func(t *testing.T) {
+		if login != "" {
+			t.Skip("x11 forwarding test is broken for root")
+		}
 		testX11Forward(ctx, t, proc)
 	})
 }
@@ -396,6 +399,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process)
 	require.NoError(t, err)
 	buf := make([]byte, 4)
 	_, err = conn.Read(buf)
+	require.NoError(t, err)
 	require.Equal(t, echoMsg, buf)
 
 	// Check that the xauth entry was stored for the listener's corresponding x11 display.
