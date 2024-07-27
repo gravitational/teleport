@@ -272,10 +272,14 @@ func testNetworkingCommand(t *testing.T, login string) {
 	})
 
 	t.Run("x11 forward", func(t *testing.T) {
-		if login != "" {
-			t.Skip("x11 forwarding test is broken for root")
+		// TODO(Joerger): This test only works when the networking process
+		// runs as the same user due to some unsolved issue with a
+		// "timeout in locking authority file". TestRootX11ForwardPermissions
+		// covers for this, but ideally we'd replace that test with this newer
+		// more unitized test.
+		if login == "" {
+			testX11Forward(ctx, t, proc)
 		}
-		testX11Forward(ctx, t, proc)
 	})
 }
 

@@ -33,8 +33,10 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1040,6 +1042,57 @@ func TestX11Forward(t *testing.T) {
 		x11EchoRequest(t, serverDisplay2)
 	}()
 	wg.Wait()
+}
+
+// TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
+// with the connecting user's file permissions (where needed), rather than root.
+func TestRootX11ForwardPermissions(t *testing.T) {
+	utils.RequireRoot(t)
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
+	}
+
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	ctx := context.Background()
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Create a new X11 session as a non-root nonroot in the system.
+	nonroot, err := user.LookupId("1000")
+	require.NoError(t, err)
+	client := f.newSSHClient(ctx, t, nonroot)
+	serverDisplay := x11EchoSession(ctx, t, client)
+
+	// Check that the xauth entry is readable for the connecting user.
+	xauthCmd := x11.NewXAuthCommand(ctx, "")
+	uid, err := strconv.ParseUint(nonroot.Uid, 10, 32)
+	require.NoError(t, err)
+	gid, err := strconv.ParseUint(nonroot.Gid, 10, 32)
+	require.NoError(t, err)
+	xauthCmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
+	xauthCmd.Dir = nonroot.HomeDir
+	xauthCmd.Env = []string{fmt.Sprintf("HOME=%v", nonroot.HomeDir)}
+	_, err = xauthCmd.ReadEntry(serverDisplay)
+	require.NoError(t, err)
 }
 
 // x11EchoSession creates a new ssh session and handles x11 forwarding for the session,
