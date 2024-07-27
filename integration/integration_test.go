@@ -4533,7 +4533,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.Key)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4629,7 +4629,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.Key)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4726,7 +4726,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start an agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.Key)
 			require.NoError(t, err)
 			t.Cleanup(func() { helpers.CloseAgent(teleAgent, socketDirPath) })
 

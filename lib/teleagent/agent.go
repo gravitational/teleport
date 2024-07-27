@@ -25,14 +25,12 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -68,10 +66,6 @@ type AgentServer struct {
 	listener net.Listener
 	Path     string
 	Dir      string
-	// testPermissions is a test provided function used to test
-	// the permissions of the agent server during potentially
-	// vulnerable moments in permission changes.
-	testPermissions func()
 }
 
 // NewServer returns new instance of agent server
@@ -86,13 +80,12 @@ func (a *AgentServer) SetListener(l net.Listener) {
 }
 
 // ListenUnixSocket starts listening on a new unix socket.
-func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User) error {
+func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, _ *user.User) error {
 	// Create a temp directory to hold the agent socket.
 	sockDir, err := os.MkdirTemp(os.TempDir(), sockDir+"-")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.Dir = sockDir
 
 	sockPath := filepath.Join(sockDir, sockName)
 	l, err := net.Listen("unix", sockPath)
@@ -101,65 +94,8 @@ func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User
 		return trace.Wrap(err)
 	}
 
-	a.listener = l
-	a.Path = sockPath
-
-	if err := a.updatePermissions(user); err != nil {
-		a.Close()
-		return trace.Wrap(err)
-	}
-
+	a.SetListener(l)
 	return nil
-}
-
-// Update the agent server permissions to give the user sole ownership
-// of the socket path and prevent other users from accessing or seeing it.
-func (a *AgentServer) updatePermissions(user *user.User) error {
-	// Tests may provide a testPermissions function to test potentially
-	// vulnerable moments during permission updating.
-	testPermissions := func() {
-		if a.testPermissions != nil {
-			a.testPermissions()
-		}
-	}
-
-	testPermissions()
-
-	uid, err := strconv.Atoi(user.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	testPermissions()
-
-	if err := os.Chmod(a.Path, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	testPermissions()
-
-	if err := os.Lchown(a.Path, uid, gid); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	testPermissions()
-
-	// To prevent a privilege escalation attack, this must occur
-	// after the socket permissions are updated.
-	if err := os.Lchown(a.Dir, uid, gid); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
-}
-
-// SetTestPermissions can be used by tests to test agent socket permissions.
-func (a *AgentServer) SetTestPermissions(testPermissions func()) {
-	a.testPermissions = testPermissions
 }
 
 // Serve starts serving on the listener, assumes that Listen was called before
