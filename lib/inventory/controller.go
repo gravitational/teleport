@@ -496,8 +496,8 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 	rsp := pingResponse{
 		reqDuration: c.clock.Since(pending.start),
 	}
-	if !msg.LocalTime.IsZero() {
-		rsp.clockDiff = c.clock.Since(msg.LocalTime)
+	if !msg.SystemClock.IsZero() {
+		rsp.clockDiff = c.clock.Since(msg.SystemClock)
 	}
 	pending.rspC <- rsp
 	delete(handle.pings, msg.ID)

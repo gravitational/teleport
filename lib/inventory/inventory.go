@@ -661,9 +661,9 @@ func (h *upstreamHandle) TimeReconciliation(ctx context.Context, id uint64) (d t
 		case rsp.clockDiff == 0:
 			return 0, nil
 		case rsp.clockDiff > 0:
-			return rsp.clockDiff - rsp.reqDuration, nil
+			return rsp.clockDiff - rsp.reqDuration/2, nil
 		default:
-			return rsp.clockDiff + rsp.reqDuration, nil
+			return rsp.clockDiff + rsp.reqDuration/2, nil
 		}
 	case <-h.Done():
 		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")

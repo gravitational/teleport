@@ -2317,11 +2317,11 @@ message DownstreamInventoryPing {
 // ping (used for testing/debug purposes).
 message UpstreamInventoryPong {
   uint64 ID = 1;
-  // LocalTime advertises the local time of the upstream.
-  google.protobuf.Timestamp LocalTime = 9 [
+  // SystemClock advertises the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "local_time,omitempty"
+    (gogoproto.jsontag) = "system_clock,omitempty"
   ];
 }
 

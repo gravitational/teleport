@@ -31,61 +31,54 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 const (
-	// timeCheckCycle is the period when local times are compared
-	// for collected resources from heartbeats, and notification must be added.
-	timeCheckCycle = 10 * time.Minute
-	// timeShiftThreshold is the duration threshold for triggering a warning
+	// systemClockCheckCycle is the period when system clock comparison is launched
+	// across all inventories, to be gathered for global notifications, if any.
+	systemClockCheckCycle = 10 * time.Minute
+	// systemClockThreshold is the duration threshold for triggering a warning
 	// if the time difference exceeds this threshold.
-	timeShiftThreshold = time.Minute
-	// timeCheckNotificationName is id for adding the global notification.
-	timeCheckNotificationName = "cluster-monitor-time-sync"
+	systemClockThreshold = time.Minute
+	// systemClockNotificationWarningName is the ID for adding the global notification.
+	systemClockNotificationWarningName = "cluster-monitor-system-clock-warning"
 )
 
-// inventoryMonitor stores info about resource and time difference with local time.
-type inventoryMonitor struct {
-	serverID string
-	services types.SystemRoles
-	diff     time.Duration
-}
+// MonitorSystemTime runs the periodic check for iterating through all inventories
+// to ping them and receive the system clock difference.
+func (a *Server) MonitorSystemTime(ctx context.Context) error {
+	checkInterval := interval.New(interval.Config{
+		FirstDuration: time.Minute,
+		Duration:      systemClockCheckCycle,
+		Clock:         a.GetClock(),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer checkInterval.Stop()
 
-// String returns the inventory representation.
-func (res *inventoryMonitor) String() string {
-	return fmt.Sprintf(
-		"%s[%s] is %s",
-		res.serverID,
-		res.services.String(),
-		durationText(res.diff),
-	)
-}
-
-// MonitorNodeInfos consumes heartbeat events of other services to periodically
-// compare the auth server time with the time of remote services,
-// and notifying about the time difference between servers.
-func (a *Server) MonitorNodeInfos(ctx context.Context) error {
-	ticker := a.clock.NewTicker(timeCheckCycle)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.Chan():
-			var inventories []inventoryMonitor
+		case <-checkInterval.Next():
+			var inventories []string
 			a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 				info := handle.Hello()
 				diff, err := handle.TimeReconciliation(ctx, insecurerand.Uint64())
 				if err != nil {
 					slog.ErrorContext(ctx, "error getting time reconciliation")
+					return
 				}
 
-				if (diff > 0 && diff > timeShiftThreshold) || (diff < 0 && -diff > timeShiftThreshold) {
-					inventories = append(inventories, inventoryMonitor{
-						serverID: info.GetServerID(),
-						services: info.GetServices(),
-						diff:     diff,
-					})
+				if (diff > 0 && diff > systemClockThreshold) || (diff < 0 && -diff > systemClockThreshold) {
+					inventories = append(inventories, fmt.Sprintf(
+						" - %s[%s] is %s",
+						info.GetServerID(),
+						types.SystemRoles(info.GetServices()).String(),
+						durationText(diff),
+					))
 					slog.WarnContext(ctx, "server time difference detected",
 						"server", info.GetServerID(),
 						"services", info.GetServices(),
@@ -97,7 +90,8 @@ func (a *Server) MonitorNodeInfos(ctx context.Context) error {
 			if len(inventories) > 0 {
 				err := upsertGlobalNotification(ctx, a.Services, generateNotificationMessage(inventories))
 				if err != nil {
-					slog.ErrorContext(ctx, "can't set notification about time difference", "error", err)
+					slog.ErrorContext(ctx, "can't set notification about system clock issue", "error", err)
+					continue
 				}
 			}
 		}
@@ -105,12 +99,12 @@ func (a *Server) MonitorNodeInfos(ctx context.Context) error {
 }
 
 // upsertGlobalNotification sets predefined global notification for notifying the issues with the cluster
-// servers related to the time difference in nodes.
+// servers related to the system clock difference in nodes.
 func upsertGlobalNotification(ctx context.Context, services *Services, text string) error {
 	_, err := services.UpsertGlobalNotification(ctx, &notificationsv1.GlobalNotification{
 		Kind:     types.KindGlobalNotification,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: timeCheckNotificationName},
+		Metadata: &headerv1.Metadata{Name: systemClockNotificationWarningName},
 		Spec: &notificationsv1.GlobalNotificationSpec{
 			Matcher: &notificationsv1.GlobalNotificationSpec_All{
 				All: true,
@@ -119,7 +113,7 @@ func upsertGlobalNotification(ctx context.Context, services *Services, text stri
 				SubKind: types.NotificationDefaultWarningSubKind,
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Name: timeCheckNotificationName,
+					Name: systemClockNotificationWarningName,
 					Labels: map[string]string{
 						types.NotificationTitleLabel: text,
 					},
@@ -130,22 +124,21 @@ func upsertGlobalNotification(ctx context.Context, services *Services, text stri
 	return trace.Wrap(err)
 }
 
-// generateNotificationMessage formats the notification message for the user with detailed information
-// about the server name and time difference in comparison with the auth node.
-func generateNotificationMessage(inventories []inventoryMonitor) string {
-	var messages []string
-	for _, inv := range inventories {
-		messages = append(messages, inv.String())
+// generateNotificationMessage formats the notification message with the inventory list.
+func generateNotificationMessage(messages []string) string {
+	var more string
+	if len(messages) > 10 {
+		more = fmt.Sprintf("Only 10 servers are shown out of the list of %d.", len(messages))
+		messages = messages[:10]
 	}
-
 	return "Incorrect system clock detected in the cluster, which may lead to certificate validation issues.\n" +
 		"Ensure that the clock is accurate on all nodes to avoid potential access problems.\n" +
 		"All comparisons are made with the Auth service system clock." +
-		"List of servers with a time drift: \n" + strings.Join(messages, "\n")
+		"List of servers with a time drift: \n" + strings.Join(messages, "\n") + more
 }
 
-// durationText formats specified duration to text by adding suffix ahead/behind and
-// transforms nanoseconds to formatted time with hours, minutes, seconds.
+// durationText formats the specified duration to text by adding the suffix "ahead" or "behind"
+// and converts nanoseconds to a formatted text with hours, minutes and seconds.
 func durationText(duration time.Duration) string {
 	if duration > 0 {
 		return fmt.Sprintf("%s ahead", duration.String())

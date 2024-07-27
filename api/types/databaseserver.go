@@ -174,12 +174,12 @@ func (s *DatabaseServerV3) SetDatabase(database Database) error {
 	return nil
 }
 
-// GetProxyIDs returns a list of proxy ids this server is connected to.
+// GetProxyID returns a list of proxy ids this server is connected to.
 func (s *DatabaseServerV3) GetProxyIDs() []string {
 	return s.Spec.ProxyIDs
 }
 
-// SetProxyIDs sets the proxy ids this server is connected to.
+// SetProxyID sets the proxy ids this server is connected to.
 func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }

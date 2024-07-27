@@ -39,7 +39,7 @@ type WindowsDesktopService interface {
 	ResourceWithLabels
 	// GetAddr returns the network address of this service.
 	GetAddr() string
-	// GetTeleportVersion returns the teleport binary version of this service.
+	// GetVersion returns the teleport binary version of this service.
 	GetTeleportVersion() string
 	// GetHostname returns the hostname of this service
 	GetHostname() string
@@ -105,12 +105,12 @@ func (s *WindowsDesktopServiceV3) GetTeleportVersion() string {
 	return s.Spec.TeleportVersion
 }
 
-// GetProxyIDs returns a list of proxy ids this server is connected to.
+// GetProxyID returns a list of proxy ids this server is connected to.
 func (s *WindowsDesktopServiceV3) GetProxyIDs() []string {
 	return s.Spec.ProxyIDs
 }
 
-// SetProxyIDs sets the proxy ids this server is connected to.
+// SetProxyID sets the proxy ids this server is connected to.
 func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }

@@ -236,7 +236,7 @@ func (s *KubernetesServerV3) GetProxyIDs() []string {
 	return s.Spec.ProxyIDs
 }
 
-// SetProxyIDs sets the proxy ids this server is connected to.
+// SetProxyID sets the proxy ids this server is connected to.
 func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }

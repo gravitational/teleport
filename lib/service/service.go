@@ -1309,8 +1309,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.", "id", ping.ID)
 		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID:        ping.ID,
-			LocalTime: process.Clock.Now().UTC(),
+			ID:          ping.ID,
+			SystemClock: process.Clock.Now().UTC(),
 		})
 		if err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
@@ -2512,7 +2512,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
 	})
 	process.RegisterFunc("auth.server.monitor", func() error {
-		return trace.Wrap(authServer.MonitorNodeInfos(process.GracefulExitContext()))
+		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
 	})
 
 	// execute this when process is asked to exit:
@@ -2960,7 +2960,6 @@ func (process *TeleportProcess) initSSH() error {
 			Component:      teleport.ComponentNode,
 			Logger:         process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id)).WithField(teleport.ComponentKey, "sessionctrl"),
 			TracerProvider: process.TracingProvider,
-			Clock:          process.Clock,
 			ServerID:       serverID,
 		})
 		if err != nil {
@@ -3002,7 +3001,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
-			regular.SetClock(process.Clock),
 		)
 		if err != nil {
 			return trace.Wrap(err)

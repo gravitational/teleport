@@ -104,7 +104,7 @@ func TestTimeSyncDifference(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start the agent service with Node and WindowsDesktop capabilities.
-	agentClock := clockwork.NewFakeClockAt(time.Now().Add(5 * time.Hour))
+	agentClock := clockwork.NewFakeClockAt(time.Now())
 	agentCfg := servicecfg.MakeDefaultConfig()
 	agentCfg.Clock = agentClock
 	agentCfg.Version = defaults.TeleportConfigVersionV3
@@ -146,7 +146,8 @@ func TestTimeSyncDifference(t *testing.T) {
 	require.NoError(t, err, "timeout waiting for Teleport readiness")
 
 	// Must trigger the monitor watch logic to create the global notification.
-	authClock.Advance(time.Hour)
+	agentClock.Advance(15 * time.Minute)
+	authClock.Advance(10 * time.Minute)
 
 	err = retryutils.RetryStaticFor(20*time.Second, time.Second, func() error {
 		notifications, _, err := authService.GetAuthServer().ListGlobalNotifications(ctx, 100, "")
@@ -155,7 +156,7 @@ func TestTimeSyncDifference(t *testing.T) {
 		}
 		var found bool
 		for _, notification := range notifications {
-			found = found || notification.GetMetadata().GetName() == "cluster-monitor-time-sync"
+			found = found || notification.GetMetadata().GetName() == "cluster-monitor-system-clock-warning"
 		}
 		if !found {
 			return trace.BadParameter("expected notification is not found")
