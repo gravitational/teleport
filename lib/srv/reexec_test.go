@@ -20,6 +20,9 @@ package srv
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
@@ -28,15 +31,19 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshutils/networking"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
@@ -213,30 +220,68 @@ func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 	return tsrv
 }
 
-func TestLocalPortForwardCommand(t *testing.T) {
+func TestNetworkingCommand(t *testing.T) {
 	t.Parallel()
-	srv := newMockServer(t)
-	scx := newExecServerContext(t, srv)
-	scx.ExecType = teleport.ChanDirectTCPIP
+	testNetworkingCommand(t, "")
+}
 
-	// Start forwarding subprocess.
-	controlConn, controlFD := newSocketPair(t)
-	command, err := ConfigureCommand(scx, controlFD)
+// TestRootRemotePortForwardCommand tests that networking commands work
+// for a user different than the one running a node (which we need to run
+// as root to create).
+func TestRootNetworkingCommand(t *testing.T) {
+	utils.RequireRoot(t)
+
+	login := utils.GenerateLocalUsername(t)
+	_, err := host.UserAdd(login, nil, "", "", "")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, command.Process.Kill())
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
 	})
-	require.NoError(t, command.Start())
 
-	// Create a client that will dial via the forwarder.
+	testNetworkingCommand(t, login)
+}
+
+func testNetworkingCommand(t *testing.T, login string) {
+	ctx := context.Background()
+	srv := newMockServer(t)
+
+	scx := newExecServerContext(t, srv)
+	scx.ExecType = teleport.NetworkingSubCommand
+	if login != "" {
+		scx.Identity.Login = login
+	}
+
+	// Start networking subprocess.
+	command, err := ConfigureCommand(scx)
+	require.NoError(t, err)
+	proc, err := networking.NewProcess(ctx, command)
+	require.NoError(t, err)
+	t.Cleanup(func() { proc.Close() })
+
+	t.Run("local port forward", func(t *testing.T) {
+		testLocalPortForward(ctx, t, proc)
+	})
+
+	t.Run("remote port forward", func(t *testing.T) {
+		testRemotePortForward(ctx, t, proc)
+	})
+
+	t.Run("agent forward", func(t *testing.T) {
+		testAgentForward(ctx, t, proc)
+	})
+
+	t.Run("x11 forward", func(t *testing.T) {
+		testX11Forward(ctx, t, proc)
+	})
+}
+
+func testLocalPortForward(ctx context.Context, t *testing.T, proc *networking.Process) {
+	// Create a client that will dial via the networking process.
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			Dial: func(network, addr string) (net.Conn, error) {
-				dialConn, dialFD := newSocketPair(t)
-				if _, _, err := uds.WriteWithFDs(controlConn, []byte(addr), []*os.File{dialFD}); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				return dialConn, nil
+				return proc.Dial(ctx, network, addr)
 			},
 		},
 	}
@@ -251,35 +296,11 @@ func TestLocalPortForwardCommand(t *testing.T) {
 	require.Equal(t, "Hello, world", string(body))
 }
 
-func testRemotePortForwardCommand(t *testing.T, login string) {
-	srv := newMockServer(t)
-	scx := newExecServerContext(t, srv)
-	scx.ExecType = teleport.TCPIPForwardRequest
-	if login != "" {
-		scx.Identity.Login = login
-	}
-
-	// Start forwarding subprocess.
-	controlConn, controlFD := newSocketPair(t)
-	command, err := ConfigureCommand(scx, controlFD)
+func testRemotePortForward(ctx context.Context, t *testing.T, proc *networking.Process) {
+	// Request a listener from the networking process.
+	listener, err := proc.Listen(ctx, "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	require.NoError(t, command.Start())
-	t.Cleanup(func() {
-		require.NoError(t, command.Process.Kill())
-		_, err := command.Process.Wait()
-		require.NoError(t, err)
-	})
-
-	// Request a listener from the forwarder.
-	replyConn, replyFD := newSocketPair(t)
-	_, _, err = uds.WriteWithFDs(controlConn, []byte("127.0.0.1:0"), []*os.File{replyFD})
-	require.NoError(t, err)
-	var fbuf [1]*os.File
-	_, fn, err := uds.ReadWithFDs(replyConn, nil, fbuf[:])
-	require.NoError(t, err)
-	require.Equal(t, 1, fn)
-	listener, err := net.FileListener(fbuf[0])
-	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
 
 	// Test the listener on an http server.
 	tsrv := newHTTPTestServer(t, listener)
@@ -291,24 +312,95 @@ func testRemotePortForwardCommand(t *testing.T, login string) {
 	require.Equal(t, "Hello, world", string(body))
 }
 
-func TestRemotePortForwardCommand(t *testing.T) {
-	t.Parallel()
-	testRemotePortForwardCommand(t, "")
-}
+func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Process) {
+	// Create an agent keyring with a test key.
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
 
-// TestRootRemotePortForwardCommand tests that remote port forwarding works
-// for a user different than the one running a node (which we need to run
-// as root to create).
-func TestRootRemotePortForwardCommand(t *testing.T) {
-	utils.RequireRoot(t)
-
-	login := utils.GenerateLocalUsername(t)
-	_, err := host.UserAdd(login, nil, "", "", "")
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, err := host.UserDel(login)
-		require.NoError(t, err)
+	testKey := agent.AddedKey{
+		PrivateKey: key,
+		Comment:    "test-key",
+	}
+
+	err = keyring.Add(testKey)
+	require.NoError(t, err)
+
+	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(keyring), nil
 	})
 
-	testRemotePortForwardCommand(t, login)
+	// Forward the agent over the networking process.
+	listener, err := proc.ListenAgent(ctx)
+	require.NoError(t, err)
+	teleAgent.SetListener(listener)
+
+	go teleAgent.Serve()
+	t.Cleanup(func() {
+		teleAgent.Close()
+	})
+
+	agentConn, err := net.Dial(listener.Addr().Network(), listener.Addr().String())
+	require.NoError(t, err)
+
+	agentClient := agent.NewClient(agentConn)
+	keys, err := agentClient.List()
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+}
+
+func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
+	}
+
+	xauthTempFile := filepath.Join(t.TempDir(), "Xauthority")
+	fakeXauthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	require.NoError(t, err)
+
+	// Request a listener from the networking process.
+	listener, err := proc.ListenX11(ctx, networking.X11Request{
+		XauthFile: xauthTempFile,
+		ForwardRequestPayload: x11.ForwardRequestPayload{
+			AuthProtocol: fakeXauthEntry.Proto,
+			AuthCookie:   fakeXauthEntry.Cookie,
+		},
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	// Make the listener an echo server, since testing with an
+	// actual X client and server is not feasible
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = io.Copy(conn, conn)
+			conn.Close()
+		}
+	}()
+
+	display, err := x11.ParseDisplayFromUnixSocket(listener.Addr().String())
+	require.NoError(t, err)
+
+	// Try connecting to the x11 listener to ensure it's working.
+	conn, err := display.Dial()
+	require.NoError(t, err)
+	echoMsg := []byte("echo")
+	_, err = conn.Write(echoMsg)
+	require.NoError(t, err)
+	buf := make([]byte, 4)
+	_, err = conn.Read(buf)
+	require.Equal(t, echoMsg, buf)
+
+	// Check that the xauth entry was stored for the listener's corresponding x11 display.
+	fakeXauthEntry.Display = display
+	readXauthEntry, err := x11.NewXAuthCommand(ctx, xauthTempFile).ReadEntry(display)
+	require.NoError(t, err)
+	require.Equal(t, fakeXauthEntry, readXauthEntry)
 }

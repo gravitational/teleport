@@ -810,12 +810,12 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		}
 		defer listener.Close()
 
-		removeCmd := x11.NewXAuthCommand(ctx, "")
+		removeCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
 		if err := removeCmd.RemoveEntries(display); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		addCmd := x11.NewXAuthCommand(ctx, "")
+		addCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
 		if err := addCmd.AddEntry(x11.XAuthEntry{
 			Display: display,
 			Proto:   req.X11Request.AuthProtocol,

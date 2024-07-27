@@ -102,6 +102,8 @@ type X11Request struct {
 	// MaxDisplay is the last display that we should try to get a unix socket for, if all
 	// displays before it are taken.
 	MaxDisplay int
+	// XauthFile is an optional XauthFile to use instead of the default ~/.Xauthority. Used in tests.
+	XauthFile string
 }
 
 // NewProcess starts a new networking process with the given command, which should
