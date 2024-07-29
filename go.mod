@@ -12,7 +12,7 @@ require (
 	cloud.google.com/go/iam v1.1.6
 	cloud.google.com/go/kms v1.15.8
 	cloud.google.com/go/storage v1.39.1
-	connectrpc.com/connect v1.15.0
+	connectrpc.com/connect v1.16.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1
