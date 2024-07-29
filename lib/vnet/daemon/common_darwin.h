@@ -10,7 +10,7 @@ extern const char* const VNEErrorDomain;
 // It won't accept a new one during its lifetime, instead it's expected to stop, after
 // which the client might spawn a new instance of the daemon.
 extern const int VNEAlreadyRunningError;
-// VNEMissingCodeSigningInformation indicates that either the identifier or the team identifier are missing.
+// VNEMissingCodeSigningIdentifiersError indicates that either the identifier or the team identifier are missing.
 // This can happen if the binary is unsigned, see the docs for SecCodeCopySigningInformation.
 // https://developer.apple.com/documentation/security/1395809-seccodecopysigninginformation?language=objc
 extern const int VNEMissingCodeSigningIdentifiersError;
