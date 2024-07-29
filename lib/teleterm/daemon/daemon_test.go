@@ -590,7 +590,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 }
 
 type mockTSHDEventsService struct {
-	*api.UnimplementedTshdEventsServiceServer
+	api.UnimplementedTshdEventsServiceServer
 	reloginErr                             error
 	reloginCount                           atomic.Uint32
 	sendNotificationCount                  atomic.Uint32
