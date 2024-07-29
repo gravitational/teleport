@@ -202,15 +202,26 @@ func (f *fakeClient) getReqReceived() []*accessgraphsecretsv1pb.ReportAuthorized
 
 func createKeysForUsers(t *testing.T, hostID string) []*accessgraphsecretsv1pb.AuthorizedKey {
 	var keys []*accessgraphsecretsv1pb.AuthorizedKey
-	for _, fingerprint := range []string{
-		"SHA256:GbJlTLeQgZhvGoklWGXHo0AinGgGEcldllgYExoSy+s", /* ssh-rsa */
-		"SHA256:ewwMB/nCAYurNrYFXYZuxLZv7T7vgpPd7QuIo0d5n+U", /* ssh-ed25519 */
+	for _, k := range []struct {
+		fingerprint string
+		keyType     string
+	}{
+		{
+			fingerprint: "SHA256:GbJlTLeQgZhvGoklWGXHo0AinGgGEcldllgYExoSy+s",
+			keyType:     "ssh-ed25519",
+		},
+		{
+			fingerprint: "SHA256:ewwMB/nCAYurNrYFXYZuxLZv7T7vgpPd7QuIo0d5n+U",
+			keyType:     "ssh-rsa",
+		},
 	} {
 		for _, user := range []string{"root", "user"} {
 			at, err := accessgraph.NewAuthorizedKey(&accessgraphsecretsv1pb.AuthorizedKeySpec{
 				HostId:         hostID,
 				HostUser:       user,
-				KeyFingerprint: fingerprint,
+				KeyFingerprint: k.fingerprint,
+				KeyComment:     "friel@test",
+				KeyType:        k.keyType,
 			})
 			require.NoError(t, err)
 			keys = append(keys, at)
