@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"os"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -881,6 +883,12 @@ func New(
 	}
 	s.srv = server
 
+	if !s.proxyMode {
+		if err := s.startAuthorizedKeysManager(ctx, auth); err != nil {
+			log.WithError(err).Infof("Failed to start authorized keys manager.")
+		}
+	}
+
 	var heartbeatMode srv.HeartbeatMode
 	if s.proxyMode {
 		heartbeatMode = srv.HeartbeatModeProxy
@@ -933,6 +941,31 @@ func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelc
 	}
 
 	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+}
+
+// startAuthorizedKeysManager starts the authorized keys manager.
+func (s *Server) startAuthorizedKeysManager(ctx context.Context, auth authclient.ClientI) error {
+	authorizedKeysWatcher, err := authorizedkeysreporter.NewWatcher(
+		ctx,
+		authorizedkeysreporter.WatcherConfig{
+			Client: auth,
+			Logger: slog.Default(),
+			HostID: s.uuid,
+			Clock:  s.clock,
+		},
+	)
+	if errors.Is(err, authorizedkeysreporter.ErrUnsupportedPlatform) {
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := authorizedKeysWatcher.Run(ctx); err != nil {
+			s.Warningf("Failed to start authorized keys watcher: %v", err)
+		}
+	}()
+	return nil
 }
 
 // Context returns server shutdown context
