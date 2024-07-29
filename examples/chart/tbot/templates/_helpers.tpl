@@ -1,5 +1,5 @@
 {{- define "tbot.serviceAccountName" -}}
-{{- coalesce .Values.serviceAccount.name .Values.serviceAccountName .Release.Name -}}
+{{- coalesce .Values.serviceAccount.name .Release.Name -}}
 {{- end -}}
 
 {{- define "tbot.selectorLabels" -}}

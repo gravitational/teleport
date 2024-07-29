@@ -5,9 +5,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: {{ .Release.Name }}
-{{- if .Values.extraLabels.deployment }}
-  {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
-{{- end }}
+  {{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+  {{- end }}
   {{- if .Values.annotations.deployment }}
   annotations: {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
@@ -27,7 +27,7 @@ spec:
         # ConfigMap checksum, to recreate the pod on config changes.
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
       {{- if .Values.annotations.pod }}
-       {{- toYaml .Values.annotations.pod | nindent 8 }}
+        {{- toYaml .Values.annotations.pod | nindent 8 }}
       {{- end }}
       labels:  {{- include "tbot.labels" . | nindent 8 }}
     spec:
@@ -56,16 +56,8 @@ spec:
           {{- end }}
             - --log-format
             - json
-            - --join-method {{ .Values.joinMethod }}
-            - --token {{ .Values.token }}
-            - --data-dir kubernetes-secret:///{{ .Release.Name }}-data
-          {{- if .Values.teleportProxyAddress }}
-            - --proxy-server
-            - {{ .Values.teleportProxyAddress }}
-          {{- end }}
-          {{- if .Values.teleportAuthAddress }}
-            - --auth-server
-            - {{ .Values.teleportAuthAddress }}
+          {{- if .Values.extraArgs }}
+            {{- toYaml .Values.extraArgs | nindent 6 }}
           {{- end }}
           env:
             # POD_NAMESPACE is required for the kubernetes_secret` destination
@@ -95,6 +87,9 @@ spec:
               name: config
             - mountPath: /var/run/secrets/tokens
               name: join-sa-token
+            {{- if .Values.extraVolumeMounts }}
+              {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
         {{- if .Values.resources }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
         {{- end }}
@@ -112,3 +107,6 @@ spec:
                   # recommend this value is used.
                   expirationSeconds: 600
                   audience: {{ .Values.clusterName }}
+      {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- end }}

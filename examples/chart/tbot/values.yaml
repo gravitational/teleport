@@ -3,8 +3,6 @@ image: public.ecr.aws/gravitational/tbot-distroless
 # join.
 clusterName: ""
 
-mode: deployment # deployment or daemonset (not yet supported)
-
 # teleportAuthAddress(string)
 # Mutually exclusive with teleportProxyAddress.
 teleportAuthAddress: ""
@@ -12,22 +10,37 @@ teleportAuthAddress: ""
 # Mutually exclusive with teleportAuthAddress.
 teleportProxyAddress: ""
 
-# joinMethod(string) -- describes how the Teleport Kubernetes Operator joins the Teleport cluster.
-# The operator does not store its Teleport-issued identity, it must be able to join the
-# cluster again on each pod restart. To achieve this, it needs to use a delegated join
-# method. `kubernetes` is the most common one.
+defaultOutput:
+  enabled: true
+  secretName: ""
+
+customConfig: {}
+
+# serviceAccount -- controls the Kubernetes ServiceAccounts deployed and used by
+# the chart.
+serviceAccount:
+  # serviceAccount.create(bool) -- controls whether Helm Chart creates the
+  # Kubernetes `ServiceAccount` resources for the agent.
+  # When off, you are responsible for creating the appropriate ServiceAccount
+  # resources.
+  create: true
+  # serviceAccount.name(string) -- sets the name of the `ServiceAccount` resource
+  # used by the chart. By default, the `ServiceAccount` has the name of the
+  # Helm release.
+  name: ""
+
+# joinMethod(string) -- describes how tbot joins the Teleport cluster.
 joinMethod: "kubernetes"
 
-# token(string) -- is the name of the token used by the operator to join the Teleport cluster.
+# token(string) -- is the name of the token used by tbot to join the Teleport cluster.
 token: ""
 
-# teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator
-# image version deployed by the chart.
+# teleportVersionOverride(string) -- controls the tbot image version deployed by
+# the chart.
 #
-# Normally, the version of the Teleport Kubernetes Operator matches the
-# version of the chart. If you install chart version 15.0.0, you'll use
-# Teleport Kubernetes Operator version 15.0.0. Upgrading the operator is
-# done by upgrading the chart.
+# Normally, the version of tbot matches the version of the chart. If you install
+# chart version 15.0.0, you'll use tbot version 15.0.0. Upgrading tbot is done
+# by upgrading the chart.
 #
 # <Admonition type="warning">
 # `teleportVersionOverride` is intended for development and MUST NOT be
@@ -121,3 +134,32 @@ nodeSelector: {}
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
 # for more details.
 imagePullSecrets: []
+
+# extraVolumes(list) -- contains extra volumes to mount into the Teleport pods.
+# See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+# for more details.
+#
+# For example:
+# ```yaml
+# extraVolumes:
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
+# ```
+extraVolumes: []
+
+# extraVolumeMounts(list) -- contains extra volumes mounts for the main Teleport container.
+# See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+# for more details.
+#
+# For example:
+# ```yaml
+# extraVolumesMounts:
+# - name: myvolume
+#   mountPath: /path/on/host
+# ```
+extraVolumeMounts: []
+
+# extraArgs(list) -- contains extra arguments to pass to `tbot start` for
+# the main tbot pod
+extraArgs: []

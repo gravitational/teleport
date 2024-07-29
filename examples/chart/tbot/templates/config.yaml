@@ -11,6 +11,27 @@ metadata:
 {{- end }}
 data:
   tbot.yaml: |
+    {{- if .Values.customConfig }}
+    {{- toYaml .Values.customConfig | nindent 4 }}
+    {{- else }}
     version: v2
-    # outputs will be filled in during the completion of an access guide.
-    outputs: []
+    {{- if .Values.teleportProxyAddress }}
+    proxy_server: {{ .Values.teleportProxyAddress }}
+    {{- end }}
+    {{- if .Values.teleportAuthAddress }}
+    auth_server: {{ .Values.teleportAuthAddress }}
+    {{- end }}
+    onboarding:
+      join_method: {{ .Values.joinMethod }}
+      token: {{ .Values.token }}
+    storage:
+      type: kubernetes-secret
+      name: {{ .Release.Name }}-data
+    {{ if .Values.defaultOutput.enabled }}
+    outputs:
+      - type: identity
+        destination:
+          type: kubernetes-secret
+          name: {{ .Values.defaultOutput.secretName }}
+    {{- end }}
+    {{- end }}

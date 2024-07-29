@@ -1,3 +1,4 @@
+{{- if .Values.serviceAccount.create -}}
 # Bind the role to the service account created for tbot.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -16,3 +17,4 @@ roleRef:
   kind: Role
   name:  {{ .Release.Name }}
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
