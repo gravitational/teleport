@@ -345,6 +345,7 @@ func onAppConfig(cf *CLIConf) error {
 		AWSRoleARN:        app.AWSRoleARN,
 		AzureIdentity:     app.AzureIdentity,
 		GCPServiceAccount: app.GCPServiceAccount,
+		URI:               app.GetURI(),
 	}
 	conf, err := formatAppConfig(tc, profile, routeToApp, cf.Format)
 	if err != nil {
@@ -528,6 +529,7 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 			Name:        app.GetName(),
 			PublicAddr:  app.GetPublicAddr(),
 			ClusterName: tc.SiteName,
+			URI:         app.GetURI(),
 		},
 		app: app,
 	}
@@ -655,5 +657,6 @@ func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 		AWSRoleARN:        route.AWSRoleARN,
 		AzureIdentity:     route.AzureIdentity,
 		GCPServiceAccount: route.GCPServiceAccount,
+		URI:               route.URI,
 	}
 }
