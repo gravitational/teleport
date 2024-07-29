@@ -303,6 +303,12 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 			}
 
 			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionInterrupted {
+				const clientNSXPCConnectionInterruptedDebugMsg = "The connection was interrupted when trying to " +
+					"reach the XPC service. If there's no clear error logs on the daemon side, it might mean that " +
+					"the client does not satisfy the code signing requirement enforced by the daemon. " +
+					"Start capturing logs in Console.app and repeat the scenario. Look for " +
+					"\"xpc_support_check_token: <private> error: <private> status: -67050\" in the logs to verify " +
+					"that the connection was interrupted due to the code signing requirement."
 				log.DebugContext(ctx, clientNSXPCConnectionInterruptedDebugMsg)
 				errC <- trace.Wrap(errXPCConnectionInterrupted)
 				return
@@ -332,13 +338,6 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		return trace.Wrap(err, "connecting to the VNet daemon")
 	}
 }
-
-const clientNSXPCConnectionInterruptedDebugMsg = "The connection was interrupted when trying to " +
-	"reach the XPC service. If there's no clear error logs on the daemon side, it might mean that " +
-	"the client does not satisfy the code signing requirement enforced by the daemon. " +
-	"Start capturing logs in Console.app and repeat the scenario. Look for " +
-	"\"xpc_support_check_token: <private> error: <private> status: -67050\" in the logs to verify " +
-	"that the connection was interrupted due to the code signing requirement."
 
 func sleepOrDone(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
