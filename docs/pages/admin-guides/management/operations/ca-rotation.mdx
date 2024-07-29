@@ -133,7 +133,7 @@ users who have signed into Teleport must reauthenticate to receive a user
 certificate from the new CA, otherwise Teleport client commands fail.
 
 If you have registered Windows desktops with Teleport, [follow the
-guide](../../desktop-access/active-directory-manual.mdx) to export the Teleport
+guide](../../enroll-resources/desktop-access/active-directory.mdx) to export the Teleport
 user CA so the Windows Desktop Service can authenticate to RDP hosts. Verify
 that you can connect to registered desktops throughout the rotation.
 
@@ -188,11 +188,11 @@ to reconfigure them again before transitioning to `standby` from the
 ### `openssh`
 
 The `openssh` CA issues certificates for [OpenSSH servers registered with
-Teleport](../../server-access/openssh.mdx). Clients verify these certificates
+Teleport](../../enroll-resources/server-access/openssh.mdx). Clients verify these certificates
 when connecting to Teleport-protected OpenSSH servers.
 
 If you used the [manual
-method](../../server-access/openssh/openssh-manual-install.mdx) to enroll any
+method](../../enroll-resources/server-access/openssh/openssh-manual-install.mdx) to enroll any
 OpenSSH servers, you must follow the instructions to export the `openssh` CA and
 provide it to your OpenSSH servers before you transition the rotation to the
 final `standby` phase. Otherwise, Teleport users will lose access to any OpenSSH
@@ -225,7 +225,7 @@ take action after the `init` phase and before the rotation reaches the final
 
 For an example of exporting the `jwt` CA so a web application can trust
 Teleport-issued JWTs, see the guide to [using JWT authentication with
-Elasticsearch](../../application-access/jwt/elasticsearch.mdx).
+Elasticsearch](../../enroll-resources/application-access/jwt/elasticsearch.mdx).
 
 ### `saml_idp`
 
@@ -245,11 +245,20 @@ Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
 account for features like External Audit Storage, Auto-Discovery, and AWS Sync
 for Access Graph. 
 
-The Teleport Proxy Service serves the public key for the Teleport `oidc_idp`
-certificate authority from the `/.well-known/jwks-oidc` path of the Web API.
+The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
+integration from the `/.well-known/jwks-oidc` path of the Web API.
 
 The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
 always enabled. The Teleport Proxy Service updates the endpoint automatically.
+
+You can retrieve the full URL of the integration's JSON Web Key Sets by querying
+the `/.well-known/openid-configuration` path of the Web UI and reading the
+`jwks_uri` field:
+
+```code
+$ curl https://example.teleport.sh/.well-known/open-id-configuration | jq '.jwks_uri'
+"https://example.teleport.sh/.well-known-jwks-oidc"
+```
 
 ## Step 2/4. Start a manual rotation
 
