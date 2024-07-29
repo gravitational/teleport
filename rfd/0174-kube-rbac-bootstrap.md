@@ -205,9 +205,6 @@ service KubeProvisionService {
   
   // DeleteKubeProvision deletes a KubeProvision.
   rpc DeleteKubeProvision(DeleteKubeProvisionRequest) returns (google.protobuf.Empty);
-  
-  // DeleteAllKubeProvisions removes all KubeProvisions.
-  rpc DeleteAllKubeProvisions(DeleteAllKubeProvisionsRequest) returns (google.protobuf.Empty);
 }
 ```
 
