@@ -222,6 +222,9 @@ func (pm *ProcessManager) Close() {
 // It also handles host OS configuration that must run as root, and stays alive to keep the host configuration
 // up to date. It will stay running until the socket at config.socketPath is deleted or until encountering an
 // unrecoverable error.
+//
+// OS configuration is updated every [osConfigurationInterval]. During the update, it temporarily
+// changes egid and euid of the process to that of the client connecting to the daemon.
 func AdminSetup(ctx context.Context, config daemon.Config) error {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -237,7 +240,7 @@ func AdminSetup(ctx context.Context, config daemon.Config) error {
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath))
+		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, *config.ClientCred))
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
@@ -282,8 +285,8 @@ func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, err
 
 // osConfigurationLoop will keep running until [ctx] is canceled or an unrecoverable error is encountered, in
 // order to keep the host OS configuration up to date.
-func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string) error {
-	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath)
+func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string, clientCred daemon.ClientCred) error {
+	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath, clientCred)
 	if err != nil {
 		return trace.Wrap(err, "creating OS configurator")
 	}
@@ -314,7 +317,8 @@ func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, home
 
 	// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
 	// reading profiles from TELEPORT_HOME.
-	ticker := time.NewTicker(10 * time.Second)
+	const osConfigurationInterval = 10 * time.Second
+	ticker := time.NewTicker(osConfigurationInterval)
 	defer ticker.Stop()
 	for {
 		select {
