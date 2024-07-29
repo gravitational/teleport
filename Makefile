@@ -789,6 +789,7 @@ test-helm: helmunit/installed
 	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 examples/chart/access/*
 	helm unittest -3 examples/chart/event-handler
+	helm unittest -3 examples/chart/tbot
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
@@ -797,6 +798,7 @@ test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 -u examples/chart/access/*
 	helm unittest -3 -u examples/chart/event-handler
+	helm unittest -3 examples/chart/tbot
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -1173,7 +1175,7 @@ lint-helm:
 		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator; do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
