@@ -647,7 +647,9 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 
 	if startKey != "" {
 		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
-			if fromUTC.After(createdAt) {
+			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
+			// that are not present in the cursor.
+			if fromUTC.Unix() > createdAt.Unix() {
 				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
 				// This is a guard check when iterating over the events using sliding window
 				// and the previous cursor no longer fits the new window.
@@ -774,7 +776,7 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 		return time.Time{}, errors.New("createdAt is invalid")
 	}
 
-	return time.Unix(e.CreatedAt, 0), nil
+	return time.Unix(e.CreatedAt, 0).UTC(), nil
 }
 
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
@@ -1147,12 +1149,6 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		// Because this may break on non page boundaries an additional
 		// checkpoint is needed for sub-page breaks.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			hf := false
-			if hasLeftFun != nil {
-				hf = hasLeftFun()
-			}
-			l.hasLeft = hf || len(l.checkpoint.Iterator) != 0
-
 			key, err := getSubPageCheckpoint(&e)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
@@ -1161,12 +1157,17 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 
 			// We need to reset the iterator so we get the previous page again.
 			l.checkpoint.Iterator = oldIterator
+
+			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
+			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
+			// the new iterator being empty.
+			l.hasLeft = true
+
 			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
 		l.left--
-
 		if l.left == 0 {
 			hf := false
 			if hasLeftFun != nil {
@@ -1239,6 +1240,18 @@ dateLoop:
 			}
 			values = append(values, result...)
 			if limitReached {
+				// If we've reached the limit, we need to determine whether there are more events to fetch from the current date
+				// or if we need to move the cursor to the next date.
+				// To do this, we check if the iterator is empty and if the EventKey is empty.
+				// DynamoDB returns an empty iterator if all events from the current date have been consumed.
+				// We need to check if the EventKey is empty because it indicates that we left the page midway
+				// due to reaching the maximum response size. In this case, we need to resume the query
+				// from the same date and the request's iterator to fetch the remainder of the page.
+				// If the input iterator is empty but the EventKey is not, we need to resume the query from the same date
+				// and we shouldn't move to the next date.
+				if i < len(l.dates)-1 && len(l.checkpoint.Iterator) == 0 && l.checkpoint.EventKey == "" {
+					l.checkpoint.Date = l.dates[i+1]
+				}
 				return values, nil
 			}
 			if len(l.checkpoint.Iterator) == 0 {

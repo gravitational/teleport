@@ -87,7 +87,7 @@ that's why it's not listed in the partial. */}
   for [the `role` resource](../access-controls/reference.mdx)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
-as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
+as logging in as other system users or [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
 
 ### Setup and usage
 
@@ -199,7 +199,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -444,6 +445,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Authorizer:      authorizer,
 		Cache:           cache,
 		KeyStoreManager: keystoreManager,
+		Emitter:         events.NewDiscardEmitter(),
 	})
 	require.NoError(t, err)
 

@@ -583,6 +583,34 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ExternalAuditStorageDisable{
 			ExternalAuditStorageDisable: e,
 		}
+	case *DiscoveryConfigCreate:
+		out.Event = &OneOf_DiscoveryConfigCreate{
+			DiscoveryConfigCreate: e,
+		}
+	case *DiscoveryConfigUpdate:
+		out.Event = &OneOf_DiscoveryConfigUpdate{
+			DiscoveryConfigUpdate: e,
+		}
+	case *DiscoveryConfigDelete:
+		out.Event = &OneOf_DiscoveryConfigDelete{
+			DiscoveryConfigDelete: e,
+		}
+	case *DiscoveryConfigDeleteAll:
+		out.Event = &OneOf_DiscoveryConfigDeleteAll{
+			DiscoveryConfigDeleteAll: e,
+		}
+	case *IntegrationCreate:
+		out.Event = &OneOf_IntegrationCreate{
+			IntegrationCreate: e,
+		}
+	case *IntegrationUpdate:
+		out.Event = &OneOf_IntegrationUpdate{
+			IntegrationUpdate: e,
+		}
+	case *IntegrationDelete:
+		out.Event = &OneOf_IntegrationDelete{
+			IntegrationDelete: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

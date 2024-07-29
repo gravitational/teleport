@@ -15,12 +15,13 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { matchPath, useHistory, useLocation } from 'react-router';
 import { Image } from 'design';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
+import LogoHero from 'teleport/components/LogoHero';
 import {
   NAVIGATION_CATEGORIES,
   NavigationCategory,
@@ -31,8 +32,6 @@ import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import { useTeleport } from '..';
 
-import logoLight from './logoLight.svg';
-import logoDark from './logoDark.svg';
 import logoPoweredBy from './logoPoweredBy.svg';
 
 import type * as history from 'history';
@@ -189,7 +188,17 @@ export function Navigation({
 
   return (
     <NavigationContainer>
-      {CustomLogo ? <CustomLogo /> : <NavigationLogo />}
+      {CustomLogo ? (
+        <CustomLogo />
+      ) : (
+        <LogoHero
+          css={`
+            height: 32px;
+            margin-top: 16px;
+            margin-bottom: 16px;
+          `}
+        />
+      )}
 
       {ctx.getFeatureFlags().managementSection && (
         <NavigationSwitcher
@@ -213,29 +222,11 @@ export function Navigation({
   );
 }
 
-const NavigationLogo = () => {
-  const theme = useTheme();
-
-  return (
-    <Image
-      src={theme.type === 'dark' ? logoDark : logoLight}
-      height="32px"
-      width="fit-content"
-      style={{
-        marginTop: '20px',
-        marginLeft: '32px',
-        marginBottom: '20px',
-      }}
-      alt="teleport logo"
-    />
-  );
-};
-
 const PoweredByLogo = () => {
   return (
     <Image
       src={logoPoweredBy}
-      height="48px"
+      height="32px"
       width="fit-content"
       style={{
         marginTop: '28px',

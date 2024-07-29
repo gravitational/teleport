@@ -14,7 +14,7 @@ Kubernetes cluster via the Teleport cluster running within it.
 If you are already running the Teleport Auth Service and Proxy Service on
 another platform, you can use your existing Teleport deployment to access your
 Kubernetes cluster. [Follow our
-guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+guide](../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
@@ -102,7 +102,7 @@ It is worth noting that this guide shows you how to set up Kubernetes access
 with the broadest set of permissions. This is suitable for a personal demo
 cluster, but if you would like to set up Kubernetes RBAC for production usage,
 we recommend getting familiar with the [Teleport Kubernetes RBAC
-guide](../../kubernetes-access/controls.mdx) before you begin.
+guide](../../enroll-resources/kubernetes-access/controls.mdx) before you begin.
 
 </Notice>
 
@@ -121,7 +121,7 @@ To deploy the Teleport Auth Service and Proxy Service on your Kubernetes
 cluster, follow the instructions below to install the `teleport-cluster` Helm
 chart.
 
-1. (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Create a namespace for Teleport and configure its Pod Security Admission,
    which enforces security standards on pods in the namespace:
@@ -375,11 +375,11 @@ cluster.
   [reference guide](../../reference/helm-reference/teleport-cluster.mdx).
 - **Register resources:** You can register all of the Kubernetes clusters in
   your infrastructure with Teleport. To start, read our [Auto-Discovery
-  guides](../../kubernetes-access/discovery.mdx) to see how to automatically
+  guides](../../enroll-resources/kubernetes-access/discovery.mdx) to see how to automatically
   register every cluster in your cloud. You can also register servers,
   databases, applications, and Windows desktops.
 - **Fine-tune your Kubernetes RBAC:** While the user you created in this guide
   can access the `system:masters` role, you can set up Teleport's RBAC to enable
   fine-grained controls for accessing Kubernetes resources. See our [Kubernetes
-  Access Controls Guide](../../kubernetes-access/controls.mdx) for more
+  Access Controls Guide](../../enroll-resources/kubernetes-access/controls.mdx) for more
   information.

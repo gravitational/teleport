@@ -176,7 +176,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 }
 
 type mockTSHDEventsService struct {
-	*api.UnimplementedTshdEventsServiceServer
+	api.UnimplementedTshdEventsServiceServer
 
 	tc         *libclient.TeleportClient
 	inst       *helpers.TeleInstance

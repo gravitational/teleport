@@ -1071,7 +1071,7 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 }
 
 type mockTSHDEventsService struct {
-	*api.UnimplementedTshdEventsServiceServer
+	api.UnimplementedTshdEventsServiceServer
 	sendPendingHeadlessAuthenticationCount atomic.Uint32
 }
 

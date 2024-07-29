@@ -7,8 +7,8 @@ You can use Teleport's API to automatically register resources in your
 infrastructure with your Teleport cluster.
 
 Teleport already supports the automatic discovery of [Kubernetes
-clusters](../kubernetes-access/discovery.mdx) in AWS, Azure, and Google Cloud,
-as well as [servers](../server-access/guides/ec2-discovery.mdx) on Amazon EC2.
+clusters](../enroll-resources/kubernetes-access/discovery.mdx) in AWS, Azure, and Google Cloud,
+as well as [servers](../enroll-resources/server-access/guides/ec2-discovery.mdx) on Amazon EC2.
 To support other resources and cloud providers, you can use the API to write
 your own workflow.
 
@@ -59,7 +59,7 @@ services with your Teleport cluster.
 Download the source code for our minimal API client:
 
 ```code
-$ git clone https://github.com/gravitational/teleport
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
 $ cd examples/service-discovery-api-client
 ```
 
@@ -968,5 +968,5 @@ In this example, we used the `tctl auth sign` command to fetch credentials for
 the program you wrote. For production usage, we recommend provisioning
 short-lived credentials via Machine ID, which reduces the risk of these
 credentials becoming stolen. View our [Machine ID
-documentation](../machine-id/introduction.mdx) to learn more.
+documentation](../enroll-resources/machine-id/introduction.mdx) to learn more.
 

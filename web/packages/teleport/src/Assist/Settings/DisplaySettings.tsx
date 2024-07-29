@@ -17,8 +17,9 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import logoLight from 'teleport/Navigation/logoLight.svg';
-import logoDark from 'teleport/Navigation/logoDark.svg';
+import logoDark from 'design/assets/images/enterprise-dark.svg';
+import logoLight from 'design/assets/images/enterprise-light.svg';
+
 import { ViewMode } from 'teleport/Assist/types';
 import { Description, Title } from 'teleport/Assist/Settings/shared';
 

@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -1076,6 +1077,37 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
 		}
 
+		if upgraderKind == "unit" {
+			process.RegisterFunc("autoupdates.endpoint.export", func() error {
+				component := teleport.Component("autoupdates:endpoint:export", process.id)
+				logger := process.log.WithFields(logrus.Fields{
+					trace.Component: component,
+				})
+				conn, err := waitForInstanceConnector(process, logger)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if conn == nil {
+					return trace.BadParameter("process exiting and Instance connector never became available")
+				}
+
+				resp, err := conn.Client.Ping(process.ExitContext())
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !resp.GetServerFeatures().GetCloud() {
+					return nil
+				}
+
+				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
+					logger.Warnf("Failed to export and validate autoupdates endpoint (addr=%s): %v", resolverAddr.String(), err)
+					return trace.Wrap(err)
+				}
+				logger.Infof("Exported autoupdates endpoint (addr=%s).", resolverAddr.String())
+				return nil
+			})
+		}
+
 		driver, err := uw.NewDriver(upgraderKind)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1805,6 +1837,7 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = localLog
 		}
 	}
+
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
 	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
@@ -1880,6 +1913,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                 b,
+			VersionStorage:          process.storage,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,
@@ -5710,8 +5744,13 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
 
-	// populate context values
-	if len(process.getForkedPIDs()) > 0 {
+	if len(process.getForkedPIDs()) == 0 {
+		if process.inventoryHandle != nil {
+			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
+				process.log.WithError(err).Warn("Failed sending inventory goodbye during shutdown")
+			}
+		}
+	} else {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 

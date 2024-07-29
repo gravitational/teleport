@@ -2794,7 +2794,6 @@ message RoleOptions {
   // DeviceTrustMode is the device authorization mode used for the resources
   // associated with the role.
   // See DeviceTrust.Mode.
-  // Reserved for future use, not yet used by Teleport.
   string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
 
   // IDP is a set of options related to accessing IdPs within Teleport.
@@ -5799,6 +5798,12 @@ message PluginStatusV1 {
     // gitlab is the status details for the Gitlab plugin.
     PluginGitlabStatusV1 gitlab = 4;
   }
+
+  // last_raw_error variable stores the most recent raw error message received from an API or service.
+  // It is intended to capture the original error message without any modifications or formatting.
+  // This can be useful for debugging purposes, providing detailed information about what went wrong
+  // in the interaction with the external service.
+  string last_raw_error = 6;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.
@@ -6251,7 +6256,15 @@ message AWSOIDCIntegrationSpecV1 {
   // > .well-known/jwks
   // Format: s3://<bucket>/<prefix>
   // Optional. The proxy's endpoint is used if it is not specified.
-  string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+  //
+  // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
+  // Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list.
+  // Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed.
+  // DELETE IN 18.0.
+  string IssuerS3URI = 2 [
+    (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
+    deprecated = true
+  ];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

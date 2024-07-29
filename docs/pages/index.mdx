@@ -155,7 +155,8 @@ Visit the provided URL in order to create your Teleport user.
   will get authentication errors later in this tutorial.
 
   If a user does not already exist, you can create it with `adduser <login>` or
-  use [host user creation](./server-access/guides/host-user-creation.mdx).
+  use [host user
+  creation](./enroll-resources/server-access/guides/host-user-creation.mdx).
 
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
@@ -219,4 +220,4 @@ Step 4 showed you how to install agents manually, and you can also launch agents
 and enroll resources with them using infrastructure-as-code tools. For example,
 you can use Terraform to declare a pool of Teleport agents and configure them to
 proxy your infrastructure. Read [Deploy Teleport Agents with
-Terraform](agents/deploy-agents-terraform.mdx) to get started.
+Terraform](enroll-resources/agents/deploy-agents-terraform.mdx) to get started.

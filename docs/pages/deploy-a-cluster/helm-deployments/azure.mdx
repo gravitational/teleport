@@ -11,7 +11,7 @@ Blob Storage).
 <Admonition type="tip" title="Have an existing Teleport cluster?">
 If you are already running Teleport on another platform, you can use your
 existing Teleport deployment to access your Kubernetes cluster. [Follow our
-guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+guide](../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 </Admonition>
 
@@ -19,7 +19,7 @@ cluster to Teleport.
 
 ## Prerequisites
 
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 
 In addition, you will need `azure-cli` 2.51 or later to follow along these
 instructions. Reference the Azure docs on [how to install the Azure
@@ -47,7 +47,7 @@ $ az aks update --resource-group <Var name="aks-rg" /> --name <Var name="aks-nam
 
 ## Step 1/5. Add the Teleport Helm chart repository
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 ## Step 2/5. Set up PostgreSQL and Blob Storage
 
