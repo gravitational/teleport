@@ -20,15 +20,25 @@ spec:
     # `kubernetes_secret` destination.
     type: Recreate
   selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ .Release.Name }}
+    matchLabels: {{- include "tbot.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ .Release.Name }}
+    {{- if .Values.annotations.pod }}
+      annotations: {{- toYaml .Values.annotations.pod | nindent 8 }}
+    {{- end }}
+      labels:  {{- include "tbot.labels" . | nindent 8 }}
     spec:
     {{- if .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+    {{- end }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+    {{- end }}
+    {{- if .Values.affinity }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
     {{- end }}
       containers:
         - name: tbot
@@ -60,16 +70,18 @@ spec:
             # volumeMount.
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/tokens/join-sa-token
-            # TELEPORT_ANONYMOUS_TELEMETRY enables the submission of anonymous
-            # usage telemetry.  This helps us shape the future development of
-            # `tbot`. You can disable this by omitting this.
+          {{- if .Values.anonymousTelemetry }}
             - name: TELEPORT_ANONYMOUS_TELEMETRY
               value: "1"
+          {{- end }}
           volumeMounts:
             - mountPath: /config
               name: config
             - mountPath: /var/run/secrets/tokens
               name: join-sa-token
+        {{- if .Values.resources }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+        {{- end }}
       serviceAccountName: {{ template "tbot.serviceAccountName" . }}
       volumes:
         - name: config

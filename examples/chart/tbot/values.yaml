@@ -23,10 +23,7 @@ clusterName: ""
 # </Admonition>
 teleportVersionOverride: ""
 
-# imagePullSecrets(list) -- sets the image pull secrets for any pods created by the chart.
-# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
-# for more details.
-imagePullSecrets: []
+anonymousTelemetry: false
 
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
@@ -39,10 +36,6 @@ imagePullPolicy: IfNotPresent
 # ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 # for more information.
 extraLabels:
-  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole.
-  clusterRole: {}
-  # extraLabels.clusterRoleBinding(object) -- are labels to set on the ClusterRoleBinding.
-  clusterRoleBinding: {}
   # extraLabels.role(object) -- are labels to set on the Role.
   role: {}
   # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
@@ -51,8 +44,6 @@ extraLabels:
   config: {}
   # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
   deployment: {}
-  # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
-  job: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment or StatefulSet.
   pod: {}
@@ -86,3 +77,28 @@ annotations:
   # annotations.serviceAccount(object) -- contains the Kubernetes annotations
   # put on the `ServiceAccount` resource created by the chart.
   serviceAccount: {}
+
+# resources(object) -- sets the resource requests/limits for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+# for more details.
+resources: {}
+
+# affinity(object) -- sets the affinities for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+# for more details.
+affinity: {}
+
+# tolerations(list) -- sets the tolerations for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+# for more details.
+tolerations: []
+
+# nodeSelector(object) -- sets the node selector for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+# for more details.
+nodeSelector: {}
+
+# imagePullSecrets(list) -- sets the image pull secrets for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
+# for more details.
+imagePullSecrets: []

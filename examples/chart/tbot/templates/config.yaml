@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  tbot.yaml: |
+    version: v2
+    onboarding:
+      join_method: kubernetes
+      # ensure token is set to the name of the join token you created earlier
+      token: bot-kubernetes
+    storage:
+      # a memory destination is used for the bots own state since the kubernetes
+      # join method does not require persistence.
+      type: memory
+    # ensure this is configured to the address of your Teleport Proxy Service.
+    proxy_server: example.teleport.sh:443
+    # outputs will be filled in during the completion of an access guide.
+    outputs: []
