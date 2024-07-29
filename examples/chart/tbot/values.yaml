@@ -3,6 +3,24 @@ image: public.ecr.aws/gravitational/tbot-distroless
 # join.
 clusterName: ""
 
+mode: deployment # deployment or daemonset (not yet supported)
+
+# teleportAuthAddress(string)
+# Mutually exclusive with teleportProxyAddress.
+teleportAuthAddress: ""
+# teleportProxyAddress(string)
+# Mutually exclusive with teleportAuthAddress.
+teleportProxyAddress: ""
+
+# joinMethod(string) -- describes how the Teleport Kubernetes Operator joins the Teleport cluster.
+# The operator does not store its Teleport-issued identity, it must be able to join the
+# cluster again on each pod restart. To achieve this, it needs to use a delegated join
+# method. `kubernetes` is the most common one.
+joinMethod: "kubernetes"
+
+# token(string) -- is the name of the token used by the operator to join the Teleport cluster.
+token: ""
+
 # teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator
 # image version deployed by the chart.
 #
@@ -24,6 +42,7 @@ clusterName: ""
 teleportVersionOverride: ""
 
 anonymousTelemetry: false
+debug: false
 
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)

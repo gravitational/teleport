@@ -23,9 +23,12 @@ spec:
     matchLabels: {{- include "tbot.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-    {{- if .Values.annotations.pod }}
-      annotations: {{- toYaml .Values.annotations.pod | nindent 8 }}
-    {{- end }}
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+      {{- if .Values.annotations.pod }}
+       {{- toYaml .Values.annotations.pod | nindent 8 }}
+      {{- end }}
       labels:  {{- include "tbot.labels" . | nindent 8 }}
     spec:
     {{- if .Values.imagePullSecrets }}
@@ -48,9 +51,22 @@ spec:
             - start
             - -c
             - /config/tbot.yaml
-            - --debug # Make this configurable.
+          {{- if .Values.debug }}
+            - --debug
+          {{- end }}
             - --log-format
             - json
+            - --join-method {{ .Values.joinMethod }}
+            - --token {{ .Values.token }}
+            - --data-dir kubernetes-secret:///{{ .Release.Name }}-data
+          {{- if .Values.teleportProxyAddress }}
+            - --proxy-server
+            - {{ .Values.teleportProxyAddress }}
+          {{- end }}
+          {{- if .Values.teleportAuthAddress }}
+            - --auth-server
+            - {{ .Values.teleportAuthAddress }}
+          {{- end }}
           env:
             # POD_NAMESPACE is required for the kubernetes_secret` destination
             # type to work correctly.
@@ -86,7 +102,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: tbot-config
+            name: {{ .Release.Name }}
         - name: join-sa-token
           projected:
             sources:
