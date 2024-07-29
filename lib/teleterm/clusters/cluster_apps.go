@@ -169,6 +169,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		AWSRoleARN:        "",
 		AzureIdentity:     "",
 		GCPServiceAccount: "",
+		URI:               app.GetURI(),
 	}
 
 	// TODO (Joerger): DELETE IN v17.0.0
