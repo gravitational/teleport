@@ -46,6 +46,10 @@ typedef struct VnetConfigResult {
   const char *ipv6_prefix;
   const char *dns_addr;
   const char *home_path;
+  // egid is the effective group ID of the process on the other side of the XPC connection.
+  gid_t egid;
+  // euid is the effective user ID of the process on the other side of the XPC connection.
+  uid_t euid;
 } VnetConfigResult;
 
 // WaitForVnetConfig blocks until a client calls the daemon with a config necessary to start VNet.

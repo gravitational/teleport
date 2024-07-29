@@ -26,6 +26,7 @@ import "C"
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 	"unsafe"
 
@@ -77,6 +78,7 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 		"ipv6_prefix", config.IPv6Prefix,
 		"dns_addr", config.DNSAddr,
 		"home_path", config.HomePath,
+		"cred", fmt.Sprintf("%#v", config.ClientCred),
 	)
 
 	return trace.Wrap(workFn(ctx, config))
@@ -113,6 +115,10 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 			IPv6Prefix: C.GoString(result.ipv6_prefix),
 			DNSAddr:    C.GoString(result.dns_addr),
 			HomePath:   C.GoString(result.home_path),
+			ClientCred: &ClientCred{
+				Egid: int(result.egid),
+				Euid: int(result.euid),
+			},
 		}
 		errC <- nil
 	}()

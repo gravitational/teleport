@@ -37,6 +37,8 @@
 @property(nonatomic, readwrite) NSString *ipv6Prefix;
 @property(nonatomic, readwrite) NSString *dnsAddr;
 @property(nonatomic, readwrite) NSString *homePath;
+@property(nonatomic, readwrite) gid_t egid;
+@property(nonatomic, readwrite) uid_t euid;
 @property(nonatomic, readwrite) dispatch_semaphore_t gotVnetConfigSema;
 
 @end
@@ -105,6 +107,10 @@
     _ipv6Prefix = @(vnetConfig->ipv6_prefix);
     _dnsAddr = @(vnetConfig->dns_addr);
     _homePath = @(vnetConfig->home_path);
+
+    NSXPCConnection *currentConn = [NSXPCConnection currentConnection];
+    _egid = [currentConn effectiveGroupIdentifier];
+    _euid = [currentConn effectiveUserIdentifier];
 
     dispatch_semaphore_signal(_gotVnetConfigSema);
     completion(nil);
@@ -180,6 +186,8 @@ void WaitForVnetConfig(VnetConfigResult *outResult) {
     outResult->ipv6_prefix = VNECopyNSString([daemonService ipv6Prefix]);
     outResult->dns_addr = VNECopyNSString([daemonService dnsAddr]);
     outResult->home_path = VNECopyNSString([daemonService homePath]);
+    outResult->egid = [daemonService egid];
+    outResult->euid = [daemonService euid];
     outResult->ok = true;
   }
 }
