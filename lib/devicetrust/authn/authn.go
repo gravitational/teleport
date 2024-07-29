@@ -20,18 +20,15 @@ package authn
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
-
-// consumeStreamToErrorIfEOFFunc consumes all messages from the stream until
-// it finds the first error.
-var consumeStreamToErrorIfEOFFunc = apiutils.ConsumeStreamToErrorIfEOF[*devicepb.AuthenticateDeviceResponse]
 
 // Ceremony is the device authentication ceremony.
 // It takes the client role of
@@ -158,8 +155,11 @@ func (c *Ceremony) run(
 		Payload: &devicepb.AuthenticateDeviceRequest_Init{
 			Init: init,
 		},
-	}); err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(consumeStreamToErrorIfEOFFunc(err, stream)))
+	}); err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
 	if err != nil {
@@ -208,8 +208,11 @@ func (c *Ceremony) authenticateDeviceMacOS(
 			},
 		},
 	})
-	if err != nil {
-		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	if err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -231,8 +234,11 @@ func (c *Ceremony) authenticateDeviceTPM(
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	if err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return trace.Wrap(err)
 	}
 	return nil
 }

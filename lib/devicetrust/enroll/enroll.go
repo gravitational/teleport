@@ -20,20 +20,17 @@ package enroll
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
-
-// consumeStreamToErrorIfEOFFunc consumes all messages from the stream until
-// it finds the first error.
-var consumeStreamToErrorIfEOFFunc = apiutils.ConsumeStreamToErrorIfEOF[*devicepb.EnrollDeviceResponse]
 
 // Ceremony is the device enrollment ceremony.
 // It takes the client role of
@@ -187,8 +184,11 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: init,
 		},
-	}); err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(consumeStreamToErrorIfEOFFunc(err, stream)))
+	}); err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
 	if err != nil {
@@ -241,8 +241,11 @@ func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDe
 			},
 		},
 	})
-	if err != nil {
-		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	if err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -267,8 +270,11 @@ func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTr
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(consumeStreamToErrorIfEOFFunc(err, stream))
+	// [io.EOF] indicates that the server has closed the stream.
+	// The client should handle the underlying error on the subsequent Recv call.
+	// All other errors are client-side errors and should be returned.
+	if err != nil && !errors.Is(err, io.EOF) {
+		return trace.Wrap(err)
 	}
 	return nil
 }
