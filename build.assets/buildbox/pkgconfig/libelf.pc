@@ -1,0 +1,14 @@
+prefix=@@PREFIX@@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libelf
+Description: elfutils libelf library to read and write ELF files
+Version: 0.191
+URL: http://elfutils.org/
+
+Libs: -L${libdir} -lelf
+Cflags: -I${includedir}
+
+Requires.private: zlib libzstd

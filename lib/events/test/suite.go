@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
@@ -283,20 +282,16 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	var history []apievents.AuditEvent
 	ctx := context.Background()
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  loginTime.Add(-1 * time.Hour),
 			To:    loginTime.Add(time.Hour),
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		if err != nil {
-			t.Logf("Retrying searching of events because of: %v", err)
-		}
-		return err
-	})
-	require.NoError(t, err)
-	require.Len(t, history, 1)
+		assert.NoError(t, err)
+		assert.Len(t, history, 1)
+	}, 10*time.Second, 500*time.Millisecond)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
@@ -339,20 +334,17 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// search for the session event.
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 			To:    s.Clock.Now().UTC().Add(time.Hour),
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		if err != nil {
-			t.Logf("Retrying searching of events because of: %v", err)
-		}
-		return err
-	})
-	require.NoError(t, err)
-	require.Len(t, history, 3)
+
+		assert.NoError(t, err)
+		assert.Len(t, history, 3)
+	}, 10*time.Second, 500*time.Millisecond)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
 	require.Equal(t, events.SessionEndEvent, history[2].GetType())

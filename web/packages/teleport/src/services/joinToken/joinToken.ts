@@ -24,6 +24,8 @@ import { makeLabelMapOfStrArrs } from '../agents/make';
 import makeJoinToken from './makeJoinToken';
 import { JoinToken, JoinRule, JoinTokenRequest } from './types';
 
+const TeleportTokenNameHeader = 'X-Teleport-TokenName';
+
 class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinToken(
@@ -46,14 +48,26 @@ class JoinTokenService {
       .then(makeJoinToken);
   }
 
-  // TODO (avatus) for the first iteration, we will create tokens using only yaml and
-  // slowly create a form for each token type.
-  upsertJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+  upsertJoinTokenYAML(
+    req: JoinTokenRequest,
+    tokenName: string
+  ): Promise<JoinToken> {
     return api
-      .put(cfg.getJoinTokenYamlUrl(), {
-        content: req.content,
-      })
+      .putWithHeaders(
+        cfg.getJoinTokenYamlUrl(),
+        {
+          content: req.content,
+        },
+        {
+          [TeleportTokenNameHeader]: tokenName,
+          'Content-Type': 'application/json',
+        }
+      )
       .then(makeJoinToken);
+  }
+
+  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
   }
 
   fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
@@ -67,7 +81,7 @@ class JoinTokenService {
   deleteJoinToken(id: string, signal: AbortSignal = null) {
     return api.deleteWithHeaders(
       cfg.getJoinTokensUrl(),
-      { 'X-Teleport-TokenName': id },
+      { [TeleportTokenNameHeader]: id },
       signal
     );
   }

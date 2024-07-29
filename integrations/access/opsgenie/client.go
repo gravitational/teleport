@@ -29,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -219,20 +220,26 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 	}
 	responders := make([]Responder, 0, len(schedules)+len(teams))
 	for _, s := range schedules {
-		responders = append(responders, Responder{
-			Type: ResponderTypeSchedule,
-			ID:   s,
-			Name: s,
-		})
+		responders = append(responders, createResponder(ResponderTypeSchedule, s))
 	}
 	for _, t := range teams {
-		responders = append(responders, Responder{
-			Type: ResponderTypeTeam,
-			ID:   t,
-			Name: t,
-		})
+		responders = append(responders, createResponder(ResponderTypeTeam, t))
 	}
 	return responders
+}
+
+// Check if the responder is a UUID. If it is, then it is an ID; otherwise, it is a name.
+func createResponder(responderType string, value string) Responder {
+	if _, err := uuid.Parse(value); err == nil {
+		return Responder{
+			Type: responderType,
+			ID:   value,
+		}
+	}
+	return Responder{
+		Type: responderType,
+		Name: value,
+	}
 }
 
 // PostReviewNote posts a note once a new request review appears.

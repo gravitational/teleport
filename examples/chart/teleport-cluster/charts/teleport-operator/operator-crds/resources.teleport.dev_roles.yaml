@@ -1241,8 +1241,8 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request strategy
-                      (optional|note|always) where optional is the default.
+                    description: RequestAccess defines the request strategy (optional|note|always)
+                      where optional is the default.
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
@@ -2572,8 +2572,8 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request strategy
-                      (optional|note|always) where optional is the default.
+                    description: RequestAccess defines the request strategy (optional|note|always)
+                      where optional is the default.
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
