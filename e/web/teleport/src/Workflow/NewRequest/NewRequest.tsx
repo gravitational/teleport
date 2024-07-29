@@ -230,9 +230,7 @@ function NewRequest(props: State) {
     setWarningConfirm(null);
   }
 
-  const igsDisabled = !cfg.isLegacyEnterprise() && !cfg.isIgsEnabled;
-  const limitReached = usage && usageLimitReached(usage);
-  const limited = limitReached || igsDisabled;
+  const limited = usage?.limit > 0 || cfg.entitlements.AccessRequests.limit > 0;
   const requestStarted = getNumAddedResources(addedResources) > 0;
 
   return (
@@ -274,7 +272,7 @@ function NewRequest(props: State) {
         <Info>{dryRunAttempt.statusText}</Info>
       )}
       {usage && <UsageInfo {...usage} />}
-      {!usage && igsDisabled && <LimitedInfo />}
+      {!usage && cfg.entitlements.AccessMonitoring.limit > 0 && <LimitedInfo />}
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <Box width="150px" data-testid="resource-selector">
           <Select
@@ -532,8 +530,7 @@ function LimitedInfo() {
       <InfoIcon color="info" px={3} />
       <P1>
         Your cluster has an allocation of{' '}
-        {cfg.featureLimits.AccessRequestMonthlyRequestLimit} access requests per
-        month.
+        {cfg.entitlements.AccessRequests.limit} access requests per month.
       </P1>
     </UsageNotice>
   );

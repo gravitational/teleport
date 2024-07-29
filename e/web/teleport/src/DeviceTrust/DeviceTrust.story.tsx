@@ -11,10 +11,7 @@ import { DeviceTrust } from './DeviceTrust';
 
 import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
-const defaultTrustedDevicesFlag = cfg.trustedDevices;
-const defaultIsEnterpriseFlag = cfg.isEnterprise;
-const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
-const defaultIgsFlag = cfg.isIgsEnabled;
+const defaultDeviceTrustEntitlement = cfg.entitlements.DeviceTrust;
 
 export default {
   title: 'TeleportE/DeviceTrust',
@@ -24,10 +21,7 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.trustedDevices = defaultTrustedDevicesFlag;
-          cfg.isEnterprise = defaultIsEnterpriseFlag;
-          cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
-          cfg.isIgsEnabled = defaultIgsFlag;
+          cfg.entitlements.DeviceTrust = defaultDeviceTrustEntitlement;
         };
       }, []);
       return <Story />;
@@ -35,8 +29,8 @@ export default {
   ],
 };
 
-export function Empty() {
-  cfg.trustedDevices = true;
+export function EmptyNoCTA() {
+  cfg.entitlements.DeviceTrust = { enabled: true, limit: 0 };
   const ctx = createTeleportContextE();
 
   return (
@@ -45,7 +39,7 @@ export function Empty() {
     </ContextProvider>
   );
 }
-Empty.parameters = {
+EmptyNoCTA.parameters = {
   msw: {
     handlers: [
       http.get(ecfg.getTrustedDevicesUrl({}), () =>
@@ -55,8 +49,8 @@ Empty.parameters = {
   },
 };
 
-export function EmptyCta() {
-  cfg.trustedDevices = false;
+export function EmptyWithCTA() {
+  cfg.entitlements.DeviceTrust = { enabled: true, limit: 10 };
   const ctx = createTeleportContextE();
 
   return (
@@ -65,28 +59,7 @@ export function EmptyCta() {
     </ContextProvider>
   );
 }
-EmptyCta.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: [] })
-      ),
-    ],
-  },
-};
-
-export function EmptyEubCta() {
-  cfg.trustedDevices = true;
-  cfg.isUsageBasedBilling = true;
-  const ctx = createTeleportContextE();
-
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
-}
-EmptyEubCta.parameters = {
+EmptyWithCTA.parameters = {
   msw: {
     handlers: [
       http.get(ecfg.getTrustedDevicesUrl({}), () =>
@@ -115,9 +88,8 @@ Processing.parameters = {
   },
 };
 
-export function LoadedLegacy() {
-  cfg.trustedDevices = true;
-  cfg.isUsageBasedBilling = false;
+export function LoadedEnabledAndUnlimited() {
+  cfg.entitlements.DeviceTrust = { enabled: true, limit: 0 };
   const ctx = createTeleportContextE();
 
   return (
@@ -126,7 +98,7 @@ export function LoadedLegacy() {
     </ContextProvider>
   );
 }
-LoadedLegacy.parameters = {
+LoadedEnabledAndUnlimited.parameters = {
   msw: {
     handlers: [
       http.get(ecfg.getTrustedDevicesUrl({}), () =>
@@ -136,10 +108,8 @@ LoadedLegacy.parameters = {
   },
 };
 
-export function LoadedEubWithIgs() {
-  cfg.trustedDevices = true;
-  cfg.isUsageBasedBilling = true;
-  cfg.isIgsEnabled = true;
+export function LoadedEnabledAndLimitedCTA() {
+  cfg.entitlements.DeviceTrust = { enabled: true, limit: 10 };
   const ctx = createTeleportContextE();
 
   return (
@@ -148,48 +118,7 @@ export function LoadedEubWithIgs() {
     </ContextProvider>
   );
 }
-LoadedEubWithIgs.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: devices })
-      ),
-    ],
-  },
-};
-
-export function LoadedCta() {
-  cfg.trustedDevices = false;
-  const ctx = createTeleportContextE();
-
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
-}
-LoadedCta.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: devices })
-      ),
-    ],
-  },
-};
-
-export function LoadedEubCta() {
-  cfg.trustedDevices = true;
-  cfg.isUsageBasedBilling = true;
-  const ctx = createTeleportContextE();
-
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
-}
-LoadedEubCta.parameters = {
+LoadedEnabledAndLimitedCTA.parameters = {
   msw: {
     handlers: [
       http.get(ecfg.getTrustedDevicesUrl({}), () =>

@@ -51,7 +51,7 @@ export const useDevices = () => {
     ...tableDataAndState,
     attempt,
     fetchData,
-    showTrustedDevicesCTA: ctx.lockedFeatures.trustedDevices,
+    showTrustedDevicesCTA: ctx.entitlements.DeviceTrust.limit > 0,
   };
 };
 

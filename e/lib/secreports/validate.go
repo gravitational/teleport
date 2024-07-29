@@ -80,8 +80,12 @@ func validateRequest(req any) error {
 
 func verifyAccessMonitoringMaxReportRangeLimit(days int32) error {
 	f := modules.GetModules().Features()
-	if f.GetEntitlement(entitlements.Identity).Enabled {
-		return nil // any range supported
+	if !f.GetEntitlement(entitlements.AccessMonitoring).Enabled {
+		return trace.AccessDenied("access monitoring is not enabled")
+	}
+
+	if f.GetEntitlement(entitlements.AccessMonitoring).Enabled && f.GetEntitlement(entitlements.AccessMonitoring).Limit == 0 {
+		return nil // any range supported, unlimited access
 	}
 
 	if days > f.GetEntitlement(entitlements.AccessMonitoring).Limit {

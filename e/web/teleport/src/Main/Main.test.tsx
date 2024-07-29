@@ -69,7 +69,7 @@ jest.mock('shared/hooks', () => ({
 
 cfg.oss.isTeam = true;
 cfg.oss.isStripeManaged = true;
-cfg.oss.trustedDevices = false;
+cfg.oss.entitlements.DeviceTrust = { enabled: false, limit: 0 };
 cfg.oss.hasQuestionnaire = true;
 cfg.oss.mobileDeviceManagement = false;
 

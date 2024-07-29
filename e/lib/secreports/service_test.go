@@ -167,8 +167,7 @@ func TestService(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity:         {Enabled: true},
-				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(maxLimit)},
+				entitlements.AccessMonitoring: {Enabled: true, Limit: 0},
 			},
 		},
 	})
@@ -383,9 +382,8 @@ var (
 func TestScheduleReportUpdate(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IsUsageBasedBilling: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
+				entitlements.AccessMonitoring: {Enabled: true},
 			},
 		},
 	})
@@ -452,13 +450,12 @@ func TestReportUpdateThreshold(t *testing.T) {
 	s := newSuite(t)
 	ctx := context.Background()
 
-	t.Run("IGS license", func(t *testing.T) {
+	t.Run("Enabled & Unlimited Access Monitoring", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Identity: {Enabled: true},
+					entitlements.AccessMonitoring: {Enabled: true},
 				},
-				IsUsageBasedBilling: true,
 			},
 		})
 
@@ -504,9 +501,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 	t.Run("no-IGS license", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: modules.Features{
-				IsUsageBasedBilling: false,
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Identity:         {Enabled: false},
 					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
 				},
 			},
@@ -552,7 +547,6 @@ func TestGetReportExecutionDaysRange(t *testing.T) {
 		{
 			name: "limited range",
 			features: modules.Features{
-				IsUsageBasedBilling: true,
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
 				},
@@ -560,12 +554,10 @@ func TestGetReportExecutionDaysRange(t *testing.T) {
 			want: []int32{7, 30},
 		},
 		{
-			name: "IGS flag enabled limit should be ignored",
+			name: "unlimited range",
 			features: modules.Features{
-				IsUsageBasedBilling: true,
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Identity:         {Enabled: true},
-					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
+					entitlements.AccessMonitoring: {Enabled: true, Limit: 0},
 				},
 			},
 			want: []int32{7, 30, 90, 120},

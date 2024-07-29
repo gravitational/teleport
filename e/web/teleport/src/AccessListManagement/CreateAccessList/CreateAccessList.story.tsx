@@ -78,7 +78,7 @@ export const NoAccess: StoryObj = {
   },
 };
 
-export const LoadedWithIgs: StoryObj = {
+export const LoadedWithoutLimit: StoryObj = {
   parameters: {
     msw: {
       handlers: [
@@ -95,7 +95,7 @@ export const LoadedWithIgs: StoryObj = {
     },
   },
   render() {
-    cfg.oss.isIgsEnabled = true;
+    cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
 
     return (
       <Provider>
@@ -137,7 +137,7 @@ export const LoadedReachedLimit: StoryObj = {
     },
   },
   render() {
-    cfg.oss.featureLimits.accessListCreateLimit = 1;
+    cfg.oss.entitlements.AccessLists = { enabled: true, limit: 1 };
 
     return (
       <Provider>

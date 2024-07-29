@@ -144,8 +144,8 @@ export function useNewRequest(ctx: Ctx) {
   } | null>(null);
 
   function fetchUsage() {
-    if (cfg.isLegacyEnterprise() || cfg.isIgsEnabled) {
-      // there are no limits on non usage-based or if IGS is enabled.
+    if (cfg.entitlements.AccessRequests.limit === 0) {
+      // there are no limits
       return;
     }
 
@@ -156,6 +156,7 @@ export function useNewRequest(ctx: Ctx) {
     ctx.cloudService
       .fetchNonBillableSummaryInformation()
       .then(info => {
+        //  todo (michellescripts) we do have the option to not fetch the limit, as it's present on the entitlement
         setUsage({
           limit: info.accessRequestUsage.monthlyLimit,
           used: info.accessRequestUsage.monthlyUsed,

@@ -22,9 +22,8 @@ import { Timeframe } from './Timeframe';
 
 const ctx = createTeleportContext();
 
-const defaultIsIgsEnabled = cfg.isIgsEnabled;
 const defaultIsEnterprise = cfg.isEnterprise;
-const defaultIsUsageBased = cfg.isUsageBasedBilling;
+const defaultAccessMonitoringEntitlement = cfg.entitlements.AccessMonitoring;
 
 export default {
   title: 'TeleportE/AccessMonitoring',
@@ -34,9 +33,9 @@ export default {
         cfg.isEnterprise = true;
         // Clean up
         return () => {
-          cfg.isIgsEnabled = defaultIsIgsEnabled;
           cfg.isEnterprise = defaultIsEnterprise;
-          cfg.isUsageBasedBilling = defaultIsUsageBased;
+          cfg.entitlements.AccessMonitoring =
+            defaultAccessMonitoringEntitlement;
         };
       }, []);
       return <Story />;
@@ -44,8 +43,8 @@ export default {
   ],
 };
 
-export const TimeframeDropdown = () => {
-  cfg.isIgsEnabled = true;
+export const TimeframeDropdownWithLimitAndCta = () => {
+  cfg.entitlements.AccessMonitoring = { enabled: true, limit: 30 };
   return (
     <ContextProvider ctx={ctx}>
       <Timeframe onChange={() => null} days={30} />
@@ -53,18 +52,8 @@ export const TimeframeDropdown = () => {
   );
 };
 
-export const TimeframeDropdownWithIgs = () => {
-  cfg.isIgsEnabled = true;
-  cfg.isUsageBasedBilling = true;
-  return (
-    <ContextProvider ctx={ctx}>
-      <Timeframe onChange={() => null} days={30} />
-    </ContextProvider>
-  );
-};
-
-export const TimeframeDropdownCloudEnterpriseCta = () => {
-  cfg.isUsageBasedBilling = true;
+export const TimeframeDropdownUnlimited = () => {
+  cfg.entitlements.AccessMonitoring = { enabled: true, limit: 0 };
   return (
     <ContextProvider ctx={ctx}>
       <Timeframe onChange={() => null} days={30} />

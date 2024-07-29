@@ -1,16 +1,16 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import { within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as service from 'teleport/services/userPreferences/userPreferences';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
 import * as userUserContext from 'teleport/User/UserContext';
 
 import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedResource';
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import cfg from 'teleport/config';
 
 import * as Main from 'teleport/Main/Main';
@@ -21,10 +21,7 @@ import TeleportContextE from 'e-teleport/teleportContextE';
 
 import NewRequest from './NewRequest';
 
-const defaultIsStripeManaged = cfg.isStripeManaged;
-const defaultIsEnterpriseFlag = cfg.isEnterprise;
-const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
-const defaultIgsFlag = cfg.isIgsEnabled;
+const defaultAccessRequestsEntitlement = cfg.entitlements.AccessRequests;
 
 const ctx = new TeleportContextE();
 let Component;
@@ -114,14 +111,10 @@ beforeEach(() => {
 afterEach(() => {
   jest.resetAllMocks();
 
-  cfg.isStripeManaged = defaultIsStripeManaged;
-  cfg.isEnterprise = defaultIsEnterpriseFlag;
-  cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
-  cfg.isIgsEnabled = defaultIgsFlag;
+  cfg.entitlements.AccessRequests = defaultAccessRequestsEntitlement;
 });
 
 test('add and remove a resource from table', async () => {
-  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
   render(Component);
 
   // Initial render is a resource table so we select roles
@@ -173,7 +166,6 @@ test('add and remove a resource from table', async () => {
 });
 
 test('clicking on a resource label constructs predicate query', async () => {
-  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
   render(Component);
 
   // We will use node to test predicate (it will be same for all other agents).
@@ -198,9 +190,7 @@ test('clicking on a resource label constructs predicate query', async () => {
   );
 });
 
-test('select node hostnames in checkout', async () => {
-  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
-
+test('select uses node hostnames in checkout', async () => {
   render(Component);
 
   let hostnames = await screen.findAllByText('hostname-node1');
@@ -220,8 +210,6 @@ test('select node hostnames in checkout', async () => {
 });
 
 test('select all nodes hostnames in checkout', async () => {
-  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
-
   render(Component);
 
   let hostnames = await screen.findAllByText(/hostname-node/);
@@ -241,7 +229,6 @@ test('select all nodes hostnames in checkout', async () => {
 });
 
 test('select all buttons work properly', async () => {
-  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
   render(Component);
 
   const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
@@ -265,8 +252,6 @@ test('select all buttons work properly', async () => {
 });
 
 test('legacy renders no usage info', async () => {
-  ecfg.oss.isEnterprise = true;
-  ecfg.oss.isUsageBasedBilling = false;
   jest
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce(mockUsageWithNotLimitReached);
@@ -277,11 +262,9 @@ test('legacy renders no usage info', async () => {
   });
 });
 
-test('eub with igs enabled renders no usage info', async () => {
-  ecfg.oss.isEnterprise = true;
-  ecfg.oss.isUsageBasedBilling = true;
-  ecfg.oss.isStripeManaged = false;
-  ecfg.oss.isIgsEnabled = true;
+test('enabled and unlimited renders no usage info', async () => {
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
+
   jest
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce(mockUsageWithNotLimitReached);
@@ -292,11 +275,9 @@ test('eub with igs enabled renders no usage info', async () => {
   });
 });
 
-test('Stripe managed renders usage info', async () => {
-  ecfg.oss.isEnterprise = true;
-  ecfg.oss.isUsageBasedBilling = true;
-  ecfg.oss.isStripeManaged = true;
-  ecfg.oss.isIgsEnabled = false;
+test('enabled and limited renders usage info', async () => {
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 30 };
+
   jest
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce(mockUsageWithNotLimitReached);
@@ -313,32 +294,10 @@ test('Stripe managed renders usage info', async () => {
   );
 });
 
-test('eub WITHOUT igs enabled renders usage info', async () => {
+test('limited: displays upsell link and button when access request limit is reached', async () => {
   ecfg.oss.isEnterprise = true;
-  ecfg.oss.isUsageBasedBilling = true;
-  ecfg.oss.isStripeManaged = false;
-  ecfg.oss.isIgsEnabled = false;
-  jest
-    .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
-    .mockResolvedValueOnce(mockUsageWithNotLimitReached);
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 1 };
 
-  render(Component);
-  await waitFor(() => {
-    expect(screen.getByTestId('usage-info')).toBeInTheDocument();
-  });
-
-  let usageInfo = screen.getByTestId('usage-info');
-  expect(usageInfo).toHaveTextContent(`3 access requests`);
-  expect(usageInfo).toHaveTextContent(
-    `allocation of 5 access requests per month`
-  );
-});
-
-test('Stripe managed: displays upsell link and button when access request limit is reached', async () => {
-  ecfg.oss.isEnterprise = true;
-  ecfg.oss.isUsageBasedBilling = true;
-  ecfg.oss.isIgsEnabled = false;
-  ecfg.oss.isStripeManaged = true;
   jest
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce({
@@ -367,45 +326,8 @@ test('Stripe managed: displays upsell link and button when access request limit 
   }
 });
 
-test('eub without igs: displays upsell link and button when access request limit is reached', async () => {
-  ecfg.oss.isEnterprise = true;
-  ecfg.oss.isUsageBasedBilling = true;
-  ecfg.oss.isIgsEnabled = false;
-  ecfg.oss.isStripeManaged = false;
-  jest
-    .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
-    .mockResolvedValueOnce({
-      trustedDeviceUsage: {
-        devicesUsageLimit: 0,
-        devicesInUse: 0,
-      },
-      accessRequestUsage: {
-        monthlyLimit: 5,
-        monthlyUsed: 5,
-      },
-    });
-
-  render(Component);
-  await waitFor(() => {
-    expect(screen.getByTestId('usage-info')).toBeInTheDocument();
-  });
-
-  const ctaTexts = screen.getAllByText(/with teleport identity/i);
-  expect(ctaTexts).toHaveLength(2);
-  expect(
-    screen.queryByText(/with teleport enterprise/i)
-  ).not.toBeInTheDocument();
-
-  const upsellLinks = screen.getAllByRole('link');
-  expect(upsellLinks).toHaveLength(2);
-  for (const link of upsellLinks) {
-    expect(link).toHaveAttribute('href', expect.stringMatching(/upgrade-igs/i));
-  }
-});
-
 test('created requests specifiable fields are respected on checkout (not overwritten)', async () => {
-  cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
-
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
   render(Component);
 
   const inputEl = within(screen.getByTestId('resource-selector')).getByRole(

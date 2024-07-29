@@ -11,25 +11,19 @@ import { DeviceTrust } from './DeviceTrust';
 import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 describe('test DeviceTrust.tsx', () => {
-  const defaultTrustedDevicesFlag = cfg.trustedDevices;
-  const defaultIsEnterpriseFlag = cfg.isEnterprise;
-  const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
-  const defaultIgsFlag = cfg.isIgsEnabled;
+  const defaultDeviceTrustEntitlement = cfg.entitlements.DeviceTrust;
 
   beforeEach(() => {
     cfg.isEnterprise = true;
   });
 
   afterEach(() => {
-    cfg.trustedDevices = defaultTrustedDevicesFlag;
-    cfg.isEnterprise = defaultIsEnterpriseFlag;
-    cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
-    cfg.isIgsEnabled = defaultIgsFlag;
+    cfg.entitlements.DeviceTrust = defaultDeviceTrustEntitlement;
     jest.clearAllMocks();
   });
 
-  test('empty cta', async () => {
-    cfg.trustedDevices = false;
+  test('empty list with cta', async () => {
+    cfg.entitlements.DeviceTrust = { enabled: true, limit: 1 };
     jest
       .spyOn(deviceService, 'fetchDevices')
       .mockResolvedValue({ items: [], startKey: '' });
@@ -40,21 +34,8 @@ describe('test DeviceTrust.tsx', () => {
     expect(container.firstChild).toMatchSnapshot();
   });
 
-  test('empty EUB cta', async () => {
-    cfg.isUsageBasedBilling = true;
-    jest
-      .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: [], startKey: '' });
-
-    const { container } = renderComponent();
-    await screen.findByText(/register trusted device/i);
-
-    expect(container.firstChild).toMatchSnapshot();
-  });
-
-  test('loaded legacy (no CTA)', async () => {
-    cfg.trustedDevices = true;
-    cfg.isUsageBasedBilling = false;
+  test('enabled no limit - no CTA', async () => {
+    cfg.entitlements.DeviceTrust = { enabled: true, limit: 0 };
     jest
       .spyOn(deviceService, 'fetchDevices')
       .mockResolvedValue({ items: devices, startKey: '' });
@@ -65,23 +46,8 @@ describe('test DeviceTrust.tsx', () => {
     expect(container.firstChild).toMatchSnapshot();
   });
 
-  test('loaded EUB with IGS (no CTA)', async () => {
-    cfg.trustedDevices = true;
-    cfg.isUsageBasedBilling = true;
-    cfg.isIgsEnabled = true;
-    jest
-      .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: devices, startKey: '' });
-
-    const { container } = renderComponent();
-    await screen.findByText(/register trusted device/i);
-
-    expect(container.firstChild).toMatchSnapshot();
-  });
-
-  test('loaded EUB without IGS renders CTA', async () => {
-    cfg.trustedDevices = true;
-    cfg.isUsageBasedBilling = true;
+  test('enabled with limit - renders CTA', async () => {
+    cfg.entitlements.DeviceTrust = { enabled: true, limit: 1 };
     jest
       .spyOn(deviceService, 'fetchDevices')
       .mockResolvedValue({ items: devices, startKey: '' });

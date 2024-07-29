@@ -39,12 +39,9 @@ type DurationOption = Option<Days> & {
   isDisabled?: boolean;
 };
 
-function isIgsDisabled() {
-  return !cfg.isIgsEnabled;
-}
-
+// todo (michellescripts) today the limit for access monitoring is set in cloud to 30 but we don't leverage the limit here other than t/f
 export function Timeframe(props: TimeframeProps) {
-  const disabled = isIgsDisabled();
+  const limited = cfg.entitlements.AccessMonitoring.limit > 0;
   const timeframes: DurationOption[] = [
     {
       label: 'Last 7 days',
@@ -57,12 +54,12 @@ export function Timeframe(props: TimeframeProps) {
     {
       label: 'Last 90 days',
       value: 90,
-      isDisabled: disabled,
+      isDisabled: limited,
     },
     {
       label: 'Last 120 days',
       value: 120,
-      isDisabled: disabled,
+      isDisabled: limited,
     },
   ];
 
@@ -104,7 +101,7 @@ const MenuListComponent = props => {
   return (
     <>
       <components.MenuList {...props}>{props.children}</components.MenuList>
-      {isIgsDisabled() && (
+      {cfg.entitlements.AccessMonitoring.limit > 0 && (
         <Box
           p={2}
           css={`

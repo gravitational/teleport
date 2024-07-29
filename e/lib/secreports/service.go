@@ -262,12 +262,13 @@ var reportValidDaysRange = []int32{7, 30, 90, 120}
 // where unsupported days are filtered out.
 func getReportExecutionDaysRange() []int32 {
 	f := modules.GetModules().Features()
-	if f.GetEntitlement(entitlements.Identity).Enabled {
+	entitlement := f.GetEntitlement(entitlements.AccessMonitoring)
+	if entitlement.Enabled && entitlement.Limit == 0 {
 		return reportValidDaysRange
 	}
 	var out []int32
 	for _, v := range reportValidDaysRange {
-		if v > f.Entitlements[entitlements.AccessMonitoring].Limit {
+		if v > entitlement.Limit {
 			continue
 		}
 		out = append(out, v)
