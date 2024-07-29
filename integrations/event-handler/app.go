@@ -79,6 +79,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	a.SpawnCriticalJob(a.eventsJob)
 	a.SpawnCriticalJob(a.sessionEventsJob)
+	a.SpawnCritical(a.sessionEventsJob.processMissingRecordings)
 	<-a.Process.Done()
 
 	lastWindow := a.EventWatcher.getWindowStartTime()
@@ -144,7 +145,6 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 	}
 
 	log.WithFields(fields).Debug("Event sent")
-	log.WithField("event", e).Debug("Event dump")
 
 	return nil
 }
