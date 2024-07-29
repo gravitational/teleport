@@ -500,4 +500,8 @@ const (
 	EnvVarTerraformRetryMaxTries = "TF_TELEPORT_RETRY_MAX_TRIES"
 	// EnvVarTerraformDialTimeoutDuration is the environment variable configuring the Terraform provider dial timeout.
 	EnvVarTerraformDialTimeoutDuration = "TF_TELEPORT_DIAL_TIMEOUT_DURATION"
+	// EnvVarTerraformJoinMethod is the environment variable configuring the Terraform provider native MachineID join method.
+	EnvVarTerraformJoinMethod = "TF_TELEPORT_JOIN_METHOD"
+	// EnvVarTerraformJoinToken is the environment variable configuring the Terraform provider native MachineID join token.
+	EnvVarTerraformJoinToken = "TF_TELEPORT_JOIN_TOKEN"
 )

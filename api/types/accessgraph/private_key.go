@@ -106,3 +106,18 @@ func hashComp(values ...string) string {
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+// DescribePublicKeyMode returns a human-readable description of the public key mode.
+func DescribePublicKeyMode(mode accessgraphv1pb.PublicKeyMode) string {
+	switch mode {
+	case accessgraphv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE:
+		return "used public key file"
+	case accessgraphv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED:
+		return "protected private key"
+	case accessgraphv1pb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED:
+		return "derived from private key"
+	default:
+		return "unknown"
+	}
+
+}

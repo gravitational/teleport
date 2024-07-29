@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v4"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
@@ -36,11 +36,9 @@ type schema struct {
 }
 
 // schemaInfoQuery is a query to return the schema info.
-// TODO(Tener): for very large schemas adding a filtering right into this query could improve performance.
-// It doesn't appear necessary right now.
 const schemaInfoQuery = "SELECT schemaname, tablename FROM pg_catalog.pg_tables"
 
-func fetchDatabaseObjects(ctx context.Context, session *common.Session, conn *pgx.Conn) ([]*dbobjectv1.DatabaseObject, error) {
+func fetchDatabaseObjects(ctx context.Context, database types.Database, databaseName string, conn *pgx.Conn) ([]*dbobjectv1.DatabaseObject, error) {
 	s, err := getSchemaInfo(ctx, conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,20 +49,20 @@ func fetchDatabaseObjects(ctx context.Context, session *common.Session, conn *pg
 	for schemaName, schemaVal := range s {
 		for _, table := range schemaVal.tables {
 			name := strings.Join([]string{
-				session.Database.GetProtocol(),
-				session.Database.GetType(),
-				session.Database.GetName(),
+				database.GetProtocol(),
+				database.GetType(),
+				database.GetName(),
 				databaseobjectimportrule.ObjectKindTable,
-				session.DatabaseName,
+				databaseName,
 				schemaName,
 				table,
-			}, "/")
+			}, "::")
 
 			obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
 				ObjectKind:          databaseobjectimportrule.ObjectKindTable,
-				DatabaseServiceName: session.Database.GetName(),
-				Protocol:            session.Database.GetProtocol(),
-				Database:            session.DatabaseName,
+				DatabaseServiceName: database.GetName(),
+				Protocol:            database.GetProtocol(),
+				Database:            databaseName,
 				Schema:              schemaName,
 				Name:                table,
 			})

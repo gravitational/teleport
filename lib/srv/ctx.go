@@ -1237,6 +1237,8 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
 		UserKind:       userKind,
+		BotName:        id.BotName,
+		BotInstanceID:  id.BotInstanceID,
 	}
 }
 

@@ -126,15 +126,8 @@ func ListSubnets(ctx context.Context, clt ListSubnetsClient, req ListSubnetsRequ
 func convertAWSSubnets(subnets []ec2Types.Subnet) []Subnet {
 	ret := make([]Subnet, 0, len(subnets))
 	for _, s := range subnets {
-		var name string
-		for _, tag := range s.Tags {
-			if aws.ToString(tag.Key) == "Name" {
-				name = aws.ToString(tag.Value)
-				break
-			}
-		}
 		ret = append(ret, Subnet{
-			Name:             name,
+			Name:             nameFromEC2Tags(s.Tags),
 			ID:               aws.ToString(s.SubnetId),
 			AvailabilityZone: aws.ToString(s.AvailabilityZone),
 		})

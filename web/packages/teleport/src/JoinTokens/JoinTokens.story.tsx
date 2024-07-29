@@ -68,6 +68,10 @@ const tokens: JoinToken[] = [
     expiry: new Date('0001-01-01'),
     method: 'token',
     safeName: '******',
+    allow: [],
+    gcp: {
+      allow: [],
+    },
     content: '',
   },
   {
@@ -77,6 +81,10 @@ const tokens: JoinToken[] = [
     expiry: new Date('2023-06-01'),
     method: 'iam',
     safeName: 'iam-EDIT-ME-BUT-DONT-SAVE',
+    allow: [],
+    gcp: {
+      allow: [],
+    },
     content: `kind: token
         metadata:
         name: iam-EDIT-ME-BUT-DONT-SAVE

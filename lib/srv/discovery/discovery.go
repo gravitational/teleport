@@ -138,9 +138,9 @@ type Config struct {
 	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
-	// ServerCredentials are the credentials used to identify the discovery service
+	// GetClientCert returns credentials used to identify the discovery service
 	// to the Access Graph service.
-	ServerCredentials *tls.Config
+	GetClientCert func() (*tls.Certificate, error)
 	// AccessGraphConfig is the configuration for the Access Graph client
 	AccessGraphConfig AccessGraphConfig
 

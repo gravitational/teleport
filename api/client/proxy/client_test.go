@@ -114,16 +114,15 @@ type fakeGRPCServer struct {
 }
 
 type fakeAuthServer struct {
-	*proto.UnimplementedAuthServiceServer
+	proto.UnimplementedAuthServiceServer
 	listener net.Listener
 	srv      *grpc.Server
 }
 
 func newFakeAuthServer(t *testing.T, conn net.Conn) *fakeAuthServer {
 	f := &fakeAuthServer{
-		listener:                       newOneShotListener(conn),
-		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
-		srv:                            grpc.NewServer(),
+		listener: newOneShotListener(conn),
+		srv:      grpc.NewServer(),
 	}
 
 	t.Cleanup(f.Stop)

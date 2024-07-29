@@ -34,7 +34,7 @@ import (
 )
 
 type mockJoinServiceServer struct {
-	*proto.UnimplementedJoinServiceServer
+	proto.UnimplementedJoinServiceServer
 	registerUsingTPMMethod func(srv proto.JoinService_RegisterUsingTPMMethodServer) error
 }
 

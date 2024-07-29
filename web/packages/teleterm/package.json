@@ -42,6 +42,8 @@
     "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^11.0.5",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
     "electron": "31.1.0",
     "electron-builder": "^25.0.1",
     "electron-notarize": "^1.2.2",
@@ -52,8 +54,6 @@
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "whatwg-url": "^14.0.0",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.1"
   },

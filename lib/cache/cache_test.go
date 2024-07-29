@@ -2912,7 +2912,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	require.Len(t, nodes, nodeCount)
 
 	clock.Advance(time.Hour * 24)
-	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+	for expired := nodeCount - expiryLimit; expired > expiryLimit; expired -= expiryLimit {
 		// get rid of events that were emitted before clock advanced
 		drainEvents(p.eventsC)
 		// wait for next relative expiry check to run

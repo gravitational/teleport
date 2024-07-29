@@ -3,6 +3,9 @@ title: Reference for the teleport_provision_token Terraform data-source
 description: This page describes the supported values of the teleport_provision_token data-source of the Teleport Terraform provider.
 ---
 
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
 
 
 
@@ -36,7 +39,7 @@ Optional:
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
 - `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
-- `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".
+- `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
 - `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `spacelift` (Attributes) Spacelift allows the configuration of options specific to the "spacelift" join method. (see [below for nested schema](#nested-schema-for-specspacelift))
 - `suggested_agent_matcher_labels` (Map of List of String)

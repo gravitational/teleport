@@ -38,16 +38,17 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessPoint is the subset of the auth cache consumed by the [Client].
 type AccessPoint interface {
-	authclient.CAGetter
 	types.Events
 }
 
@@ -61,8 +62,14 @@ type ClientConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is a caching auth client
 	AccessPoint AccessPoint
-	// TLSConfig is the proxy client TLS configuration.
-	TLSConfig *tls.Config
+	// GetTLSCertificate returns a the client TLS certificate to use when
+	// connecting to other proxies.
+	GetTLSCertificate utils.GetCertificateFunc
+	// GetTLSRoots returns a certificate pool used to validate TLS connections
+	// to other proxies.
+	GetTLSRoots utils.GetRootsFunc
+	// TLSCipherSuites optionally contains a list of TLS ciphersuites to use.
+	TLSCipherSuites []uint16
 	// Log is the proxy client logger.
 	Log logrus.FieldLogger
 	// Clock is used to control connection monitoring ticker.
@@ -72,10 +79,6 @@ type ClientConfig struct {
 	GracefulShutdownTimeout time.Duration
 	// ClusterName is the name of the cluster.
 	ClusterName string
-
-	// getConfigForServer updates the client tls config.
-	// configurable for testing purposes.
-	getConfigForServer func() (*tls.Config, error)
 
 	// connShuffler determines the order client connections will be used.
 	connShuffler connShuffler
@@ -141,20 +144,15 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("missing cluster name")
 	}
 
-	if c.TLSConfig == nil {
-		return trace.BadParameter("missing tls config")
+	if c.GetTLSCertificate == nil {
+		return trace.BadParameter("missing tls certificate getter")
 	}
-
-	if len(c.TLSConfig.Certificates) == 0 {
-		return trace.BadParameter("missing tls certificate")
+	if c.GetTLSRoots == nil {
+		return trace.BadParameter("missing tls roots getter")
 	}
 
 	if c.connShuffler == nil {
 		c.connShuffler = randomConnShuffler()
-	}
-
-	if c.getConfigForServer == nil {
-		c.getConfigForServer = getConfigForServer(c.Context, c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
 	}
 
 	return nil
@@ -642,10 +640,17 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 
 // connect dials a new connection to proxyAddr.
 func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
-	tlsConfig, err := c.config.getConfigForServer()
-	if err != nil {
-		return nil, trace.Wrap(err, "Error updating client tls config")
+	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := c.config.GetTLSCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsCert, nil
 	}
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
 	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
 

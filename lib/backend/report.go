@@ -21,6 +21,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math"
 	"slices"
 	"strings"
@@ -33,11 +34,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const reporterDefaultCacheSize = 1000
@@ -88,6 +91,8 @@ type Reporter struct {
 	// This will keep an upper limit on our memory usage while still always
 	// reporting the most active keys.
 	topRequestsCache *lru.Cache[topRequestsCacheKey, struct{}]
+
+	slowRangeLogLimiter *rate.Limiter
 }
 
 // NewReporter returns a new Reporter.
@@ -109,8 +114,9 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 	r := &Reporter{
-		ReporterConfig:   cfg,
-		topRequestsCache: cache,
+		ReporterConfig:      cfg,
+		topRequestsCache:    cache,
+		slowRangeLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 12),
 	}
 	return r, nil
 }
@@ -142,6 +148,12 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 		reads.WithLabelValues(s.Component).Add(float64(len(res.Items)))
 	}
 	s.trackRequest(types.OpGet, startKey, endKey)
+	end := s.Clock().Now()
+	if d := end.Sub(start); d > time.Second*3 {
+		if s.slowRangeLogLimiter.AllowN(end, 1) {
+			slog.WarnContext(ctx, "slow GetRange request", "start_key", string(startKey), "end_key", string(endKey), "limit", limit, "duration", logutils.StringerAttr(d))
+		}
+	}
 	return res, err
 }
 

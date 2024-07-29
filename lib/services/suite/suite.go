@@ -87,6 +87,12 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		// Always use pre-generated RSA key for the db_client CA.
 		keyPEM = fixtures.PEMBytes["rsa-db-client"]
 	}
+	if config.Type == types.SAMLIDPCA {
+		// The SAML IdP uses xmldsig RSA SHA256 signature method
+		// http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
+		// to sign the SAML assertion, so the key must be an RSA key.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	}
 	if len(config.PrivateKeys) > 0 {
 		// Allow test to override the private key.
 		keyPEM = config.PrivateKeys[0]

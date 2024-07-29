@@ -446,6 +446,7 @@ Below is the list of the supported config properties.
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
 | `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                                                                |
+| `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)).                                     |
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                                                                  |
 | `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+Shift+W` on Windows/Linux                                                             | Shortcut to close a tab.                                                                                   |
@@ -458,6 +459,7 @@ Below is the list of the supported config properties.
 | `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+Shift+I` on Windows/Linux                                                             | Shortcut to open the profile selector.                                                                     |
 | `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
 | `headless.skipConfirm`        | false                                                                                                                | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| `ssh.noResume`                | false                                                                                                                | Disables SSH connection resumption.                                                                        |
 
 <Admonition
   type="note"
@@ -622,7 +624,7 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 <Tabs>
 <TabItem label="macOS">
 
-Remove Teleport Connect for MacOS from the Applications directory with this command:
+Remove Teleport Connect for macOS from the Applications directory with this command:
 
 ```code
 $ sudo rm -rf /Applications/Teleport\ Connect.app
@@ -665,4 +667,3 @@ Installs based on a tarball should remove the
 
 </TabItem>
 </Tabs>
-

@@ -134,7 +134,7 @@ func TestBotJoinAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, clusterName, pong.ClusterName)
 
-	botClient, err := bot.waitForClient(ctx, 10*time.Second)
+	botClient, err := bot.StartAndWaitForClient(ctx, 10*time.Second)
 	require.NoError(t, err)
 	botPong, err := botClient.Ping(ctx)
 	require.NoError(t, err)

@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -46,16 +45,11 @@ const (
 
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
-	AccessCache   authclient.CAGetter
 	Listener      net.Listener
 	TLSConfig     *tls.Config
 	ClusterDialer ClusterDialer
 	Log           logrus.FieldLogger
 	ClusterName   string
-
-	// getConfigForClient gets the client tls config.
-	// configurable for testing purposes.
-	getConfigForClient func(*tls.ClientHelloInfo) (*tls.Config, error)
 
 	// service is a custom ProxyServiceServer
 	// configurable for testing purposes.
@@ -72,10 +66,6 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
 
-	if c.AccessCache == nil {
-		return trace.BadParameter("missing access cache")
-	}
-
 	if c.Listener == nil {
 		return trace.BadParameter("missing listener")
 	}
@@ -91,18 +81,7 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing tls config")
 	}
-
-	if len(c.TLSConfig.Certificates) == 0 {
-		return trace.BadParameter("missing tls certificate")
-	}
-
-	c.TLSConfig = c.TLSConfig.Clone()
 	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-
-	if c.getConfigForClient == nil {
-		c.getConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log, c.ClusterName)
-	}
-	c.TLSConfig.GetConfigForClient = c.getConfigForClient
 
 	if c.service == nil {
 		c.service = &proxyService{

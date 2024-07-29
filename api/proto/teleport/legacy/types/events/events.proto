@@ -111,6 +111,13 @@ message UserMetadata {
   // UserKind indicates what type of user this is, e.g. a human or Machine ID
   // bot user.
   UserKind UserKind = 10 [(gogoproto.jsontag) = "user_kind,omitempty"];
+
+  // BotName is the name of the Bot if this action is associated with one.
+  string BotName = 11 [(gogoproto.jsontag) = "bot_name,omitempty"];
+
+  // BotInstanceID is the ID of the Bot Instance if this action is associated
+  // with one.
+  string BotInstanceID = 12 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
 }
 
 // Server is a server metadata
@@ -3846,6 +3853,8 @@ message BotJoin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // BotInstanceID is the ID of the bot instance which has joined or renewed.
+  string BotInstanceID = 9 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
 }
 
 // InstanceJoin records an instance join event.
@@ -4575,6 +4584,9 @@ message Identity {
   // DeviceExtensions holds the device trust device extensions for the identity,
   // if any.
   DeviceExtensions DeviceExtensions = 28 [(gogoproto.jsontag) = "device_extensions,omitempty"];
+  // BotInstanceID indicates the name of the Machine ID bot instance this
+  // identity was issued to, if any.
+  string BotInstanceID = 29 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.

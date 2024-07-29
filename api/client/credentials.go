@@ -639,3 +639,62 @@ func (d *DynamicIdentityFileCreds) Expiry() (time.Time, bool) {
 
 	return x509Cert.NotAfter, true
 }
+
+// KeyPair returns a Credential give a TLS key, certificate and CA certificates PEM-encoded.
+// It behaves live LoadKeyPair except it doesn't read the TLS material from a file.
+// This is useful when key and certs are not on the disk (e.g. environment variables).
+// This should be preferred over manually building a tls.Config and calling LoadTLS
+// as Credentials returned by KeyPair can report their expiry, which allows to warn
+// the user in case of expired certificates.
+func KeyPair(certPEM, keyPEM, caPEM []byte) (Credentials, error) {
+	if len(certPEM) == 0 {
+		return nil, trace.BadParameter("missing certificate PEM data")
+	}
+	if len(keyPEM) == 0 {
+		return nil, trace.BadParameter("missing private key PEM data")
+	}
+	return &staticKeypairCreds{
+		certPEM: certPEM,
+		keyPEM:  keyPEM,
+		caPEM:   caPEM,
+	}, nil
+}
+
+// staticKeypairCreds uses keypair certificates to provide client credentials.
+type staticKeypairCreds struct {
+	certPEM []byte
+	keyPEM  []byte
+	caPEM   []byte
+}
+
+// TLSConfig returns TLS configuration.
+func (c *staticKeypairCreds) TLSConfig() (*tls.Config, error) {
+	cert, err := keys.X509KeyPair(c.certPEM, c.keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool := x509.NewCertPool()
+	if ok := pool.AppendCertsFromPEM(c.caPEM); !ok {
+		return nil, trace.BadParameter("invalid TLS CA cert PEM")
+	}
+
+	return configureTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	}), nil
+}
+
+// SSHClientConfig returns SSH configuration.
+func (c *staticKeypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
+}
+
+// Expiry returns the credential expiry.
+func (c *staticKeypairCreds) Expiry() (time.Time, bool) {
+	cert, _, err := keys.X509Certificate(c.certPEM)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
+}

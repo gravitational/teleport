@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
@@ -82,6 +83,8 @@ func init() {
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
+
+	objects.RegisterObjectFetcher(postgres.NewObjectFetcher, defaults.ProtocolPostgres)
 }
 
 // Config is the configuration for a database proxy server.
@@ -141,6 +144,8 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
+	// DatabaseObjects manages database object importers.
+	DatabaseObjects objects.Objects
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
@@ -252,6 +257,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			Clients:     c.CloudClients,
 			UpdateMeta:  c.CloudMeta.Update,
 			ClusterName: clusterName.GetClusterName(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if c.DatabaseObjects == nil {
+		c.DatabaseObjects, err = objects.NewObjects(ctx, objects.Config{
+			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
+			ImportRules:          c.AuthClient,
+			Auth:                 c.Auth,
+			CloudClients:         c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -470,6 +487,17 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
 		s.log.WarnContext(ctx, "Failed to setup users.", "database", database.GetName(), "error", err)
 	}
+	// Start database object importer.
+	if err := s.cfg.DatabaseObjects.StartImporter(ctx, database); err != nil {
+		// special handling for "not implemented" errors; these are very likely to occur and aren't as interesting.
+		if trace.IsNotImplemented(err) {
+			s.log.DebugContext(ctx, "Database object importer not implemented.", "database", database.GetName())
+		} else if match, reason := objects.IsErrFetcherDisabled(err); match {
+			s.log.DebugContext(ctx, "Database object importer cannot be started due to disabled fetcher", "reason", reason, "database", database.GetName())
+		} else {
+			s.log.WarnContext(ctx, "Failed to start database object importer.", "database", database.GetName(), "error", err)
+		}
+	}
 
 	s.log.DebugContext(ctx, "Started database.", "db", database)
 	return nil
@@ -477,6 +505,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 
 // stopDatabase uninitializes the database with the specified name.
 func (s *Server) stopDatabase(ctx context.Context, name string) error {
+	// Stop database object importer.
+	if err := s.cfg.DatabaseObjects.StopImporter(name); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop database object importer.", "db", name, "error", err)
+	}
 	s.stopDynamicLabels(name)
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)

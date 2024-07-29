@@ -518,6 +518,7 @@ EOF
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
     ${TELEPORT_BINARY_DIR}/teleport node configure \
+      --silent \
       --token ${JOIN_TOKEN} \
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \

@@ -33,6 +33,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/digitorus/pkcs7"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -48,6 +50,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -55,6 +58,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -221,6 +226,9 @@ func TestRegisterBotInstance(t *testing.T) {
 	})
 
 	srv := newTestTLSServer(t)
+	// Inject mockEmitter to capture audit events
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 	ctx := context.Background()
 
 	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
@@ -287,6 +295,76 @@ func TestRegisterBotInstance(t *testing.T) {
 	// only that record.)
 	require.Len(t, botInstance.GetStatus().LatestAuthentications, 1)
 	require.EqualExportedValues(t, ia, botInstance.GetStatus().LatestAuthentications[0])
+
+	// Validate that expected audit events were emitted...
+	auditEvents := mockEmitter.Events()
+	var joinEvent *events.BotJoin
+	for _, event := range auditEvents {
+		evt, ok := event.(*events.BotJoin)
+		if ok {
+			joinEvent = evt
+			break
+		}
+	}
+	require.NotNil(t, joinEvent)
+	require.Empty(t,
+		cmp.Diff(joinEvent, &events.BotJoin{
+			Metadata: events.Metadata{
+				Type: libevents.BotJoinEvent,
+				Code: libevents.BotJoinCode,
+			},
+			Status: events.Status{
+				Success: true,
+			},
+			UserName:  "bot-test",
+			BotName:   "test",
+			Method:    string(types.JoinMethodToken),
+			TokenName: token.GetSafeName(),
+			ConnectionMetadata: events.ConnectionMetadata{
+				RemoteAddr: "127.0.0.1",
+			},
+			BotInstanceID: ident.BotInstanceID,
+		},
+			// There appears to be a bug with cmp.Diff and nil event.Struct that
+			// causes a panic so let's just ignore it.
+			cmpopts.IgnoreFields(events.BotJoin{}, "Attributes"),
+			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
+			cmpopts.EquateEmpty(),
+		),
+	)
+
+	var certIssueEvent *events.CertificateCreate
+	for _, event := range auditEvents {
+		evt, ok := event.(*events.CertificateCreate)
+		if ok {
+			certIssueEvent = evt
+			break
+		}
+	}
+	require.NotNil(t, certIssueEvent)
+	require.Empty(t,
+		cmp.Diff(certIssueEvent, &events.CertificateCreate{
+			Metadata: events.Metadata{
+				Type: libevents.CertificateCreateEvent,
+				Code: libevents.CertificateCreateCode,
+			},
+			CertificateType: "user",
+			Identity: &events.Identity{
+				User:             "bot-test",
+				Roles:            []string{"bot-test"},
+				RouteToCluster:   "localhost",
+				ClientIP:         "127.0.0.1",
+				TeleportCluster:  "localhost",
+				PrivateKeyPolicy: "none",
+				BotName:          "test",
+				BotInstanceID:    ident.BotInstanceID,
+			},
+		},
+			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
+			cmpopts.IgnoreFields(events.Identity{}, "Logins", "Expires"),
+			cmpopts.EquateEmpty(),
+		),
+	)
 }
 
 // TestRegisterBotCertificateGenerationStolen simulates a stolen renewable

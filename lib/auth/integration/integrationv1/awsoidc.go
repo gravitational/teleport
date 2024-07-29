@@ -716,3 +716,45 @@ func (s *AWSOIDCService) ListSubnets(ctx context.Context, req *integrationpb.Lis
 		NextToken: resp.NextToken,
 	}, nil
 }
+
+// ListVPCs returns a list of AWS VPCs.
+func (s *AWSOIDCService) ListVPCs(ctx context.Context, req *integrationpb.ListVPCsRequest) (*integrationpb.ListVPCsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClient, err := awsoidc.NewListVPCsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListVPCs(ctx, awsClient, awsoidc.ListVPCsRequest{
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vpcs := make([]*integrationpb.VPC, 0, len(resp.VPCs))
+	for _, s := range resp.VPCs {
+		vpcs = append(vpcs, &integrationpb.VPC{
+			Name: s.Name,
+			Id:   s.ID,
+		})
+	}
+
+	return &integrationpb.ListVPCsResponse{
+		Vpcs:      vpcs,
+		NextToken: resp.NextToken,
+	}, nil
+}

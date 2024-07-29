@@ -327,7 +327,7 @@ export const useNoMinWidth = () => {
   }, []);
 };
 
-const ContentMinWidth = ({ children }: { children: ReactNode }) => {
+export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
 
   return (

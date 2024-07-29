@@ -5,7 +5,7 @@
 
 @interface VNEDaemonService : NSObject
 
-- (id)initWithBundlePath:(NSString *)bundlePath;
+- (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement;
 
 // start begins listening for incoming XPC connections.
 - (void)start;
@@ -19,9 +19,23 @@
 
 @end
 
+typedef struct DaemonStartResult {
+  bool ok;
+  // error_domain is set to either VNEErrorDomain or NSOSStatusErrorDomain if ok is false.
+  const char *error_domain;
+  // If error_domain is set to VNEErrorDomain, error_code is one of the VNE codes from common_darwin.h.
+  // If error_domain is NSOSStatusErrorDomain, error_code comes from OSStatus of Code Signing framework.
+  // https://developer.apple.com/documentation/security/1574088-code_signing_services_result_cod?language=objc
+  int error_code;
+  // error_description includes the full representation of the error, including domain and code.
+  const char *error_description;
+} DaemonStartResult;
+
 // DaemonStart initializes the XPC service and starts listening for new connections.
 // It's expected to be called only once, noop if the daemon was already started.
-void DaemonStart(const char *bundle_path);
+// It might fail if it runs into problems with Code Signing APIs while calucating the code signing
+// requirement. In such case, outResult.ok is set to false and the error fields are populated.
+void DaemonStart(const char *bundle_path, DaemonStartResult *outResult);
 // DaemonStop stops the XPC service. Noop if DaemonStart wasn't called.
 void DaemonStop(void);
 

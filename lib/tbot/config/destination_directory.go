@@ -161,9 +161,27 @@ func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error 
 }
 
 func (dd *DestinationDirectory) Verify(keys []string) error {
+	// If ACLs are disabled or unsupported, just bail as there's nothing to
+	// check.
+	if dd.ACLs == botfs.ACLOff || !botfs.HasACLSupport() {
+		return nil
+	}
+
 	currentUser, err := user.Current()
 	if err != nil {
-		return trace.Wrap(err)
+		// user.Current will fail if the user id does not exist in /etc/passwd
+		// as is the case with some containerized environments.
+		// TODO(noah): Switch to os.Getuid / handling UIDs directly.
+		if dd.ACLs == botfs.ACLRequired {
+			return trace.Wrap(err, "determining current user")
+		}
+		log.WarnContext(
+			context.TODO(),
+			"Unable to determine current user, ACLs will not be checked. To silence this warning, set ACL mode to `off`.",
+			"path", dd.Path,
+			"error", err,
+		)
+		return nil
 	}
 
 	stat, err := os.Stat(dd.Path)
@@ -180,10 +198,10 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 		return trace.Wrap(err)
 	}
 
-	// Make sure it's worth warning about ACLs for this Destination. If ACLs
-	// are disabled, unsupported, or the Destination is owned by the bot
-	// (implying the user is not trying to use ACLs), just bail.
-	if dd.ACLs == botfs.ACLOff || !botfs.HasACLSupport() || ownedByBot {
+	// Make sure it's worth warning about ACLs for this Destination. If the
+	// destination is owned by the bot (implying the user is not trying to use
+	//ACLs), just bail.
+	if ownedByBot {
 		return nil
 	}
 

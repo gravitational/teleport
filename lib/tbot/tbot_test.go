@@ -1081,6 +1081,12 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			out, err := sshSess.CombinedOutput("echo hello")
 			require.NoError(t, err)
 			require.Equal(t, "hello\n", string(out))
+
+			// Check that the agent presents a key with cert and a bare key
+			// for compat with Paramiko and older versions of OpenSSH.
+			keys, err := agentClient.List()
+			require.NoError(t, err)
+			require.Len(t, keys, 2)
 		})
 	}
 }

@@ -1,6 +1,3 @@
-//go:build vnetdaemon
-// +build vnetdaemon
-
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -17,6 +14,27 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
+package objects
 
-const int VNEAlreadyRunningError = 1;
+import "errors"
+
+// ErrFetcherDisabled is a custom error that can be returned from fetcher constructor that will be reported with lower severity.
+type ErrFetcherDisabled struct {
+	reason string
+}
+
+func (e ErrFetcherDisabled) Error() string {
+	return e.reason
+}
+
+// NewErrFetcherDisabled returns a new instance of ErrFetcherDisabled error.
+func NewErrFetcherDisabled(reason string) *ErrFetcherDisabled {
+	return &ErrFetcherDisabled{reason: reason}
+}
+
+// IsErrFetcherDisabled returns true if the error is ErrFetcherDisabled.
+func IsErrFetcherDisabled(err error) (bool, string) {
+	other := &ErrFetcherDisabled{}
+	matched := errors.As(err, &other)
+	return matched, other.reason
+}
