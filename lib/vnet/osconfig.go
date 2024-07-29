@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -137,14 +136,14 @@ func (c *osConfigurator) getDNSZonesAndCIDRRangesForProfile(ctx context.Context,
 	defer func() {
 		if shouldClearCacheForRoot {
 			if err := c.clientCache.ClearForRoot(profileName); err != nil {
-				slog.ErrorContext(ctx, "Error while clearing client cache", "profile", profileName, "error", err)
+				log.ErrorContext(ctx, "Error while clearing client cache", "profile", profileName, "error", err)
 			}
 		}
 	}()
 
 	rootClient, err := c.clientCache.Get(ctx, profileName, "" /*leafClusterName*/)
 	if err != nil {
-		slog.WarnContext(ctx,
+		log.WarnContext(ctx,
 			"Failed to get root cluster client from cache, profile may be expired, not configuring VNet for this cluster",
 			"profile", profileName, "error", err)
 
@@ -152,7 +151,7 @@ func (c *osConfigurator) getDNSZonesAndCIDRRangesForProfile(ctx context.Context,
 	}
 	clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, rootClient)
 	if err != nil {
-		slog.WarnContext(ctx,
+		log.WarnContext(ctx,
 			"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
 			"profile", profileName, "error", err)
 
@@ -164,7 +163,7 @@ func (c *osConfigurator) getDNSZonesAndCIDRRangesForProfile(ctx context.Context,
 
 	leafClusters, err := getLeafClusters(ctx, rootClient)
 	if err != nil {
-		slog.WarnContext(ctx,
+		log.WarnContext(ctx,
 			"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
 			"profile", profileName, "error", err)
 
@@ -179,7 +178,7 @@ func (c *osConfigurator) getDNSZonesAndCIDRRangesForProfile(ctx context.Context,
 	for _, leafClusterName := range leafClusters {
 		clusterClient, err := c.clientCache.Get(ctx, profileName, leafClusterName)
 		if err != nil {
-			slog.WarnContext(ctx,
+			log.WarnContext(ctx,
 				"Failed to create leaf cluster client, not configuring VNet for this cluster",
 				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
@@ -187,7 +186,7 @@ func (c *osConfigurator) getDNSZonesAndCIDRRangesForProfile(ctx context.Context,
 
 		clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 		if err != nil {
-			slog.WarnContext(ctx,
+			log.WarnContext(ctx,
 				"Failed to load VNet configuration, not configuring VNet for this cluster",
 				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue

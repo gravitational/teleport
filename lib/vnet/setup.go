@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"time"
 
@@ -28,10 +27,14 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
 
 // SetupAndRun creates a network stack for VNet and runs it in the background. To do this, it also
 // needs to launch an admin process in the background. It returns [ProcessManager] which controls
@@ -68,7 +71,7 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog.DebugContext(ctx, "Created unix socket for admin process", "socket", socketPath)
+	log.DebugContext(ctx, "Created unix socket for admin process", "socket", socketPath)
 	pm.AddCriticalBackgroundTask("socket closer", func() error {
 		// Keep the socket open until the process context is canceled.
 		// Closing the socket signals the admin process to terminate.
@@ -115,7 +118,7 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 				// problem with the admin process.
 				// Returning error from processCtx will be more informative to the user, e.g., the error
 				// will say "password prompt closed by user" instead of "read from closed socket".
-				slog.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
+				log.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
 				return nil, trace.Wrap(context.Cause(processCtx))
 			}
 			return nil, trace.Wrap(err, "receiving TUN device from admin process")
@@ -246,7 +249,7 @@ func AdminSetup(ctx context.Context, config daemon.Config) error {
 		select {
 		case <-ticker.C:
 			if _, err := os.Stat(config.SocketPath); err != nil {
-				slog.DebugContext(ctx, "failed to stat socket path, assuming parent exited")
+				log.DebugContext(ctx, "failed to stat socket path, assuming parent exited")
 				cancel()
 				return trace.Wrap(<-errCh)
 			}
@@ -267,7 +270,7 @@ func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, err
 	defer func() {
 		// We can safely close the TUN device in the admin process after it has been sent on the socket.
 		if err := tun.Close(); err != nil {
-			slog.WarnContext(ctx, "Failed to close TUN device.", "error", trace.Wrap(err))
+			log.WarnContext(ctx, "Failed to close TUN device.", "error", trace.Wrap(err))
 		}
 	}()
 
@@ -286,7 +289,7 @@ func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, home
 	}
 	defer func() {
 		if err := osConfigurator.close(); err != nil {
-			slog.ErrorContext(ctx, "Error while closing OS configurator", "error", err)
+			log.ErrorContext(ctx, "Error while closing OS configurator", "error", err)
 		}
 	}()
 
@@ -301,7 +304,7 @@ func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, home
 		// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
 		// already but we still need to clean up.
 		if err := osConfigurator.deconfigureOS(context.Background()); err != nil {
-			slog.ErrorContext(ctx, "Error deconfiguring host OS before shutting down.", "error", err)
+			log.ErrorContext(ctx, "Error deconfiguring host OS before shutting down.", "error", err)
 		}
 	}()
 
@@ -326,7 +329,7 @@ func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, home
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
-	slog.DebugContext(ctx, "Creating TUN device.")
+	log.DebugContext(ctx, "Creating TUN device.")
 	dev, err := tun.CreateTUN("utun", mtu)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "creating TUN device")

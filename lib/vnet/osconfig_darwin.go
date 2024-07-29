@@ -19,7 +19,6 @@ package vnet
 import (
 	"bufio"
 	"context"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,14 +33,14 @@ func configureOS(ctx context.Context, cfg *osConfig) error {
 	// process exits and the TUN is deleted.
 
 	if cfg.tunIPv4 != "" {
-		slog.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
 		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 	}
 	for _, cidrRange := range cfg.cidrRanges {
-		slog.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
+		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
 		cmd := exec.CommandContext(ctx, "route", "add", "-net", cidrRange, "-interface", cfg.tunName)
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
@@ -49,13 +48,13 @@ func configureOS(ctx context.Context, cfg *osConfig) error {
 	}
 
 	if cfg.tunIPv6 != "" {
-		slog.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 
-		slog.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
+		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
 		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
@@ -78,7 +77,7 @@ func configureDNS(ctx context.Context, nameserver string, zones []string) error 
 		return trace.BadParameter("empty nameserver with non-empty zones")
 	}
 
-	slog.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
+	log.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
 	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
 		return trace.Wrap(err, "creating %s", resolverPath)
 	}

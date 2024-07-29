@@ -19,7 +19,6 @@ package vnet
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -67,7 +66,7 @@ func (c *customDNSZoneValidator) validate(ctx context.Context, clusterName, cust
 	}
 
 	requiredTXTRecord := clusterTXTRecordPrefix + clusterName
-	slog.InfoContext(ctx, "Checking validity of custom DNS zone by querying for required TXT record.", "zone", customDNSZone, "record", requiredTXTRecord)
+	log.InfoContext(ctx, "Checking validity of custom DNS zone by querying for required TXT record.", "zone", customDNSZone, "record", requiredTXTRecord)
 
 	records, err := c.lookupTXT(ctx, customDNSZone)
 	if err != nil {
@@ -83,7 +82,7 @@ func (c *customDNSZoneValidator) validate(ctx context.Context, clusterName, cust
 		return trace.Wrap(errNoTXTRecord(customDNSZone, requiredTXTRecord))
 	}
 
-	slog.InfoContext(ctx, "Custom DNS zone has valid TXT record.", "zone", customDNSZone, "cluster", clusterName)
+	log.InfoContext(ctx, "Custom DNS zone has valid TXT record.", "zone", customDNSZone, "cluster", clusterName)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
