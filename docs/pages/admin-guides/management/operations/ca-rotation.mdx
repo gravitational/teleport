@@ -114,7 +114,7 @@ the rotation state of the `host` CA on each agent kind:
 During each phase of the `host` CA rotation, make sure all Agents and Proxy
 Service instances have completed the transition to target phase before
 proceeding to the next phase. We will explain the phases in [Step
-2](#step-2-4-start-a-manual-rotation).
+2](#step-24-start-a-manual-rotation).
 
 If you are joining Teleport processes to a cluster via the Teleport Auth
 Service, each Teleport process will need a CA pin to trust the Auth Service.
@@ -133,9 +133,10 @@ users who have signed into Teleport must reauthenticate to receive a user
 certificate from the new CA, otherwise Teleport client commands fail.
 
 If you have registered Windows desktops with Teleport, [follow the
-guide](../../desktop-access/active-directory-manual.mdx) to export the Teleport
-user CA so the Windows Desktop Service can authenticate to RDP hosts. Verify
-that you can connect to registered desktops throughout the rotation.
+guide](../../../enroll-resources/desktop-access/active-directory.mdx) to export
+the Teleport user CA so the Windows Desktop Service can authenticate to RDP
+hosts. Verify that you can connect to registered desktops throughout the
+rotation.
 
 ### `db` and `db_client`
 
@@ -160,9 +161,10 @@ to your self-hosted databases in the `update_clients` phase, you should
 reconfigure your databases in the `init` phase, then verify that you can still
 access your databases after transitioning to the `update_clients` phase.
 
-Consult the appropriate [documentation](../../database-access/guides) for
-configuring your databases before proceeding to the `update_clients` rotation
-phase.
+Consult the appropriate
+[documentation](../../../enroll-resources/database-access/database-access.mdx)
+for configuring your databases before proceeding to the `update_clients`
+rotation phase.
 
 At the `init` phase, the `tctl auth sign` command differs between the `db` and
 `db_client` CAs. If you rotate the `db_client` CA, the command outputs both the
@@ -188,11 +190,11 @@ to reconfigure them again before transitioning to `standby` from the
 ### `openssh`
 
 The `openssh` CA issues certificates for [OpenSSH servers registered with
-Teleport](../../server-access/openssh.mdx). Clients verify these certificates
+Teleport](../../../enroll-resources/server-access/openssh.mdx). Clients verify these certificates
 when connecting to Teleport-protected OpenSSH servers.
 
 If you used the [manual
-method](../../server-access/openssh/openssh-manual-install.mdx) to enroll any
+method](../../../enroll-resources/server-access/openssh/openssh-manual-install.mdx) to enroll any
 OpenSSH servers, you must follow the instructions to export the `openssh` CA and
 provide it to your OpenSSH servers before you transition the rotation to the
 final `standby` phase. Otherwise, Teleport users will lose access to any OpenSSH
@@ -225,7 +227,7 @@ take action after the `init` phase and before the rotation reaches the final
 
 For an example of exporting the `jwt` CA so a web application can trust
 Teleport-issued JWTs, see the guide to [using JWT authentication with
-Elasticsearch](../../application-access/jwt/elasticsearch.mdx).
+Elasticsearch](../../../enroll-resources/application-access/jwt/elasticsearch.mdx).
 
 ### `saml_idp`
 
@@ -245,11 +247,20 @@ Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
 account for features like External Audit Storage, Auto-Discovery, and AWS Sync
 for Access Graph. 
 
-The Teleport Proxy Service serves the public key for the Teleport `oidc_idp`
-certificate authority from the `/.well-known/jwks-oidc` path of the Web API.
+The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
+integration from the `/.well-known/jwks-oidc` path of the Web API.
 
 The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
 always enabled. The Teleport Proxy Service updates the endpoint automatically.
+
+You can retrieve the full URL of the integration's JSON Web Key Sets by querying
+the `/.well-known/openid-configuration` path of the Web UI and reading the
+`jwks_uri` field:
+
+```code
+$ curl https://example.teleport.sh/.well-known/open-id-configuration | jq '.jwks_uri'
+"https://example.teleport.sh/.well-known-jwks-oidc"
+```
 
 ## Step 2/4. Start a manual rotation
 
@@ -320,7 +331,7 @@ trust certificates signed by the original CA.
 
 1. If you lose connectivity to your resources, see if you need to reconfigure
    them to accept the new CA. If that does not restore access or you are unable
-   to reconfigure a database, then [roll back](#rollback) to the original
+   to reconfigure a database, then [roll back](#step-44-optional-roll-back-the-rotation) to the original
    certificate authority.
 
 ### `update_servers`
@@ -356,7 +367,7 @@ affects the `host` CA.
    to the `standby` phase.
 
 1. If you have lost connectivity to Teleport-protected resources, [roll
-   back](#rollback) to the original certificate authority before entering the
+   back](#step-44-optional-roll-back-the-rotation) to the original certificate authority before entering the
    final `standby` phase, when rolling back is no longer possible.
 
 ### Final `standby`
@@ -390,7 +401,7 @@ resources that rely on the CA that you rotated.
 1. Follow the instructions for your CA to ensure that you can connect to
    Teleport-protected resources that rely on the CA that you rotated. This is
    the last stage where you have the opportunity to roll back. If you have lost
-   connectivity to Teleport-protected resources, [roll back](#rollback) to the
+   connectivity to Teleport-protected resources, [roll back](#step-44-optional-roll-back-the-rotation) to the
    original certificate authority.
 
 ## Step 3/4. [Optional] Run a semi-automatic rotation
@@ -478,5 +489,5 @@ You must perform a rollback before the rotation enters `standby` state.
 
 ## Further reading
 
-How [Teleport certificate authorities](../../../architecture/authentication.mdx)
+How [Teleport certificate authorities](../../../reference/architecture/authentication.mdx)
 work.
