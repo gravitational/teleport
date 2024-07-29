@@ -167,6 +167,7 @@
     "PSUBSCRIBE",
     "PSYNC",
     "PUNSUBSCRIBE",
+    "Paramiko",
     "Passcode",
     "Passwordless",
     "Pbbd",
