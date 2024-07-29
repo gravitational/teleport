@@ -27,7 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -559,7 +558,7 @@ func Main() {
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
-	switch path.Base(os.Args[0]) {
+	switch filepath.Base(os.Args[0]) {
 	case "ssh":
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
@@ -1727,7 +1726,7 @@ func onPlay(cf *CLIConf) error {
 
 func exportSession(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
+	isLocalFile := filepath.Ext(cf.SessionID) == ".tar"
 	if isLocalFile {
 		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
 	}
@@ -1763,7 +1762,7 @@ func exportSession(cf *CLIConf) error {
 }
 
 func playSession(cf *CLIConf) error {
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
+	isLocalFile := filepath.Ext(cf.SessionID) == ".tar"
 	if isLocalFile {
 		sid := sessionIDFromPath(cf.SessionID)
 		tarFile, err := os.Open(cf.SessionID)
@@ -4991,10 +4990,10 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 func setEnvFlags(cf *CLIConf) {
 	// these can only be set with env vars.
 	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
+		cf.HomePath = filepath.Clean(homeDir)
 	}
 	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = path.Clean(configPath)
+		cf.GlobalTshConfigPath = filepath.Clean(configPath)
 	}
 
 	// prioritize CLI input for the rest.
