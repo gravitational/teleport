@@ -29,9 +29,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -267,6 +269,14 @@ type NewAppSessionRequest struct {
 	MFAVerified string
 	// DeviceExtensions holds device-aware user certificate extensions.
 	DeviceExtensions DeviceExtensions
+	// AppName is the name of the app.
+	AppName string
+	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	AppURI string
+	// Identity is the identity of the user.
+	Identity tlsca.Identity
+	// ClientAddr is a client (user's) address.
+	ClientAddr string
 }
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -325,6 +335,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		AzureIdentity:     req.AzureIdentity,
 		GCPServiceAccount: req.GCPServiceAccount,
 		MFAVerified:       verifiedMFADeviceID,
+		AppName:           req.AppName,
+		AppURI:            req.URI,
 		DeviceExtensions:  DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
@@ -430,6 +442,42 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
+
+	userMetadata := req.Identity.GetUserMetadata()
+	userMetadata.User = session.GetUser()
+	userMetadata.AWSRoleARN = req.AWSRoleARN
+
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionStartEvent,
+			Code:        events.AppSessionStartCode,
+			ClusterName: req.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        a.ServerID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID:        session.GetName(),
+			WithMFA:          req.MFAVerified,
+			PrivateKeyPolicy: string(req.Identity.PrivateKeyPolicy),
+		},
+		UserMetadata: userMetadata,
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.ClientAddr,
+		},
+		PublicAddr: req.PublicAddr,
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        req.AppURI,
+			AppPublicAddr: req.PublicAddr,
+			AppName:       req.AppName,
+		},
+	})
+	if err != nil {
+		log.WithError(err).Warn("Failed to emit app session start event")
+	}
+
 	return session, nil
 }
 
