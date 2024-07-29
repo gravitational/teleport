@@ -75,7 +75,7 @@ bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
   }
 
   // Transfer ownership of cfCodeSignInfo to Obj-C, which means we don't have to CFRelease it manually.
-  // We can tranfser the ownership of cfCodeSignInfo because we own it (we got it from a function
+  // We can transfer the ownership of cfCodeSignInfo because we own it (we got it from a function
   // with "Copy" in its name).
   // https://developer.apple.com/documentation/foundation/1587932-cfbridgingrelease
   NSDictionary *codeSignInfo = (NSDictionary *)CFBridgingRelease(cfCodeSignInfo);
