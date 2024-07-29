@@ -163,3 +163,14 @@ extraVolumeMounts: []
 # extraArgs(list) -- contains extra arguments to pass to `tbot start` for
 # the main tbot pod
 extraArgs: []
+
+# extraEnv(list) -- contains extra environment variables to set in the main
+# tbot pod.
+#
+# For example:
+# ```yaml
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: "http://username:password@my.proxy.host:3128"
+# ```
+extraEnv: []

@@ -57,7 +57,7 @@ spec:
             - --log-format
             - json
           {{- if .Values.extraArgs }}
-            {{- toYaml .Values.extraArgs | nindent 6 }}
+            {{- toYaml .Values.extraArgs | nindent 12 }}
           {{- end }}
           env:
             # POD_NAMESPACE is required for the kubernetes_secret` destination
@@ -81,6 +81,9 @@ spec:
           {{- if .Values.anonymousTelemetry }}
             - name: TELEPORT_ANONYMOUS_TELEMETRY
               value: "1"
+          {{- end }}
+          {{- if .Values.extraEnv }}
+           {{- toYaml .Values.extraArgs | nindent qw }}
           {{- end }}
           volumeMounts:
             - mountPath: /config
