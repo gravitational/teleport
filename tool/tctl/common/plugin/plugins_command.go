@@ -86,7 +86,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 
 	p.cleanupCmd = pluginsCommand.Command("cleanup", "Cleans up the given plugin type.")
-	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
+	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports Okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
 	p.initInstall(pluginsCommand, config)
@@ -101,7 +101,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
-	p.install.scim.cmd = p.install.cmd.Command("scim", "Install a new SCIM integration")
+	p.install.scim.cmd = p.install.cmd.Command("scim", "Install a new SCIM integration.")
 	p.install.scim.cmd.
 		Flag("name", "The name of the SCIM plugin resource to create").
 		Default("scim").
@@ -130,7 +130,7 @@ func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
-	p.delete.cmd = parent.Command("delete", "Remove a plugin instance")
+	p.delete.cmd = parent.Command("delete", "Remove a plugin instance.")
 	p.delete.cmd.
 		Arg("name", "The name of the SCIM plugin resource to delete").
 		StringVar(&p.delete.name)
