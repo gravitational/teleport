@@ -632,8 +632,8 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
 	// it removes all transversals, it still has to read 2 different files from the disk:
-	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
-	// - $TSH_HOME/keys/$PROXY/$USER
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
 	//
 	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
 	// cf.GetProfile call above.
@@ -803,14 +803,19 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
+	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
+	if !ok {
+		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
+	}
+
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
 	// hardware private keys for kube credentials (if possible)
-	keyPEM, err := keyRing.PrivateKey.SoftwarePrivateKeyPEM()
+	keyPEM, err := cred.PrivateKey.SoftwarePrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.writeResponse(output, keyRing.KubeTLSCerts[kubeClusterName], keyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, cred.Cert, keyPEM, expiry))
 }
 
 // writeByteResponse writes the exec credential response to the output stream.

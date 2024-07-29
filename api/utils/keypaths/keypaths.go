@@ -111,13 +111,16 @@ const (
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
 //    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
 //    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |    │   ├── kubeA.crt        --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |    │   ├── kubeA.key        --> private key for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   ├── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   ├── kubeB.crt        --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   ├── kubeB.key        --> private key for Kubernetes cluster "kubeB"
 //    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
 //    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
-//    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
+//    │   |        └── kubeC.crt        --> TLS cert for Kubernetes cluster "kubeC"
+//    │   |        └── kubeC.key        --> private key for Kubernetes cluster "kubeC"
 //    |   └── cas                       --> Trusted clusters certificates
 //    |        ├── root.pem             --> TLS CA for teleport cluster "root"
 //    |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -316,20 +319,28 @@ func KubeDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+kubeDirSuffix)
 }
 
-// KubeCertDir returns the path to the user's kube cert directory
+// KubeCredentialDir returns the path to the user's kube credential directory
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>
-func KubeCertDir(baseDir, proxy, username, cluster string) string {
+func KubeCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(KubeDir(baseDir, proxy, username), cluster)
 }
 
 // KubeCertPath returns the path to the user's TLS certificate
 // for the given proxy, cluster, and kube cluster.
 //
-// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-x509.pem
+// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.crt
 func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+fileExtTLSCertLegacy)
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+fileExtTLSCert)
+}
+
+// KubeKeyPath returns the path to the user's TLS private key
+// for the given proxy, cluster, and kube cluster.
+//
+// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.key
+func KubeKeyPath(baseDir, proxy, username, cluster, kubename string) string {
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+fileExtTLSKey)
 }
 
 // KubeConfigPath returns the path to the user's standalone kubeconfig
@@ -337,7 +348,7 @@ func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-kubeconfig
 func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
 }
 
 // KubeCredLockfilePath returns the kube credentials lock file for given proxy
