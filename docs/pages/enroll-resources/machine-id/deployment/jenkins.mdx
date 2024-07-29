@@ -152,36 +152,9 @@ outputs:
       path: /opt/machine-id
 ```
 
-Next, create a systemd.unit file at `/etc/systemd/system/machine-id.service`.
+### Create a `tbot` systemd unit file
 
-```systemd
-[Unit]
-Description=Teleport Machine ID Service
-After=network.target
-
-[Service]
-Type=simple
-User=teleport
-Group=teleport
-Restart=always
-RestartSec=5
-Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/machine-id.pid
-LimitNOFILE=524288
-
-[Install]
-WantedBy=multi-user.target
-```
-
-`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
-telemetry. This helps us shape the future development of `tbot`. You can disable
-this by omitting this.
-
-Finally, run the following commands to start Machine ID.
-
-(!docs/pages/includes/machine-id/machine-id-service.mdx!)
+(!docs/pages/includes/machine-id/daemon.mdx!)
 
 ## Step 2/2. Update and run Jenkins pipelines
 
