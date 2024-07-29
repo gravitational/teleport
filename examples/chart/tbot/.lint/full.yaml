@@ -1,0 +1,49 @@
+clusterName: "test.teleport.sh"
+teleportAuthAddress: "my-auth:3024"
+defaultOutput:
+  secretName: "test-output"
+token: "my-token"
+joinMethod: "modified-join-method"
+
+serviceAccount:
+  name: "modified-sa-name"
+
+anonymousTelemetry: true
+debug: true
+
+imagePullPolicy: "Always"
+
+extraLabels:
+  role:
+    test-key: test-label-role
+  roleBinding:
+    test-key: test-label-role-binding
+  config:
+    test-key: test-label-config
+  deployment:
+    test-key: test-label-deployment
+  pod:
+    test-key: test-label-pod
+  serviceAccount:
+    test-key: test-label-service-account
+
+annotations:
+  role:
+    test-key: test-annotation-role
+  roleBinding:
+    test-key: test-annotation-role-binding
+  config:
+    test-key: test-annotation-config
+  deployment:
+    test-key: test-annotation-deployment
+  pod:
+    test-key: test-annotation-pod
+  serviceAccount:
+    test-key: test-annotation-service-account
+
+extraArgs:
+  - --extra-arg
+
+extraEnv:
+  - name: "TEST_ENV"
+    value: "test-value"

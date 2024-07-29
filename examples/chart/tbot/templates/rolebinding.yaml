@@ -9,6 +9,9 @@ metadata:
   labels:
   {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
 {{- end }}
+{{- if .Values.annotations.roleBinding }}
+  annotations: {{- toYaml .Values.annotations.roleBinding | nindent 4 }}
+{{- end}}
 subjects:
 - kind: ServiceAccount
   name: {{ template "tbot.serviceAccountName" . }}

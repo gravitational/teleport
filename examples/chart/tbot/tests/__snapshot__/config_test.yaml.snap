@@ -1,0 +1,50 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: v1
+    data:
+      tbot.yaml: |
+        version: v2
+        auth_server: my-auth:3024
+        onboarding:
+          join_method: modified-join-method
+          token: my-token
+        storage:
+          type: kubernetes-secret
+          name: RELEASE-NAME-data
+
+        outputs:
+          - type: identity
+            destination:
+              type: kubernetes-secret
+              name: test-output
+    kind: ConfigMap
+    metadata:
+      annotations:
+        test-key: test-annotation-config
+      labels:
+        test-key: test-label-config
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+should match the snapshot (simple):
+  1: |
+    apiVersion: v1
+    data:
+      tbot.yaml: |
+        version: v2
+        proxy_server: test.teleport.sh:443
+        onboarding:
+          join_method: kubernetes
+          token: my-token
+        storage:
+          type: kubernetes-secret
+          name: RELEASE-NAME-data
+
+        outputs:
+          - type: identity
+            destination:
+              type: kubernetes-secret
+              name: test-output
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE

@@ -1,0 +1,141 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        test-key: test-annotation-deployment
+      labels:
+        app.kubernetes.io/name: RELEASE-NAME
+        test-key: test-label-deployment
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: tbot
+          app.kubernetes.io/name: RELEASE-NAME
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            checksum/config: ee30a5557f38577cf0de173799823fbb32dcfe9ee87b14989c7eaff03f14e904
+            test-key: test-annotation-pod
+          labels:
+            app.kubernetes.io/component: tbot
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: RELEASE-NAME
+            helm.sh/chart: tbot-17.0.0-dev
+            test-key: test-label-pod
+        spec:
+          containers:
+          - args:
+            - start
+            - -c
+            - /config/tbot.yaml
+            - --debug
+            - --log-format
+            - json
+            - --extra-arg
+            env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+            - name: TELEPORT_ANONYMOUS_TELEMETRY
+              value: "1"
+            - name: TEST_ENV
+              value: test-value
+            image: public.ecr.aws/gravitational/tbot-distroless:17.0.0-dev
+            imagePullPolicy: Always
+            name: tbot
+            volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+          serviceAccountName: modified-sa-name
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: join-sa-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: test.teleport.sh
+                  expirationSeconds: 600
+                  path: join-sa-token
+should match the snapshot (simple):
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/name: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: tbot
+          app.kubernetes.io/name: RELEASE-NAME
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            checksum/config: 77fca13d0c42ff1c8241b8d64e2ced6c5dc565d272f7a622560cc8f1ed2b1c21
+          labels:
+            app.kubernetes.io/component: tbot
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: RELEASE-NAME
+            helm.sh/chart: tbot-17.0.0-dev
+        spec:
+          containers:
+          - args:
+            - start
+            - -c
+            - /config/tbot.yaml
+            - --log-format
+            - json
+            env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+            image: public.ecr.aws/gravitational/tbot-distroless:17.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: tbot
+            volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: join-sa-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: test.teleport.sh
+                  expirationSeconds: 600
+                  path: join-sa-token

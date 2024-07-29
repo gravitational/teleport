@@ -29,7 +29,11 @@ spec:
       {{- if .Values.annotations.pod }}
         {{- toYaml .Values.annotations.pod | nindent 8 }}
       {{- end }}
-      labels:  {{- include "tbot.labels" . | nindent 8 }}
+      labels:
+        {{- include "tbot.labels" . | nindent 8 }}
+      {{- if .Values.extraLabels.pod }}
+        {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+      {{- end }}
     spec:
     {{- if .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}

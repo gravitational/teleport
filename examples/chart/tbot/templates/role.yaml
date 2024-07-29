@@ -10,6 +10,9 @@ metadata:
   labels:
   {{- toYaml .Values.extraLabels.role | nindent 4 }}
 {{- end }}
+{{- if .Values.annotations.role }}
+  annotations: {{- toYaml .Values.annotations.role | nindent 4 }}
+{{- end}}
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
