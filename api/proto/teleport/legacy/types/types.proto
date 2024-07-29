@@ -6061,6 +6061,12 @@ message PluginStatusV1 {
     PluginGitlabStatusV1 gitlab = 4;
     PluginEntraIDStatusV1 entra_id = 5;
   }
+
+  // last_raw_error variable stores the most recent raw error message received from an API or service.
+  // It is intended to capture the original error message without any modifications or formatting.
+  // This can be useful for debugging purposes, providing detailed information about what went wrong
+  // in the interaction with the external service.
+  string last_raw_error = 6;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.

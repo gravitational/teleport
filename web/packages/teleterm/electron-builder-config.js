@@ -214,17 +214,4 @@ module.exports = {
     buildResources: 'build_resources',
     output: 'build/release',
   },
-  // TODO(gzdunek): Remove once @electron/rebuild migrates to node-gyp@10.
-  // https://github.com/electron/rebuild/blob/main/package.json#L50
-  // (and remove the node-gyp resolution from the main package.json).
-  // The `legacy` option makes the builder use an app-builder binary as in previous
-  // versions of electron-builder. Without this option, it uses @electron/rebuild.
-  //
-  // We have to use node-gyp@10 because the macOS builder uses Python@3.12
-  // which is not compatible with node-gyp@9 (and we don't install distutils
-  // separately there)
-  // https://github.com/nodejs/node-gyp/issues/2869#issuecomment-1769572922.
-  // I tried to use @electron/rebuild with node-gyp@10, but it didn't work,
-  // rebuilding native deps simply hung forever.
-  nativeRebuilder: 'legacy',
 };
