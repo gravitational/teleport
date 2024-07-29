@@ -260,8 +260,8 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 // parallel.
 // Although this function speeds up the process since it removes all transversals,
 // it still has to read 2 different files:
-// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
-// - $TSH_HOME/keys/$PROXY/$USER
+// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
+// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
 func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
 	fsKeyStore := NewFSKeyStore(dirPath)
 
@@ -271,7 +271,7 @@ func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster,
 		return nil, nil, trace.Wrap(err)
 	}
 
-	privKeyPath := fsKeyStore.userKeyPath(KeyRingIndex{ProxyHost: profile.SiteName, Username: profile.Username})
+	privKeyPath := fsKeyStore.kubeKeyPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
 	privKey, err := os.ReadFile(privKeyPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

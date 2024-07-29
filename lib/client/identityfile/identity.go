@@ -787,7 +787,12 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 		// If this identity file has any kubernetes certs, copy it into the
 		// KubeTLSCerts map.
 		if parsedIdent.KubernetesCluster != "" {
-			keyRing.KubeTLSCerts[parsedIdent.KubernetesCluster] = ident.Certs.TLS
+			keyRing.KubeTLSCredentials[parsedIdent.KubernetesCluster] = client.TLSCredential{
+				// Identity files only have room for one private key, it must
+				// match the kube cert.
+				PrivateKey: priv,
+				Cert:       ident.Certs.TLS,
+			}
 		}
 	} else {
 		keyRing.Username, err = keyRing.CertUsername()
