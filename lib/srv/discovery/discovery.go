@@ -138,9 +138,9 @@ type Config struct {
 	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
-	// ServerCredentials are the credentials used to identify the discovery service
+	// GetClientCert returns credentials used to identify the discovery service
 	// to the Access Graph service.
-	ServerCredentials *tls.Config
+	GetClientCert func() (*tls.Certificate, error)
 	// AccessGraphConfig is the configuration for the Access Graph client
 	AccessGraphConfig AccessGraphConfig
 
@@ -327,6 +327,8 @@ type Server struct {
 
 	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
 
+	awsSyncStatus awsSyncStatus
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -358,6 +360,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
+		awsSyncStatus:              awsSyncStatus{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 

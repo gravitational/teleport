@@ -25,12 +25,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 // Cache is used by the [Service] to query cluster config resources.
@@ -38,6 +40,15 @@ type Cache interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+}
+
+// ReadOnlyCache abstracts over the required methods of [readonly.Cache].
+type ReadOnlyCache interface {
+	GetReadOnlyAuthPreference(context.Context) (readonly.AuthPreference, error)
+	GetReadOnlyClusterNetworkingConfig(ctx context.Context) (readonly.ClusterNetworkingConfig, error)
+	GetReadOnlySessionRecordingConfig(ctx context.Context) (readonly.SessionRecordingConfig, error)
+	GetReadOnlyAccessGraphSettings(context.Context) (readonly.AccessGraphSettings, error)
 }
 
 // Backend is used by the [Service] to mutate cluster config resources.
@@ -53,15 +64,20 @@ type Backend interface {
 	CreateSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	UpdateSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	UpsertSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
+
+	CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
 }
 
 // ServiceConfig contain dependencies required to create a [Service].
 type ServiceConfig struct {
-	Cache       Cache
-	Backend     Backend
-	Authorizer  authz.Authorizer
-	Emitter     apievents.Emitter
-	AccessGraph AccessGraphConfig
+	Cache         Cache
+	Backend       Backend
+	Authorizer    authz.Authorizer
+	Emitter       apievents.Emitter
+	AccessGraph   AccessGraphConfig
+	ReadOnlyCache ReadOnlyCache
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -83,11 +99,12 @@ type AccessGraphConfig struct {
 type Service struct {
 	clusterconfigpb.UnimplementedClusterConfigServiceServer
 
-	cache       Cache
-	backend     Backend
-	authorizer  authz.Authorizer
-	emitter     apievents.Emitter
-	accessGraph AccessGraphConfig
+	cache         Cache
+	backend       Backend
+	authorizer    authz.Authorizer
+	emitter       apievents.Emitter
+	accessGraph   AccessGraphConfig
+	readOnlyCache ReadOnlyCache
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -103,7 +120,17 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("emitter is required")
 	}
 
-	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph}, nil
+	if cfg.ReadOnlyCache == nil {
+		readOnlyCache, err := readonly.NewCache(readonly.CacheConfig{
+			Upstream: cfg.Cache,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.ReadOnlyCache = readOnlyCache
+	}
+
+	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph, readOnlyCache: cfg.ReadOnlyCache}, nil
 }
 
 // GetAuthPreference returns the locally cached auth preference.
@@ -117,12 +144,12 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
-	pref, err := s.cache.GetAuthPreference(ctx)
+	pref, err := s.readOnlyCache.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authPrefV2, ok := pref.(*types.AuthPreferenceV2)
+	authPrefV2, ok := pref.Clone().(*types.AuthPreferenceV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", pref, authPrefV2))
 	}
@@ -397,12 +424,12 @@ func (s *Service) GetClusterNetworkingConfig(ctx context.Context, _ *clusterconf
 		}
 	}
 
-	netConfig, err := s.cache.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.readOnlyCache.GetReadOnlyClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfgV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	cfgV2, ok := netConfig.Clone().(*types.ClusterNetworkingConfigV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", netConfig, cfgV2))
 	}
@@ -697,12 +724,12 @@ func (s *Service) GetSessionRecordingConfig(ctx context.Context, _ *clusterconfi
 		}
 	}
 
-	netConfig, err := s.cache.GetSessionRecordingConfig(ctx)
+	netConfig, err := s.readOnlyCache.GetReadOnlySessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfgV2, ok := netConfig.(*types.SessionRecordingConfigV2)
+	cfgV2, ok := netConfig.Clone().(*types.SessionRecordingConfigV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", netConfig, cfgV2))
 	}
@@ -911,12 +938,214 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		}, nil
 	}
 
+	var sshScanEnabled bool
+	switch obj, err := s.readOnlyCache.GetReadOnlyAccessGraphSettings(ctx); {
+	case err != nil && !trace.IsNotFound(err):
+		return nil, trace.Wrap(err)
+	case err == nil:
+		sshScanEnabled = obj.SecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+	}
+
 	return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 		AccessGraph: &clusterconfigpb.AccessGraphConfig{
 			Enabled:  s.accessGraph.Enabled,
 			Address:  s.accessGraph.Address,
 			Ca:       s.accessGraph.CA,
 			Insecure: s.accessGraph.Insecure,
+			SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
+				SshScanEnabled: sshScanEnabled,
+			},
 		},
 	}, nil
+}
+
+func (s *Service) GetAccessGraphSettings(ctx context.Context, _ *clusterconfigpb.GetAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := s.readOnlyCache.GetReadOnlyAccessGraphSettings(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.Clone(), nil
+}
+
+func (s *Service) CreateAccessGraphSettings(ctx context.Context, req *clusterconfigpb.CreateAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	cfg := req.GetAccessGraphSettings()
+	if err := clusterconfig.ValidateAccessGraphSettings(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := s.backend.CreateAccessGraphSettings(ctx, cfg)
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AccessGraphSettingsUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AccessGraphSettingsUpdateEvent,
+			Code: events.AccessGraphSettingsUpdateCode,
+		},
+		UserMetadata:       authzCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit AccessGraphSettings update event.", "error", auditErr)
+	}
+
+	// don't handle the update error until after we emit an audit event
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return created, nil
+}
+
+func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clusterconfigpb.UpdateAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+		return nil, trace.AccessDenied("access graph is feature isn't enabled")
+	}
+
+	cfg := req.GetAccessGraphSettings()
+	if err := clusterconfig.ValidateAccessGraphSettings(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := s.backend.UpdateAccessGraphSettings(ctx, cfg)
+
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AccessGraphSettingsUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AccessGraphSettingsUpdateEvent,
+			Code: events.AccessGraphSettingsUpdateCode,
+		},
+		UserMetadata:       authzCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit AccessGraphSettings update event.", "error", auditErr)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
+func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clusterconfigpb.UpsertAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+		return nil, trace.AccessDenied("access graph is feature isn't enabled")
+	}
+
+	cfg := req.GetAccessGraphSettings()
+	if err := clusterconfig.ValidateAccessGraphSettings(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := s.backend.UpsertAccessGraphSettings(ctx, cfg)
+
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AccessGraphSettingsUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AccessGraphSettingsUpdateEvent,
+			Code: events.AccessGraphSettingsUpdateCode,
+		},
+		UserMetadata:       authzCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit AccessGraphSettings update event.", "error", auditErr)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
+func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfigpb.ResetAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+		return nil, trace.AccessDenied("access graph is feature isn't enabled")
+	}
+
+	obj, err := clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := s.backend.UpsertAccessGraphSettings(ctx, obj)
+
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AccessGraphSettingsUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AccessGraphSettingsUpdateEvent,
+			Code: events.AccessGraphSettingsUpdateCode,
+		},
+		UserMetadata:       authzCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit AccessGraphSettings update event.", "error", auditErr)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
 }

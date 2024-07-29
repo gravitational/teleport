@@ -141,7 +141,7 @@ with that command executed.
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Application Access](../application-access/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -249,7 +249,7 @@ that's why it's not listed in the partial. */}
   for [the `role` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
-as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
+as logging in as other system users or [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
 
 ### Setup and usage
 
@@ -361,7 +361,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -622,7 +622,7 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 <Tabs>
 <TabItem label="macOS">
 
-Remove Teleport Connect for MacOS from the Applications directory with this command:
+Remove Teleport Connect for macOS from the Applications directory with this command:
 
 ```code
 $ sudo rm -rf /Applications/Teleport\ Connect.app
@@ -665,4 +665,3 @@ Installs based on a tarball should remove the
 
 </TabItem>
 </Tabs>
-

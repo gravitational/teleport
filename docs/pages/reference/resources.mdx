@@ -110,12 +110,12 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 Versions 5, 6 and 7 of the Teleport role resource have different behaviors when
 accessing Kubernetes resources.
 {/*lint ignore messaging*/}
-Roles not [granting Kubernetes access](../kubernetes-access/introduction.mdx) are
+Roles not [granting Kubernetes access](../enroll-resources/kubernetes-access/introduction.mdx) are
 equivalent in the three versions.
 
 Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
 Role v7 supports restricting all common resource kinds (
-see [the `kubernetes_resource` documentation](../kubernetes-access/controls.mdx#kubernetes_resources)
+see [the `kubernetes_resource` documentation](../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources)
 for a complete list).
 
 When no `kubernetes_resource` is set:
@@ -192,7 +192,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 Database object import rule define the labels to be applied to database objects imported into Teleport. 
 
-See [Database Access Controls](../database-access/rbac.mdx) for more details.
+See [Database Access Controls](../enroll-resources/database-access/rbac.mdx) for more details.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/database-object-import-rule-spec.mdx!)
 
@@ -212,7 +212,7 @@ Global configuration options for the Web UI served by the Proxy Service. This re
 
 Cluster-specific options VNet should use when setting up connections to resources from this cluster.
 
-See [VNet](../application-access/guides/vnet.mdx) for more details.
+See [VNet](../enroll-resources/application-access/guides/vnet.mdx) for more details.
 
 ```yaml
 kind: vnet_config
@@ -331,6 +331,6 @@ version: v2
 Bot resources define a Machine ID Bot identity and its access.
 
 Find out more on the
-[Machine ID configuration reference](../machine-id/reference/configuration.mdx).
+[Machine ID configuration reference](../enroll-resources/machine-id/reference/configuration.mdx).
 
 (!docs/pages/includes/machine-id/bot-spec.mdx!)

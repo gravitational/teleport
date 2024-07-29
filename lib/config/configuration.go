@@ -23,9 +23,11 @@
 package config
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -57,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -69,6 +70,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+const (
+	// logFileDefaultMode is the preferred permissions mode for log file.
+	logFileDefaultMode fs.FileMode = 0o644
+	// logFileDefaultFlag is the preferred flags set to log file.
+	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -351,22 +359,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
-
-	// S3BucketURI is the S3 URI which contains the bucket name and prefix for the issuer.
-	// Format: s3://<bucket-name>/<prefix>
-	// Eg, s3://my-bucket/idp-teleport
-	// This is used in two places:
-	// - create openid configuration and jwks objects
-	// - set up the issuer
-	// The bucket must be public and will be created if it doesn't exist.
-	//
-	// If empty, the ProxyPublicAddress is used as issuer and no s3 objects are created.
-	S3BucketURI string
-
-	// S3JWKSContentsB64 must contain the public keys for the Issuer.
-	// The contents must be Base64 encoded.
-	// Eg. base64(`{"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}`)
-	S3JWKSContentsB64 string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -427,6 +419,8 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 
 // ApplyFileConfig applies configuration from a YAML file to Teleport
 // runtime config
+//
+// ApplyFileConfig is used by both teleport and tctl binaries.
 func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
 
@@ -756,12 +750,12 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	var w io.Writer
 	switch loggerConfig.Output {
 	case "":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 	case "stderr", "error", "2":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
-		w = os.Stdout
+		w = logutils.NewSharedWriter(os.Stdout)
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		w = os.Stderr
@@ -779,14 +773,20 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
+		// If syslog output has been configured and is supported by the operating system,
+		// then the shared writer is not needed because the syslog writer is already
+		// protected with a mutex.
 		w = sw
 	default:
-		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		// Assume this is a file path.
+		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
+			return trace.Wrap(err, "failed to init the log file shared writer")
 		}
-		w = logFile
+		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
+		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	level := new(slog.LevelVar)
@@ -815,12 +815,6 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// If syslog output has been configured and is supported by the operating system,
-	// then the shared writer is not needed because the syslog writer is already
-	// protected with a mutex.
-	if len(logger.Hooks) == 0 {
-		w = logutils.NewSharedWriter(w)
-	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
@@ -944,9 +938,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := dtconfig.ValidateConfigAgainstModules(cfg.Auth.Preference.GetDeviceTrust()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1215,6 +1206,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		switch cfg.Proxy.UI.ShowResources {
 		case constants.ShowResourcesaccessibleOnly,
 			constants.ShowResourcesRequestable:
+		case "":
+			{
+				cfg.Proxy.UI.ShowResources = constants.ShowResourcesRequestable
+			}
 		default:
 			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
 		}

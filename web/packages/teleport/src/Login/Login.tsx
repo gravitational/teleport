@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Text, Link, Flex, ButtonPrimary } from 'design';
+import { Box, Text, Link, Flex, ButtonPrimary, H1 } from 'design';
 
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
@@ -112,7 +112,7 @@ function LicenseAcknowledgement({
     <>
       <LogoHero />
       <LicenseBox>
-        <InfoHeader mb={2}>Welcome to Teleport</InfoHeader>
+        <H1 mb={2}>Welcome to Teleport</H1>
         <InfoText>
           Companies may use Teleport Community Edition on the condition they
           have less than 100 employees and less than $10MM in annual revenue. If
@@ -198,10 +198,4 @@ const InfoText = styled(Text)`
 
   font-size: ${props => props.theme.fontSizes[3]}px;
   color: ${p => p.theme.colors.text.muted};
-`;
-
-const InfoHeader = styled(Text)`
-  line-height: 32px;
-  font-weight: 500;
-  font-size: ${props => props.theme.fontSizes[7]}px;
 `;

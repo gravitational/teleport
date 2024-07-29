@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text } from 'design';
+import { H2, Text } from 'design';
 
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
@@ -28,9 +28,9 @@ export function Expired({ resetMode = false }) {
 
   return (
     <OnboardCard>
-      <Text typography="h4" textAlign="center" mb={3}>
+      <H2 textAlign="center" mb={3}>
         {titleCodeTxt} Code Expired
-      </Text>
+      </H2>
       <Text typography="paragraph" mb="2">
         It appears that your {paraCodeTxt} code isn't valid any more. Please
         contact your account administrator and request another {paraCodeTxt}{' '}

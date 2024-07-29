@@ -732,6 +732,10 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
 					Logins:   []string{"llama"},
 				},
+				{
+					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
+					Logins:   []string{"llama"},
+				},
 			},
 		},
 	}
@@ -753,6 +757,8 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
 		case *types.WindowsDesktopV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+		case *types.AppServerV3:
+			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
 		}
 	}
 }

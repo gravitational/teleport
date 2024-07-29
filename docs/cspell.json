@@ -411,6 +411,7 @@
     "disablerepo",
     "disablesse",
     "distros",
+    "docdb",
     "dockerhost",
     "dockerized",
     "doctl",
@@ -785,6 +786,7 @@
     "samltestid",
     "sampleconnector",
     "sandboxbd",
+    "sasl",
     "scrollback",
     "seccomp",
     "secretname",
@@ -870,6 +872,7 @@
     "tenantname",
     "testuser",
     "tfvars",
+    "tfplugindocs",
     "thisisunsafe",
     "thred",
     "timechart",
@@ -963,5 +966,6 @@
   ],
   "flagWords": [
     "hte"
-  ]
+  ],
+  "ignorePaths": ["**/reference/terraform-provider/**"]
 }

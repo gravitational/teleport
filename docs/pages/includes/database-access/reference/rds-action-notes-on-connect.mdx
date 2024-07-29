@@ -1,0 +1,11 @@
+The `rds-db:connect` permission is required to connect to databases.
+You can reduce the scope of the permission to only allow specific databases,
+regions, or users.
+The resource ARN has the following format:
+```code
+arn:aws:rds-db:{Region}:{AccountID}:dbuser:{ResourceID}/{UserName}
+```
+
+Refer to
+[Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
+for more information about the `rds-db:connect` permission grant syntax.

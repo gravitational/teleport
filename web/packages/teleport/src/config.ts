@@ -22,6 +22,8 @@ import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import generateResourcePath from './generateResourcePath';
 
+import { defaultEntitlements } from './entitlement';
+
 import type {
   Auth2faType,
   AuthProvider,
@@ -97,6 +99,9 @@ const cfg = {
     accessMonitoringMaxReportRangeLimit: 0,
     AccessRequestMonthlyRequestLimit: 0,
   },
+
+  // default entitlements to false
+  entitlements: defaultEntitlements,
 
   ui: {
     scrollbackLines: 1000,
@@ -258,6 +263,7 @@ const cfg = {
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
+    joinTokenYamlPath: '/v1/webapi/tokens/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
@@ -300,18 +306,18 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
-      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
     awsConfigureIamScriptListDatabasesPath:
-      '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamEksScriptPath:
       '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
 
     awsRdsDbDeployServicesPath:
-      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsRdsDbListPath:
@@ -369,6 +375,12 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
+  },
+
+  playable_db_protocols: [],
+
+  getPlayableDatabaseProtocols() {
+    return cfg.playable_db_protocols;
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -502,6 +514,10 @@ const cfg = {
     return cfg.api.joinTokenPath;
   },
 
+  getJoinTokenYamlUrl() {
+    return cfg.api.joinTokenYamlPath;
+  },
+
   getNodeScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
   },
@@ -516,10 +532,7 @@ const cfg = {
   },
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
-    let path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    if (p.s3Bucket && p.s3Prefix) {
-      path += '&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix';
-    }
+    const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
     return cfg.baseUrl + generatePath(path, { ...p });
   },
 

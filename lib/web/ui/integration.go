@@ -165,6 +165,8 @@ type AWSOIDCListDatabasesRequest struct {
 	Engines []string `json:"engines"`
 	// Region is the AWS Region.
 	Region string `json:"region"`
+	// VPCID filters databases to only include those deployed in the VPC.
+	VPCID string `json:"vpcId"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
 	NextToken string `json:"nextToken"`
@@ -349,6 +351,61 @@ type AWSOIDCListSecurityGroupsRequest struct {
 type AWSOIDCListSecurityGroupsResponse struct {
 	// SecurityGroups contains the page of SecurityGroups
 	SecurityGroups []awsoidc.SecurityGroup `json:"securityGroups"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCListSubnetsRequest is a request to ListSubnets using the AWS OIDC Integration.
+type AWSOIDCListSubnetsRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// VPCID is the VPC to filter subnets by.
+	VPCID string `json:"vpcId"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListSubnetsResponse contains a list of VPC subnets and a next token if
+// more pages are available.
+type AWSOIDCListSubnetsResponse struct {
+	// Subnets contains the page of subnets
+	Subnets []awsoidc.Subnet `json:"subnets"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCRequiredVPCSRequest is a request to list VPCs.
+type AWSOIDCListVPCsRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// AccountID is the AWS Account ID.
+	AccountID string `json:"accountId"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// DatabaseEnrollmentVPC is a wrapper around [awsoidc.VPC] that also includes
+// a link to the ECS service for a deployed Teleport database service in that
+// VPC, if one exists.
+type DatabaseEnrollmentVPC struct {
+	awsoidc.VPC
+	// ECSServiceDashboardURL is a link to the ECS service deployed for this
+	// VPC, if one exists. Can be empty.
+	ECSServiceDashboardURL string `json:"ecsServiceDashboardURL"`
+}
+
+// AWSOIDCDatabaseVPCsResponse contains a list of VPCs, including a link to
+// an existing db service deployment if one exists, and a next token if more
+// pages are available.
+type AWSOIDCDatabaseVPCsResponse struct {
+	// VPCs contains a page of VPCs.
+	VPCs []DatabaseEnrollmentVPC `json:"vpcs"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.

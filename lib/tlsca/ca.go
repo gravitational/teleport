@@ -184,6 +184,9 @@ type Identity struct {
 	// BotName indicates the name of the Machine ID bot this identity was issued
 	// to, if any.
 	BotName string
+	// BotInstanceID is a unique identifier for Machine ID bots that is
+	// persisted through renewals.
+	BotInstanceID string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -202,11 +205,8 @@ type Identity struct {
 
 // RouteToApp holds routing information for applications.
 type RouteToApp struct {
-	// SessionID is a UUIDv4 used to identify application sessions created by
-	// this certificate. The reason a UUID was used instead of a hash of the
-	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
-	// the SessionID is emitted in the audit log, using a UUID matches how SSH
-	// sessions are identified.
+	// SessionID is an ID used to identify application sessions created by
+	// this certificate.
 	SessionID string
 
 	// PublicAddr (and ClusterName) are used to route requests issued with this
@@ -354,6 +354,8 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 		DeviceExtensions:        devExts,
+		BotName:                 id.BotName,
+		BotInstanceID:           id.BotInstanceID,
 	}
 }
 
@@ -528,6 +530,10 @@ var (
 	// RequestedDatabaseRolesExtensionOID is an extension OID used when
 	// encoding/decoding requested database roles.
 	RequestedDatabaseRolesExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 19}
+
+	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
+	// instance identifier into a certificate.
+	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
 )
 
 // Device Trust OIDs.
@@ -810,6 +816,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotInstanceID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInstanceASN1ExtensionOID,
+				Value: id.BotInstanceID,
+			})
+	}
+
 	if len(id.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
@@ -1050,6 +1064,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotName = val
 			}
+		case attr.Type.Equal(BotInstanceASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInstanceID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1118,6 +1137,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AccessRequests:    id.ActiveRequests,
 		UserKind:          userKind,
 		TrustedDevice:     device,
+		BotName:           id.BotName,
+		BotInstanceID:     id.BotInstanceID,
 	}
 }
 

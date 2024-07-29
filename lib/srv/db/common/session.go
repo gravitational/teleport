@@ -20,16 +20,17 @@ package common
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -58,11 +59,13 @@ type Session struct {
 	// StartupParameters define initial connection parameters such as date style.
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+	// StartTime is the time the session started.
+	StartTime time.Time
 }
 
 // String returns string representation of the session parameters.
@@ -74,7 +77,7 @@ func (c *Session) String() string {
 
 // GetAccessState returns the AccessState based on the underlying
 // [services.AccessChecker] and [tlsca.Identity].
-func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (c *Session) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	state := c.Checker.GetAccessState(authPref)
 	state.MFAVerified = c.Identity.IsMFAVerified()
 	state.EnableDeviceVerification = true

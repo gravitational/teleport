@@ -12,7 +12,8 @@ exports[`render Apps 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -21,31 +22,50 @@ exports[`render Apps 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 123px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.07);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.13);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -83,39 +103,39 @@ exports[`render Apps 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -127,11 +147,11 @@ exports[`render Apps 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -151,7 +171,7 @@ exports[`render Apps 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -161,7 +181,7 @@ exports[`render Apps 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -173,7 +193,7 @@ exports[`render Apps 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -284,7 +304,7 @@ exports[`render Apps 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="123px"
             >
               + Add to request
@@ -309,7 +329,8 @@ exports[`render Databases 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -318,31 +339,50 @@ exports[`render Databases 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 137px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.07);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.13);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -380,39 +420,39 @@ exports[`render Databases 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -424,11 +464,11 @@ exports[`render Databases 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -448,7 +488,7 @@ exports[`render Databases 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -458,7 +498,7 @@ exports[`render Databases 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -470,7 +510,7 @@ exports[`render Databases 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -601,7 +641,7 @@ exports[`render Databases 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -626,7 +666,8 @@ exports[`render Desktops 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -635,31 +676,50 @@ exports[`render Desktops 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 137px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.07);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.13);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -697,39 +757,39 @@ exports[`render Desktops 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -741,11 +801,11 @@ exports[`render Desktops 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -765,7 +825,7 @@ exports[`render Desktops 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -775,7 +835,7 @@ exports[`render Desktops 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -787,7 +847,7 @@ exports[`render Desktops 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -870,7 +930,7 @@ exports[`render Desktops 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -895,7 +955,8 @@ exports[`render Kubes 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -904,31 +965,50 @@ exports[`render Kubes 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 137px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.07);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.13);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -966,39 +1046,39 @@ exports[`render Kubes 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1010,11 +1090,11 @@ exports[`render Kubes 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1034,7 +1114,7 @@ exports[`render Kubes 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1044,7 +1124,7 @@ exports[`render Kubes 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1056,7 +1136,7 @@ exports[`render Kubes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -1131,7 +1211,7 @@ exports[`render Kubes 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -1156,7 +1236,8 @@ exports[`render Nodes 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1165,31 +1246,50 @@ exports[`render Nodes 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 137px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.07);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.13);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1227,39 +1327,39 @@ exports[`render Nodes 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1271,11 +1371,11 @@ exports[`render Nodes 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1295,7 +1395,7 @@ exports[`render Nodes 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1305,7 +1405,7 @@ exports[`render Nodes 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1317,7 +1417,7 @@ exports[`render Nodes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -1400,7 +1500,7 @@ exports[`render Nodes 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -1436,7 +1536,8 @@ exports[`render Roles 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1445,31 +1546,50 @@ exports[`render Roles 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 137px;
   text-transform: none;
 }
 
-.c19:hover,
-.c19:focus {
-  background: rgba(255,255,255,0.07);
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c19:active {
-  background: rgba(255,255,255,0.13);
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1491,12 +1611,12 @@ exports[`render Roles 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .c13:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1527,11 +1647,11 @@ exports[`render Roles 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
+  margin-left: 0;
 }
 
 .c16:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1553,10 +1673,10 @@ exports[`render Roles 1`] = `
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
   font-weight: 500;
 }
@@ -1579,39 +1699,39 @@ exports[`render Roles 1`] = `
   width: 100%;
 }
 
-.c17 > thead > tr > th,
-.c17 > tbody > tr > th,
-.c17 > tfoot > tr > th,
-.c17 > thead > tr > td,
-.c17 > tbody > tr > td,
-.c17 > tfoot > tr > td {
+.c17>thead>tr>th,
+.c17>tbody>tr>th,
+.c17>tfoot>tr>th,
+.c17>thead>tr>td,
+.c17>tbody>tr>td,
+.c17>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c17 > thead > tr > th:first-child,
-.c17 > tbody > tr > th:first-child,
-.c17 > tfoot > tr > th:first-child,
-.c17 > thead > tr > td:first-child,
-.c17 > tbody > tr > td:first-child,
-.c17 > tfoot > tr > td:first-child {
+.c17>thead>tr>th:first-child,
+.c17>tbody>tr>th:first-child,
+.c17>tfoot>tr>th:first-child,
+.c17>thead>tr>td:first-child,
+.c17>tbody>tr>td:first-child,
+.c17>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c17 > thead > tr > th:last-child,
-.c17 > tbody > tr > th:last-child,
-.c17 > tfoot > tr > th:last-child,
-.c17 > thead > tr > td:last-child,
-.c17 > tbody > tr > td:last-child,
-.c17 > tfoot > tr > td:last-child {
+.c17>thead>tr>th:last-child,
+.c17>tbody>tr>th:last-child,
+.c17>tfoot>tr>th:last-child,
+.c17>thead>tr>td:last-child,
+.c17>tbody>tr>td:last-child,
+.c17>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c17 > tbody > tr > td {
+.c17>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c17 > thead > tr > th {
+.c17>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1623,11 +1743,11 @@ exports[`render Roles 1`] = `
   white-space: nowrap;
 }
 
-.c17 > thead > tr > th svg {
+.c17>thead>tr>th svg {
   height: 12px;
 }
 
-.c17 > tbody > tr > td {
+.c17>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1647,7 +1767,7 @@ exports[`render Roles 1`] = `
 }
 
 .c17 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1657,7 +1777,7 @@ exports[`render Roles 1`] = `
   height: 100%;
 }
 
-.c17 tbody tr:hover + tr {
+.c17 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -1731,7 +1851,7 @@ exports[`render Roles 1`] = `
   padding-left: 24px;
 }
 
-.c18 > tbody > tr > td {
+.c18>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -1891,7 +2011,7 @@ exports[`render Roles 1`] = `
           >
             <button
               class="c19"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -1907,7 +2027,7 @@ exports[`render Roles 1`] = `
           >
             <button
               class="c19"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -1932,7 +2052,8 @@ exports[`render UserGroups 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1941,31 +2062,50 @@ exports[`render UserGroups 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 137px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.07);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.13);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2003,39 +2143,39 @@ exports[`render UserGroups 1`] = `
   width: 100%;
 }
 
-.c2 > thead > tr > th,
-.c2 > tbody > tr > th,
-.c2 > tfoot > tr > th,
-.c2 > thead > tr > td,
-.c2 > tbody > tr > td,
-.c2 > tfoot > tr > td {
+.c2>thead>tr>th,
+.c2>tbody>tr>th,
+.c2>tfoot>tr>th,
+.c2>thead>tr>td,
+.c2>tbody>tr>td,
+.c2>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th:first-child,
-.c2 > tbody > tr > th:first-child,
-.c2 > tfoot > tr > th:first-child,
-.c2 > thead > tr > td:first-child,
-.c2 > tbody > tr > td:first-child,
-.c2 > tfoot > tr > td:first-child {
+.c2>thead>tr>th:first-child,
+.c2>tbody>tr>th:first-child,
+.c2>tfoot>tr>th:first-child,
+.c2>thead>tr>td:first-child,
+.c2>tbody>tr>td:first-child,
+.c2>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c2 > thead > tr > th:last-child,
-.c2 > tbody > tr > th:last-child,
-.c2 > tfoot > tr > th:last-child,
-.c2 > thead > tr > td:last-child,
-.c2 > tbody > tr > td:last-child,
-.c2 > tfoot > tr > td:last-child {
+.c2>thead>tr>th:last-child,
+.c2>tbody>tr>th:last-child,
+.c2>tfoot>tr>th:last-child,
+.c2>thead>tr>td:last-child,
+.c2>tbody>tr>td:last-child,
+.c2>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c2 > thead > tr > th {
+.c2>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -2047,11 +2187,11 @@ exports[`render UserGroups 1`] = `
   white-space: nowrap;
 }
 
-.c2 > thead > tr > th svg {
+.c2>thead>tr>th svg {
   height: 12px;
 }
 
-.c2 > tbody > tr > td {
+.c2>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2071,7 +2211,7 @@ exports[`render UserGroups 1`] = `
 }
 
 .c2 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2081,7 +2221,7 @@ exports[`render UserGroups 1`] = `
   height: 100%;
 }
 
-.c2 tbody tr:hover + tr {
+.c2 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -2093,7 +2233,7 @@ exports[`render UserGroups 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c3 > tbody > tr > td {
+.c3>tbody>tr>td {
   vertical-align: middle;
 }
 
@@ -2196,7 +2336,7 @@ exports[`render UserGroups 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access
@@ -2227,7 +2367,7 @@ exports[`render UserGroups 1`] = `
           >
             <button
               class="c8"
-              kind="border"
+              fill="border"
               width="137px"
             >
               + Request Access

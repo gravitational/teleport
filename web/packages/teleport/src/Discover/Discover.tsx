@@ -29,7 +29,11 @@ import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 
 import { EViewConfigs } from './types';
 
-import { DiscoverProvider, useDiscover } from './useDiscover';
+import {
+  DiscoverProvider,
+  useDiscover,
+  DiscoverUpdateProps,
+} from './useDiscover';
 import { DiscoverIcon } from './SelectResource/icons';
 
 function DiscoverContent() {
@@ -63,7 +67,7 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Box mt={2} mb={7}>
+          <Box mt={2} mb={6}>
             <Navigation
               currentStep={currentStep}
               views={indexedViews}
@@ -94,10 +98,17 @@ function DiscoverContent() {
   );
 }
 
-export function DiscoverComponent({ eViewConfigs = [] }: Props) {
+export function DiscoverComponent({
+  eViewConfigs = [],
+  updateFlow,
+}: DiscoverComponentProps) {
   const location = useLocation();
   return (
-    <DiscoverProvider eViewConfigs={eViewConfigs} key={location.key}>
+    <DiscoverProvider
+      eViewConfigs={eViewConfigs}
+      key={location.key}
+      updateFlow={updateFlow}
+    >
       <DiscoverContent />
     </DiscoverProvider>
   );
@@ -107,6 +118,7 @@ export function Discover() {
   return <DiscoverComponent />;
 }
 
-type Props = {
+export type DiscoverComponentProps = {
   eViewConfigs?: EViewConfigs;
+  updateFlow?: DiscoverUpdateProps;
 };

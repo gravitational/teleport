@@ -59,7 +59,8 @@ func TestCreateAlert(t *testing.T) {
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: {"responder@teleport.com"},
+			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: {"responder@example.com", "bb4d9938-c3c2-455d-aaab-727aa701c0d8"},
+			types.TeleportNamespace + types.ReqAnnotationTeamsLabel:           {"MyOpsGenieTeam", "aee8a0de-c80f-4515-a232-501c0bc9d715"},
 		},
 	})
 	assert.NoError(t, err)
@@ -68,8 +69,13 @@ func TestCreateAlert(t *testing.T) {
 		Message:     "Access request from someUser",
 		Alias:       "teleport-access-request/someRequestID",
 		Description: "someUser requested permissions for roles role1, role2 on Teleport at 01 Jan 01 00:00 UTC.\nReason: someReason\n\n",
-		Responders:  []Responder{{Type: "schedule", ID: "responder@teleport.com"}},
-		Priority:    "somePriority",
+		Responders: []Responder{
+			{Type: "schedule", Name: "responder@example.com"},
+			{Type: "schedule", ID: "bb4d9938-c3c2-455d-aaab-727aa701c0d8"},
+			{Type: "team", Name: "MyOpsGenieTeam"},
+			{Type: "team", ID: "aee8a0de-c80f-4515-a232-501c0bc9d715"},
+		},
+		Priority: "somePriority",
 	}
 	var got AlertBody
 	err = json.Unmarshal([]byte(recievedReq), &got)

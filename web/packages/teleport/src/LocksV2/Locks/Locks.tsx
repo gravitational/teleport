@@ -22,7 +22,7 @@ import { formatRelative } from 'date-fns';
 import { Danger } from 'design/Alert';
 
 import Table, { Cell } from 'design/DataTable';
-import { ButtonPrimary, Label as Pill } from 'design';
+import { Button, Label as Pill } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
@@ -88,7 +88,13 @@ export function Locks() {
       <FeatureBox>
         <FeatureHeader>
           <FeatureHeaderTitle>Session & Identity Locks</FeatureHeaderTitle>
-          <ButtonPrimary
+          <Button
+            intent="primary"
+            fill={
+              attempt.status === 'success' && locks.length === 0
+                ? 'filled'
+                : 'border'
+            }
             as={NavLink}
             to={cfg.getNewLocksRoute()}
             ml="auto"
@@ -100,7 +106,7 @@ export function Locks() {
             }
           >
             Add New Lock
-          </ButtonPrimary>
+          </Button>
         </FeatureHeader>
         {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
         <Table
