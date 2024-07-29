@@ -442,6 +442,7 @@ func newAuthorizedKey(t *testing.T, hostID string, fingerprint string) *accessgr
 			HostUser:       "user",
 			HostId:         hostID,
 			KeyFingerprint: fingerprint,
+			KeyType:        "ssh-rsa",
 		},
 	)
 	require.NoError(t, err)
