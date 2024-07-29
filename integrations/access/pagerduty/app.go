@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,7 +30,9 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -61,10 +64,11 @@ var errSkip = errors.New("")
 type App struct {
 	conf Config
 
-	teleport   teleport.Client
-	pagerduty  Pagerduty
-	statusSink common.StatusSink
-	mainJob    lib.ServiceJob
+	teleport              teleport.Client
+	pagerduty             Pagerduty
+	statusSink            common.StatusSink
+	mainJob               lib.ServiceJob
+	accessMonitoringRules *common.AccessMonitoringRuleHandler
 
 	*lib.Process
 }
@@ -76,6 +80,23 @@ func NewApp(conf Config) (*App, error) {
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
 	}
+	teleClient, err := conf.GetTeleportClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app.accessMonitoringRules = common.NewAccessMonitoringRuleHandler(common.AccessMonitoringRuleHandlerConfig{
+		Client:              teleClient,
+		PluginType:          string(conf.PluginType),
+		RuleAppliesCallback: app.amrAppliesToThisPlugin,
+		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: name,
+				ID:   name,
+				Kind: common.RecipientKindSchedule,
+			}, nil
+		},
+		MatchAccessRequestCallback: accessrequest.MatchAccessRequest,
+	})
 	app.mainJob = lib.NewServiceJob(app.run)
 
 	return app, nil
@@ -113,7 +134,10 @@ func (a *App) run(ctx context.Context) error {
 	watcherJob, err := watcherjob.NewJob(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch: types.Watch{Kinds: []types.WatchKind{
+				{Kind: types.KindAccessRequest},
+				{Kind: types.KindAccessMonitoringRule},
+			}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -124,6 +148,9 @@ func (a *App) run(ctx context.Context) error {
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -193,7 +220,19 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 	return pong, trace.Wrap(err)
 }
 
+// onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
+// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
+	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -312,10 +351,30 @@ func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
+func (a *App) getMessageRecipient(ctx context.Context, req types.AccessRequest) (string, error) {
+	recipientSetService := common.NewRecipientSet()
+	recipientService := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipientService.ForEach(func(r common.Recipient) {
+		recipientSetService.Add(r)
+	})
+	if recipientSetService.Len() > 1 {
+		return "", trace.BadParameter("more than one service provided as PagerDuty plugin recipient")
+	}
+	if recipientSetService.Len() == 1 {
+		return recipientSetService.ToSlice()[0].Name, nil
+	}
+	serviceName, err := a.getNotifyServiceName(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return serviceName, nil
+}
+
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
 	log := logger.Get(ctx)
 
-	serviceName, err := a.getNotifyServiceName(req)
+	serviceName, err := a.getMessageRecipient(ctx, req)
 	if err != nil {
 		log.Debugf("Skipping the notification: %s", err)
 		return false, trace.Wrap(errSkip)
@@ -625,5 +684,14 @@ func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginDat
 		Plugin:   pluginName,
 		Set:      EncodePluginData(data),
 		Expect:   EncodePluginData(expectData),
+	})
+}
+
+func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+	if amr.Spec.Notification.Name != a.PluginName {
+		return false
+	}
+	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
+		return subject == types.KindAccessRequest
 	})
 }
