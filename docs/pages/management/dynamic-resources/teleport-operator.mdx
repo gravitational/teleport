@@ -59,7 +59,7 @@ For example, to migrate from `TeleportRoleV6` to `TeleportRoleV7`:
 - Delete the `TeleportRoleV6` CR, the operator won't delete the associated Teleport role
 - Create a `TeleportRoleV7` CR with the same name, the operator will find the existing v6 role and adopt it.
 
-Possible values are `"true"` or `"false"` (those are strings, booleans are not valid label values in Kubernetes).
+Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
 
 #### `teleport.dev/ignore`
 
@@ -70,7 +70,7 @@ This also means the operator will not remove its finalizer if you try to delete 
 The finalizer will stay and the deletion be blocked until you patch the resource to remove the
 finalizer or remove the ignore annotation.
 
-Possible values are `"true"` or `"false"` (those are strings, booleans are not valid label values in Kubernetes).
+Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
 
 ### Troubleshooting
 
