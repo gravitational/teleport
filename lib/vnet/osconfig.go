@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type osConfig struct {
@@ -42,14 +43,16 @@ type osConfigurator struct {
 	clientStore        *client.Store
 	clientCache        *clientcache.Cache
 	clusterConfigCache *ClusterConfigCache
-	tunName            string
-	tunIPv6            string
-	dnsAddr            string
-	homePath           string
-	tunIPv4            string
+	// daemonClientCred are the credentials of the process that contacted the daemon.
+	daemonClientCred daemon.ClientCred
+	tunName          string
+	tunIPv6          string
+	dnsAddr          string
+	homePath         string
+	tunIPv4          string
 }
 
-func newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath string) (*osConfigurator, error) {
+func newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath string, daemonClientCred daemon.ClientCred) (*osConfigurator, error) {
 	if homePath == "" {
 		// This runs as root so we need to be configured with the user's home path.
 		return nil, trace.BadParameter("homePath must be passed from unprivileged process")
@@ -60,11 +63,12 @@ func newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath string) (*osConfig
 	tunIPv6 := ipv6Prefix + "1"
 
 	configurator := &osConfigurator{
-		tunName:     tunName,
-		tunIPv6:     tunIPv6,
-		dnsAddr:     dnsAddr,
-		homePath:    homePath,
-		clientStore: client.NewFSClientStore(homePath),
+		tunName:          tunName,
+		tunIPv6:          tunIPv6,
+		dnsAddr:          dnsAddr,
+		homePath:         homePath,
+		clientStore:      client.NewFSClientStore(homePath),
+		daemonClientCred: daemonClientCred,
 	}
 	configurator.clusterConfigCache = NewClusterConfigCache(clockwork.NewRealClock())
 
@@ -88,18 +92,32 @@ func (c *osConfigurator) close() error {
 	return trace.Wrap(c.clientCache.Clear())
 }
 
+// updateOSConfiguration reads tsh profiles out of [c.homePath]. For each profile, it reads the VNet
+// config of the root cluster and of each leaf cluster. Then it proceeds to update the OS based on
+// information from that config.
+//
+// For the duration of reading data from clusters, it drops the root privileges, only to regain them
+// before configuring the OS.
 func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	var dnsZones []string
 	var cidrRanges []string
 
-	profileNames, err := profile.ListProfileNames(c.homePath)
-	if err != nil {
-		return trace.Wrap(err, "listing user profiles")
-	}
-	for _, profileName := range profileNames {
-		profileDNSZones, profileCIDRRanges := c.getDNSZonesAndCIDRRangesForProfile(ctx, profileName)
-		dnsZones = append(dnsZones, profileDNSZones...)
-		cidrRanges = append(cidrRanges, profileCIDRRanges...)
+	// Drop privileges to ensure that the user who spawned the daemon client has privileges necessary
+	// to access c.homePath that it sent when starting the daemon.
+	// Otherwise a client could make the daemon read a profile out of any directory.
+	if err := c.doWithDroppedRootPrivileges(ctx, func() error {
+		profileNames, err := profile.ListProfileNames(c.homePath)
+		if err != nil {
+			return trace.Wrap(err, "listing user profiles")
+		}
+		for _, profileName := range profileNames {
+			profileDNSZones, profileCIDRRanges := c.getDNSZonesAndCIDRRangesForProfile(ctx, profileName)
+			dnsZones = append(dnsZones, profileDNSZones...)
+			cidrRanges = append(cidrRanges, profileCIDRRanges...)
+		}
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
 	}
 
 	dnsZones = utils.Deduplicate(dnsZones)
@@ -113,7 +131,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		}
 	}
 
-	err = configureOS(ctx, &osConfig{
+	err := configureOS(ctx, &osConfig{
 		tunName:    c.tunName,
 		tunIPv6:    c.tunIPv6,
 		tunIPv4:    c.tunIPv4,
