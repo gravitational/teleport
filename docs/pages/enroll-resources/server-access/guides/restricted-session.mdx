@@ -1,0 +1,200 @@
+---
+title: Restricted Sessions for SSH
+description: How restrict what can be performed under an SSH session
+h1: Restricted Sessions for SSH
+videoBanner: DgFZpWszL4M
+---
+
+With a Restricted Session, Teleport allows the administrator to specify a policy to
+apply to SSH sessions. This policy can restrict access to certain resources. Currently
+Teleport supports network restrictions with more types coming in the future.
+
+<Admonition type="warning" title="Deprecation Warning">
+Restricted Sessions for SSH were deprecated in Teleport 14 and will be removed
+in Teleport 15.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Linux kernel 5.8 (or above).
+
+  You can check your kernel version using the `uname` command. The output should look
+  something like the following.
+
+  ```code
+  $ uname -r
+  # 5.8.17
+  ```
+
+### Linux distributions and supported kernels
+
+<table>
+<thead>
+  <tr><td>Distro name</td><td>Distro version</td><td>Kernel version</td></tr>
+</thead>
+<tbody>
+  <tr><td>Ubuntu "Groovy Gorilla"</td><td>20.10</td><td>5.8+</td></tr>
+  <tr><td>Fedora</td><td>33</td><td>5.8+</td></tr>
+  <tr><td>Archlinux</td><td>2020.09.01</td><td>5.8.5+</td></tr>
+  <tr><td>Flatcar</td><td>2765.2.2</td><td>5.10.25+</td></tr>
+</tbody>
+</table>
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Network restrictions
+
+Network restrictions work similarly to a firewall but with several differences:
+
+- Firewall rules apply to the entire machine whereas network restrictions are applied
+   only to SSH sessions.
+- Whereas firewall typically blocks ingress (inbound) connections, network restrictions
+   block egress (outbound) connections.
+- Firewall rules are typically static but Teleport provides an API for
+   Restricted Sessions that allows the rules to be dynamically updated across
+   the entire fleet.
+
+## Step 1/4. Install and configure a Teleport Node
+
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
+
+<Notice type="warning">
+
+  Restricted Sessions require Enhanced Recording to be enabled. This
+  requirement will be removed in the future.
+
+</Notice>
+
+```yaml
+# Example config to be saved as /etc/teleport.yaml
+version: v3
+teleport:
+  nodename: graviton-node
+  auth_token: exampletoken
+  # Replace with the address of the Teleport Auth Server.
+  auth_server: 127.0.0.1:3025
+  data_dir: /var/lib/teleport
+proxy_service:
+  enabled: false
+auth_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  enhanced_recording:
+    # Must be enabled for Restricted Sessions to work.
+    enabled: true
+    # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
+    # /cgroup2.
+    cgroup_path: /cgroup2
+
+  restricted_session:
+    enabled: true
+```
+
+## Step 2/4. Define a network restrictions policy
+
+Create a file called `netpolicy.yaml`:
+
+```yaml
+kind: network_restrictions
+version: v4
+metadata:
+  name: network-restrictions
+spec:
+  # When Restricted Sessions are enabled, the network policy becomes
+  # "deny-all". Must add back the ranges to allow
+  allow:
+    # Allow LAN access
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+
+    # Allow link-local
+    - cidr: 169.254.0.0/16
+    - cidr: fe80::/10
+
+    # Allow localhost
+    - cidr: 127.0.0.0/8
+    - cidr: ::1/128
+
+  # Override "allow" list with exceptions
+  deny:
+    # Finance database
+    - cidr: 10.1.2.4
+```
+
+Install the policy using `tctl`:
+
+```code
+$ tctl create -f netpolicy.yaml
+# network restrictions have been updated
+```
+
+If Restricted Sessions are not enabled in `teleport.yaml`, all network
+operations will be allowed. When Restricted Sessions are enabled but a
+`network_restrictions` object has not been created via `tctl` or the API, the
+default policy stays allow-all.
+
+However when the `network_restrictions` object is created, the default policy
+switches to deny-all. If you expect network operations to target certain
+IP ranges, be sure to state these within the `allow` section.
+
+## Step 3/4. Test Restricted Sessions
+
+```code
+$ curl -v https://google.com
+# *   Trying 2607:f8b0:4005:809::200e:80...
+# * TCP_NODELAY set
+# * Immediate connect fail for 2607:f8b0:4005:809::200e: Operation not permitted
+# *   Trying 172.217.6.78:80...
+# * TCP_NODELAY set
+# * Immediate connect fail for 172.217.6.78: Operation not permitted
+# * Closing connection 0
+# curl: (7) Couldn't connect to server
+```
+
+## Step 4/4. Inspect logs
+
+The Teleport audit log will contain an entry with a `session.network` event (there may be
+more entries present for the same `curl` command):
+
+```json
+{
+  "ei": 173,
+  "event": "session.network",
+  "uid": "dda39eb4-13e1-45fd-a039-35b4dca1fa51",
+  "code": "T4002I",
+  "time": "2021-07-22T22:24:14.984Z",
+  "cluster_name": "teleport-quickstart",
+  "user": "demo",
+  "login": "demo",
+  "sid": "c8e0b0d5-3994-4221-b701-c1ae17d871f1",
+  "namespace": "default",
+  "server_id": "4951c001-8dad-4e21-abb6-c03f69b72d2e",
+  "pid": 319267,
+  "cgroup_id": 10863,
+  "program": "curl",
+  "src_addr": "0.0.0.0",
+  "dst_addr": "216.58.194.206",
+  "dst_port": 80,
+  "version": 4,
+  "operation": 0,
+  "action": 1
+}
+```
+
+This is the same event that is issued by Enhanced Recording. You can differentiate them by the `action` field.
+Enhanced Recording sets the `action` to `0` (`OBSERVED`) while a Restricted Session sets this value to `1` (`DENIED`).
+
+<Admonition type="tip">
+  To quickly check the status of the audit log, you can simply tail the logs with
+  `tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will
+  be a JSON log for each command and network request.
+</Admonition>
+
+## Next steps
+
+- See the [Teleport Configuration Reference](../../../reference/config.mdx) for more
+information on configuring Restricted Sessions.

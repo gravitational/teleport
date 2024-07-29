@@ -108,12 +108,12 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 Versions 5, 6 and 7 of the Teleport role resource have different behaviors when
 accessing Kubernetes resources.
 {/*lint ignore messaging*/}
-Roles not [granting Kubernetes access](../kubernetes-access/introduction.mdx) are
+Roles not [granting Kubernetes access](../enroll-resources/kubernetes-access/introduction.mdx) are
 equivalent in the three versions.
 
 Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
 Role v7 supports restricting all common resource kinds (
-see [the `kubernetes_resource` documentation](../kubernetes-access/controls.mdx#kubernetes_resources)
+see [the `kubernetes_resource` documentation](../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources)
 for a complete list).
 
 When no `kubernetes_resource` is set:
@@ -284,3 +284,4 @@ spec:
 
 version: v2
 ```
+
