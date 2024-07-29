@@ -297,7 +297,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 }
 
 type mockTSHDEventsService struct {
-	*api.UnimplementedTshdEventsServiceServer
+	api.UnimplementedTshdEventsServiceServer
 
 	t                         *testing.T
 	tc                        *libclient.TeleportClient
