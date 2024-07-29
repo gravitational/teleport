@@ -25,8 +25,8 @@ import { SelectAsync } from 'shared/components/Select';
 const ValueContainer = ({ children, ...props }) => (
   <components.ValueContainer {...props}>
     <Flex alignItems="center" color="text.main">
-      <Text typography="h6" fontWeight="regular" mr="2">
-        CLUSTER:
+      <Text typography="body2" mr="2">
+        Cluster:
       </Text>
       {children}
     </Flex>

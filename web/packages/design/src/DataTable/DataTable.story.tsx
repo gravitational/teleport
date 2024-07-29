@@ -147,6 +147,13 @@ export const DefaultBasicEmpty = () => {
   return <Table<DummyDataType> {...props} />;
 };
 
+export const EmptyWithHint = () => {
+  const props = getDefaultProps();
+  props.data = [];
+  props.emptyHint = 'Gimme some data';
+  return <Table<DummyDataType> {...props} />;
+};
+
 // state.pagination table view with fetching props
 export const ClientSidePagination = () => {
   const [allData, setAllData] = useState(data);

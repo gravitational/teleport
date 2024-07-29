@@ -3209,6 +3209,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 				MFAVerified:       verifiedMFADeviceID,
 				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+				AppName:           req.RouteToApp.Name,
+				AppURI:            req.RouteToApp.URI,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3292,6 +3294,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID:                     appSessionID,
 		appName:                          req.RouteToApp.Name,
 		appPublicAddr:                    req.RouteToApp.PublicAddr,
+		appURI:                           req.RouteToApp.URI,
 		appClusterName:                   req.RouteToApp.ClusterName,
 		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
 		azureIdentity:                    req.RouteToApp.AzureIdentity,

@@ -461,9 +461,14 @@ func (a *Middleware) displayRejectedClientAlert(ctx context.Context, userAgent s
 		return
 	}
 
+	alertVersion := semver.Version{
+		Major: a.OldestSupportedVersion.Major,
+		Minor: a.OldestSupportedVersion.Minor,
+		Patch: a.OldestSupportedVersion.Patch,
+	}
 	alert, err := types.NewClusterAlert(
 		"rejected-unsupported-connection",
-		fmt.Sprintf("Connections were rejected from %s running unsupported Teleport versions(<%s), they will be inaccessible until upgraded.", connectionType, a.OldestSupportedVersion),
+		fmt.Sprintf("Connections were rejected from %s running unsupported Teleport versions(<%s), they will be inaccessible until upgraded.", connectionType, alertVersion),
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
