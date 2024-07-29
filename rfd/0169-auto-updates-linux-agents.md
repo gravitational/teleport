@@ -104,6 +104,9 @@ Upgrading all agents generates the following write load:
 - One write of `agent_upgrade_start_time` field per agent
 
 All reads are from cache.
+If the cache is unhealthy, `agent_auto_update` is still served based on the last available value in cache.
+This is safe because `agent_upgrade_start_time` is only written once during the upgrade.
+However, this means that timeout thresholds should account for possible cache init time if initialization occurs right after `agent_upgrade_start_time` is written.
 
 ### Endpoints
 
