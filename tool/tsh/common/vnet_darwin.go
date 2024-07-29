@@ -80,6 +80,12 @@ type vnetAdminSetupCommand struct {
 	ipv6Prefix string
 	// dnsAddr is the IP address for the VNet DNS server.
 	dnsAddr string
+	// egid of the user starting VNet. Unsafe for production use, as the egid comes from an unstrusted
+	// source.
+	egid int
+	// euid of the user starting VNet. Unsafe for production use, as the euid comes from an unstrusted
+	// source.
+	euid int
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
@@ -89,6 +95,8 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
+	cmd.Flag("egid", "effective group ID of the user starting VNet").IntVar(&cmd.egid)
+	cmd.Flag("euid", "effective user ID of the user starting VNet").IntVar(&cmd.euid)
 	return cmd
 }
 
@@ -104,6 +112,10 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		IPv6Prefix: c.ipv6Prefix,
 		DNSAddr:    c.dnsAddr,
 		HomePath:   homePath,
+		ClientCred: &daemon.ClientCred{
+			Egid: c.egid,
+			Euid: c.euid,
+		},
 	}
 
 	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
