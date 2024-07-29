@@ -83,7 +83,7 @@ spec:
               value: "1"
           {{- end }}
           {{- if .Values.extraEnv }}
-           {{- toYaml .Values.extraArgs | nindent qw }}
+           {{- toYaml .Values.extraEnv | nindent 12 }}
           {{- end }}
           volumeMounts:
             - mountPath: /config
