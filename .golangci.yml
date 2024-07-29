@@ -68,6 +68,8 @@ linters-settings:
             desc: 'use "slices" instead'
           - pkg: github.com/hashicorp/go-version
             desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
+          - pkg: github.com/microsoftgraph/msgraph-sdk-go
+            desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
       # Prevent importing internal packages in client tools or packages containing
       # common interfaces consumed by them that are known to bloat binaries or break builds
       # because they only support a single platform.

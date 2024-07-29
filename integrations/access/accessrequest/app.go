@@ -42,7 +42,7 @@ import (
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
-	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request
+	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request.
 	defaultAccessMonitoringRulePageSize = 10
 )
 
@@ -123,16 +123,24 @@ func (a *App) Err() error {
 func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
 
-	job, err := watcherjob.NewJob(
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	job, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch: types.Watch{Kinds: []types.WatchKind{
-				{Kind: types.KindAccessRequest},
-				{Kind: types.KindAccessMonitoringRule},
-			}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -144,9 +152,16 @@ func (a *App) run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-		return trace.Wrap(err)
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
 	}
 
 	a.job.SetReady(ok)
@@ -479,7 +494,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 	// This switch is used to determine which plugins we are enabling access monitoring notification rules for.
 	switch a.pluginType {
 	// Enabled plugins are added to this case.
-	case types.PluginTypeSlack:
+	case types.PluginTypeSlack, types.PluginTypeMattermost:
 		log.Debug("Applying access monitoring rules to request")
 	default:
 		return &recipientSet

@@ -16,15 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package awsoidc
+package tags
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
+	athenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -35,18 +38,19 @@ type AWSTags map[string]string
 func (d AWSTags) String() string {
 	tagsString := make([]string, 0, len(d))
 	for k, v := range d {
+		k, v := k, v
 		tagsString = append(tagsString, fmt.Sprintf("%s:%s", k, v))
 	}
 
 	return strings.Join(tagsString, ", ")
 }
 
-// defaultResourceCreationTags returns the default tags that should be applied when creating new AWS resources.
+// DefaultResourceCreationTags returns the default tags that should be applied when creating new AWS resources.
 // The following tags are returned:
 // - teleport.dev/cluster: <clusterName>
 // - teleport.dev/origin: aws-oidc-integration
 // - teleport.dev/integration: <integrationName>
-func defaultResourceCreationTags(clusterName, integrationName string) AWSTags {
+func DefaultResourceCreationTags(clusterName, integrationName string) AWSTags {
 	return AWSTags{
 		types.ClusterLabel:     clusterName,
 		types.OriginLabel:      types.OriginIntegrationAWSOIDC,
@@ -125,4 +129,36 @@ func (d AWSTags) ToIAMTags() []iamTypes.Tag {
 		})
 	}
 	return iamTags
+}
+
+// ToS3Tags returns the default tags using the expected type for S3 resources: [s3types.Tag]
+func (d AWSTags) ToS3Tags() []s3types.Tag {
+	s3Tags := make([]s3types.Tag, 0, len(d))
+	for k, v := range d {
+		k, v := k, v
+		s3Tags = append(s3Tags, s3types.Tag{
+			Key:   &k,
+			Value: &v,
+		})
+	}
+	return s3Tags
+}
+
+// ToAthenaTags returns the default tags using the expected type for Athena resources: [athenatypes.Tag]
+func (d AWSTags) ToAthenaTags() []athenatypes.Tag {
+	athenaTags := make([]athenatypes.Tag, 0, len(d))
+	for k, v := range d {
+		k, v := k, v
+		athenaTags = append(athenaTags, athenatypes.Tag{
+			Key:   &k,
+			Value: &v,
+		})
+	}
+	return athenaTags
+}
+
+// ToMap returns the default tags using the expected type for other aws resources.
+// Eg Glue resources
+func (d AWSTags) ToMap() map[string]string {
+	return maps.Clone((map[string]string)(d))
 }
