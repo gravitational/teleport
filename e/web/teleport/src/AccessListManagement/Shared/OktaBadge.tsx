@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flex } from 'design';
+import { Flex, Text } from 'design';
 import { OktaIcon } from 'design/SVGIcon';
 
 export const OktaBadge = () => {
@@ -13,12 +13,11 @@ export const OktaBadge = () => {
         border-radius: 35px;
         width: 58px;
         height: 25px;
-        font-size: ${p => p.theme.fontSizes[1]}px;
         color: ${p => p.theme.colors.text.slightlyMuted};
       `}
     >
       <OktaIcon />
-      Okta
+      <Text typography="body3">Okta</Text>
     </Flex>
   );
 };

@@ -7,6 +7,8 @@ import { Header } from 'teleport/Account/Header';
 import * as Icon from 'design/Icon';
 import { EnterpriseComponentProps } from 'teleport/Account/Account';
 
+import { P } from 'design/Text/Text';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import useRecovery, { State } from './useRecovery';
@@ -70,12 +72,12 @@ export function Recovery({
         </Row>
         {isRecoveryEnabled && userHasCodes && (
           <Row>
-            <Text typography="body1" fontSize={3}>
+            <P fontSize={3}>
               Recovery codes were last generated on:{' '}
               <Text as="span" bold>
                 {createdDateText}
               </Text>
-            </Text>
+            </P>
           </Row>
         )}
       </MultiRowBox>

@@ -18,7 +18,7 @@ exports[`render device list 1`] = `
   box-sizing: border-box;
 }
 
-.c12 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -49,8 +49,8 @@ exports[`render device list 1`] = `
   width: 100%;
 }
 
-.c12:focus-visible,
-.teleport-button__force-focus-visible .c12 {
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -58,22 +58,22 @@ exports[`render device list 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c12:hover,
-.teleport-button__force-hover .c12 {
+.c14:hover,
+.teleport-button__force-hover .c14 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c12:active,
-.teleport-button__force-active .c12 {
+.c14:active,
+.teleport-button__force-active .c14 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c12:disabled {
+.c14:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -81,7 +81,7 @@ exports[`render device list 1`] = `
   cursor: auto;
 }
 
-.c11 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -111,8 +111,8 @@ exports[`render device list 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -120,22 +120,22 @@ exports[`render device list 1`] = `
   outline: none;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c13:hover,
+.teleport-button__force-hover .c13 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c13:active,
+.teleport-button__force-active .c13 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c11:disabled {
+.c13:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -143,7 +143,7 @@ exports[`render device list 1`] = `
   cursor: auto;
 }
 
-.c9 {
+.c11 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -159,9 +159,10 @@ exports[`render device list 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 14px;
+  font-weight: 300;
   line-height: 24px;
+  letter-spacing: 0.035px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -174,25 +175,40 @@ exports[`render device list 1`] = `
   line-height: 24px;
 }
 
-.c6 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
 }
 
-.c10 {
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
 }
 
-.c7 {
+p+.c7 {
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.c9 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -200,42 +216,43 @@ exports[`render device list 1`] = `
   width: 100%;
 }
 
-.c7>thead>tr>th,
-.c7>tbody>tr>th,
-.c7>tfoot>tr>th,
-.c7>thead>tr>td,
-.c7>tbody>tr>td,
-.c7>tfoot>tr>td {
+.c9>thead>tr>th,
+.c9>tbody>tr>th,
+.c9>tfoot>tr>th,
+.c9>thead>tr>td,
+.c9>tbody>tr>td,
+.c9>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c7>thead>tr>th:first-child,
-.c7>tbody>tr>th:first-child,
-.c7>tfoot>tr>th:first-child,
-.c7>thead>tr>td:first-child,
-.c7>tbody>tr>td:first-child,
-.c7>tfoot>tr>td:first-child {
+.c9>thead>tr>th:first-child,
+.c9>tbody>tr>th:first-child,
+.c9>tfoot>tr>th:first-child,
+.c9>thead>tr>td:first-child,
+.c9>tbody>tr>td:first-child,
+.c9>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c7>thead>tr>th:last-child,
-.c7>tbody>tr>th:last-child,
-.c7>tfoot>tr>th:last-child,
-.c7>thead>tr>td:last-child,
-.c7>tbody>tr>td:last-child,
-.c7>tfoot>tr>td:last-child {
+.c9>thead>tr>th:last-child,
+.c9>tbody>tr>th:last-child,
+.c9>tfoot>tr>th:last-child,
+.c9>thead>tr>td:last-child,
+.c9>tbody>tr>td:last-child,
+.c9>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c7>tbody>tr>td {
+.c9>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c7>thead>tr>th {
+.c9>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -244,11 +261,11 @@ exports[`render device list 1`] = `
   white-space: nowrap;
 }
 
-.c7>thead>tr>th svg {
+.c9>thead>tr>th svg {
   height: 12px;
 }
 
-.c7>tbody>tr>td {
+.c9>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -256,18 +273,18 @@ exports[`render device list 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c7 tbody tr {
+.c9 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c7 tbody tr:hover {
+.c9 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c7 tbody tr:hover:after {
+.c9 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -278,26 +295,26 @@ exports[`render device list 1`] = `
   height: 100%;
 }
 
-.c7 tbody tr:hover +tr {
+.c9 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c8 {
+.c10 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.c8>tbody>tr td {
+.c10>tbody>tr td {
   vertical-align: middle;
   height: 32px;
 }
 
-.c8>tbody {
+.c10>tbody {
   background: #344179;
 }
 
-.c8>thead>tr>th {
+.c10>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -327,17 +344,17 @@ exports[`render device list 1`] = `
       </h2>
     </div>
   </div>
-  <div
-    class="c6"
+  <p
+    class="c6 c7 sc-eDPFhE c8"
     color="text.slightlyMuted"
   >
     Take a look at your enrolled devices below and remove any that you don't need anymore.
-  </div>
+  </p>
   <div
     class="c2"
   >
     <table
-      class="c7 c8"
+      class="c9 c10"
       style="overflow: hidden; border-radius: 8px;"
     >
       <thead>
@@ -358,7 +375,7 @@ exports[`render device list 1`] = `
             >
               Registered
               <span
-                class="c9 icon icon-chevrondown"
+                class="c11 icon icon-chevrondown"
                 title="sort items desc"
               >
                 <svg
@@ -382,7 +399,7 @@ exports[`render device list 1`] = `
             >
               Last Used
               <span
-                class="c9 icon icon-chevronsvertical"
+                class="c11 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -415,7 +432,7 @@ exports[`render device list 1`] = `
             title="iphone 12"
           >
             <div
-              class="c10"
+              class="c12"
               style="max-width: 96px; white-space: nowrap;"
             >
               iphone 12
@@ -439,7 +456,7 @@ exports[`render device list 1`] = `
             title="solokey"
           >
             <div
-              class="c10"
+              class="c12"
               style="max-width: 96px; white-space: nowrap;"
             >
               solokey
@@ -455,7 +472,7 @@ exports[`render device list 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c13"
               fill="border"
               title=""
             >
@@ -471,7 +488,7 @@ exports[`render device list 1`] = `
             title="backup yubikey"
           >
             <div
-              class="c10"
+              class="c12"
               style="max-width: 96px; white-space: nowrap;"
             >
               backup yubikey
@@ -487,7 +504,7 @@ exports[`render device list 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c13"
               fill="border"
               title=""
             >
@@ -503,7 +520,7 @@ exports[`render device list 1`] = `
             title="yubikey"
           >
             <div
-              class="c10"
+              class="c12"
               style="max-width: 96px; white-space: nowrap;"
             >
               yubikey
@@ -519,7 +536,7 @@ exports[`render device list 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c13"
               fill="border"
               title=""
             >
@@ -531,7 +548,7 @@ exports[`render device list 1`] = `
     </table>
   </div>
   <button
-    class="c12"
+    class="c14"
     fill="filled"
     type="submit"
     width="100%"
@@ -547,11 +564,11 @@ exports[`render device removal dialog 1`] = `
   width: 400px;
 }
 
-.c10 {
+.c12 {
   box-sizing: border-box;
 }
 
-.c11 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -582,8 +599,8 @@ exports[`render device removal dialog 1`] = `
   margin-right: 16px;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
   background-color: #FF6257;
   color: #000000;
   border-color: #000000;
@@ -591,22 +608,22 @@ exports[`render device removal dialog 1`] = `
   outline: 2px solid #FF6257;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c13:hover,
+.teleport-button__force-hover .c13 {
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c13:active,
+.teleport-button__force-active .c13 {
   background-color: #FFA19A;
   border-color: transparent;
   color: #000000;
 }
 
-.c11:disabled {
+.c13:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -614,7 +631,7 @@ exports[`render device removal dialog 1`] = `
   cursor: auto;
 }
 
-.c12 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -644,8 +661,8 @@ exports[`render device removal dialog 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c12:focus-visible,
-.teleport-button__force-focus-visible .c12 {
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -653,22 +670,22 @@ exports[`render device removal dialog 1`] = `
   outline: none;
 }
 
-.c12:hover,
-.teleport-button__force-hover .c12 {
+.c14:hover,
+.teleport-button__force-hover .c14 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c12:active,
-.teleport-button__force-active .c12 {
+.c14:active,
+.teleport-button__force-active .c14 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c12:disabled {
+.c14:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -683,24 +700,35 @@ exports[`render device removal dialog 1`] = `
   font-weight: 500;
   font-size: 18px;
   line-height: 24px;
-  margin-bottom: 8px;
+  margin-bottom: 24px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
 }
 
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 16px;
-  line-height: 32px;
 }
 
-.c9 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
   color: #FFFFFF;
+}
+
+p+.c9 {
+  margin-top: 16px;
 }
 
 .c5 {
@@ -785,32 +813,32 @@ exports[`render device removal dialog 1`] = `
         >
           Remove Device
         </h2>
-        <div
-          class="c8"
+        <p
+          class="c8 c9 sc-eDPFhE c10"
         >
           Are you sure you want to remove device
            
           <span
-            class="c9"
+            class="c11"
             color="text.main"
           >
             yubikey
           </span>
            
           ?
-        </div>
+        </p>
       </div>
       <div
-        class="c10"
+        class="c12"
       >
         <button
-          class="c11"
+          class="c13"
           fill="filled"
         >
           Remove
         </button>
         <button
-          class="c12"
+          class="c14"
           fill="filled"
         >
           Cancel
@@ -822,7 +850,7 @@ exports[`render device removal dialog 1`] = `
 `;
 
 exports[`render failed state for device list 1`] = `
-.c7 {
+.c9 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -843,7 +871,7 @@ exports[`render failed state for device list 1`] = `
   justify-content: normal;
 }
 
-.c7 a {
+.c9 a {
   color: #FFFFFF;
 }
 
@@ -864,7 +892,7 @@ exports[`render failed state for device list 1`] = `
   box-sizing: border-box;
 }
 
-.c8 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -895,8 +923,8 @@ exports[`render failed state for device list 1`] = `
   width: 100%;
 }
 
-.c8:focus-visible,
-.teleport-button__force-focus-visible .c8 {
+.c10:focus-visible,
+.teleport-button__force-focus-visible .c10 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -904,22 +932,22 @@ exports[`render failed state for device list 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c8:hover,
-.teleport-button__force-hover .c8 {
+.c10:hover,
+.teleport-button__force-hover .c10 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c8:active,
-.teleport-button__force-active .c8 {
+.c10:active,
+.teleport-button__force-active .c10 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c8:disabled {
+.c10:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -937,9 +965,10 @@ exports[`render failed state for device list 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 14px;
+  font-weight: 300;
   line-height: 24px;
+  letter-spacing: 0.035px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -952,16 +981,31 @@ exports[`render failed state for device list 1`] = `
   line-height: 24px;
 }
 
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
   margin-bottom: 16px;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
+}
+
+p+.c7 {
+  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 <div
@@ -990,24 +1034,24 @@ exports[`render failed state for device list 1`] = `
       </h2>
     </div>
   </div>
-  <div
-    class="c6"
+  <p
+    class="c6 c7 sc-eDPFhE c8"
     color="text.slightlyMuted"
   >
     Take a look at your enrolled devices below and remove any that you don't need anymore.
-  </div>
+  </p>
   <div
     class="c2"
   >
     <div
-      class="c7"
+      class="c9"
       kind="outline-danger"
     >
       failed to fetch devices
     </div>
   </div>
   <button
-    class="c8"
+    class="c10"
     fill="filled"
     type="submit"
     width="100%"

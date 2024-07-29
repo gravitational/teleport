@@ -1,5 +1,5 @@
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text, Alert } from 'design';
+import { ButtonSecondary, ButtonWarning, Alert, P1 } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -25,20 +25,17 @@ export function ExternalAuditStorageDelete(props: Props) {
       </DialogHeader>
       <DialogContent width="450px">
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <Text typography="paragraph" mb="2">
-          Are you sure you want to delete this integration?
-        </Text>
-        <Text typography="paragraph" mb="2">
+        <P1>Are you sure you want to delete this integration?</P1>
+        <P1>
           Teleport will not remove the infrastructure created during
           integration.
-        </Text>
+        </P1>
         {props.opType === 'cluster' && (
-          <Text bold typography="paragraph">
+          <P1 bold>
             Any audit logs and session recordings created when the integration
             was active will be inaccessible to Teleport.
-          </Text>
+          </P1>
         )}
-        <Text></Text>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>

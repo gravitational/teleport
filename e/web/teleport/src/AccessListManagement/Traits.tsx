@@ -66,11 +66,11 @@ export function TraitsCreator({
       {traitLabels.length > 0 && (
         <Flex mt={2}>
           <Box width="186px">
-            <Text mr="3" fontSize={1}>
+            <Text mr="3" typography="body3">
               Key (required)
             </Text>
           </Box>
-          <Text fontSize={1}>Value (required)</Text>
+          <Text typography="body3">Value (required)</Text>
         </Flex>
       )}
       <Box>

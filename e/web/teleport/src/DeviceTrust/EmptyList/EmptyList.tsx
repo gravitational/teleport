@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTheme } from 'styled-components';
-import { Box, Card, Flex, Text, Link } from 'design';
+import { Box, Card, Flex, Link, H3 } from 'design';
 import { Laptop } from 'design/Icon';
+import { P } from 'design/Text/Text';
 
 export const EmptyList = () => {
   const theme = useTheme();
@@ -12,16 +13,14 @@ export const EmptyList = () => {
       </Box>
 
       <Box>
-        <Text typography="h6" mb={3} caps>
-          Register Trusted Device
-        </Text>
-        <Text typography="subtitle1" mb={3}>
+        <H3 mb={3}>Register Trusted Device</H3>
+        <P>
           Device Trust enables authenticated device access. Resources protected
           by the Device Trust mode "required" will enforce the use of a Trusted
           Device, in addition to establishing the user's identity and enforcing
           the necessary roles.
-        </Text>
-        <Text typography="subtitle1" mb={3}>
+        </P>
+        <P>
           Trusted Devices can be registered manually using{' '}
           <Link
             color="text.main"
@@ -39,8 +38,8 @@ export const EmptyList = () => {
             Jamf
           </Link>
           .
-        </Text>
-        <Text typography="subtitle1">
+        </P>
+        <P>
           Please{' '}
           <Link
             color="text.main"
@@ -50,7 +49,7 @@ export const EmptyList = () => {
             view our documentation
           </Link>{' '}
           on how to get started with Device Trust.
-        </Text>
+        </P>
       </Box>
     </Card>
   );

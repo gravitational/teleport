@@ -6,9 +6,9 @@ import {
   ButtonSecondary,
   Box,
   Flex,
-  Text,
   Alert,
   H1,
+  H3,
 } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -125,14 +125,12 @@ export function SubmittablePluginForm({
 
   return (
     <Box mt={CustomTitle ? 0 : 3} style={{ position: 'relative' }}>
-      {CustomTitle ? <>{CustomTitle}</> : <H1 my={2}>{plugin.fullName}</H1>}
+      {CustomTitle ? <>{CustomTitle}</> : <H1 my={3}>{plugin.fullName}</H1>}
       {plugin.Description && <plugin.Description />}
       <Box style={wrapperStyle}>
         {plugin.permissions?.length && (
           <>
-            <Text fontSize={2} bold>
-              Required permissions:
-            </Text>
+            <H2 my={3}>Required permissions</H2>
             <Flex
               gap={6}
               p={4}
@@ -143,12 +141,10 @@ export function SubmittablePluginForm({
             >
               {plugin.permissions.map((perm, index) => (
                 <Box key={index}>
-                  <Text fontWeight="bold" typography="h6" mb={2}>
-                    {perm.category}
-                  </Text>
+                  <H3 mb={2}>{perm.category}</H3>
                   {perm.permissions.map(p => (
                     <Flex key={`${index}${p.title}`} alignItems="center">
-                      {p.title}{' '}
+                      {p.title}
                       {p.description && (
                         <Flex ml={1}>
                           <ToolTipInfo>{p.description}</ToolTipInfo>

@@ -27,7 +27,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin-top: 16px;
 }
 
-.c22 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -60,8 +60,8 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   width: 176px;
 }
 
-.c22:focus-visible,
-.teleport-button__force-focus-visible .c22 {
+.c25:focus-visible,
+.teleport-button__force-focus-visible .c25 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -69,22 +69,22 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c22:hover,
-.teleport-button__force-hover .c22 {
+.c25:hover,
+.teleport-button__force-hover .c25 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c22:active,
-.teleport-button__force-active .c22 {
+.c25:active,
+.teleport-button__force-active .c25 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c22:disabled {
+.c25:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -105,7 +105,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   background-color: #222C59;
 }
 
-.c16 {
+.c17 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -129,8 +129,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  line-height: 20px;
   margin-bottom: 16px;
 }
 
@@ -138,19 +137,17 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin-bottom: 16px;
 }
 
-.c17 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 14px;
+  font-weight: 300;
   line-height: 24px;
+  letter-spacing: 0.035px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c20 {
@@ -160,13 +157,33 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c21 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
   font-size: 16px;
-  line-height: 32px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+p+.c16 {
+  margin-top: 16px;
+}
+
+p+.c23 {
+  margin-top: 16px;
+  margin-top: 4px;
   margin-bottom: 8px;
 }
 
@@ -275,23 +292,23 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
         <div
           class="c0"
         >
-          <div
+          <h3
             class="c14"
           >
             Register Trusted Device
-          </div>
-          <div
-            class="c15"
+          </h3>
+          <p
+            class="c15 c16"
           >
             Device Trust enables authenticated device access. Resources protected by the Device Trust mode "required" will enforce the use of a Trusted Device, in addition to establishing the user's identity and enforcing the necessary roles.
-          </div>
-          <div
-            class="c15"
+          </p>
+          <p
+            class="c15 c16"
           >
             Trusted Devices can be registered manually using
              
             <a
-              class="c16"
+              class="c17"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
               rel="noreferrer"
@@ -303,7 +320,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
             or synced automatically from MDM services like
              
             <a
-              class="c16"
+              class="c17"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
               rel="noreferrer"
@@ -312,14 +329,14 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
               Jamf
             </a>
             .
-          </div>
-          <div
-            class="c17"
+          </p>
+          <p
+            class="c15 c16"
           >
             Please
              
             <a
-              class="c16"
+              class="c17"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/guides/device-trust/"
               rel="noreferrer"
@@ -329,27 +346,27 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
             </a>
              
             on how to get started with Device Trust.
-          </div>
+          </p>
         </div>
       </div>
       <div
         class="c18 c19"
       >
-        <div
-          class="c20"
+        <p
+          class="c20 c16 sc-eDPFhE c21"
           color="text.slightlyMuted"
         >
           <i>
             Your plan includes five free Trusted Devices.
           </i>
-        </div>
-        <div
-          class="c21"
+        </p>
+        <p
+          class="c22 c23 sc-eDPFhE c24"
         >
           Want additional devices?
-        </div>
+        </p>
         <a
-          class="c22"
+          class="c25"
           fill="filled"
           href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           rel="noreferrer"
@@ -396,7 +413,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   margin-top: 16px;
 }
 
-.c22 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -429,8 +446,8 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   width: 176px;
 }
 
-.c22:focus-visible,
-.teleport-button__force-focus-visible .c22 {
+.c25:focus-visible,
+.teleport-button__force-focus-visible .c25 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -438,22 +455,22 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c22:hover,
-.teleport-button__force-hover .c22 {
+.c25:hover,
+.teleport-button__force-hover .c25 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c22:active,
-.teleport-button__force-active .c22 {
+.c25:active,
+.teleport-button__force-active .c25 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c22:disabled {
+.c25:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -474,7 +491,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   background-color: #222C59;
 }
 
-.c16 {
+.c17 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -498,8 +515,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  line-height: 20px;
   margin-bottom: 16px;
 }
 
@@ -507,19 +523,17 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin-bottom: 16px;
 }
 
-.c17 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 14px;
+  font-weight: 300;
   line-height: 24px;
+  letter-spacing: 0.035px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c20 {
@@ -529,13 +543,33 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c21 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
   font-size: 16px;
-  line-height: 32px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+p+.c16 {
+  margin-top: 16px;
+}
+
+p+.c23 {
+  margin-top: 16px;
+  margin-top: 4px;
   margin-bottom: 8px;
 }
 
@@ -644,23 +678,23 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
         <div
           class="c0"
         >
-          <div
+          <h3
             class="c14"
           >
             Register Trusted Device
-          </div>
-          <div
-            class="c15"
+          </h3>
+          <p
+            class="c15 c16"
           >
             Device Trust enables authenticated device access. Resources protected by the Device Trust mode "required" will enforce the use of a Trusted Device, in addition to establishing the user's identity and enforcing the necessary roles.
-          </div>
-          <div
-            class="c15"
+          </p>
+          <p
+            class="c15 c16"
           >
             Trusted Devices can be registered manually using
              
             <a
-              class="c16"
+              class="c17"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
               rel="noreferrer"
@@ -672,7 +706,7 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
             or synced automatically from MDM services like
              
             <a
-              class="c16"
+              class="c17"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
               rel="noreferrer"
@@ -681,14 +715,14 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
               Jamf
             </a>
             .
-          </div>
-          <div
-            class="c17"
+          </p>
+          <p
+            class="c15 c16"
           >
             Please
              
             <a
-              class="c16"
+              class="c17"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/guides/device-trust/"
               rel="noreferrer"
@@ -698,27 +732,27 @@ exports[`test DeviceTrust.tsx empty cta 1`] = `
             </a>
              
             on how to get started with Device Trust.
-          </div>
+          </p>
         </div>
       </div>
       <div
         class="c18 c19"
       >
-        <div
-          class="c20"
+        <p
+          class="c20 c16 sc-eDPFhE c21"
           color="text.slightlyMuted"
         >
           <i>
             Your plan includes five free Trusted Devices.
           </i>
-        </div>
-        <div
-          class="c21"
+        </p>
+        <p
+          class="c22 c23 sc-eDPFhE c24"
         >
           Want additional devices?
-        </div>
+        </p>
         <a
-          class="c22"
+          class="c25"
           fill="filled"
           href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           rel="noreferrer"
@@ -852,7 +886,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   justify-content: center;
 }
 
-.c27 {
+.c28 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -876,8 +910,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  line-height: 20px;
   margin-bottom: 16px;
 }
 
@@ -885,21 +918,21 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin-bottom: 16px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 4px;
-  font-weight: 500;
+}
+
+p+.c27 {
+  margin-top: 16px;
 }
 
 .c1 {
@@ -989,6 +1022,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -1156,8 +1190,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
           >
             <div
               class="c17"
-              font-weight="500"
-              style="white-space: nowrap; letter-spacing: 0.15px;"
+              style="white-space: nowrap;"
             >
               Showing 
               <strong>
@@ -1293,18 +1326,18 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
       style="flex-shrink: 0;"
       width="240px"
     >
-      <div
+      <h3
         class="c25"
       >
         Register Trusted Device
-      </div>
-      <div
-        class="c26"
+      </h3>
+      <p
+        class="c26 c27"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c27"
+          class="c28"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -1316,7 +1349,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c27"
+          class="c28"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"
@@ -1325,7 +1358,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
           Jamf
         </a>
         .
-      </div>
+      </p>
     </div>
   </div>
 </div>
@@ -1348,7 +1381,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   margin-top: 16px;
 }
 
-.c30 {
+.c34 {
   box-sizing: border-box;
   margin-left: auto;
   width: 240px;
@@ -1366,7 +1399,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   margin-right: 8px;
 }
 
-.c28 {
+.c32 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1399,8 +1432,8 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   width: 176px;
 }
 
-.c28:focus-visible,
-.teleport-button__force-focus-visible .c28 {
+.c32:focus-visible,
+.teleport-button__force-focus-visible .c32 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -1408,22 +1441,22 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c28:hover,
-.teleport-button__force-hover .c28 {
+.c32:hover,
+.teleport-button__force-hover .c32 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c28:active,
-.teleport-button__force-active .c28 {
+.c32:active,
+.teleport-button__force-active .c32 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c28:disabled {
+.c32:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1515,7 +1548,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   justify-content: center;
 }
 
-.c33 {
+.c37 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1533,6 +1566,17 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   line-height: 32px;
 }
 
+.c28 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.035px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .c26 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1540,46 +1584,61 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c27 {
+.c31 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
   font-size: 16px;
-  line-height: 32px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
+  margin-top: 4px;
   margin-bottom: 8px;
 }
 
-.c31 {
+.c29 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.c35 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  line-height: 20px;
   margin-bottom: 16px;
 }
 
-.c32 {
+.c36 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin-bottom: 16px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 4px;
-  font-weight: 500;
+}
+
+p+.c27 {
+  margin-top: 16px;
+}
+
+p+.c30 {
+  margin-top: 16px;
+  margin-top: 4px;
+  margin-bottom: 8px;
 }
 
 .c1 {
@@ -1598,7 +1657,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   flex-direction: column;
 }
 
-.c29 {
+.c33 {
   display: flex;
   align-items: center;
 }
@@ -1681,6 +1740,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -1848,8 +1908,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
           >
             <div
               class="c17"
-              font-weight="500"
-              style="white-space: nowrap; letter-spacing: 0.15px;"
+              style="white-space: nowrap;"
             >
               Showing 
               <strong>
@@ -1981,21 +2040,21 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
       <div
         class="c24 c25"
       >
-        <div
-          class="c26"
+        <p
+          class="c26 c27 sc-eDPFhE c28"
           color="text.slightlyMuted"
         >
           <i>
             Your plan includes five free Trusted Devices.
           </i>
-        </div>
-        <div
-          class="c27"
+        </p>
+        <p
+          class="c29 c30 sc-eDPFhE c31"
         >
           Want additional devices?
-        </div>
+        </p>
         <a
-          class="c28"
+          class="c32"
           fill="filled"
           href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           rel="noreferrer"
@@ -2004,7 +2063,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
           width="176px"
         >
           <div
-            class="c0 c29"
+            class="c0 c33"
           >
             Contact Sales
           </div>
@@ -2012,23 +2071,23 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
       </div>
     </div>
     <div
-      class="c30"
+      class="c34"
       color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
-      <div
-        class="c31"
+      <h3
+        class="c35"
       >
         Register Trusted Device
-      </div>
-      <div
-        class="c32"
+      </h3>
+      <p
+        class="c36 c27"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c33"
+          class="c37"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -2040,7 +2099,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c33"
+          class="c37"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"
@@ -2049,7 +2108,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
           Jamf
         </a>
         .
-      </div>
+      </p>
     </div>
   </div>
 </div>
@@ -2169,7 +2228,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   justify-content: center;
 }
 
-.c27 {
+.c28 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2193,8 +2252,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  line-height: 20px;
   margin-bottom: 16px;
 }
 
@@ -2202,21 +2260,21 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin-bottom: 16px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 4px;
-  font-weight: 500;
+}
+
+p+.c27 {
+  margin-top: 16px;
 }
 
 .c1 {
@@ -2306,6 +2364,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -2473,8 +2532,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
           >
             <div
               class="c17"
-              font-weight="500"
-              style="white-space: nowrap; letter-spacing: 0.15px;"
+              style="white-space: nowrap;"
             >
               Showing 
               <strong>
@@ -2610,18 +2668,18 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
       style="flex-shrink: 0;"
       width="240px"
     >
-      <div
+      <h3
         class="c25"
       >
         Register Trusted Device
-      </div>
-      <div
-        class="c26"
+      </h3>
+      <p
+        class="c26 c27"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c27"
+          class="c28"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -2633,7 +2691,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c27"
+          class="c28"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"
@@ -2642,7 +2700,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
           Jamf
         </a>
         .
-      </div>
+      </p>
     </div>
   </div>
 </div>

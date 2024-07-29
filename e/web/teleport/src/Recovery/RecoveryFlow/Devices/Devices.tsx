@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Card, Text, Box, ButtonPrimary, Indicator } from 'design';
+import { Card, Box, ButtonPrimary, Indicator, P3 } from 'design';
 import MfaService from 'teleport/services/mfa';
 import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
@@ -42,15 +42,10 @@ export function Devices({
         />
       </Box>
 
-      <Text
-        typography="body2"
-        mb={3}
-        textAlign="center"
-        color="text.slightlyMuted"
-      >
+      <P3 mb={3} textAlign="center" color="text.slightlyMuted">
         Take a look at your enrolled devices below and remove any that you don't
         need anymore.
-      </Text>
+      </P3>
       <Box mb={4}>
         {attempt.status === 'processing' && (
           <Box textAlign="center">

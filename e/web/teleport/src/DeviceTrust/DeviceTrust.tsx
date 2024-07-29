@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Alert, Box, Flex, Indicator, Text, Link } from 'design';
+import { Alert, Box, Flex, Indicator, Link, H3, P2, P1 } from 'design';
 
 import {
   FeatureBox,
@@ -10,6 +10,8 @@ import {
 
 import { CtaEvent } from 'teleport/services/userEvent';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+
+import { P } from 'design/Text/Text';
 
 import { useDevices } from './useDevices';
 
@@ -64,10 +66,8 @@ export const DeviceTrust = () => {
                 color="text.main"
                 style={{ flexShrink: 0 }}
               >
-                <Text typography="h6" mb={3} caps>
-                  Register Trusted Device
-                </Text>
-                <Text typography="subtitle1" mb={3}>
+                <H3 mb={3}>Register Trusted Device</H3>
+                <P>
                   Trusted Devices can be registered manually using{' '}
                   <Link
                     color="text.main"
@@ -85,7 +85,7 @@ export const DeviceTrust = () => {
                     Jamf
                   </Link>
                   .
-                </Text>
+                </P>
               </Box>
             </>
           )}
@@ -103,12 +103,12 @@ const CallToAction = (props: CTAProps) => {
       justifyContent="end"
       alignItems={props.align}
     >
-      <Text color="text.slightlyMuted">
+      <P2 color="text.slightlyMuted">
         <i>Your plan includes five free Trusted Devices.</i>
-      </Text>
-      <Text typography="paragraph" mb={2}>
+      </P2>
+      <P1 mt={1} mb={2}>
         Want additional devices?
-      </Text>
+      </P1>
       <ButtonLockedFeature
         width="176px"
         noIcon

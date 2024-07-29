@@ -1,6 +1,14 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { Box, Text, Link, ButtonPrimary, ButtonSecondary, Flex } from 'design';
+import {
+  Box,
+  Text,
+  Link,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H2,
+} from 'design';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import Alert from 'design/Alert';
@@ -35,9 +43,7 @@ export const License = ({
 }: LicenseProps) => {
   return (
     <Box mb="5">
-      <Text bold typography="h5">
-        Generate Your License Key
-      </Text>
+      <H2>Generate Your License Key</H2>
       {licenseAttempt.status === 'failed' && (
         <Alert kind="danger" children={licenseAttempt.statusText} mt={4} />
       )}

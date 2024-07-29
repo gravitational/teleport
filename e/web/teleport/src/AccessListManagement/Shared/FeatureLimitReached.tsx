@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Card, Flex, Text } from 'design';
+import { Box, Card, Flex, P1, P2, Text } from 'design';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 import { pluralize } from 'shared/utils/text';
@@ -61,12 +61,12 @@ export function FeatureLimitBlurb({ limit = 1 }: FeatureLimitBlurbProps) {
         text-align: center;
       `}
     >
-      <Text color="text.slightlyMuted">
+      <P2 color="text.slightlyMuted">
         <i>
           Your current plan supports {limit} free Access {listText}.
         </i>
-      </Text>
-      <Text typography="paragraph">
+      </P2>
+      <P1 mt={1}>
         Want additional Access Lists?{' '}
         <ButtonLockedFeature
           width="176px"
@@ -76,7 +76,7 @@ export function FeatureLimitBlurb({ limit = 1 }: FeatureLimitBlurbProps) {
         >
           Contact Sales
         </ButtonLockedFeature>
-      </Text>
+      </P1>
     </Box>
   );
 }

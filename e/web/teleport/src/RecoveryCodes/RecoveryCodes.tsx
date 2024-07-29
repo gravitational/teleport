@@ -1,6 +1,15 @@
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonIcon, ButtonPrimary, Card, Flex, H2, Text } from 'design';
+import {
+  Box,
+  ButtonIcon,
+  ButtonPrimary,
+  Card,
+  Flex,
+  H2,
+  H3,
+  Text,
+} from 'design';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 
@@ -134,14 +143,14 @@ export function RecoveryCodes({
         <Card flex={2} minWidth="384px" className="no-print" p={4}>
           <Flex flexDirection="column" gap={3}>
             <Box>
-              <Text typography="h5">1. Why do I need these codes?</Text>
+              <H3 mb={1}>1. Why do I need these codes?</H3>
               <Text color="text.slightlyMuted">
                 Use them in the event of losing your password or two-factor
                 device.
               </Text>
             </Box>
             <Box>
-              <Text typography="h5">2. How long do the codes last for?</Text>
+              <H3 mb={1}>2. How long do the codes last for?</H3>
               <Text color="text.slightlyMuted">
                 Recovery codes can only be used once. After recovering your
                 account, we will generate a new set of codes for you.
@@ -149,7 +158,7 @@ export function RecoveryCodes({
             </Box>
             {isNewCodes && (
               <Box>
-                <Text typography="h5">3. What about my old codes?</Text>
+                <H3 mb={1}>3. What about my old codes?</H3>
                 <Text color="text.slightlyMuted">
                   Your old recovery codes are no longer valid, please replace
                   them with these new ones.

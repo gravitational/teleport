@@ -214,7 +214,7 @@ function AccessRequestAssumeButton({
         {isAssumed ? 'Assumed' : `Assume ${pluralize(roleCount, 'Role')}`}
       </ButtonSecondary>
       {assumeAttempt.status === 'error' && (
-        <Text typography="subtitle3" color="error.main">
+        <Text typography="body3" color="error.main">
           Failed to assume {pluralize(roleCount, 'role')}:{' '}
           {assumeAttempt.statusText}
         </Text>

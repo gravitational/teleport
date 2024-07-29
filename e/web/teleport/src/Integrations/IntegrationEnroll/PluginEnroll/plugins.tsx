@@ -33,6 +33,8 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { H2 } from 'design';
 
+import { P } from 'design/Text/Text';
+
 import cfg from 'e-teleport/config';
 
 import { SetUpScim } from './MultiStep/Okta/SetUpScim';
@@ -153,26 +155,26 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     selfHostable: false,
     Description: () => (
       <Text>
-        <p>
+        <P>
           The Slack integration receives access requests from Teleport and posts
           them as Slack messages to alert reviewers.
-        </p>
-        <p>
+        </P>
+        <P>
           If an access request includes suggested reviewers, the Slack
           integration will add these to the list of channels to notify. If a
           suggested reviewer is an email address, the Slack integration will
           look up the direct message channel for that address and post a message
           in that channel. Otherwise, the integration will post messages in the
           default channel that you select on this screen.
-        </p>
-        <p>
+        </P>
+        <P>
           Please note that if you do not have permissions to add new apps to
           your Slack workspace, you will need to request approval in the next
           step. Once that approval is given, Slackbot will notify you within
           your workspace, and you will be able to connect Slack and Teleport by
           coming back to this view and clicking the “Connect Slack” button
           again.
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
@@ -238,10 +240,10 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         return <CardError>Failed to parse the response.</CardError>;
       }
       return (
-        <Text typography="body1">
+        <P>
           As the final step, you should invite the "Teleport Cloud" application
           to channel <strong>{fallbackChannel}</strong> in your Slack workspace.
-        </Text>
+        </P>
       );
     },
   },
@@ -465,8 +467,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     },
     NextSteps: () => {
       return (
-        <Text typography="body1">
-          <p>
+        <>
+          <P>
             After enabling the Okta integration, create an import rule to
             configure the applications that Teleport imports from Okta. See the{' '}
             <Link
@@ -476,13 +478,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Teleport documentation
             </Link>{' '}
             for details.
-          </p>
+          </P>
 
-          <p>
+          <P>
             It may take a while before all applications and groups are synced to
             Teleport.
-          </p>
-        </Text>
+          </P>
+        </>
       );
     },
   },
@@ -496,22 +498,22 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     fullName: 'Opsgenie access request notifications',
     Description: () => (
       <Text>
-        <p>
+        <P>
           Integrating with Opsgenie allows Teleport access requests to show up
           as alerts in the specified Opsgenie schedule.
-        </p>
-        <p>
+        </P>
+        <P>
           You will need to provide an API key with the following permissions
           “Read Access” and “Create and Update Access”.
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
       <Text>
-        <p>
+        <P>
           Generate an API key that the Opsgenie plugin will use to create and
           modify alerts as well as list users, services, and on-call policies.
-        </p>
+        </P>
 
         <ol>
           <li>
@@ -612,7 +614,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     fullName: 'Jamf Integration for Device Trust',
     Description: () => (
       <Text>
-        <p>
+        <P>
           Jamf integration updates trusted devices in Teleport to match
           available devices in your Jamf inventory. For more details, see our
           docs page about{' '}
@@ -622,7 +624,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           >
             Device Trust and the Jamf Integration.
           </Link>
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
@@ -712,14 +714,14 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     },
     NextSteps: () => {
       return (
-        <Text typography="body1">
+        <P>
           Jamf integration is configured for your cluster. Depending on the size
           of your Jamf inventory, it may take a few minutes to sync with{' '}
           <ReactRouterLink to={cfg.routes.deviceTrust}>
             Trusted Devices
           </ReactRouterLink>{' '}
           in Teleport.
-        </Text>
+        </P>
       );
     },
   },
@@ -733,10 +735,10 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     fullName: 'ServiceNow Integration',
     Description: () => (
       <Text>
-        <p>
+        <P>
           ServiceNow plugin creates ServiceNow incidents for Teleport access
           requests.
-        </p>
+        </P>
       </Text>
     ),
     permissions: [
@@ -753,11 +755,11 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     ],
     Setup: () => (
       <Text>
-        <p>
+        <P>
           The ServiceNow integration requires a ServiceNow user with permissions
           to read from and write to the incident table. This requires a role
           with the “sn_incident_read” and “sn_incident_write” roles.
-        </p>
+        </P>
         <ol>
           <li>
             Ensure that your ServiceNow account includes the{' '}
@@ -894,10 +896,10 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     ],
     Description: () => (
       <Text>
-        <p>
+        <P>
           The Teleport Jira integration allows you to manage Teleport access
           requests using Jira tickets.
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
@@ -1047,11 +1049,11 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     NextSteps: () => {
       return (
         <Text>
-          <p>
+          <P>
             Teleport will create issues in your Jira project in response to
             access requests.
-          </p>
-          <p>
+          </P>
+          <P>
             Adding the <em>Pending</em>, <em>Approved</em> and <em>Denied</em>{' '}
             columns to your Jira project board will also allow Teleport to
             automatically update the status of these Jira issues as access
@@ -1063,7 +1065,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Set up your Jira project
             </Link>{' '}
             section of Teleport's Jira guide.
-          </p>
+          </P>
         </Text>
       );
     },
@@ -1078,20 +1080,20 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     selfHostable: true,
     Description: () => (
       <Text>
-        <p>
+        <P>
           The Teleport integration with PagerDuty allows your team to treat
           Teleport permission requests as Pagerduty incidents and provides
           Pagerduty special actions to approve or deny permission requests.
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
       <Text>
-        <p>
+        <P>
           You will need to generate an API key for the PagerDuty integration to
           use to create and modify incidents as well as list users, services,
           and on-call policies.
-        </p>
+        </P>
 
         <ol>
           <li>
@@ -1179,12 +1181,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     NextSteps: () => {
       return (
         <Text>
-          <p>
+          <P>
             Be sure to configure the “pagerduty_notify_service” and
             “pagerduty_services” annotations in the Teleport roles you want
             PagerDuty to manage.
-          </p>
-          <p>
+          </P>
+          <P>
             For more information, consult the <em>Define RBAC Resources</em>{' '}
             section of the Teleport{' '}
             <Link
@@ -1194,7 +1196,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Access Requests with PagerDuty
             </Link>{' '}
             guide.
-          </p>
+          </P>
         </Text>
       );
     },
@@ -1217,11 +1219,11 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     selfHostable: false,
     Description: () => (
       <Text>
-        <p>
+        <P>
           The Discord integration receives access request events from the
           Teleport Auth Service, formats them into Discord messages, and sends
           them to the Discord API to post them in your guild (Discord server).
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
@@ -1291,19 +1293,19 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     selfHostable: true,
     Description: () => (
       <Text>
-        <p>
+        <P>
           The Mattermost integration receives access requests from Teleport and
           posts them as Mattermost messages to alert reviewers.
-        </p>
+        </P>
 
-        <p>
+        <P>
           If an access request includes suggested reviewers, the Mattermost
           integration will add these to the list of channels to notify. If a
           suggested reviewer is an email address, the integration will look up
           the direct message channel for that address and post a message in that
           channel. Otherwise, the integration will post the message to the
           default channel that you specify on this screen.
-        </p>
+        </P>
       </Text>
     ),
     Setup: () => (
@@ -1416,7 +1418,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     NextSteps: () => {
       return (
         <Text>
-          <p>
+          <P>
             For help with configuring roles for access requests, consult the{' '}
             <Link
               target="_blank"
@@ -1425,7 +1427,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Define RBAC Resources
             </Link>{' '}
             section of Teleport's Mattermost guide.
-          </p>
+          </P>
         </Text>
       );
     },
@@ -1505,19 +1507,19 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
 
     NextSteps: () => {
       return (
-        <Text typography="body1">
-          <p>
+        <>
+          <P>
             To assign roles based on SSO attributes visit the{' '}
             <ReactRouterLink to={cfg.oss.routes.sso}>
               Auth Connectors
             </ReactRouterLink>{' '}
             page.
-          </p>
-          <p>
+          </P>
+          <P>
             It may take a while before all users and groups are synced to
             Teleport.
-          </p>
-        </Text>
+          </P>
+        </>
       );
     },
 
@@ -1540,7 +1542,7 @@ const StyledHashtagIcon = styled(Icons.Hashtag)`
   display: inline;
   padding: 0 6px;
   position: absolute;
-  top: 40px;
+  top: 36px;
 `;
 
 const StyledFieldInput = styled(FieldInput)`

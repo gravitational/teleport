@@ -1,5 +1,5 @@
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text, Alert } from 'design';
+import { ButtonSecondary, ButtonWarning, Text, Alert, P1, Box } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -74,14 +74,18 @@ export function DeleteUserConfirmDialog({
       </DialogHeader>
       <DialogContent width="450px">
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <Text typography="paragraph" mb="4">
+        <P1>
           Are you sure you want to delete {kind}{' '}
           <Text as="span" bold color="text.main">
             {username}
           </Text>{' '}
           ?
-        </Text>
-        {accessList.isOkta && kind === 'Member' && <DeleteMemberWarning />}
+        </P1>
+        {accessList.isOkta && kind === 'Member' && (
+          <Box mt={4}>
+            <DeleteMemberWarning />
+          </Box>
+        )}
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={handleOnDelete}>
@@ -100,7 +104,7 @@ export const DeleteMemberWarning = ({
 }: {
   isReviewing?: boolean;
 }) => (
-  <OutlineWarn>
+  <OutlineWarn mb={0}>
     {isReviewing
       ? 'Changes made here will be reflected in Okta. '
       : 'This change will be reflected in Okta. '}

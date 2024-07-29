@@ -10,12 +10,12 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin-bottom: 16px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-top: 16px;
   margin-bottom: 8px;
@@ -28,7 +28,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   border-bottom-left-radius: 4px;
 }
 
-.c21 {
+.c22 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -66,24 +66,21 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
+  margin-bottom: 16px;
+}
+
+p+.c11 {
+  margin-top: 16px;
+}
+
+p+.c21 {
+  margin-top: 16px;
   margin-bottom: 16px;
 }
 
@@ -102,7 +99,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
@@ -136,7 +133,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   padding-bottom: 24px;
 }
 
-.c13 {
+.c14 {
   color: inherit;
   text-decoration: none;
   flex-direction: column;
@@ -152,7 +149,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   pointer-events: auto;
 }
 
-.c13:hover {
+.c14:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -164,7 +161,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   font-size: 10px;
 }
 
-.c22 {
+.c23 {
   position: absolute;
   background: #9F85FF;
   color: #000000;
@@ -208,22 +205,22 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           >
             No-Code Integrations
           </h2>
-          <div
-            class="c10"
+          <p
+            class="c10 c11"
           >
             Set up Teleport to post notifications to messaging apps, discover and import resources from cloud providers and other services.
-          </div>
+          </p>
         </div>
         <div
-          class="c11 c12"
+          class="c12 c13"
         >
           <a
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-aws-oidc"
             href="/web/integrations/new/aws-oidc"
           >
             <div
-              class="c14"
+              class="c15"
             >
               <svg
                 data-testid="svg"
@@ -251,7 +248,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               </svg>
             </div>
             <div
-              class="c15"
+              class="c10"
             >
               Amazon Web Services
               <br />
@@ -259,12 +256,12 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-external-audit-storage"
             href="/web/integrations/new/external-audit-storage"
           >
             <div
-              class="c14"
+              class="c15"
             >
               <svg
                 data-testid="svg"
@@ -292,7 +289,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               </svg>
             </div>
             <div
-              class="c15"
+              class="c10"
             >
               AWS External Audit Storage
             </div>
@@ -304,7 +301,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-slack"
             href="/web/integrations/new/slack"
           >
@@ -313,18 +310,18 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Slack
               </div>
             </div>
           </a>
           <a
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-jamf"
             href="/web/integrations/new/jamf"
           >
@@ -333,11 +330,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Jamf
               </div>
@@ -353,13 +350,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
         >
           Self-Hosted Plugins
         </h2>
-        <div
-          class="c20"
+        <p
+          class="c20 c21"
         >
           There is a wide variety of plugins that you can integrate with. See below for a sampling, or check out the documented list at
            
           <a
-            class="c21"
+            class="c22"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/"
             rel="noreferrer"
             target="_blank"
@@ -367,12 +364,12 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             https://goteleport.com/docs/access-controls/access-request-plugins
           </a>
           . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
-        </div>
+        </p>
         <div
-          class="c11 c12"
+          class="c12 c13"
         >
           <a
-            class="c21 c0 c1 c13"
+            class="c22 c0 c1 c14"
             data-testid="tile-email"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/"
             rel="noreferrer"
@@ -383,18 +380,18 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Email
               </div>
             </div>
           </a>
           <a
-            class="c21 c0 c1 c13"
+            class="c22 c0 c1 c14"
             data-testid="tile-msteams"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/"
             rel="noreferrer"
@@ -405,11 +402,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Microsoft Teams
               </div>
@@ -428,29 +425,29 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           >
             Machine ID
           </h2>
-          <div
-            class="c10"
+          <p
+            class="c10 c11"
           >
             Set up Teleport Machine ID to allow CI/CD workflows and other machines to access resources protected by Teleport.
-          </div>
+          </p>
         </div>
         <div
-          class="c0 c12"
+          class="c0 c13"
         >
           <div
             class="c0"
           >
             <a
-              class="c0 c1 c13"
+              class="c0 c1 c14"
               href="/web/bots/new/github-actions"
             >
               <div
-                class="c22"
+                class="c23"
               >
                 Guided
               </div>
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -468,7 +465,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GitHub Actions + SSH
               </div>
@@ -478,13 +475,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/circleci/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -500,7 +497,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 CircleCI
               </div>
@@ -510,13 +507,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/gitlab/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -549,7 +546,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GitLab CI/CD
               </div>
@@ -559,13 +556,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/jenkins/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -764,7 +761,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Jenkins
               </div>
@@ -774,13 +771,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/access-guides/ansible/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -796,7 +793,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Ansible
               </div>
@@ -806,13 +803,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/spacelift/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -828,7 +825,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Spacelift
               </div>
@@ -838,13 +835,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/aws/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -872,7 +869,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 AWS
               </div>
@@ -882,13 +879,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/gcp/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -932,7 +929,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GCP
               </div>
@@ -942,13 +939,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/azure/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1039,7 +1036,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Azure
               </div>
@@ -1049,13 +1046,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/kubernetes/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1071,7 +1068,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Kubernetes
               </div>
@@ -1081,13 +1078,13 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             class="c0"
           >
             <a
-              class="c21 c0 c1 c13"
+              class="c22 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/getting-started/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1103,7 +1100,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Generic
               </div>
@@ -1126,12 +1123,12 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin-bottom: 16px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-top: 16px;
   margin-bottom: 8px;
@@ -1151,7 +1148,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   border-bottom-left-radius: 4px;
 }
 
-.c23 {
+.c24 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1189,24 +1186,21 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
 }
 
 .c22 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
+  margin-bottom: 16px;
+}
+
+p+.c11 {
+  margin-top: 16px;
+}
+
+p+.c23 {
+  margin-top: 16px;
   margin-bottom: 16px;
 }
 
@@ -1225,7 +1219,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
@@ -1259,7 +1253,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   padding-bottom: 24px;
 }
 
-.c13 {
+.c14 {
   color: inherit;
   text-decoration: none;
   flex-direction: column;
@@ -1275,7 +1269,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   pointer-events: none;
 }
 
-.c13:hover {
+.c14:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -1307,7 +1301,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   font-size: 10px;
 }
 
-.c24 {
+.c25 {
   position: absolute;
   background: #9F85FF;
   color: #000000;
@@ -1351,22 +1345,22 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           >
             No-Code Integrations
           </h2>
-          <div
-            class="c10"
+          <p
+            class="c10 c11"
           >
             Set up Teleport to post notifications to messaging apps, discover and import resources from cloud providers and other services.
-          </div>
+          </p>
         </div>
         <div
-          class="c11 c12"
+          class="c12 c13"
         >
           <div
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-aws-oidc"
             disabled=""
           >
             <div
-              class="c14"
+              class="c15"
             >
               <svg
                 data-testid="svg"
@@ -1394,7 +1388,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               </svg>
             </div>
             <div
-              class="c15"
+              class="c10"
             >
               Amazon Web Services
               <br />
@@ -1413,7 +1407,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             href="/web/integrations/new/external-audit-storage"
           >
             <div
-              class="c14"
+              class="c15"
             >
               <svg
                 data-testid="svg"
@@ -1441,7 +1435,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               </svg>
             </div>
             <div
-              class="c15"
+              class="c10"
             >
               AWS External Audit Storage
             </div>
@@ -1462,11 +1456,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Slack
               </div>
@@ -1482,11 +1476,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Jamf
               </div>
@@ -1502,13 +1496,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
         >
           Self-Hosted Plugins
         </h2>
-        <div
-          class="c22"
+        <p
+          class="c22 c23"
         >
           There is a wide variety of plugins that you can integrate with. See below for a sampling, or check out the documented list at
            
           <a
-            class="c23"
+            class="c24"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/"
             rel="noreferrer"
             target="_blank"
@@ -1516,12 +1510,12 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             https://goteleport.com/docs/access-controls/access-request-plugins
           </a>
           . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
-        </div>
+        </p>
         <div
-          class="c11 c12"
+          class="c12 c13"
         >
           <a
-            class="c23 c0 c1 c18"
+            class="c24 c0 c1 c18"
             data-testid="tile-email"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/"
             rel="noreferrer"
@@ -1532,18 +1526,18 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Email
               </div>
             </div>
           </a>
           <a
-            class="c23 c0 c1 c18"
+            class="c24 c0 c1 c18"
             data-testid="tile-msteams"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/"
             rel="noreferrer"
@@ -1554,11 +1548,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Microsoft Teams
               </div>
@@ -1577,14 +1571,14 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           >
             Machine ID
           </h2>
-          <div
-            class="c10"
+          <p
+            class="c10 c11"
           >
             Set up Teleport Machine ID to allow CI/CD workflows and other machines to access resources protected by Teleport.
-          </div>
+          </p>
         </div>
         <div
-          class="c0 c12"
+          class="c0 c13"
         >
           <div
             class="c0"
@@ -1594,12 +1588,12 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               href="/web/bots/new/github-actions"
             >
               <div
-                class="c24"
+                class="c25"
               >
                 Guided
               </div>
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1617,7 +1611,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GitHub Actions + SSH
               </div>
@@ -1627,13 +1621,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/circleci/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1649,7 +1643,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 CircleCI
               </div>
@@ -1659,13 +1653,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/gitlab/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1698,7 +1692,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GitLab CI/CD
               </div>
@@ -1708,13 +1702,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/jenkins/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1913,7 +1907,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Jenkins
               </div>
@@ -1923,13 +1917,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/access-guides/ansible/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1945,7 +1939,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Ansible
               </div>
@@ -1955,13 +1949,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/spacelift/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -1977,7 +1971,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Spacelift
               </div>
@@ -1987,13 +1981,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/aws/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -2021,7 +2015,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 AWS
               </div>
@@ -2031,13 +2025,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/gcp/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -2081,7 +2075,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GCP
               </div>
@@ -2091,13 +2085,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/azure/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -2188,7 +2182,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Azure
               </div>
@@ -2198,13 +2192,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/deployment/kubernetes/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -2220,7 +2214,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Kubernetes
               </div>
@@ -2230,13 +2224,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             class="c0"
           >
             <a
-              class="c23 c0 c1 c18"
+              class="c24 c0 c1 c18"
               href="https://goteleport.com/docs/machine-id/getting-started/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -2252,7 +2246,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Generic
               </div>
@@ -2275,12 +2269,12 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin-bottom: 16px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-top: 16px;
   margin-bottom: 8px;
@@ -2300,7 +2294,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   border-bottom-left-radius: 4px;
 }
 
-.c23 {
+.c24 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2338,24 +2332,21 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
 }
 
 .c22 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
+  margin-bottom: 16px;
+}
+
+p+.c11 {
+  margin-top: 16px;
+}
+
+p+.c23 {
+  margin-top: 16px;
   margin-bottom: 16px;
 }
 
@@ -2374,7 +2365,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
@@ -2408,7 +2399,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   padding-bottom: 24px;
 }
 
-.c13 {
+.c14 {
   color: inherit;
   text-decoration: none;
   flex-direction: column;
@@ -2424,7 +2415,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   pointer-events: auto;
 }
 
-.c13:hover {
+.c14:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -2456,7 +2447,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   font-size: 10px;
 }
 
-.c24 {
+.c25 {
   position: absolute;
   background: #9F85FF;
   color: #000000;
@@ -2500,22 +2491,22 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           >
             No-Code Integrations
           </h2>
-          <div
-            class="c10"
+          <p
+            class="c10 c11"
           >
             Set up Teleport to post notifications to messaging apps, discover and import resources from cloud providers and other services.
-          </div>
+          </p>
         </div>
         <div
-          class="c11 c12"
+          class="c12 c13"
         >
           <a
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-aws-oidc"
             href="/web/integrations/new/aws-oidc"
           >
             <div
-              class="c14"
+              class="c15"
             >
               <svg
                 data-testid="svg"
@@ -2543,7 +2534,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </svg>
             </div>
             <div
-              class="c15"
+              class="c10"
             >
               Amazon Web Services
               <br />
@@ -2551,12 +2542,12 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c0 c1 c13"
+            class="c0 c1 c14"
             data-testid="tile-external-audit-storage"
             href="/web/integrations/new/external-audit-storage"
           >
             <div
-              class="c14"
+              class="c15"
             >
               <svg
                 data-testid="svg"
@@ -2584,7 +2575,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </svg>
             </div>
             <div
-              class="c15"
+              class="c10"
             >
               AWS External Audit Storage
             </div>
@@ -2605,11 +2596,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Slack
               </div>
@@ -2631,11 +2622,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Okta
               </div>
@@ -2657,11 +2648,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Opsgenie
               </div>
@@ -2683,11 +2674,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Jamf
               </div>
@@ -2709,11 +2700,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 ServiceNow
               </div>
@@ -2735,11 +2726,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Jira
               </div>
@@ -2761,11 +2752,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 PagerDuty
               </div>
@@ -2787,11 +2778,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Discord
               </div>
@@ -2813,11 +2804,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Mattermost
               </div>
@@ -2839,11 +2830,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Microsoft Entra ID
               </div>
@@ -2865,13 +2856,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
         >
           Self-Hosted Plugins
         </h2>
-        <div
-          class="c22"
+        <p
+          class="c22 c23"
         >
           There is a wide variety of plugins that you can integrate with. See below for a sampling, or check out the documented list at
            
           <a
-            class="c23"
+            class="c24"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/"
             rel="noreferrer"
             target="_blank"
@@ -2879,12 +2870,12 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             https://goteleport.com/docs/access-controls/access-request-plugins
           </a>
           . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
-        </div>
+        </p>
         <div
-          class="c11 c12"
+          class="c12 c13"
         >
           <a
-            class="c23 c0 c1 c13"
+            class="c24 c0 c1 c14"
             data-testid="tile-email"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/"
             rel="noreferrer"
@@ -2895,18 +2886,18 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Email
               </div>
             </div>
           </a>
           <a
-            class="c23 c0 c1 c13"
+            class="c24 c0 c1 c14"
             data-testid="tile-msteams"
             href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/"
             rel="noreferrer"
@@ -2917,11 +2908,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               src="file_stub"
             />
             <div
-              class="c11"
+              class="c12"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
-                class="c15"
+                class="c10"
               >
                 Microsoft Teams
               </div>
@@ -2940,29 +2931,29 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           >
             Machine ID
           </h2>
-          <div
-            class="c10"
+          <p
+            class="c10 c11"
           >
             Set up Teleport Machine ID to allow CI/CD workflows and other machines to access resources protected by Teleport.
-          </div>
+          </p>
         </div>
         <div
-          class="c0 c12"
+          class="c0 c13"
         >
           <div
             class="c0"
           >
             <a
-              class="c0 c1 c13"
+              class="c0 c1 c14"
               href="/web/bots/new/github-actions"
             >
               <div
-                class="c24"
+                class="c25"
               >
                 Guided
               </div>
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -2980,7 +2971,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GitHub Actions + SSH
               </div>
@@ -2990,13 +2981,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/circleci/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3012,7 +3003,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 CircleCI
               </div>
@@ -3022,13 +3013,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/gitlab/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3061,7 +3052,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GitLab CI/CD
               </div>
@@ -3071,13 +3062,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/jenkins/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3276,7 +3267,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Jenkins
               </div>
@@ -3286,13 +3277,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/access-guides/ansible/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3308,7 +3299,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Ansible
               </div>
@@ -3318,13 +3309,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/spacelift/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3340,7 +3331,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Spacelift
               </div>
@@ -3350,13 +3341,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/aws/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3384,7 +3375,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 AWS
               </div>
@@ -3394,13 +3385,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/gcp/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3444,7 +3435,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 GCP
               </div>
@@ -3454,13 +3445,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/azure/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3551,7 +3542,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Azure
               </div>
@@ -3561,13 +3552,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/deployment/kubernetes/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3583,7 +3574,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Kubernetes
               </div>
@@ -3593,13 +3584,13 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             class="c0"
           >
             <a
-              class="c23 c0 c1 c13"
+              class="c24 c0 c1 c14"
               href="https://goteleport.com/docs/machine-id/getting-started/"
               rel="noreferrer"
               target="_blank"
             >
               <div
-                class="c14"
+                class="c15"
               >
                 <svg
                   data-testid="svg"
@@ -3615,7 +3606,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 </svg>
               </div>
               <div
-                class="c15"
+                class="c10"
               >
                 Generic
               </div>

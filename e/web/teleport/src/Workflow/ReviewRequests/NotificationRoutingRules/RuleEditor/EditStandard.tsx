@@ -335,7 +335,7 @@ const MultiValueContainer = (props: MultiValueGenericProps) => {
   return (
     <>
       <components.MultiValueContainer {...props} />
-      {lastFilter && !isLastFilter && <Text fontSize={0}>OR</Text>}
+      {lastFilter && !isLastFilter && <Text typography="body4">OR</Text>}
     </>
   );
 };

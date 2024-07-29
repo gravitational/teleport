@@ -218,9 +218,7 @@ export function ViewEditAccessList() {
           />
         </Flex>
         {accessList.description && (
-          <Text fontSize={1} css={{ lineHeight: '12px' }}>
-            {accessList.description}
-          </Text>
+          <Text typography="body3">{accessList.description}</Text>
         )}
       </Box>
     );
@@ -275,7 +273,9 @@ export function ViewEditAccessList() {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
-        <FeatureHeaderTitle>
+        {/* Note: FeatureHeaderTitle normally inserts an H1 element, we're gonna
+            do it ourselves instead. */}
+        <FeatureHeaderTitle as="div">
           <Flex alignItems="center">
             <ArrowBack
               data-testid="back-button"

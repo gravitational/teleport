@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { ButtonSecondary, H2, Text } from 'design';
+import { ButtonSecondary, H2, H3, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
 
 import { PluginBase } from './plugins';
@@ -13,7 +13,7 @@ export function PluginEnrollFailedDialog(props: State) {
       <DialogContent maxWidth="500px">
         <H2 mb={3}>Unable to connect {plugin.name}</H2>
         <Text>
-          <Text typography="h6">Access to {plugin.name} was denied:</Text>
+          <H3>Access to {plugin.name} was denied:</H3>
           <Text mono my="2">
             {errorDescription}
           </Text>

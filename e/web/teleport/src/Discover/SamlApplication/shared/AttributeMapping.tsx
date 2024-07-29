@@ -17,6 +17,8 @@ import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { H2 } from 'design';
 
+import { P } from 'design/Text/Text';
+
 import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
@@ -78,7 +80,7 @@ export function AttributeMapping({
         const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
         if (gcpWorkforceMeta?.isAutoConfig) {
           return (
-            <Text typography="subtitle1" mb={4}>
+            <P mb={4}>
               An attribute named "roles" with values containing Teleport roles
               for user will be sent by default. You can configure additional
               attribute mapping below. Please refer to the{' '}
@@ -86,13 +88,13 @@ export function AttributeMapping({
                 attribute mapping docs
               </Link>{' '}
               for reference.
-            </Text>
+            </P>
           );
         }
         break;
       default:
         return (
-          <Text typography="subtitle1" mb={4}>
+          <P mb={4}>
             Teleport sends username as "uid" attribute and roles as
             "eduPersonAffiliation" attribute. If you want other attributes to
             contain username, roles or other user traits, you can specify them
@@ -100,7 +102,7 @@ export function AttributeMapping({
             <Link href={attributeMappingDocsUrl} target="_blank">
               predicate expressions.
             </Link>
-          </Text>
+          </P>
         );
     }
   }
@@ -115,13 +117,13 @@ export function AttributeMapping({
         {spConfig.attributeMapping.length > 0 && (
           <Flex mt={2}>
             <Box width="185px" mr={1} ml={1}>
-              <Text fontSize={1}>Attribute Name</Text>
+              <Text typography="body3">Attribute Name</Text>
             </Box>
 
             <Box width="165px">
-              <Text fontSize={1}>Attribute Name Format</Text>
+              <Text typography="body3">Attribute Name Format</Text>
             </Box>
-            <Text fontSize={1} ml={2}>
+            <Text typography="body3" ml={2}>
               Attribute Value
             </Text>
           </Flex>

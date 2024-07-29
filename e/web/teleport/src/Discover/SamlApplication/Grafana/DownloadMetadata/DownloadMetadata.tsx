@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, Link, ButtonPrimary, Mark } from 'design';
+import { Link, ButtonPrimary, Mark, H3, Subtitle3 } from 'design';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
@@ -11,6 +11,7 @@ import {
   StepBox,
   ActionButtons,
 } from 'teleport/Discover/Shared';
+import { P } from 'design/Text/Text';
 
 const idpMetadataUrl = cfg.baseUrl + '/enterprise/saml-idp/metadata';
 
@@ -47,10 +48,10 @@ export function DownloadMetadata({ prevStep, nextStep }: Props) {
 function StepOne() {
   return (
     <StepBox mb={4}>
-      <Text bold>Step 1</Text>
-      <Text typography="subtitle1" mb={3}>
-        Download Teleport's IdP metadata file.
-      </Text>
+      <header>
+        <H3>Step 1</H3>
+        <Subtitle3 mb={3}>Download Teleport's IdP metadata file</Subtitle3>
+      </header>
       <ButtonPrimary as="a" href={idpMetadataUrl} mb={2}>
         Download Metadata
       </ButtonPrimary>
@@ -61,16 +62,17 @@ function StepOne() {
 function StepTwo() {
   return (
     <StepBox>
-      <Text bold>Step 2</Text>
-      <Text typography="subtitle1" mb={3}>
-        Configure Grafana with the IdP metadata you just downloaded.
-        <br />
-      </Text>
-      <Text mb={2}>
+      <header>
+        <H3>Step 2</H3>
+        <Subtitle3 typography="subtitle3" mb={3}>
+          Configure Grafana with the IdP metadata you just downloaded
+        </Subtitle3>
+      </header>
+      <P mb={3}>
         From the Grafana host, add a <Mark>[auth.saml]</Mark> section to{' '}
         <Mark>grafana.ini</Mark> that points to the path of the IdP metadata
         file. Once you have saved the edited configuration, restart Grafana.
-      </Text>
+      </P>
       <TextSelectCopyMulti
         bash={false}
         lines={[
@@ -92,7 +94,7 @@ function StepTwo() {
           },
         ]}
       />
-      <Text mt={1}>
+      <P mt={3}>
         For more information on configuring Grafana for SAML, refer to the{' '}
         <Link
           target="_blank"
@@ -101,7 +103,7 @@ function StepTwo() {
           Grafana SAML docs
         </Link>
         .
-      </Text>
+      </P>
     </StepBox>
   );
 }

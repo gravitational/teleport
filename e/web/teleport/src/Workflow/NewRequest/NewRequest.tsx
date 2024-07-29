@@ -10,6 +10,7 @@ import {
   ButtonSecondary,
   Text,
   ButtonIcon,
+  P1,
 } from 'design';
 import { StyledPanel } from 'design/DataTable/StyledTable';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
@@ -503,7 +504,7 @@ function UsageInfo(usage: { limit: number; used: number }) {
   return (
     <UsageNotice data-testid="usage-info">
       <InfoIcon color="info" px={3} />
-      <Text typography="paragraph">
+      <P1>
         {limitReached ? (
           <>
             Your cluster has reached its allocation of {usage.used} access
@@ -520,7 +521,7 @@ function UsageInfo(usage: { limit: number; used: number }) {
             been created this month.
           </>
         )}
-      </Text>
+      </P1>
     </UsageNotice>
   );
 }
@@ -529,11 +530,11 @@ function LimitedInfo() {
   return (
     <UsageNotice data-testid="usage-info">
       <InfoIcon color="info" px={3} />
-      <Text typography="paragraph">
+      <P1>
         Your cluster has an allocation of{' '}
         {cfg.featureLimits.AccessRequestMonthlyRequestLimit} access requests per
         month.
-      </Text>
+      </P1>
     </UsageNotice>
   );
 }

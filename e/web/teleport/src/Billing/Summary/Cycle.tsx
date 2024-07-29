@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Flex, Text } from 'design';
+import { Box, Flex, P1, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 
 import cfg from 'shared/config';
@@ -153,9 +153,7 @@ export const Cycle = ({
           }}
         />
         <Flex justifyContent="right" alignItems="center">
-          <Text mr={3} typography="paragraph">
-            Do you have custom needs?
-          </Text>
+          <P1 mr={3}>Do you have custom needs?</P1>
           <ButtonLockedFeature
             width="196px"
             noIcon

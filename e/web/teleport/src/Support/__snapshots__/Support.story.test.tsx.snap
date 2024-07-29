@@ -74,18 +74,20 @@ exports[`render support cloud section 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c1 {
@@ -129,9 +131,10 @@ exports[`render support cloud section 1`] = `
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c12:hover,

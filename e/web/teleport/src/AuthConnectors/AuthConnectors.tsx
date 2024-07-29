@@ -1,7 +1,7 @@
 import React from 'react';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import styled from 'styled-components';
-import { Alert, Box, Flex, Indicator, Text } from 'design';
+import { Alert, Box, Flex, H3, Indicator, Text } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 
@@ -14,6 +14,8 @@ import {
   MobileDescription,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
+
+import { P } from 'design/Text/Text';
 
 import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
@@ -54,9 +56,7 @@ export function AuthConnectors(props: State) {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <MobileDescription typography="subtitle1">
-          {description}
-        </MobileDescription>
+        <MobileDescription>{description}</MobileDescription>
         {(!showAuthConnectorsCTA || !isEmpty) && (
           <ResponsiveAddMenu>
             <AddMenu
@@ -92,13 +92,9 @@ export function AuthConnectors(props: State) {
             />
           )}
           <DesktopDescription>
-            <Text typography="h6" mb={3}>
-              Auth Connectors
-            </Text>
-            <Text typography="subtitle1" mb={3}>
-              {description}
-            </Text>
-            <Text typography="subtitle1" mb={2}>
+            <H3 mb={3}>Auth Connectors</H3>
+            <P>{description}</P>
+            <P>
               Please{' '}
               <Text
                 as="a"
@@ -109,7 +105,7 @@ export function AuthConnectors(props: State) {
                 view our documentation
               </Text>{' '}
               for samples of each connector.
-            </Text>
+            </P>
           </DesktopDescription>
         </Flex>
       )}

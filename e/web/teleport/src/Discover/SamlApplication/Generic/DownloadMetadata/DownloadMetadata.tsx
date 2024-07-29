@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, ButtonBorder, Flex, LabelInput, Text } from 'design';
+import { Box, ButtonBorder, Flex, H3, LabelInput, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
@@ -15,6 +15,8 @@ import cfg from 'teleport/config';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import { useAttemptNext } from 'shared/hooks';
+
+import { P } from 'design/Text/Text';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -83,15 +85,15 @@ export function ConfigureServiceProvider({
 }: ConfigureSPProps) {
   return (
     <StyledBox mb={4}>
-      <Text bold>Teleport IdP Metadata</Text>
+      <H3 mb={2}>Teleport IdP Metadata</H3>
 
       <Flex alignItems="baseline" gap={4} mb={4}>
-        <Text typography="subtitle1">
+        <P>
           Use the Teleport IdP metadata values shown below to configure service
           provider. You may also download the metadata file if you need more
           control over configuration or if the service provider requires to
           upload the metadata file.
-        </Text>
+        </P>
         <ButtonBorder width="300px" as="a" href={idpMetadataUrl} size="medium">
           Download IdP Metadata
         </ButtonBorder>

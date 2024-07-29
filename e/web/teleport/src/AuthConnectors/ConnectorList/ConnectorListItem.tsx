@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
+import { Text, Flex, ButtonPrimary, H3 } from 'design';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { AuthProviderType } from 'shared/services';
 import { State as ResourceState } from 'teleport/components/useResources';
@@ -43,10 +43,10 @@ export default function ConnectorListItem({
         style={{ textAlign: 'center' }}
       >
         <SsoIcon {...iconProps} />
-        <Text style={{ width: '100%' }} typography="body2" bold mb={1}>
+        <H3 style={{ width: '100%' }} my={1}>
           {name}
-        </Text>
-        <Text style={{ width: '100%' }} typography="body2" color="text.main">
+        </H3>
+        <Text style={{ width: '100%' }} typography="body3">
           {desc}
         </Text>
       </Flex>

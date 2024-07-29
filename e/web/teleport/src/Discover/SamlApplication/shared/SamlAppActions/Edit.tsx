@@ -58,9 +58,7 @@ export function Edit({
       open={open}
     >
       <DialogHeader>
-        <DialogTitle typography="body1" bold>
-          Update SAML application
-        </DialogTitle>
+        <DialogTitle>Update SAML application</DialogTitle>
       </DialogHeader>
 
       <DialogContent

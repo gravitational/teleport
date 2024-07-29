@@ -156,10 +156,10 @@ export function Specs({
             />
           </Flex>
           <Box mb={2}>
-            <Text fontSize={1} mb={2}>
+            <Text typography="body3" mb={2}>
               Next Date: {getFormattedDate(audit.nextDate)}
             </Text>
-            <Text fontSize={1}>
+            <Text typography="body3">
               Frequency: {frequency} {dayOfMonth}
             </Text>
           </Box>

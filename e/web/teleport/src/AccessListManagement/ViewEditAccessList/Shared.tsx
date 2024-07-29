@@ -177,7 +177,7 @@ export function ButtonPencil({
 }
 
 const TextNoEllipsis = styled(Box)`
-  font-size: ${p => p.theme.fontSizes[1]}px;
+  ${p => p.theme.typography.body3}
 `;
 
 const renderTruncatingLabels = (labels: string[] = []) => {

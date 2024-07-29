@@ -147,8 +147,8 @@ exports[`renders loaded linux 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -415,6 +415,7 @@ exports[`renders loaded linux 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -518,11 +519,11 @@ exports[`renders loaded linux 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -575,11 +576,11 @@ exports[`renders loaded linux 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >
@@ -1195,8 +1196,8 @@ exports[`renders loaded macOS 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -1463,6 +1464,7 @@ exports[`renders loaded macOS 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -1566,11 +1568,11 @@ exports[`renders loaded macOS 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -1623,11 +1625,11 @@ exports[`renders loaded macOS 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >
@@ -2142,8 +2144,8 @@ exports[`renders loaded windows 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -2438,6 +2440,7 @@ exports[`renders loaded windows 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -2546,11 +2549,11 @@ exports[`renders loaded windows 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -2603,11 +2606,11 @@ exports[`renders loaded windows 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >
@@ -3134,8 +3137,8 @@ exports[`renders when generating license 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -3402,6 +3405,7 @@ exports[`renders when generating license 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -3505,11 +3509,11 @@ exports[`renders when generating license 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -3563,11 +3567,11 @@ exports[`renders when generating license 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >
@@ -4205,8 +4209,8 @@ exports[`renders when license failed 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -4473,6 +4477,7 @@ exports[`renders when license failed 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -4576,11 +4581,11 @@ exports[`renders when license failed 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
       kind="danger"
@@ -4639,11 +4644,11 @@ exports[`renders when license failed 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c15"
     >
@@ -5259,8 +5264,8 @@ exports[`renders when license generated 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -5527,6 +5532,7 @@ exports[`renders when license generated 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -5630,11 +5636,11 @@ exports[`renders when license generated 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -5687,11 +5693,11 @@ exports[`renders when license generated 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >
@@ -6267,8 +6273,8 @@ exports[`renders when releases are loading 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -6346,11 +6352,11 @@ exports[`renders when releases are loading 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -6403,11 +6409,11 @@ exports[`renders when releases are loading 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >
@@ -6553,8 +6559,8 @@ exports[`renders when releases failed 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 18px;
   line-height: 24px;
 }
 
@@ -6632,11 +6638,11 @@ exports[`renders when releases failed 1`] = `
   <div
     class="c6"
   >
-    <div
+    <h2
       class="c7"
     >
       Generate Your License Key
-    </div>
+    </h2>
     <div
       class="c8"
     >
@@ -6689,11 +6695,11 @@ exports[`renders when releases failed 1`] = `
   <div
     class="c0"
   >
-    <div
+    <h2
       class="c7"
     >
       Download Teleport
-    </div>
+    </h2>
     <div
       class="c14"
     >

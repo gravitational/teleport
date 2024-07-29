@@ -58,9 +58,9 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
           </SingleLineBox>
           {isOkta && <OktaBadge />}
         </Flex>
-        <Description color="text.muted" title={description}>
+        <Text typography="body4" color="text.muted" title={description}>
           {truncatedDesc}
-        </Description>
+        </Text>
       </Box>
       <Flex>
         {canViewMembers && (
@@ -108,10 +108,10 @@ const renderRolesAndTraits = ({
     const truncatedLabels = $labels.slice(0, 2);
     const otherLabels = $labels.slice(2);
     return (
-      <Flex flexWrap="wrap" alignItems="flex-end">
+      <Flex flexWrap="wrap" alignItems="baseline">
         {truncatedLabels}
         <ToolTipText tipContent={<>{otherLabels}</>}>
-          <Text fontSize={0} color="text.muted">
+          <Text typography="body4" color="text.muted">
             +{otherLabels.length} more
           </Text>
         </ToolTipText>
@@ -158,11 +158,6 @@ const AccessCardContainer = styled(Flex)<{ $onlyRender?: boolean }>`
   }}
 `;
 
-const Description = styled(Text)`
-  font-size: ${props => props.theme.fontSizes[0]}px;
-  line-height: 16px;
-`;
-
 const SingleLineBox = styled(Text)<{ $requiresReview: boolean }>`
   overflow: hidden;
   white-space: nowrap;
@@ -178,11 +173,12 @@ const ReviewBadge = styled.div`
   right: 0;
   border-bottom-left-radius: ${p => p.theme.radii[2]}px;
   border-top-left-radius: ${p => p.theme.radii[2]}px;
-  font-size: ${p => p.theme.fontSizes[0]}px;
   display: flex;
   align-items: center;
   flex-direction: row-reverse;
   padding-right: ${p => p.theme.space[2]}px;
   margin-top: 2px;
   color: ${p => p.theme.colors.dark};
+
+  ${p => p.theme.typography.body4}
 `;

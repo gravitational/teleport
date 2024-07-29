@@ -32,6 +32,8 @@ import cfg from 'teleport/config';
 
 import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
 
+import { P } from 'design/Text/Text';
+
 import useTeleport from 'e-teleport/useTeleportE';
 
 import { getCTAForPlugin } from 'e-teleport/services/plugins';
@@ -142,7 +144,7 @@ export function IntegrationPick() {
         {plugins.selfHosted.length > 0 && (
           <Flex flexDirection="column">
             <H2 mb={1}>Self-Hosted Plugins</H2>
-            <Text mb={3} typography="body1">
+            <P mb={3}>
               There is a wide variety of plugins that you can integrate with.
               See below for a sampling, or check out the documented list at{' '}
               <ExternalLink
@@ -153,7 +155,7 @@ export function IntegrationPick() {
               </ExternalLink>
               . Self-hosted plugins will not show up in your integration list,
               and must be managed outside of the Teleport UI.
-            </Text>
+            </P>
             <Flex mb={2} gap={3} flexWrap="wrap">
               {plugins.selfHosted.map(p => (
                 <PluginTile key={p.type} type={p} hasAccess={hasPluginAccess} />

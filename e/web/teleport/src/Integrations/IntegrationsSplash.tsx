@@ -7,11 +7,12 @@ import {
   Flex,
   Image,
   Link as ExternalLink,
-  Text,
   H1,
 } from 'design';
 
 import pluginsWheel from 'design/assets/images/icons/plugins.svg';
+
+import { P } from 'design/Text/Text';
 
 import cfg from 'e-teleport/config';
 
@@ -21,11 +22,11 @@ export function IntegrationsSplash() {
       <Image maxHeight="400px" src={pluginsWheel} />
       <Flex flexDirection="column" gap="2" maxWidth="540px">
         <H1 textAlign="center">Enroll your first integration to Teleport</H1>
-        <Text typography="body1" textAlign="center">
+        <P textAlign="center">
           Teleport integrations can connect your cluster to external apps for
           tasks such as alerting cluster administrators when team members make
           access requests.
-        </Text>
+        </P>
       </Flex>
       <Flex justifyContent="center" gap="2">
         <InternalLink to={cfg.oss.getIntegrationEnrollRoute()}>

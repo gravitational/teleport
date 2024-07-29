@@ -1,5 +1,5 @@
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text, Alert } from 'design';
+import { ButtonSecondary, ButtonWarning, Alert, P1 } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -42,9 +42,7 @@ export function DeleteRuleDialogue({
       </DialogHeader>
       <DialogContent width="450px">
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <Text typography="paragraph" mb="2">
-          Are you sure you want to delete rule "{name}"
-        </Text>
+        <P1>Are you sure you want to delete rule “{name}”?</P1>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={handleDelete}>

@@ -116,7 +116,7 @@ export default function Workflow() {
             />
             <Flex mr={4} alignItems="baseline">
               <Text mr={3}>Request</Text>
-              <Text typography="body1">{requestId}</Text>
+              <Text typography="body2">{requestId}</Text>
             </Flex>
           </Flex>
         </FeatureHeaderTitle>

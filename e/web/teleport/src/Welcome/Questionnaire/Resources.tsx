@@ -66,7 +66,7 @@ export const Resources = ({ checked, updateFields }: ResourcesProps) => {
               height="64px"
               width="64px"
             />
-            <Text textAlign="center" typography="paragraph2">
+            <Text textAlign="center" typography="body3">
               {resource.label}
             </Text>
           </Flex>

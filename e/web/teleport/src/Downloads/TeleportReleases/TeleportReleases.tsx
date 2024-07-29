@@ -7,7 +7,7 @@ import Indicator from 'design/Indicator';
 
 import Alert from 'design/Alert';
 
-import Text from 'design/Text';
+import Text, { H2 } from 'design/Text';
 
 import Link from 'design/Link';
 
@@ -86,9 +86,7 @@ export const TeleportReleases = ({
   return (
     <>
       <Box>
-        <Text bold typography="h5">
-          Download Teleport
-        </Text>
+        <H2>Download Teleport</H2>
         {!cfg.oss.isCloud && (
           <Text my={3}>
             You will also need the binaries below for{' '}

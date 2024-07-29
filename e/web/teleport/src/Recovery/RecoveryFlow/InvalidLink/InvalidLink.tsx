@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, H1, Text } from 'design';
+import { Card, H1, P1 } from 'design';
 
 export default function InvalidLink() {
   return (
@@ -14,13 +14,11 @@ export default function InvalidLink() {
       <H1 textAlign="center" mb={3}>
         Invalid Recovery Link
       </H1>
-      <Text typography="paragraph" mb="2" textAlign="center">
-        This recovery link is invalid or has expired.
-      </Text>
-      <Text typography="paragraph" textAlign="center">
+      <P1 textAlign="center">This recovery link is invalid or has expired.</P1>
+      <P1 textAlign="center">
         If you believe this is a mistake, please contact us at:
         support@goteleport.com
-      </Text>
+      </P1>
     </Card>
   );
 }
