@@ -186,7 +186,7 @@ type WindowsServiceConfig struct {
 	// domain.
 	PKIDomain string
 	// KCDAddr configures address of Key Distribution Center used during Kerberos NLA negotiation.
-	// If empty
+	// If empty LDAP address will be used
 	KDCAddr string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
