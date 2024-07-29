@@ -296,6 +296,7 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
+				w.Logger.Errorf("Failed parsing resource: %s", err)
 				errs = append(errs, trace.Wrap(err))
 				continue
 			}
@@ -313,6 +314,7 @@ func (w *watcher) forwardEvents() {
 	for {
 		select {
 		case <-w.backendWatcher.Done():
+			w.Logger.Info("Backend watcher closed")
 			return
 		case event := <-w.backendWatcher.Events():
 			converted, errs := w.parseEvent(event)
@@ -329,6 +331,7 @@ func (w *watcher) forwardEvents() {
 				select {
 				case w.eventsC <- c:
 				case <-w.backendWatcher.Done():
+					w.Logger.Info("Backend watcher closed while sending")
 					return
 				}
 			}

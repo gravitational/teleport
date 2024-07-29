@@ -32,14 +32,28 @@ const (
 	provisioningStatePageSize = 100
 )
 
+type ProvisioningStateServiceMode int
+
+const (
+	// ProvisioningStateServiceModeStrict is the default service mode, with
+	// strict validation enabled.
+	ProvisioningStateServiceModeStrict ProvisioningStateServiceMode = 0
+
+	// ProvisioningStateServiceModeRelaxed indicates that the service should do
+	// no validation and just write to the provided backend. This is generally
+	// for use with caches
+	ProvisioningStateServiceModeRelaxed ProvisioningStateServiceMode = 1
+)
+
 // ProvisioningStateService handles low-level CRUD operations for the provisioning status
 type ProvisioningStateService struct {
 	service *generic.ServiceWrapper[*provisioningv1.PrincipalState]
+	mode    ProvisioningStateServiceMode
 }
 
 var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 
-func NewProvisioningStateService(backend backend.Backend) (*ProvisioningStateService, error) {
+func NewProvisioningStateService(backend backend.Backend, mode ProvisioningStateServiceMode) (*ProvisioningStateService, error) {
 	userStatusSvc, err := generic.NewServiceWrapper(
 		backend,
 		types.KindProvisioningState,
@@ -51,6 +65,7 @@ func NewProvisioningStateService(backend backend.Backend) (*ProvisioningStateSer
 	}
 
 	svc := &ProvisioningStateService{
+		mode:    mode,
 		service: userStatusSvc,
 	}
 
@@ -60,15 +75,28 @@ func NewProvisioningStateService(backend backend.Backend) (*ProvisioningStateSer
 func (ss *ProvisioningStateService) CreateProvisioningState(ctx context.Context, state *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error) {
 	createdState, err := ss.service.CreateResource(ctx, state)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating new user state record")
+		return nil, trace.Wrap(err, "creating provisioning state record")
 	}
 	return createdState, nil
 }
 
 func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context, state *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error) {
-	updatedState, err := ss.service.ConditionalUpdateResource(ctx, state)
+	var updatedState *provisioningv1.PrincipalState
+	var err error
+
+	switch ss.mode {
+	case ProvisioningStateServiceModeStrict:
+		updatedState, err = ss.service.ConditionalUpdateResource(ctx, state)
+
+	case ProvisioningStateServiceModeRelaxed:
+		updatedState, err = ss.service.UpdateResource(ctx, state)
+
+	default:
+		return nil, trace.BadParameter("invalid service mode: %v", ss.mode)
+	}
+
 	if err != nil {
-		return nil, trace.Wrap(err, "updating new user state record")
+		return nil, trace.Wrap(err, "updating provisioning state record")
 	}
 	return updatedState, nil
 }
@@ -76,7 +104,7 @@ func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context,
 func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, name services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
 	state, err := ss.service.GetResource(ctx, string(name))
 	if err != nil {
-		return nil, trace.Wrap(err, "fetching user provisioning state")
+		return nil, trace.Wrap(err, "fetching provisioning state record")
 	}
 	return state, nil
 }
@@ -84,7 +112,7 @@ func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, na
 func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, page services.PageToken) ([]*provisioningv1.PrincipalState, services.PageToken, error) {
 	resp, nextPage, err := ss.service.ListResources(ctx, provisioningStatePageSize, string(page))
 	if err != nil {
-		return nil, "", trace.Wrap(err, "listing provisioning states")
+		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
 	return resp, services.PageToken(nextPage), nil
 }

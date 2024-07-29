@@ -325,7 +325,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.ProvisioningStates == nil {
-		cfg.ProvisioningStates, err = local.NewProvisioningStateService(cfg.Backend)
+		cfg.ProvisioningStates, err = local.NewProvisioningStateService(
+			cfg.Backend,
+			local.ProvisioningStateServiceModeStrict)
 		if err != nil {
 			return nil, trace.Wrap(err, "Creating provisioning state service")
 		}

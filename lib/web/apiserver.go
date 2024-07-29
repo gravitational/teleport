@@ -566,7 +566,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			session, err := h.authenticateWebSession(w, r)
 			if err != nil {
-				h.log.Debugf("Could not authenticate: %v", err)
+				h.log.
+					WithFields(logrus.Fields{
+						"method": r.Method,
+						"url":    r.URL,
+					}).
+					Debugf("Could not authenticate: %v", err)
 			}
 			session.XCSRF = csrfToken
 
@@ -4463,8 +4468,15 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // WithAuth ensures that a request is authenticated.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		log := h.logger.With(
+			"method", r.Method,
+			"url_path", r.URL.Path)
+		log.Debug("Enterting authentication middleware")
+		defer log.Debug("Leaving authentication middleware")
+
 		sctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
+			log.Error("authentication failed", "error", err)
 			return nil, trace.Wrap(err)
 		}
 		return fn(w, r, p, sctx)

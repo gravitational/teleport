@@ -183,7 +183,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
 		{Kind: types.KindAccessGraphSettings},
-		//{Kind: types.KindProvisioningState},
+		{Kind: types.KindProvisioningState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -865,7 +865,9 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
+	provisioningStatesCache, err := local.NewProvisioningStateService(
+		config.Backend,
+		local.ProvisioningStateServiceModeRelaxed)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1214,6 +1216,9 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+	c.Logger.Debug("Entering Cache.fetchAndWatch()")
+	defer c.Logger.Debug("Leaving Cache.fetchAndWatch()")
+
 	requestKinds := c.watchKinds()
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
@@ -1336,16 +1341,21 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
 
+	c.Logger.Debug("Entering watch loop")
+
 	var lastStalenessWarning time.Time
 	var staleEventCount int
 	for {
 		select {
 		case <-watcher.Done():
+			c.Logger.Error("EventWatcher closed")
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
+			c.Logger.Error("Context closed")
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case <-relativeExpiryInterval.Next():
 			if err := c.performRelativeNodeExpiry(ctx); err != nil {
+				c.Logger.WithError(err).Error("Node expiry failed")
 				return trace.Wrap(err)
 			}
 			c.notify(ctx, Event{Type: RelativeExpiry})
@@ -1382,8 +1392,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 					}
 				}
 			}
-
 			if err := c.processEvent(ctx, event); err != nil {
+				c.Logger.WithError(err).Error("Event processing failed")
 				return trace.Wrap(err)
 			}
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
