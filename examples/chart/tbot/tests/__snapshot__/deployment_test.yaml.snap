@@ -30,6 +30,16 @@ should match the snapshot (full):
             helm.sh/chart: tbot-17.0.0-dev
             test-key: test-label-pod
         spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                    - antarctica-east1
+                    - antarctica-west1
           containers:
           - args:
             - start
@@ -57,12 +67,29 @@ should match the snapshot (full):
             image: public.ecr.aws/gravitational/tbot-distroless:17.0.0-dev
             imagePullPolicy: Always
             name: tbot
+            resources:
+              limits:
+                cpu: 500m
+                memory: 128Mi
+              requests:
+                cpu: 250m
+                memory: 64Mi
             volumeMounts:
             - mountPath: /config
               name: config
             - mountPath: /var/run/secrets/tokens
               name: join-sa-token
+            - mountPath: /test/path
+              name: test-volume
+          imagePullSecrets:
+          - name: test-pull-secret
+          nodeSelector:
+            test-key: test-node-selector
           serviceAccountName: modified-sa-name
+          tolerations:
+          - effect: NoSchedule
+            key: key1
+            operator: Exists
           volumes:
           - configMap:
               name: RELEASE-NAME
@@ -74,6 +101,8 @@ should match the snapshot (full):
                   audience: test.teleport.sh
                   expirationSeconds: 600
                   path: join-sa-token
+          - emptyDir: {}
+            name: test-volume
 should match the snapshot (simple):
   1: |
     apiVersion: apps/v1

@@ -41,6 +41,44 @@ annotations:
   serviceAccount:
     test-key: test-annotation-service-account
 
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "250m"
+  limits:
+    memory: "128Mi"
+    cpu: "500m"
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - antarctica-east1
+                - antarctica-west1
+
+tolerations:
+  - key: "key1"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+nodeSelector:
+  test-key: test-node-selector
+
+imagePullSecrets:
+  - name: test-pull-secret
+
+extraVolumes:
+  - name: test-volume
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: test-volume
+    mountPath: /test/path
+
 extraArgs:
   - --extra-arg
 
