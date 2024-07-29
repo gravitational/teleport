@@ -528,7 +528,7 @@ to support one of two things:
 
 The `v1.sock` Unix Domain Socket implements the V1 Teleport SSH multiplexer
 protocol. The client must first send a short request message to indicate the
-desired target host and port, terminated will a null byte. The multiplexer will
+desired target host and port, terminated with a null byte. The multiplexer will
 then begin to forward traffic to the target host and port. The client can then
 make an SSH connection.
 
