@@ -23,7 +23,6 @@ import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
-
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
@@ -34,7 +33,6 @@ import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
-
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
