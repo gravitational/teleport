@@ -151,9 +151,10 @@ exports[`locked 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 14px;
-  line-height: 24px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.014px;
   margin-bottom: 32px;
 }
 
@@ -324,7 +325,7 @@ exports[`locked 1`] = `
     class="c11 c12 sc-gEvDqW c11 c13"
     width="auto"
   >
-    <div
+    <header
       class="c14"
       width="100%"
     >
@@ -333,7 +334,7 @@ exports[`locked 1`] = `
       >
         Access Requests Flow
       </h2>
-      <div
+      <p
         class="c16"
       >
         To learn more about access requests, take a look at 
@@ -346,8 +347,8 @@ exports[`locked 1`] = `
         >
           Teleport Documentation.
         </a>
-      </div>
-    </div>
+      </p>
+    </header>
     <div
       class="c0 c18"
       style="position: relative;"

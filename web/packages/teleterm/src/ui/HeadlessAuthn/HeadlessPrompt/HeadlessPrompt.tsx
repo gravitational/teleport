@@ -35,6 +35,8 @@ import DialogConfirmation, {
 import { Attempt } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
 
+import { P, P3 } from 'design/Text/Text';
+
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
 
@@ -104,14 +106,11 @@ export function HeadlessPrompt({
         </Alerts.Danger>
       )}
       <DialogContent>
-        <Text color="text.slightlyMuted">
+        <P color="text.slightlyMuted">
           Someone initiated a headless command from <b>{clientIp}</b>.
-          <br />
-          If it was not you, click Reject and contact your administrator.
-        </Text>
-        <Text color="text.muted" mt={1} fontSize="12px">
-          Request ID: {headlessAuthenticationId}
-        </Text>
+        </P>
+        <P>If it was not you, click Reject and contact your administrator.</P>
+        <P3 color="text.muted">Request ID: {headlessAuthenticationId}</P3>
       </DialogContent>
       {waitForMfa && (
         <DialogContent mb={2}>

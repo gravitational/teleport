@@ -23,9 +23,11 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, ButtonWarning, Text } from 'design';
+import { ButtonIcon, ButtonWarning, H2 } from 'design';
 
 import { Cross } from 'design/Icon';
+
+import { P } from 'design/Text/Text';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -68,10 +70,10 @@ export function ClusterLogout({
           removeClusterAndClose();
         }}
       >
-        <DialogHeader justifyContent="space-between" mb={0}>
-          <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
+        <DialogHeader justifyContent="space-between" mb={4}>
+          <H2 style={{ whiteSpace: 'nowrap' }}>
             Log out from cluster {clusterTitle}
-          </Text>
+          </H2>
           <ButtonIcon
             type="button"
             disabled={status === 'processing'}
@@ -82,9 +84,7 @@ export function ClusterLogout({
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text color="text.slightlyMuted" typography="body1">
-            Are you sure you want to log out?
-          </Text>
+          <P color="text.slightlyMuted">Are you sure you want to log out?</P>
           {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}
         </DialogContent>
         <DialogFooter>

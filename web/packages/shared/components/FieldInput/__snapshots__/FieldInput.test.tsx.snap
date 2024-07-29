@@ -20,6 +20,7 @@ exports[`snapshot tests 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -65,6 +66,10 @@ exports[`snapshot tests 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 

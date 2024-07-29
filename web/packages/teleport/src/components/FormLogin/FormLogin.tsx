@@ -47,6 +47,8 @@ import {
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import { StepSlider, StepComponentProps } from 'design/StepSlider';
 
+import { P } from 'design/Text/Text';
+
 import { UserCredentials } from 'teleport/services/auth';
 
 import { PasskeyIcons } from '../Passkeys';
@@ -101,10 +103,10 @@ export default function LoginForm(props: Props) {
           primaryAuthType={actualPrimaryType}
         />
       ) : (
-        <Text mx={4} typography="paragraph2">
+        <P mx={4}>
           The ability to login has not been enabled. Please contact your system
           administrator for more information.
-        </Text>
+        </P>
       )}
     </Card>
   );
@@ -168,9 +170,7 @@ const Passwordless = ({
           <PasskeyIcons />
         </div>
         <div>
-          <Text typography="body1">
-            Your browser will prompt you for a device key.
-          </Text>
+          <P>Your browser will prompt you for a device key.</P>
         </div>
         <Button
           fill="filled"

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { Box, Flex, Indicator, Text } from 'design';
+import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import { StyledTable, StyledPanel } from './StyledTable';
@@ -392,16 +392,7 @@ const EmptyIndicator = ({
             </Text>
           </Flex>
 
-          {emptyHint && (
-            <Text
-              textAlign="center"
-              typography="paragraph"
-              m="0"
-              color="text.main"
-            >
-              {emptyHint}
-            </Text>
-          )}
+          {emptyHint && <P1 textAlign="center">{emptyHint}</P1>}
 
           {emptyButton}
         </Flex>

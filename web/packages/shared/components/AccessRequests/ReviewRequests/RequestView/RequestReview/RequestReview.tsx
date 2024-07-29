@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Box, Alert, Flex, Label } from 'design';
+import { ButtonPrimary, Text, Box, Alert, Flex, Label, H3 } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
 
@@ -119,9 +119,7 @@ export default function RequestReview({
           style={{ position: 'relative' }}
         >
           <Box bg="levels.sunken" py={1} px={3}>
-            <Text typography="h6" mr={3}>
-              {user} - add a review
-            </Text>
+            <H3 mr={3}>{user} - add a review</H3>
           </Box>
           <Box p={3} bg="levels.elevated">
             {submitReviewAttempt.status === 'error' && (
