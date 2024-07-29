@@ -75,10 +75,14 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tt.b.Close())
+	})
 
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

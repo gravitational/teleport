@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -140,7 +142,7 @@ type DeployServiceRequest struct {
 	IntegrationName string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
@@ -249,7 +251,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if r.TeleportConfigString == "" {
@@ -470,7 +472,7 @@ type upsertTaskRequest struct {
 	ClusterName          string
 	ServiceName          string
 	TeleportVersionTag   string
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 	Region               string
 	TeleportConfigB64    string
 }
@@ -541,7 +543,7 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequ
 // It will re-create if its status is INACTIVE.
 // If the cluster status is not ACTIVE, an error is returned.
 // The cluster is returned.
-func upsertCluster(ctx context.Context, clt DeployServiceClient, clusterName string, resourceCreationTags AWSTags) (*ecsTypes.Cluster, error) {
+func upsertCluster(ctx context.Context, clt DeployServiceClient, clusterName string, resourceCreationTags tags.AWSTags) (*ecsTypes.Cluster, error) {
 	describeClustersResponse, err := clt.DescribeClusters(ctx, &ecs.DescribeClustersInput{
 		Clusters: []string{clusterName},
 		Include: []ecsTypes.ClusterField{
@@ -557,6 +559,22 @@ func upsertCluster(ctx context.Context, clt DeployServiceClient, clusterName str
 			ClusterName:       aws.String(clusterName),
 			CapacityProviders: requiredCapacityProviders,
 			Tags:              resourceCreationTags.ToECSTags(),
+		}, func(o *ecs.Options) {
+			o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
+				so.MaxAttempts = 10
+				so.MaxBackoff = time.Minute
+				// Retry if an error is a missing ECS service-linked role.
+				// This is a retryable error because the ECS service-linked role
+				// will be created automatically when the caller has
+				// iam:CreateServiceLinkedRole permission (we should).
+				// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using-service-linked-roles.html#create-slr
+				so.Retryables = append(so.Retryables, retry.IsErrorRetryableFunc(func(err error) aws.Ternary {
+					if err != nil && strings.Contains(err.Error(), "verify that the ECS service linked role exists") {
+						return aws.TrueTernary
+					}
+					return aws.FalseTernary
+				}))
+			})
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -670,7 +688,7 @@ func deployServiceNetworkConfiguration(subnetIDs, securityGroups []string) *ecsT
 type upsertServiceRequest struct {
 	ServiceName          string
 	ClusterName          string
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 	SubnetIDs            []string
 	SecurityGroups       []string
 }

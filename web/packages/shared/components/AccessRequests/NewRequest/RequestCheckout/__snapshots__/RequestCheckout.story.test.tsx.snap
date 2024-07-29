@@ -33,8 +33,8 @@ exports[`failed state 1`] = `
 
 .c13 {
   box-sizing: border-box;
-  margin-bottom: 4px;
   margin-top: 40px;
+  margin-bottom: 4px;
 }
 
 .c16 {
@@ -66,26 +66,26 @@ exports[`failed state 1`] = `
   min-width: 200px;
 }
 
-.c37 {
+.c38 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
   width: 100%;
   color: #FFFFFF;
-  border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.54);
+  border: 1px solid;
+  border-color: rgba(255, 255, 255, 0.54);
 }
 
-.c39 {
+.c40 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   margin-top: 4px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
   height: 34px;
 }
 
-.c42 {
+.c43 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
@@ -98,7 +98,8 @@ exports[`failed state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -107,73 +108,49 @@ exports[`failed state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 50px;
 }
 
-.c21:hover,
-.c21:focus {
-  background: rgba(255,255,255,0.07);
+.c21:focus-visible,
+.teleport-button__force-focus-visible .c21 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c21:active {
-  background: rgba(255,255,255,0.13);
+.c21:hover,
+.teleport-button__force-hover .c21 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c21:active,
+.teleport-button__force-active .c21 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c21:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c45 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  width: 100%;
-  text-transform: none;
-}
-
-.c45:hover,
-.c45:focus {
-  background: #B29DFF;
-}
-
-.c45:active {
-  background: #C5B6FF;
-}
-
-.c45:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -184,7 +161,8 @@ exports[`failed state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -193,34 +171,118 @@ exports[`failed state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
   text-transform: none;
 }
 
-.c46:hover,
-.c46:focus {
-  background: rgba(255,255,255,0.13);
+.c46:focus-visible,
+.teleport-button__force-focus-visible .c46 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c46:active {
-  background: rgba(255,255,255,0.18);
+.c46:hover,
+.teleport-button__force-hover .c46 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c46:active,
+.teleport-button__force-active .c46 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c46:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
-.c41 {
+.c47 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
+  width: 100%;
+  text-transform: none;
+}
+
+.c47:focus-visible,
+.teleport-button__force-focus-visible .c47 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c47:hover,
+.teleport-button__force-hover .c47 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c47:active,
+.teleport-button__force-active .c47 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c47:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c42 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -240,17 +302,17 @@ exports[`failed state 1`] = `
   width: 32px;
 }
 
-.c41:disabled {
-  color: rgba(255,255,255,0.36);
+.c42:disabled {
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c41:not(:disabled):hover,
-.c41:not(:disabled):focus {
+.c42:not(:disabled):hover,
+.c42:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:not(:disabled):active {
+.c42:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -261,14 +323,14 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c31 {
+.c32 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-left: 16px;
 }
 
-.c34 {
+.c35 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -282,37 +344,43 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c20 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c32 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 4px;
-}
-
 .c28 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 8px;
+}
+
+.c33 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-right: 4px;
 }
 
 .c5 {
@@ -328,6 +396,7 @@ exports[`failed state 1`] = `
 
 .c19 {
   display: flex;
+  align-items: baseline;
 }
 
 .c23 {
@@ -342,7 +411,11 @@ exports[`failed state 1`] = `
   gap: 8px;
 }
 
-.c43 {
+.c30 {
+  display: flex;
+}
+
+.c44 {
   display: flex;
   gap: 8px;
 }
@@ -355,42 +428,43 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
-.c9 > thead > tr > th,
-.c9 > tbody > tr > th,
-.c9 > tfoot > tr > th,
-.c9 > thead > tr > td,
-.c9 > tbody > tr > td,
-.c9 > tfoot > tr > td {
+.c9>thead>tr>th,
+.c9>tbody>tr>th,
+.c9>tfoot>tr>th,
+.c9>thead>tr>td,
+.c9>tbody>tr>td,
+.c9>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th:first-child,
-.c9 > tbody > tr > th:first-child,
-.c9 > tfoot > tr > th:first-child,
-.c9 > thead > tr > td:first-child,
-.c9 > tbody > tr > td:first-child,
-.c9 > tfoot > tr > td:first-child {
+.c9>thead>tr>th:first-child,
+.c9>tbody>tr>th:first-child,
+.c9>tfoot>tr>th:first-child,
+.c9>thead>tr>td:first-child,
+.c9>tbody>tr>td:first-child,
+.c9>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c9 > thead > tr > th:last-child,
-.c9 > tbody > tr > th:last-child,
-.c9 > tfoot > tr > th:last-child,
-.c9 > thead > tr > td:last-child,
-.c9 > tbody > tr > td:last-child,
-.c9 > tfoot > tr > td:last-child {
+.c9>thead>tr>th:last-child,
+.c9>tbody>tr>th:last-child,
+.c9>tfoot>tr>th:last-child,
+.c9>thead>tr>td:last-child,
+.c9>tbody>tr>td:last-child,
+.c9>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c9 > tbody > tr > td {
+.c9>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th {
+.c9>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -399,11 +473,11 @@ exports[`failed state 1`] = `
   white-space: nowrap;
 }
 
-.c9 > thead > tr > th svg {
+.c9>thead>tr>th svg {
   height: 12px;
 }
 
-.c9 > tbody > tr > td {
+.c9>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -423,7 +497,7 @@ exports[`failed state 1`] = `
 }
 
 .c9 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -433,11 +507,11 @@ exports[`failed state 1`] = `
   height: 100%;
 }
 
-.c9 tbody tr:hover + tr {
+.c9 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c36 .react-select-container {
+.c37 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -449,173 +523,173 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c36 .react-select__control {
+.c37 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
-.c36 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+.c37 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255, 255, 255, 0.54);
 }
 
-.c36 .react-select__control:hover,
-.c36 .react-select__control:focus,
-.c36 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+.c37 .react-select__control:hover,
+.c37 .react-select__control:focus,
+.c37 .react-select__control:active {
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c36 .react-select__control:hover .react-select__dropdown-indicator,
-.c36 .react-select__control:focus .react-select__dropdown-indicator,
-.c36 .react-select__control:active .react-select__dropdown-indicator {
+.c37 .react-select__control:hover .react-select__dropdown-indicator,
+.c37 .react-select__control:focus .react-select__dropdown-indicator,
+.c37 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c36 .react-select__control .react-select__indicator:hover,
-.c36 .react-select__control .react-select__dropdown-indicator:hover,
-.c36 .react-select__control .react-select__indicator:focus,
-.c36 .react-select__control .react-select__dropdown-indicator:focus,
-.c36 .react-select__control .react-select__indicator:active,
-.c36 .react-select__control .react-select__dropdown-indicator:active {
+.c37 .react-select__control .react-select__indicator:hover,
+.c37 .react-select__control .react-select__dropdown-indicator:hover,
+.c37 .react-select__control .react-select__indicator:focus,
+.c37 .react-select__control .react-select__dropdown-indicator:focus,
+.c37 .react-select__control .react-select__indicator:active,
+.c37 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c36 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+.c37 .react-select__control--is-focused {
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c36 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c37 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c36 .react-select__single-value {
+.c37 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c36 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+.c37 .react-select__placeholder {
+  color: rgba(255, 255, 255, 0.54);
 }
 
-.c36 .react-select__multi-value {
+.c37 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__label {
+.c37 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__remove {
+.c37 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c37 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c36 .react-select__option:hover {
+.c37 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-focused {
+.c37 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-focused:hover {
+.c37 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-selected {
+.c37 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c36 .react-select__option--is-selected:hover {
+.c37 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+.c37 .react-select__clear-indicator {
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.c36 .react-select__clear-indicator:hover,
-.c36 .react-select__clear-indicator:focus {
+.c37 .react-select__clear-indicator:hover,
+.c37 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__clear-indicator:hover svg,
-.c36 .react-select__clear-indicator:focus svg {
+.c37 .react-select__clear-indicator:hover svg,
+.c37 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c36 .react-select__menu {
+.c37 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c36 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c37 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c36 .react-select__indicator-separator {
+.c37 .react-select__indicator-separator {
   display: none;
 }
 
-.c36 .react-select__loading-indicator {
+.c37 .react-select__loading-indicator {
   display: none;
 }
 
-.c36 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+.c37 .react-select__control--is-disabled {
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c36 .react-select__control--is-disabled .react-select__single-value,
-.c36 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c37 .react-select__control--is-disabled .react-select__single-value,
+.c37 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255, 255, 255, 0.36);
 }
 
-.c36 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+.c37 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255, 255, 255, 0.36);
 }
 
-.c36 .react-select__input {
+.c37 .react-select__input {
   color: #FFFFFF;
 }
 
-.c35 {
+.c36 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c33 {
+.c34 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c33:hover {
+.c34:hover {
   cursor: pointer;
 }
 
-.c30 {
+.c31 {
   height: 40px;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   padding: 0 8px;
   align-items: center;
@@ -623,9 +697,9 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c30:hover {
+.c31:hover {
   background-color: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c27 {
@@ -754,7 +828,7 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.13);
 }
 
-.c40 {
+.c41 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -800,15 +874,15 @@ exports[`failed state 1`] = `
 
 .c10 {
   border-radius: 8px;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.c10 > tbody > tr > td {
+.c10>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c10 > thead > tr > th {
+.c10>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -823,34 +897,34 @@ exports[`failed state 1`] = `
 
 .c12 {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255, 255, 255, 0.07);
   border-radius: 2px;
 }
 
 .c12:hover {
-  background-color: rgba(255,255,255,0.13);
+  background-color: rgba(255, 255, 255, 0.13);
 }
 
-.c44 {
+.c45 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c38 {
+.c39 {
   outline: none;
   background: transparent;
 }
 
-.c38::placeholder {
-  color: rgba(255,255,255,0.54);
+.c39::placeholder {
+  color: rgba(255, 255, 255, 0.54);
 }
 
-.c38:hover,
-.c38:focus,
-.c38:active {
-  border: 1px solid rgba(255,255,255,0.72);
+.c39:hover,
+.c39:focus,
+.c39:active {
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 <div>
@@ -888,15 +962,14 @@ exports[`failed state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <div
@@ -1168,13 +1241,12 @@ exports[`failed state 1`] = `
               >
                 <div
                   class="c20"
-                  font-size="1"
                 >
                   Reviewers (optional)
                 </div>
                 <button
                   class="c21"
-                  kind="border"
+                  fill="border"
                   width="50px"
                 >
                   Add
@@ -1205,11 +1277,11 @@ exports[`failed state 1`] = `
                   Start Date
                 </label>
                 <div
-                  class="c29 c19 c30"
+                  class="c29 c30 c31"
                 >
                   Immediately
                   <span
-                    class="c31 icon icon-calendar"
+                    class="c32 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -1241,16 +1313,16 @@ exports[`failed state 1`] = `
                 class="c1 c5"
               >
                 <div
-                  class="c32"
+                  class="c33"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c33"
+                  class="c34"
                   role="icon"
                 >
                   <span
-                    class="c34 c35"
+                    class="c35 c36"
                   >
                     <svg
                       fill="currentColor"
@@ -1274,7 +1346,7 @@ exports[`failed state 1`] = `
                 </span>
               </div>
               <div
-                class="c36"
+                class="c37"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -1349,7 +1421,7 @@ exports[`failed state 1`] = `
           >
             Request Reason
             <textarea
-              class="c37 c38"
+              class="c38 c39"
               color="text.main"
               height="80px"
               placeholder="Describe your request... (optional)"
@@ -1357,21 +1429,20 @@ exports[`failed state 1`] = `
             />
           </label>
           <div
-            class="c39 c17 c40"
+            class="c40 c17 c41"
             height="34px"
           >
             <div
               class="c20"
-              font-size="1"
             >
               Additional Options
             </div>
             <button
-              class="c41"
+              class="c42"
               data-testid="additional-info-btn"
             >
               <span
-                class="c34 icon icon-chevronright"
+                class="c35 icon icon-chevronright"
               >
                 <svg
                   fill="currentColor"
@@ -1389,18 +1460,18 @@ exports[`failed state 1`] = `
             </button>
           </div>
           <div
-            class="c42 c43 c44"
+            class="c43 c44 c45"
           >
             <button
-              class="c45"
-              kind="primary"
+              class="c46"
+              fill="filled"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c46"
-              kind="secondary"
+              class="c47"
+              fill="filled"
               width="100%"
             >
               Cancel
@@ -1425,8 +1496,8 @@ exports[`loaded state 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  margin-bottom: 4px;
   margin-top: 40px;
+  margin-bottom: 4px;
 }
 
 .c15 {
@@ -1449,8 +1520,8 @@ exports[`loaded state 1`] = `
   padding-top: 8px;
   padding-bottom: 8px;
   border: 1px solid;
-  border-radius: 2px;
   border-color: #222C59;
+  border-radius: 2px;
 }
 
 .c30 {
@@ -1474,26 +1545,26 @@ exports[`loaded state 1`] = `
   min-width: 200px;
 }
 
-.c44 {
+.c45 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
   width: 100%;
   color: #FFFFFF;
-  border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.54);
+  border: 1px solid;
+  border-color: rgba(255, 255, 255, 0.54);
 }
 
-.c46 {
+.c47 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   margin-top: 4px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
   height: 34px;
 }
 
-.c48 {
+.c49 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
@@ -1506,7 +1577,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1515,73 +1587,49 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 50px;
 }
 
-.c24:hover,
-.c24:focus {
-  background: rgba(255,255,255,0.07);
+.c24:focus-visible,
+.teleport-button__force-focus-visible .c24 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c24:active {
-  background: rgba(255,255,255,0.13);
+.c24:hover,
+.teleport-button__force-hover .c24 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c24:active,
+.teleport-button__force-active .c24 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c24:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c51 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  width: 100%;
-  text-transform: none;
-}
-
-.c51:hover,
-.c51:focus {
-  background: #B29DFF;
-}
-
-.c51:active {
-  background: #C5B6FF;
-}
-
-.c51:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1592,7 +1640,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1601,30 +1650,114 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
   text-transform: none;
 }
 
-.c52:hover,
-.c52:focus {
-  background: rgba(255,255,255,0.13);
+.c52:focus-visible,
+.teleport-button__force-focus-visible .c52 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c52:active {
-  background: rgba(255,255,255,0.18);
+.c52:hover,
+.teleport-button__force-hover .c52 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c52:active,
+.teleport-button__force-active .c52 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c52:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c53 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
+  width: 100%;
+  text-transform: none;
+}
+
+.c53:focus-visible,
+.teleport-button__force-focus-visible .c53 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c53:hover,
+.teleport-button__force-hover .c53 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c53:active,
+.teleport-button__force-active .c53 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c53:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1649,7 +1782,7 @@ exports[`loaded state 1`] = `
 }
 
 .c25:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1683,7 +1816,7 @@ exports[`loaded state 1`] = `
 }
 
 .c29:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1717,7 +1850,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c39 {
+.c40 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1732,52 +1865,59 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c17 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-right: 8px;
-}
-
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c40 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 4px;
-}
-
 .c36 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 8px;
+}
+
+.c28 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+}
+
+.c41 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-right: 4px;
 }
 
 .c5 {
@@ -1793,6 +1933,7 @@ exports[`loaded state 1`] = `
 
 .c22 {
   display: flex;
+  align-items: baseline;
 }
 
 .c31 {
@@ -1807,7 +1948,11 @@ exports[`loaded state 1`] = `
   gap: 8px;
 }
 
-.c49 {
+.c38 {
+  display: flex;
+}
+
+.c50 {
   display: flex;
   gap: 8px;
 }
@@ -1820,42 +1965,43 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
-.c8 > thead > tr > th,
-.c8 > tbody > tr > th,
-.c8 > tfoot > tr > th,
-.c8 > thead > tr > td,
-.c8 > tbody > tr > td,
-.c8 > tfoot > tr > td {
+.c8>thead>tr>th,
+.c8>tbody>tr>th,
+.c8>tfoot>tr>th,
+.c8>thead>tr>td,
+.c8>tbody>tr>td,
+.c8>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c8 > thead > tr > th:first-child,
-.c8 > tbody > tr > th:first-child,
-.c8 > tfoot > tr > th:first-child,
-.c8 > thead > tr > td:first-child,
-.c8 > tbody > tr > td:first-child,
-.c8 > tfoot > tr > td:first-child {
+.c8>thead>tr>th:first-child,
+.c8>tbody>tr>th:first-child,
+.c8>tfoot>tr>th:first-child,
+.c8>thead>tr>td:first-child,
+.c8>tbody>tr>td:first-child,
+.c8>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c8 > thead > tr > th:last-child,
-.c8 > tbody > tr > th:last-child,
-.c8 > tfoot > tr > th:last-child,
-.c8 > thead > tr > td:last-child,
-.c8 > tbody > tr > td:last-child,
-.c8 > tfoot > tr > td:last-child {
+.c8>thead>tr>th:last-child,
+.c8>tbody>tr>th:last-child,
+.c8>tfoot>tr>th:last-child,
+.c8>thead>tr>td:last-child,
+.c8>tbody>tr>td:last-child,
+.c8>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c8 > tbody > tr > td {
+.c8>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c8 > thead > tr > th {
+.c8>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -1864,11 +2010,11 @@ exports[`loaded state 1`] = `
   white-space: nowrap;
 }
 
-.c8 > thead > tr > th svg {
+.c8>thead>tr>th svg {
   height: 12px;
 }
 
-.c8 > tbody > tr > td {
+.c8>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1888,7 +2034,7 @@ exports[`loaded state 1`] = `
 }
 
 .c8 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1898,11 +2044,11 @@ exports[`loaded state 1`] = `
   height: 100%;
 }
 
-.c8 tbody tr:hover + tr {
+.c8 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c43 .react-select-container {
+.c44 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1914,173 +2060,173 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c43 .react-select__control {
+.c44 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
-.c43 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+.c44 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255, 255, 255, 0.54);
 }
 
-.c43 .react-select__control:hover,
-.c43 .react-select__control:focus,
-.c43 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+.c44 .react-select__control:hover,
+.c44 .react-select__control:focus,
+.c44 .react-select__control:active {
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c43 .react-select__control:hover .react-select__dropdown-indicator,
-.c43 .react-select__control:focus .react-select__dropdown-indicator,
-.c43 .react-select__control:active .react-select__dropdown-indicator {
+.c44 .react-select__control:hover .react-select__dropdown-indicator,
+.c44 .react-select__control:focus .react-select__dropdown-indicator,
+.c44 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c43 .react-select__control .react-select__indicator:hover,
-.c43 .react-select__control .react-select__dropdown-indicator:hover,
-.c43 .react-select__control .react-select__indicator:focus,
-.c43 .react-select__control .react-select__dropdown-indicator:focus,
-.c43 .react-select__control .react-select__indicator:active,
-.c43 .react-select__control .react-select__dropdown-indicator:active {
+.c44 .react-select__control .react-select__indicator:hover,
+.c44 .react-select__control .react-select__dropdown-indicator:hover,
+.c44 .react-select__control .react-select__indicator:focus,
+.c44 .react-select__control .react-select__dropdown-indicator:focus,
+.c44 .react-select__control .react-select__indicator:active,
+.c44 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c43 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+.c44 .react-select__control--is-focused {
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c43 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c44 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c43 .react-select__single-value {
+.c44 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c43 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+.c44 .react-select__placeholder {
+  color: rgba(255, 255, 255, 0.54);
 }
 
-.c43 .react-select__multi-value {
+.c44 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c43 .react-select__multi-value .react-select__multi-value__label {
+.c44 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c43 .react-select__multi-value .react-select__multi-value__remove {
+.c44 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c43 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c44 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c43 .react-select__option:hover {
+.c44 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__option--is-focused {
+.c44 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__option--is-focused:hover {
+.c44 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__option--is-selected {
+.c44 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c43 .react-select__option--is-selected:hover {
+.c44 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c43 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+.c44 .react-select__clear-indicator {
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.c43 .react-select__clear-indicator:hover,
-.c43 .react-select__clear-indicator:focus {
+.c44 .react-select__clear-indicator:hover,
+.c44 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__clear-indicator:hover svg,
-.c43 .react-select__clear-indicator:focus svg {
+.c44 .react-select__clear-indicator:hover svg,
+.c44 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c43 .react-select__menu {
+.c44 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c43 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c44 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c43 .react-select__indicator-separator {
+.c44 .react-select__indicator-separator {
   display: none;
 }
 
-.c43 .react-select__loading-indicator {
+.c44 .react-select__loading-indicator {
   display: none;
 }
 
-.c43 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+.c44 .react-select__control--is-disabled {
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c43 .react-select__control--is-disabled .react-select__single-value,
-.c43 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c44 .react-select__control--is-disabled .react-select__single-value,
+.c44 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255, 255, 255, 0.36);
 }
 
-.c43 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+.c44 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255, 255, 255, 0.36);
 }
 
-.c43 .react-select__input {
+.c44 .react-select__input {
   color: #FFFFFF;
 }
 
-.c42 {
+.c43 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c41 {
+.c42 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c41:hover {
+.c42:hover {
   cursor: pointer;
 }
 
-.c38 {
+.c39 {
   height: 40px;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   padding: 0 8px;
   align-items: center;
@@ -2088,9 +2234,9 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
-.c38:hover {
+.c39:hover {
   background-color: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c35 {
@@ -2223,7 +2369,7 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.13);
 }
 
-.c47 {
+.c48 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -2269,15 +2415,15 @@ exports[`loaded state 1`] = `
 
 .c9 {
   border-radius: 8px;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.c9 > tbody > tr > td {
+.c9>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th {
+.c9>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -2292,34 +2438,34 @@ exports[`loaded state 1`] = `
 
 .c11 {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255, 255, 255, 0.07);
   border-radius: 2px;
 }
 
 .c11:hover {
-  background-color: rgba(255,255,255,0.13);
+  background-color: rgba(255, 255, 255, 0.13);
 }
 
-.c50 {
+.c51 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c45 {
+.c46 {
   outline: none;
   background: transparent;
 }
 
-.c45::placeholder {
-  color: rgba(255,255,255,0.54);
+.c46::placeholder {
+  color: rgba(255, 255, 255, 0.54);
 }
 
-.c45:hover,
-.c45:focus,
-.c45:active {
-  border: 1px solid rgba(255,255,255,0.72);
+.c46:hover,
+.c46:focus,
+.c46:active {
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 <div>
@@ -2357,15 +2503,14 @@ exports[`loaded state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <table
@@ -2807,13 +2952,12 @@ exports[`loaded state 1`] = `
               >
                 <div
                   class="c23"
-                  font-size="1"
                 >
                   Reviewers (optional)
                 </div>
                 <button
                   class="c24"
-                  kind="border"
+                  fill="border"
                   width="50px"
                 >
                   Edit
@@ -2955,11 +3099,11 @@ exports[`loaded state 1`] = `
                   Start Date
                 </label>
                 <div
-                  class="c37 c22 c38"
+                  class="c37 c38 c39"
                 >
                   Immediately
                   <span
-                    class="c39 icon icon-calendar"
+                    class="c40 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -2991,16 +3135,16 @@ exports[`loaded state 1`] = `
                 class="c1 c5"
               >
                 <div
-                  class="c40"
+                  class="c41"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c41"
+                  class="c42"
                   role="icon"
                 >
                   <span
-                    class="c18 c42"
+                    class="c18 c43"
                   >
                     <svg
                       fill="currentColor"
@@ -3024,7 +3168,7 @@ exports[`loaded state 1`] = `
                 </span>
               </div>
               <div
-                class="c43"
+                class="c44"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -3099,7 +3243,7 @@ exports[`loaded state 1`] = `
           >
             Request Reason
             <textarea
-              class="c44 c45"
+              class="c45 c46"
               color="text.main"
               height="80px"
               placeholder="Describe your request..."
@@ -3107,12 +3251,11 @@ exports[`loaded state 1`] = `
             />
           </label>
           <div
-            class="c46 c14 c47"
+            class="c47 c14 c48"
             height="34px"
           >
             <div
               class="c23"
-              font-size="1"
             >
               Additional Options
             </div>
@@ -3139,18 +3282,18 @@ exports[`loaded state 1`] = `
             </button>
           </div>
           <div
-            class="c48 c49 c50"
+            class="c49 c50 c51"
           >
             <button
-              class="c51"
-              kind="primary"
+              class="c52"
+              fill="filled"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c52"
-              kind="secondary"
+              class="c53"
+              fill="filled"
               width="100%"
             >
               Cancel
@@ -3170,8 +3313,8 @@ exports[`success state 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 48px;
   margin-top: 8px;
+  margin-bottom: 48px;
   text-align: center;
 }
 
@@ -3192,7 +3335,8 @@ exports[`success state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3201,31 +3345,51 @@ exports[`success state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-top: 32px;
+  margin-bottom: 16px;
   width: 100%;
 }
 
-.c11:hover,
-.c11:focus {
-  background: #B29DFF;
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c11:active {
-  background: #C5B6FF;
+.c11:hover,
+.teleport-button__force-hover .c11 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c11:active,
+.teleport-button__force-active .c11 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3236,7 +3400,8 @@ exports[`success state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3245,47 +3410,49 @@ exports[`success state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: none;
-  text-transform: none;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c12:hover,
-.c12:focus {
-  background: none;
-  text-decoration: underline;
+.teleport-button__force-hover .c12 {
+  background-color: rgba(255,255,255,0.07);
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
 }
 
-.c12:disabled {
-  background: none;
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
+.c12:active,
+.teleport-button__force-active .c12 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
   color: #FFFFFF;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
+.c12:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
 }
 
 .c9 {
@@ -3293,6 +3460,27 @@ exports[`success state 1`] = `
   outline: none;
   width: 250px;
   height: 179px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+  margin-bottom: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.014px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c8 {
@@ -3363,16 +3551,15 @@ exports[`success state 1`] = `
         <div
           class="c1"
         >
-          <div
+          <header
             class="c4"
           >
-            <div
+            <h2
               class="c5"
-              color="text.main"
             >
               Resources Requested Successfully
-            </div>
-            <div
+            </h2>
+            <p
               class="c6"
               color="text.slightlyMuted"
             >
@@ -3380,8 +3567,8 @@ exports[`success state 1`] = `
               4
                
               resources
-            </div>
-          </div>
+            </p>
+          </header>
           <div
             class="c7 c8"
           >
@@ -3398,8 +3585,9 @@ exports[`success state 1`] = `
         >
           <a
             class="c11"
+            fill="filled"
             href="/web/requests"
-            kind="primary"
+            intent="primary"
             mb="3"
             mt="5"
             width="100%"
@@ -3408,7 +3596,7 @@ exports[`success state 1`] = `
           </a>
           <button
             class="c12"
-            kind="text"
+            fill="minimal"
           >
             Make Another Request
           </button>

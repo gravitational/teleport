@@ -14,8 +14,8 @@ exports[`callback error message 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  margin-bottom: 24px;
   margin-top: 8px;
+  margin-bottom: 24px;
   background: #FF6257;
   color: #000000;
 }
@@ -37,44 +37,56 @@ exports[`callback error message 1`] = `
 }
 
 .c2 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
+}
+
+.c0 {
+  display: block;
+  outline: none;
+  margin-top: 48px;
+  margin-bottom: 48px;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 200px;
+  max-height: 120px;
 }
 
 .c3 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 24px;
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
   text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 16px;
-  line-height: 32px;
-  margin: 0px;
+  margin: 0;
   text-align: center;
 }
 
-.c0 {
-  display: block;
-  outline: none;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 48px;
-  margin-bottom: 48px;
-  max-width: 200px;
-  max-height: 120px;
+p+.c6 {
+  margin-top: 16px;
 }
 
-.c6 {
+.c8 {
   color: #009EFF;
 }
 
@@ -88,11 +100,11 @@ exports[`callback error message 1`] = `
     color="text.main"
     width="540px"
   >
-    <div
+    <h1
       class="c3"
     >
       Login Unsuccessful
-    </div>
+    </h1>
     <div
       class="c4"
       kind="danger"
@@ -100,16 +112,16 @@ exports[`callback error message 1`] = `
       custom message
     </div>
      
-    <div
-      class="c5"
+    <p
+      class="c5 c6 sc-eDPFhE c7"
     >
       <a
-        class="c6"
+        class="c8"
         href="/web/login"
       >
         Please attempt to log in again.
       </a>
-    </div>
+    </p>
   </div>
 </div>
 `;
@@ -128,8 +140,8 @@ exports[`default error message 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  margin-bottom: 24px;
   margin-top: 8px;
+  margin-bottom: 24px;
   background: #FF6257;
   color: #000000;
 }
@@ -151,44 +163,56 @@ exports[`default error message 1`] = `
 }
 
 .c2 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
+}
+
+.c0 {
+  display: block;
+  outline: none;
+  margin-top: 48px;
+  margin-bottom: 48px;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 200px;
+  max-height: 120px;
 }
 
 .c3 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 24px;
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
   text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 16px;
-  line-height: 32px;
-  margin: 0px;
+  margin: 0;
   text-align: center;
 }
 
-.c0 {
-  display: block;
-  outline: none;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 48px;
-  margin-bottom: 48px;
-  max-width: 200px;
-  max-height: 120px;
+p+.c6 {
+  margin-top: 16px;
 }
 
-.c6 {
+.c8 {
   color: #009EFF;
 }
 
@@ -202,11 +226,11 @@ exports[`default error message 1`] = `
     color="text.main"
     width="540px"
   >
-    <div
+    <h1
       class="c3"
     >
       Login Unsuccessful
-    </div>
+    </h1>
     <div
       class="c4"
       kind="danger"
@@ -214,16 +238,16 @@ exports[`default error message 1`] = `
       unable to login, please check Teleport's log for details
     </div>
      
-    <div
-      class="c5"
+    <p
+      class="c5 c6 sc-eDPFhE c7"
     >
       <a
-        class="c6"
+        class="c8"
         href="/web/login"
       >
         Please attempt to log in again.
       </a>
-    </div>
+    </p>
   </div>
 </div>
 `;

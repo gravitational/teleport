@@ -3,108 +3,49 @@
 exports[`render with URL loc state set to "server" 1`] = `
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
 }
 
-.c3 {
+.c6 {
   box-sizing: border-box;
   height: 90px;
   width: 600px;
 }
 
-.c6 {
+.c9 {
   box-sizing: border-box;
   margin-top: 4px;
   width: 120px;
 }
 
-.c9 {
+.c12 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-right: 4px;
+  margin-left: 4px;
   height: 18px;
   width: 18px;
   text-align: center;
   border-radius: 4px;
 }
 
-.c16 {
+.c19 {
   box-sizing: border-box;
   padding-left: 8px;
   padding-right: 8px;
 }
 
-.c17 {
+.c20 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 24px;
 }
 
-.c20 {
-  box-sizing: border-box;
-}
-
-.c11 {
+.c14 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  margin: 0px;
-  margin-top: 4px;
-  margin-bottom: 4px;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 32px;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
-.c21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c24 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
 .c25 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 40px;
-}
-
-.c23 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -112,7 +53,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-transform: none;
 }
 
-.c26 {
+.c30 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -121,31 +62,125 @@ exports[`render with URL loc state set to "server" 1`] = `
   margin-left: 8px;
 }
 
-.c19 {
+.c22 {
   display: block;
   outline: none;
   width: 23.9px;
   height: 24px;
 }
 
-.c7 {
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
+  margin-bottom: 32px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.c29 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c28 {
+  margin-top: 16px;
+  margin-top: 40px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c10 {
   display: flex;
   align-items: center;
 }
 
-.c18 {
+.c21 {
   display: flex;
   justify-content: center;
 }
 
-.c13 {
+.c2 {
+  flex-shrink: 0;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  margin-bottom: 24px;
+  padding-left: 40px;
+  padding-right: 40px;
+  align-items: center;
+}
+
+.c4 {
+  white-space: nowrap;
+}
+
+.c16 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
   column-gap: 10px;
   row-gap: 15px;
 }
 
-.c14 {
+.c17 {
   display: flex;
   position: relative;
   align-items: center;
@@ -159,11 +194,11 @@ exports[`render with URL loc state set to "server" 1`] = `
   opacity: 1;
 }
 
-.c14:hover {
+.c17:hover {
   background: rgba(255,255,255,0.13);
 }
 
-.c15 {
+.c18 {
   position: absolute;
   background: #9F85FF;
   color: #000000;
@@ -175,19 +210,19 @@ exports[`render with URL loc state set to "server" 1`] = `
   font-size: 10px;
 }
 
-.c4 {
+.c7 {
   border-radius: 200px;
   height: 40px;
   border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c4:hover,
-.c4:focus,
-.c4:active {
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: rgba(255,255,255,0.07);
 }
 
-.c5 {
+.c8 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -201,17 +236,17 @@ exports[`render with URL loc state set to "server" 1`] = `
   padding: 16px;
 }
 
-.c8 {
+.c11 {
   font-size: 12px;
   opacity: 0.7;
 }
 
-.c8:hover {
+.c11:hover {
   cursor: pointer;
   opacity: 1;
 }
 
-.c10 {
+.c13 {
   background: #FF6257;
 }
 
@@ -219,42 +254,45 @@ exports[`render with URL loc state set to "server" 1`] = `
   class="c0"
 >
   <div
-    class="c1"
-    font-size="18px"
+    class="c0 c1 c2"
   >
-    Select Resource To Add
+    <h1
+      class="c3 c4"
+    >
+      Select Resource To Add
+    </h1>
   </div>
-  <div
-    class="c2"
+  <p
+    class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
-    class="c3"
+    class="c6"
     height="90px"
     width="600px"
   >
     <div
-      class="c4"
+      class="c7"
     >
       <input
-        class="c5"
+        class="c8"
         max="100"
         placeholder="Search for a resource"
         value="server"
       />
     </div>
     <div
-      class="c6 c7 c8"
+      class="c9 c10 c11"
       width="120px"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         height="18px"
         width="18px"
       >
         <span
-          class="c11 icon icon-cross"
+          class="c14 icon icon-cross"
         >
           <svg
             fill="currentColor"
@@ -269,50 +307,49 @@ exports[`render with URL loc state set to "server" 1`] = `
         </span>
       </div>
       <div
-        class="c12"
+        class="c15"
       >
         Clear search
       </div>
     </div>
   </div>
   <div
-    class="c13"
+    class="c16"
   >
     <div
-      class="c14"
+      class="c17"
       data-testid="4"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c22"
+            class="c24"
           >
             macOS
           </div>
@@ -320,40 +357,39 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <div
-      class="c14"
+      class="c17"
       data-testid="4"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c22"
+            class="c24"
           >
             Amazon Linux 2/2023
           </div>
@@ -361,40 +397,39 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <div
-      class="c14"
+      class="c17"
       data-testid="4"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c22"
+            class="c24"
           >
             Debian 8+
           </div>
@@ -402,40 +437,39 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <div
-      class="c14"
+      class="c17"
       data-testid="4"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c22"
+            class="c24"
           >
             EC2 Auto Enrollment
           </div>
@@ -443,40 +477,39 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <div
-      class="c14"
+      class="c17"
       data-testid="4"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c22"
+            class="c24"
           >
             RHEL/CentOS 7+
           </div>
@@ -484,40 +517,39 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <div
-      class="c14"
+      class="c17"
       data-testid="4"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c22"
+            class="c24"
           >
             Ubuntu 14.04+
           </div>
@@ -525,33 +557,33 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <div
-      class="c14"
+      class="c17"
       data-testid="7"
     >
       <div
-        class="c15"
+        class="c18"
       >
         Guided
       </div>
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c22"
+            class="c24"
           >
             Connect My Computer
           </div>
@@ -559,7 +591,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </div>
     <a
-      class="c23 c14"
+      class="c25 c17"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/rds-proxy-sqlserver"
       rel="noreferrer"
@@ -567,31 +599,30 @@ exports[`render with URL loc state set to "server" 1`] = `
       target="_blank"
     >
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c24"
+            class="c26"
             color="text.main"
           >
             RDS Proxy SQL Server
@@ -600,7 +631,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </a>
     <a
-      class="c23 c14"
+      class="c25 c17"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
       rel="noreferrer"
@@ -608,31 +639,30 @@ exports[`render with URL loc state set to "server" 1`] = `
       target="_blank"
     >
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c24"
+            class="c26"
             color="text.main"
           >
             Redshift Serverless
@@ -641,7 +671,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </a>
     <a
-      class="c23 c14"
+      class="c25 c17"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/azure-sql-server-ad"
       rel="noreferrer"
@@ -649,31 +679,30 @@ exports[`render with URL loc state set to "server" 1`] = `
       target="_blank"
     >
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c24"
+            class="c26"
             color="text.main"
           >
             SQL Server
@@ -682,7 +711,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </a>
     <a
-      class="c23 c14"
+      class="c25 c17"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/sql-server-ad"
       rel="noreferrer"
@@ -690,31 +719,30 @@ exports[`render with URL loc state set to "server" 1`] = `
       target="_blank"
     >
       <div
-        class="c16 c7"
+        class="c19 c10"
       >
         <div
-          class="c17 c18"
+          class="c20 c21"
           width="24px"
         >
           <img
-            class="c19"
+            class="c22"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c20"
+          class="c0"
         >
           <div
-            class="c21"
+            class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
           <div
-            class="c24"
+            class="c26"
             color="text.main"
           >
             SQL Server
@@ -723,101 +751,47 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </a>
   </div>
-  <div
-    class="c25"
-    font-size="12px"
+  <p
+    class="c27 c28 sc-eDPFhE c29"
   >
     Looking for something else?
      
     <a
-      class="c26"
+      class="c30"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;
 
 exports[`render with all access 1`] = `
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
 }
 
-.c3 {
+.c6 {
   box-sizing: border-box;
   height: 90px;
   width: 600px;
 }
 
-.c9 {
+.c12 {
   box-sizing: border-box;
   padding-left: 8px;
   padding-right: 8px;
 }
 
-.c11 {
+.c14 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 24px;
 }
 
-.c14 {
-  box-sizing: border-box;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  margin: 0px;
-  margin-top: 4px;
-  margin-bottom: 4px;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 32px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
 .c19 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 40px;
-}
-
-.c17 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -825,7 +799,7 @@ exports[`render with all access 1`] = `
   text-transform: none;
 }
 
-.c20 {
+.c24 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -834,31 +808,119 @@ exports[`render with all access 1`] = `
   margin-left: 8px;
 }
 
-.c13 {
+.c16 {
   display: block;
   outline: none;
   width: 23.9px;
   height: 24px;
 }
 
-.c10 {
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
+  margin-bottom: 32px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c22 {
+  margin-top: 16px;
+  margin-top: 40px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c13 {
   display: flex;
   align-items: center;
 }
 
-.c12 {
+.c15 {
   display: flex;
   justify-content: center;
 }
 
-.c6 {
+.c2 {
+  flex-shrink: 0;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  margin-bottom: 24px;
+  padding-left: 40px;
+  padding-right: 40px;
+  align-items: center;
+}
+
+.c4 {
+  white-space: nowrap;
+}
+
+.c9 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
   column-gap: 10px;
   row-gap: 15px;
 }
 
-.c7 {
+.c10 {
   display: flex;
   position: relative;
   align-items: center;
@@ -872,11 +934,11 @@ exports[`render with all access 1`] = `
   opacity: 1;
 }
 
-.c7:hover {
+.c10:hover {
   background: rgba(255,255,255,0.13);
 }
 
-.c8 {
+.c11 {
   position: absolute;
   background: #9F85FF;
   color: #000000;
@@ -888,19 +950,19 @@ exports[`render with all access 1`] = `
   font-size: 10px;
 }
 
-.c4 {
+.c7 {
   border-radius: 200px;
   height: 40px;
   border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c4:hover,
-.c4:focus,
-.c4:active {
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: rgba(255,255,255,0.07);
 }
 
-.c5 {
+.c8 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -918,26 +980,29 @@ exports[`render with all access 1`] = `
   class="c0"
 >
   <div
-    class="c1"
-    font-size="18px"
+    class="c0 c1 c2"
   >
-    Select Resource To Add
+    <h1
+      class="c3 c4"
+    >
+      Select Resource To Add
+    </h1>
   </div>
-  <div
-    class="c2"
+  <p
+    class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
-    class="c3"
+    class="c6"
     height="90px"
     width="600px"
   >
     <div
-      class="c4"
+      class="c7"
     >
       <input
-        class="c5"
+        class="c8"
         max="100"
         placeholder="Search for a resource"
         value=""
@@ -945,43 +1010,42 @@ exports[`render with all access 1`] = `
     </div>
   </div>
   <div
-    class="c6"
+    class="c9"
   >
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             macOS
           </div>
@@ -989,40 +1053,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Amazon Linux 2/2023
           </div>
@@ -1030,33 +1093,33 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="0"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c16"
+            class="c18"
           >
             Application
           </div>
@@ -1064,40 +1127,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="1"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Aurora MySQL/MariaDB
           </div>
@@ -1105,40 +1167,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="1"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Aurora PostgreSQL
           </div>
@@ -1146,33 +1207,33 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="0"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c16"
+            class="c18"
           >
             AWS CLI/Console Access
           </div>
@@ -1180,40 +1241,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Debian 8+
           </div>
@@ -1221,40 +1281,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             EC2 Auto Enrollment
           </div>
@@ -1262,40 +1321,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="3"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             EKS
           </div>
@@ -1303,40 +1361,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="3"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Kubernetes
           </div>
@@ -1344,40 +1401,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="1"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             MySQL/MariaDB
           </div>
@@ -1385,40 +1441,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="1"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             PostgreSQL
           </div>
@@ -1426,40 +1481,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="1"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             RDS MySQL/MariaDB
           </div>
@@ -1467,40 +1521,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="1"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             RDS PostgreSQL
           </div>
@@ -1508,40 +1561,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             RHEL/CentOS 7+
           </div>
@@ -1549,40 +1601,39 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Ubuntu 14.04+
           </div>
@@ -1590,33 +1641,33 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="7"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c16"
+            class="c18"
           >
             Connect My Computer
           </div>
@@ -1624,7 +1675,7 @@ exports[`render with all access 1`] = `
       </div>
     </div>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="2"
       href="https://goteleport.com/docs/desktop-access/active-directory/"
       rel="noreferrer"
@@ -1632,31 +1683,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Active Directory Users
@@ -1665,7 +1715,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/azure-redis"
       rel="noreferrer"
@@ -1673,31 +1723,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cache for Redis
@@ -1706,7 +1755,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/cassandra-self-hosted"
       rel="noreferrer"
@@ -1714,31 +1763,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cassandra & ScyllaDB
@@ -1747,7 +1795,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/mysql-cloudsql"
       rel="noreferrer"
@@ -1755,31 +1803,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cloud SQL MySQL
@@ -1788,7 +1835,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/postgres-cloudsql"
       rel="noreferrer"
@@ -1796,31 +1843,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cloud SQL PostgreSQL
@@ -1829,7 +1875,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/cockroachdb-self-hosted"
       rel="noreferrer"
@@ -1837,31 +1883,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             CockroachDB
@@ -1870,7 +1915,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/dynamic-registration"
       rel="noreferrer"
@@ -1878,31 +1923,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Dynamic Registration
@@ -1911,7 +1955,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/aws-dynamodb"
       rel="noreferrer"
@@ -1919,31 +1963,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             DynamoDB
@@ -1952,7 +1995,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/redis-aws"
       rel="noreferrer"
@@ -1960,31 +2003,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             ElastiCache & MemoryDB
@@ -1993,7 +2035,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/elastic"
       rel="noreferrer"
@@ -2001,31 +2043,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Elasticsearch
@@ -2034,7 +2075,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/ha"
       rel="noreferrer"
@@ -2042,31 +2083,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             High Availability
@@ -2075,7 +2115,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/aws-cassandra-keyspaces"
       rel="noreferrer"
@@ -2083,31 +2123,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Keyspaces (Apache Cassandra)
@@ -2116,7 +2155,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="2"
       href="https://goteleport.com/docs/desktop-access/getting-started/"
       rel="noreferrer"
@@ -2124,31 +2163,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Local Users
@@ -2157,7 +2195,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/mongodb-self-hosted"
       rel="noreferrer"
@@ -2165,31 +2203,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MongoDB
@@ -2198,7 +2235,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/mongodb-atlas"
       rel="noreferrer"
@@ -2206,24 +2243,24 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MongoDB Atlas
@@ -2232,7 +2269,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/azure-postgres-mysql"
       rel="noreferrer"
@@ -2240,31 +2277,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MySQL
@@ -2273,7 +2309,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/azure-postgres-mysql"
       rel="noreferrer"
@@ -2281,31 +2317,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             PostgreSQL
@@ -2314,7 +2349,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/rds-proxy-mysql"
       rel="noreferrer"
@@ -2322,31 +2357,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy MariaDB/MySQL
@@ -2355,7 +2389,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/rds-proxy-postgres"
       rel="noreferrer"
@@ -2363,31 +2397,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy PostgreSQL
@@ -2396,7 +2429,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/rds-proxy-sqlserver"
       rel="noreferrer"
@@ -2404,31 +2437,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy SQL Server
@@ -2437,7 +2469,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/redis"
       rel="noreferrer"
@@ -2445,31 +2477,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redis
@@ -2478,7 +2509,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/redis-cluster"
       rel="noreferrer"
@@ -2486,31 +2517,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redis Cluster
@@ -2519,7 +2549,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/postgres-redshift"
       rel="noreferrer"
@@ -2527,31 +2557,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redshift PostgreSQL
@@ -2560,7 +2589,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
       rel="noreferrer"
@@ -2568,31 +2597,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redshift Serverless
@@ -2601,7 +2629,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/snowflake"
       rel="noreferrer"
@@ -2609,24 +2637,24 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Snowflake
@@ -2635,7 +2663,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/azure-sql-server-ad"
       rel="noreferrer"
@@ -2643,31 +2671,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             SQL Server
@@ -2676,7 +2703,7 @@ exports[`render with all access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/sql-server-ad"
       rel="noreferrer"
@@ -2684,31 +2711,30 @@ exports[`render with all access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             SQL Server
@@ -2717,108 +2743,54 @@ exports[`render with all access 1`] = `
       </div>
     </a>
   </div>
-  <div
-    class="c19"
-    font-size="12px"
+  <p
+    class="c21 c22 sc-eDPFhE c23"
   >
     Looking for something else?
      
     <a
-      class="c20"
+      class="c24"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;
 
 exports[`render with no access 1`] = `
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
 }
 
-.c3 {
+.c6 {
   box-sizing: border-box;
   height: 90px;
   width: 600px;
 }
 
-.c9 {
+.c12 {
   box-sizing: border-box;
   background-color: #FF6257;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
 }
 
-.c11 {
+.c14 {
   box-sizing: border-box;
   padding-left: 8px;
   padding-right: 8px;
 }
 
-.c13 {
+.c16 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 24px;
 }
 
-.c16 {
-  box-sizing: border-box;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  margin: 0px;
-  margin-top: 4px;
-  margin-bottom: 4px;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 32px;
-}
-
-.c17 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c19 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c20 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 40px;
-}
-
-.c7 {
+.c10 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2826,7 +2798,7 @@ exports[`render with no access 1`] = `
   text-transform: none;
 }
 
-.c21 {
+.c25 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2835,24 +2807,97 @@ exports[`render with no access 1`] = `
   margin-left: 8px;
 }
 
-.c15 {
+.c18 {
   display: block;
   outline: none;
   width: 23.9px;
   height: 24px;
 }
 
-.c12 {
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
+  margin-bottom: 32px;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c23 {
+  margin-top: 16px;
+  margin-top: 40px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c15 {
   display: flex;
   align-items: center;
 }
 
-.c14 {
+.c17 {
   display: flex;
   justify-content: center;
 }
 
-.c10 {
+.c13 {
   position: absolute;
   padding: 0px 6px;
   top: 0px;
@@ -2860,14 +2905,29 @@ exports[`render with no access 1`] = `
   font-size: 10px;
 }
 
-.c6 {
+.c2 {
+  flex-shrink: 0;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  margin-bottom: 24px;
+  padding-left: 40px;
+  padding-right: 40px;
+  align-items: center;
+}
+
+.c4 {
+  white-space: nowrap;
+}
+
+.c9 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
   column-gap: 10px;
   row-gap: 15px;
 }
 
-.c8 {
+.c11 {
   display: flex;
   position: relative;
   align-items: center;
@@ -2881,23 +2941,23 @@ exports[`render with no access 1`] = `
   opacity: 0.45;
 }
 
-.c8:hover {
+.c11:hover {
   background: rgba(255,255,255,0.13);
 }
 
-.c4 {
+.c7 {
   border-radius: 200px;
   height: 40px;
   border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c4:hover,
-.c4:focus,
-.c4:active {
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: rgba(255,255,255,0.07);
 }
 
-.c5 {
+.c8 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -2915,26 +2975,29 @@ exports[`render with no access 1`] = `
   class="c0"
 >
   <div
-    class="c1"
-    font-size="18px"
+    class="c0 c1 c2"
   >
-    Select Resource To Add
+    <h1
+      class="c3 c4"
+    >
+      Select Resource To Add
+    </h1>
   </div>
-  <div
-    class="c2"
+  <p
+    class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
-    class="c3"
+    class="c6"
     height="90px"
     width="600px"
   >
     <div
-      class="c4"
+      class="c7"
     >
       <input
-        class="c5"
+        class="c8"
         max="100"
         placeholder="Search for a resource"
         value=""
@@ -2942,47 +3005,46 @@ exports[`render with no access 1`] = `
     </div>
   </div>
   <div
-    class="c6"
+    class="c9"
   >
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="2"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Active Directory Users
@@ -2991,41 +3053,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="4"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             Amazon Linux 2/2023
           </div>
@@ -3033,34 +3094,34 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="0"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c19"
+            class="c21"
           >
             Application
           </div>
@@ -3068,41 +3129,40 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="1"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             Aurora MySQL/MariaDB
           </div>
@@ -3110,41 +3170,40 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="1"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             Aurora PostgreSQL
           </div>
@@ -3152,34 +3211,34 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="0"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c19"
+            class="c21"
           >
             AWS CLI/Console Access
           </div>
@@ -3187,44 +3246,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cache for Redis
@@ -3233,44 +3291,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cassandra & ScyllaDB
@@ -3279,44 +3336,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cloud SQL MySQL
@@ -3325,44 +3381,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cloud SQL PostgreSQL
@@ -3371,44 +3426,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             CockroachDB
@@ -3417,34 +3471,34 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="7"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c19"
+            class="c21"
           >
             Connect My Computer
           </div>
@@ -3452,41 +3506,40 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="4"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             Debian 8+
           </div>
@@ -3494,44 +3547,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Dynamic Registration
@@ -3540,44 +3592,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             DynamoDB
@@ -3586,41 +3637,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="4"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             EC2 Auto Enrollment
           </div>
@@ -3628,41 +3678,40 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="3"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             EKS
           </div>
@@ -3670,44 +3719,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             ElastiCache & MemoryDB
@@ -3716,44 +3764,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Elasticsearch
@@ -3762,44 +3809,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             High Availability
@@ -3808,44 +3854,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Keyspaces (Apache Cassandra)
@@ -3854,41 +3899,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="3"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             Kubernetes
           </div>
@@ -3896,44 +3940,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="2"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Local Users
@@ -3942,41 +3985,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="4"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             macOS
           </div>
@@ -3984,44 +4026,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MongoDB
@@ -4030,37 +4071,37 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MongoDB Atlas
@@ -4069,44 +4110,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MySQL
@@ -4115,41 +4155,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="1"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             MySQL/MariaDB
           </div>
@@ -4157,41 +4196,40 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="1"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             PostgreSQL
           </div>
@@ -4199,44 +4237,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             PostgreSQL
@@ -4245,41 +4282,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="1"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             RDS MySQL/MariaDB
           </div>
@@ -4287,41 +4323,40 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c8"
+      class="c11"
       data-testid="1"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             RDS PostgreSQL
           </div>
@@ -4329,44 +4364,43 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy MariaDB/MySQL
@@ -4375,44 +4409,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy PostgreSQL
@@ -4421,44 +4454,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy SQL Server
@@ -4467,44 +4499,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redis
@@ -4513,44 +4544,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redis Cluster
@@ -4559,44 +4589,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redshift PostgreSQL
@@ -4605,44 +4634,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redshift Serverless
@@ -4651,41 +4679,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="4"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             RHEL/CentOS 7+
           </div>
@@ -4693,37 +4720,37 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Snowflake
@@ -4732,44 +4759,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             SQL Server
@@ -4778,44 +4804,43 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <a
-      class="c7 c8"
+      class="c10 c11"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             SQL Server
@@ -4824,41 +4849,40 @@ exports[`render with no access 1`] = `
       </div>
     </a>
     <div
-      class="c8"
+      class="c11"
       data-testid="4"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c11 c12"
+        class="c14 c15"
       >
         <div
-          class="c13 c14"
+          class="c16 c17"
           width="24px"
         >
           <img
-            class="c15"
+            class="c18"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c16"
+          class="c0"
         >
           <div
-            class="c17"
+            class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c19"
+            class="c21"
           >
             Ubuntu 14.04+
           </div>
@@ -4866,108 +4890,54 @@ exports[`render with no access 1`] = `
       </div>
     </div>
   </div>
-  <div
-    class="c20"
-    font-size="12px"
+  <p
+    class="c22 c23 sc-eDPFhE c24"
   >
     Looking for something else?
      
     <a
-      class="c21"
+      class="c25"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;
 
 exports[`render with partial access 1`] = `
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
 }
 
-.c3 {
+.c6 {
   box-sizing: border-box;
   height: 90px;
   width: 600px;
 }
 
-.c9 {
+.c12 {
   box-sizing: border-box;
   padding-left: 8px;
   padding-right: 8px;
 }
 
-.c11 {
+.c14 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 24px;
 }
 
-.c14 {
-  box-sizing: border-box;
-}
-
-.c20 {
+.c22 {
   box-sizing: border-box;
   background-color: #FF6257;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
 }
 
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 18px;
-  margin: 0px;
-  margin-top: 4px;
-  margin-bottom: 4px;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 32px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 40px;
-}
-
-.c17 {
+.c19 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -4975,7 +4945,7 @@ exports[`render with partial access 1`] = `
   text-transform: none;
 }
 
-.c23 {
+.c27 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -4984,24 +4954,97 @@ exports[`render with partial access 1`] = `
   margin-left: 8px;
 }
 
-.c13 {
+.c16 {
   display: block;
   outline: none;
   width: 23.9px;
   height: 24px;
 }
 
-.c10 {
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
+  margin-bottom: 32px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c25 {
+  margin-top: 16px;
+  margin-top: 40px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c13 {
   display: flex;
   align-items: center;
 }
 
-.c12 {
+.c15 {
   display: flex;
   justify-content: center;
 }
 
-.c21 {
+.c23 {
   position: absolute;
   padding: 0px 6px;
   top: 0px;
@@ -5009,14 +5052,29 @@ exports[`render with partial access 1`] = `
   font-size: 10px;
 }
 
-.c6 {
+.c2 {
+  flex-shrink: 0;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  margin-bottom: 24px;
+  padding-left: 40px;
+  padding-right: 40px;
+  align-items: center;
+}
+
+.c4 {
+  white-space: nowrap;
+}
+
+.c9 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
   column-gap: 10px;
   row-gap: 15px;
 }
 
-.c7 {
+.c10 {
   display: flex;
   position: relative;
   align-items: center;
@@ -5030,11 +5088,11 @@ exports[`render with partial access 1`] = `
   opacity: 1;
 }
 
-.c7:hover {
+.c10:hover {
   background: rgba(255,255,255,0.13);
 }
 
-.c19 {
+.c21 {
   display: flex;
   position: relative;
   align-items: center;
@@ -5048,11 +5106,11 @@ exports[`render with partial access 1`] = `
   opacity: 0.45;
 }
 
-.c19:hover {
+.c21:hover {
   background: rgba(255,255,255,0.13);
 }
 
-.c8 {
+.c11 {
   position: absolute;
   background: #9F85FF;
   color: #000000;
@@ -5064,19 +5122,19 @@ exports[`render with partial access 1`] = `
   font-size: 10px;
 }
 
-.c4 {
+.c7 {
   border-radius: 200px;
   height: 40px;
   border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c4:hover,
-.c4:focus,
-.c4:active {
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: rgba(255,255,255,0.07);
 }
 
-.c5 {
+.c8 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -5094,26 +5152,29 @@ exports[`render with partial access 1`] = `
   class="c0"
 >
   <div
-    class="c1"
-    font-size="18px"
+    class="c0 c1 c2"
   >
-    Select Resource To Add
+    <h1
+      class="c3 c4"
+    >
+      Select Resource To Add
+    </h1>
   </div>
-  <div
-    class="c2"
+  <p
+    class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
-    class="c3"
+    class="c6"
     height="90px"
     width="600px"
   >
     <div
-      class="c4"
+      class="c7"
     >
       <input
-        class="c5"
+        class="c8"
         max="100"
         placeholder="Search for a resource"
         value=""
@@ -5121,43 +5182,42 @@ exports[`render with partial access 1`] = `
     </div>
   </div>
   <div
-    class="c6"
+    class="c9"
   >
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             macOS
           </div>
@@ -5165,40 +5225,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Amazon Linux 2/2023
           </div>
@@ -5206,33 +5265,33 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="0"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c16"
+            class="c18"
           >
             Application
           </div>
@@ -5240,33 +5299,33 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="0"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c16"
+            class="c18"
           >
             AWS CLI/Console Access
           </div>
@@ -5274,40 +5333,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Debian 8+
           </div>
@@ -5315,40 +5373,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             EC2 Auto Enrollment
           </div>
@@ -5356,40 +5413,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="3"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             EKS
           </div>
@@ -5397,40 +5453,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="3"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Kubernetes
           </div>
@@ -5438,40 +5493,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             RHEL/CentOS 7+
           </div>
@@ -5479,40 +5533,39 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="4"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Ubuntu 14.04+
           </div>
@@ -5520,33 +5573,33 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c10"
       data-testid="7"
     >
       <div
-        class="c8"
+        class="c11"
       >
         Guided
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c16"
+            class="c18"
           >
             Connect My Computer
           </div>
@@ -5554,7 +5607,7 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="2"
       href="https://goteleport.com/docs/desktop-access/active-directory/"
       rel="noreferrer"
@@ -5562,31 +5615,30 @@ exports[`render with partial access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Active Directory Users
@@ -5595,7 +5647,7 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c7"
+      class="c19 c10"
       data-testid="2"
       href="https://goteleport.com/docs/desktop-access/getting-started/"
       rel="noreferrer"
@@ -5603,31 +5655,30 @@ exports[`render with partial access 1`] = `
       target="_blank"
     >
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Local Users
@@ -5636,41 +5687,40 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <div
-      class="c19"
+      class="c21"
       data-testid="1"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Aurora MySQL/MariaDB
           </div>
@@ -5678,41 +5728,40 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c19"
+      class="c21"
       data-testid="1"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             Aurora PostgreSQL
           </div>
@@ -5720,44 +5769,43 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cache for Redis
@@ -5766,44 +5814,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cassandra & ScyllaDB
@@ -5812,44 +5859,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cloud SQL MySQL
@@ -5858,44 +5904,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Cloud SQL PostgreSQL
@@ -5904,44 +5949,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             CockroachDB
@@ -5950,44 +5994,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Dynamic Registration
@@ -5996,44 +6039,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             DynamoDB
@@ -6042,44 +6084,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             ElastiCache & MemoryDB
@@ -6088,44 +6129,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Elasticsearch
@@ -6134,44 +6174,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             High Availability
@@ -6180,44 +6219,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Keyspaces (Apache Cassandra)
@@ -6226,44 +6264,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MongoDB
@@ -6272,37 +6309,37 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MongoDB Atlas
@@ -6311,44 +6348,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             MySQL
@@ -6357,41 +6393,40 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <div
-      class="c19"
+      class="c21"
       data-testid="1"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             MySQL/MariaDB
           </div>
@@ -6399,41 +6434,40 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c19"
+      class="c21"
       data-testid="1"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             PostgreSQL
           </div>
@@ -6441,44 +6475,43 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             PostgreSQL
@@ -6487,41 +6520,40 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <div
-      class="c19"
+      class="c21"
       data-testid="1"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             RDS MySQL/MariaDB
           </div>
@@ -6529,41 +6561,40 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <div
-      class="c19"
+      class="c21"
       data-testid="1"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c16"
+            class="c18"
           >
             RDS PostgreSQL
           </div>
@@ -6571,44 +6602,43 @@ exports[`render with partial access 1`] = `
       </div>
     </div>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy MariaDB/MySQL
@@ -6617,44 +6647,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy PostgreSQL
@@ -6663,44 +6692,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             RDS Proxy SQL Server
@@ -6709,44 +6737,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redis
@@ -6755,44 +6782,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redis Cluster
@@ -6801,44 +6827,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redshift PostgreSQL
@@ -6847,44 +6872,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Redshift Serverless
@@ -6893,37 +6917,37 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             Snowflake
@@ -6932,44 +6956,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             SQL Server
@@ -6978,44 +7001,43 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
     <a
-      class="c17 c19"
+      class="c19 c21"
       data-testid="1"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
     >
       <div
-        class="c20 c21"
+        class="c22 c23"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c9 c10"
+        class="c12 c13"
       >
         <div
-          class="c11 c12"
+          class="c14 c15"
           width="24px"
         >
           <img
-            class="c13"
+            class="c16"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c14"
+          class="c0"
         >
           <div
-            class="c15"
+            class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
           <div
-            class="c18"
+            class="c20"
             color="text.main"
           >
             SQL Server
@@ -7024,20 +7046,19 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
   </div>
-  <div
-    class="c22"
-    font-size="12px"
+  <p
+    class="c24 c25 sc-eDPFhE c26"
   >
     Looking for something else?
      
     <a
-      class="c23"
+      class="c27"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;

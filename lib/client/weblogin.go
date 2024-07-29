@@ -418,33 +418,9 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	clickableURL := rd.ClickableURL()
 
 	// If a command was found to launch the browser, create and start it.
-	var execCmd *exec.Cmd
-	if login.Browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, clickableURL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, clickableURL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
-		}
+	err = OpenURLInBrowser(login.Browser, clickableURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
@@ -501,6 +477,40 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 	}
 
 	return &out, nil
+}
+
+// OpenURLInBrowser opens a URL in a web browser.
+func OpenURLInBrowser(browser string, URL string) error {
+	var execCmd *exec.Cmd
+	if browser != teleport.BrowserNone {
+		switch runtime.GOOS {
+		// macOS.
+		case constants.DarwinOS:
+			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		// Windows.
+		case constants.WindowsOS:
+			path, err := exec.LookPath(teleport.OpenBrowserWindows)
+			if err == nil {
+				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
+			}
+		// Linux or any other operating system.
+		default:
+			path, err := exec.LookPath(teleport.OpenBrowserLinux)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		}
+	}
+	if execCmd != nil {
+		if err := execCmd.Start(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.

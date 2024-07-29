@@ -12,20 +12,15 @@ exports[`snapshot tests 1`] = `
   justify-content: center;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
 .c3 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -39,7 +34,7 @@ exports[`snapshot tests 1`] = `
 .c3:hover,
 .c3:focus,
 .c3:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c3::-ms-clear {
@@ -47,7 +42,7 @@ exports[`snapshot tests 1`] = `
 }
 
 .c3::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
@@ -56,8 +51,8 @@ exports[`snapshot tests 1`] = `
 }
 
 .c3:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c3:hover,
@@ -70,7 +65,18 @@ exports[`snapshot tests 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-bottom: 0;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
 }
 
 .c7 {
@@ -249,7 +255,6 @@ exports[`snapshot tests 1`] = `
       inputmode="text"
       placeholder="without label"
       type="text"
-      value=""
     />
   </div>
 </div>

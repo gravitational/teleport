@@ -22,6 +22,9 @@ import { Platform } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
+// When adding a new config property, add it to the docs too
+// (teleport-connect.mdx#configuration).
+
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
@@ -54,6 +57,12 @@ export const createAppConfigSchema = (platform: Platform) => {
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
+    'terminal.windowsBackend': z
+      .enum(['auto', 'winpty'])
+      .default('auto')
+      .describe(
+        '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
+      ),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -122,6 +131,10 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
+    'feature.vnetDaemon': z
+      .boolean()
+      .default(false)
+      .describe('Use daemon instead of osascript for VNet'),
   });
 };
 

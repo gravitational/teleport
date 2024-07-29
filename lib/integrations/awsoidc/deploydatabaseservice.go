@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // DeployDatabaseServiceRequest contains the required fields to deploy multiple Teleport Databases Services.
@@ -58,7 +59,7 @@ type DeployDatabaseServiceRequest struct {
 	TeleportVersionTag string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 
 	// DeploymentJoinTokenName is the Teleport IAM Join Token name that the deployed service must use to join the cluster.
 	DeploymentJoinTokenName string
@@ -115,7 +116,7 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	r.ecsClusterName = normalizeECSClusterName(r.TeleportClusterName)
@@ -258,11 +259,9 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 		}
 	}
 
-	clusterDashboardURL := fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services", req.Region, aws.ToString(cluster.ClusterName))
-
 	return &DeployDatabaseServiceResponse{
 		ClusterARN:          aws.ToString(cluster.ClusterArn),
-		ClusterDashboardURL: clusterDashboardURL,
+		ClusterDashboardURL: ecsClusterDashboardURL(req.Region, aws.ToString(cluster.ClusterName)),
 	}, nil
 }
 
@@ -274,4 +273,28 @@ func ecsTaskName(teleportClusterName, deploymentMode, vpcid string) string {
 // ecsServiceName returns the normalized ECS Service Family
 func ecsServiceName(deploymentMode, vpcid string) string {
 	return normalizeECSResourceName(fmt.Sprintf("%s-%s", deploymentMode, vpcid))
+}
+
+// ecsClusterDashboardURL returns the ECS cluster dashboard URL for a given
+// region and ECS cluster.
+func ecsClusterDashboardURL(region, ecsClusterName string) string {
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services", region, ecsClusterName)
+}
+
+// ECSDatabaseServiceDashboardURL returns the ECS service dashboard URL for
+// a deployed database service.
+func ECSDatabaseServiceDashboardURL(region, teleportClusterName, vpcID string) (string, error) {
+	if region == "" {
+		return "", trace.BadParameter("empty region")
+	}
+	if teleportClusterName == "" {
+		return "", trace.BadParameter("empty cluster name")
+	}
+	if vpcID == "" {
+		return "", trace.BadParameter("empty VPC ID")
+	}
+	ecsClusterName := normalizeECSClusterName(teleportClusterName)
+	ecsClusterDashboard := ecsClusterDashboardURL(region, ecsClusterName)
+	serviceName := ecsServiceName(DatabaseServiceDeploymentMode, vpcID)
+	return fmt.Sprintf("%s/%s", ecsClusterDashboard, serviceName), nil
 }

@@ -17,12 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, Toggle } from 'design';
+import { Box, Toggle, Mark } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { getErrMessage } from 'shared/utils/errorType';
+
+import { P } from 'design/Text/Text';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
@@ -50,7 +52,6 @@ import {
   AutoEnrollDialog,
   ActionButtons,
   Header,
-  Mark,
   SelfHostedAutoDiscoverDirections,
 } from '../../Shared';
 
@@ -360,13 +361,11 @@ export function EnrollRdsDatabase() {
 
   return (
     <Box maxWidth="800px">
-      <Header>Enroll a RDS Database</Header>
+      <Header>Enroll an RDS Database</Header>
       {fetchDbAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
       )}
-      <Text mt={4}>
-        Select the AWS Region you would like to see databases for:
-      </Text>
+      <P mt={4}>Select the AWS Region you would like to see databases for:</P>
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
         onRefresh={refreshDatabaseList}
@@ -406,10 +405,10 @@ export function EnrollRdsDatabase() {
         </Box>
       )}
       {showContent && showAutoEnrollToggle && wantAutoDiscover && (
-        <Text mt={4} mb={-3}>
+        <P mt={4} mb={-3}>
           <b>Note:</b> Auto-enroll will enroll <Mark>all</Mark> database engines
           in this region (e.g. PostgreSQL, MySQL, Aurora).
-        </Text>
+        </P>
       )}
       <ActionButtons
         onProceed={handleOnProceed}

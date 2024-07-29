@@ -33,6 +33,7 @@ import {
   Image,
   Flex,
   Box,
+  H2,
 } from 'design';
 import * as icons from 'design/Icon';
 import Validation from 'shared/components/Validation';
@@ -120,9 +121,9 @@ export const ReAuthenticate: FC<{
               mb={0}
               alignItems="baseline"
             >
-              <Text typography="h4">
+              <H2 mb={4}>
                 Verify your identity on <strong>{rootClusterName}</strong>
-              </Text>
+              </H2>
               <ButtonIcon
                 type="button"
                 onClick={props.onCancel}
@@ -134,7 +135,7 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text typography="body1" color="text.slightlyMuted">
+                <Text color="text.slightlyMuted">
                   {req.reason}
                   {isLeafCluster && ` from trusted cluster "${clusterName}"`}
                 </Text>

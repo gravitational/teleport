@@ -75,7 +75,7 @@ export function KeyboardShortcutsPanel() {
 function Entry(props: { title: string; accelerator: string }) {
   return (
     <>
-      <Text textAlign="right" typography="subtitle1" py="4px">
+      <Text textAlign="right" typography="body2" py="4px">
         {props.title}
       </Text>
       <MonoText

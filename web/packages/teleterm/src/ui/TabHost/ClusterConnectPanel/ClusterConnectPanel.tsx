@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, H1, Text } from 'design';
 import styled from 'styled-components';
 
 import Image from 'design/Image';
@@ -44,9 +44,7 @@ export function ClusterConnectPanel() {
           alignItems="center"
         >
           <Image width="120px" src={clusterPng} mb={3} />
-          <Text typography="h3" bold mb={2}>
-            Connect a Cluster
-          </Text>
+          <H1 mb={2}>Connect a Cluster</H1>
           <Text color="text.slightlyMuted" mb={3} textAlign="center">
             Connect an existing Teleport cluster <br /> to start using Teleport
             Connect.

@@ -146,7 +146,7 @@ func (e *Engine) SendError(redisErr error) {
 	}
 
 	if err := e.sendToClient(redisErr); err != nil {
-		e.Log.Errorf("Failed to send message to the client: %v.", err)
+		e.Log.ErrorContext(e.Context, "Failed to send message to the client.", "error", err)
 		return
 	}
 }
@@ -198,7 +198,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	defer func() {
 		if err := e.redisClient.Close(); err != nil {
-			e.Log.Errorf("Failed to close Redis connection: %v.", err)
+			e.Log.ErrorContext(e.Context, "Failed to close Redis connection.", "error", err)
 		}
 	}()
 
@@ -313,22 +313,20 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 		// cache result to avoid API calls on each new instance connection.
 		e.awsIAMAuthSupported = &res
 		if res {
-			e.Log.Debugf("IAM Auth is enabled for user %q in database %q.", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
+			e.Log.DebugContext(e.Context, "IAM Auth is enabled.", "user", sessionCtx.DatabaseUser, "database", sessionCtx.Database.GetName())
 		}
 	}()
 	// check if the db supports IAM auth. If we get an error, assume the db does
 	// support IAM auth. False positives just incur an extra API call.
 	if ok, err := checkDBSupportsIAMAuth(sessionCtx.Database); err != nil {
-		e.Log.WithError(err).Debugf("Assuming database %s supports IAM auth.",
-			sessionCtx.Database.GetName())
+		e.Log.DebugContext(ctx, "Assuming database supports IAM auth.", "database", sessionCtx.Database.GetName())
 	} else if !ok {
 		return false
 	}
 	dbUser := sessionCtx.DatabaseUser
 	ok, err := checkUserIAMAuthIsEnabled(ctx, sessionCtx, e.CloudClients, dbUser)
 	if err != nil {
-		e.Log.WithError(err).Debugf("Assuming IAM auth is not enabled for user %s.",
-			dbUser)
+		e.Log.DebugContext(e.Context, "Assuming IAM auth is not enabled for user.", "user", dbUser, "error", err)
 		return false
 	}
 	return ok

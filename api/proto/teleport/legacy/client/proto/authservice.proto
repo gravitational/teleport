@@ -123,7 +123,12 @@ message OpenSSHCert {
 // for a user.
 message UserCertsRequest {
   // PublicKey is a public key to be signed.
-  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: Prefer SSHPublicKey and/or TLSPublicKey.
+  bytes PublicKey = 1 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
   // Username of key owner.
   string Username = 2 [(gogoproto.jsontag) = "username"];
   // Expires is a desired time of the expiry of the certificate, could
@@ -251,7 +256,10 @@ message UserCertsRequest {
   string SSHLogin = 19;
 
   // AttestationStatement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
+  //
+  // Deprecated: prefer SSHPublicKeyAttestationStatement and/or
+  // TLSPublicKeyAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20 [deprecated = true];
 
   // CertPurpose complements CertUsage by informing Teleport of the intended use
   // for the certificates.
@@ -269,6 +277,20 @@ message UserCertsRequest {
   }
   // Purpose is the intended purpose of the certificates.
   CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
+
+  // SSHPublicKey is a public key in SSH authorized_keys format, to be used as
+  // the subject for the issued SSH certificate. If omitted, only a TLS cert
+  // will be returned.
+  bytes SSHPublicKey = 22 [(gogoproto.jsontag) = "ssh_public_key,omitempty"];
+  // TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format, to be used as
+  // the subject for the issued TLS certificate. If omitted, only an SSH cert
+  // will be returned.
+  bytes TLSPublicKey = 23 [(gogoproto.jsontag) = "tls_public_key,omitempty"];
+
+  // SSHPublicKeyAttestationStatement is an attestation statement for SSHPublicKey.
+  teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
+  // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
+  teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -314,6 +336,8 @@ message RouteToApp {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+  // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -459,34 +483,31 @@ enum SupportType {
 // Features are auth server features.
 message Features {
   // Kubernetes enables Kubernetes Access product
+  // Deprecated remove in v18; leverage entitlements
   bool Kubernetes = 1 [(gogoproto.jsontag) = "kubernetes"];
   // App enables Application Access product
+  // Deprecated remove in v18; leverage entitlements
   bool App = 2 [(gogoproto.jsontag) = "app"];
   // DB enables database access product
+  // Deprecated remove in v18; leverage entitlements
   bool DB = 3 [(gogoproto.jsontag) = "db"];
   // OIDC enables OIDC connectors
+  // Deprecated remove in v18; leverage entitlements
   bool OIDC = 4 [(gogoproto.jsontag) = "oidc"];
   // SAML enables SAML connectors
+  // Deprecated remove in v18; leverage entitlements
   bool SAML = 5 [(gogoproto.jsontag) = "saml"];
   // AccessControls enables FIPS access controls
   bool AccessControls = 6 [(gogoproto.jsontag) = "access_controls"];
-  // Currently this flag is to gate actions from OSS clusters.
-  //
-  // Determining support for access request is currently determined by:
-  //   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
-  //   introduced with Enterprise Usage Based (EUB) product.
-  //   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
-  //   where before EUB, it was unlimited.
-  //
-  // AdvancedAccessWorkflows is currently set to true for all
-  // enterprise editions (team, cloud, on-prem). Historically, access request
-  // was only available for enterprise cloud and enterprise on-prem.
+  // AdvancedAccessWorkflows is currently set to the value of the Cloud AccessRequests entitlement
   bool AdvancedAccessWorkflows = 7 [(gogoproto.jsontag) = "advanced_access_workflows"];
   // Cloud enables some cloud-related features
   bool Cloud = 8 [(gogoproto.jsontag) = "cloud"];
   // HSM enables PKCS#11 HSM support
+  // Deprecated remove in v18; leverage entitlements
   bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
   // Desktop enables desktop access product
+  // Deprecated remove in v18; leverage entitlements
   bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
   reserved 11; // bool ModeratedSessions
   reserved 12; // bool MachineID
@@ -500,17 +521,22 @@ message Features {
   // IsUsageBased enables some usage-based billing features
   bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
   // Assist enables the Assistant feature
+  // Deprecated remove in v18; leverage entitlements
   bool Assist = 18 [(gogoproto.jsontag) = "assist"];
   // DeviceTrust holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
   DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
   // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+  // Deprecated remove in v18; leverage entitlements
   bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
   // AccessRequests holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
   // IdentityGovernance indicates whether IGS related features are enabled:
   // access list, access request, access monitoring, device trust.
+  // Deprecated remove in v18; leverage entitlements
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
   // AccessGraph enables the usage of access graph.
   // NOTE: this is a legacy flag that is currently used to signal
@@ -519,26 +545,46 @@ message Features {
   // TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
   // AccessListFeature holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
   AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
   // AccessMonitoringFeature holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements for access and AccessMonitoringConfigured for enabled
   AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
   // ProductType describes the product being used.
   ProductType ProductType = 27 [(gogoproto.jsontag) = "product_type,omitempty"];
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
+  // Deprecated remove in v18; leverage entitlements
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
   // Questionnaire indicates whether cluster users should get an onboarding questionnaire
   bool Questionnaire = 29 [(gogoproto.jsontag) = "questionnaire,omitempty"];
   // IsStripeManaged indicates if the cluster billing is managed via Stripe
   bool IsStripeManaged = 30 [(gogoproto.jsontag) = "is_stripe_managed,omitempty"];
   // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+  // Deprecated remove in v18; leverage entitlements
   bool ExternalAuditStorage = 31 [(gogoproto.jsontag) = "external_audit_storage,omitempty"];
   // SupportType indicates the type of the customer's support
   SupportType SupportType = 32 [(gogoproto.jsontag) = "support_type,omitempty"];
   // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+  // Deprecated remove in v18; leverage entitlements
   bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "join_active_sessions,omitempty"];
   // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
+  // Deprecated remove in v18; leverage entitlements
   bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobile_device_management,omitempty"];
+  // entitlements define a customer’s access to a specific features
+  map<string, EntitlementInfo> entitlements = 35;
+  // AccessMonitoringConfigured contributes to the enablement of access monitoring.
+  // NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
+  // *Access* to the feature is gated on the `AccessMonitoring` entitlement.
+  bool AccessMonitoringConfigured = 36;
+}
+
+// EntitlementInfo is the state and limits of a particular entitlement
+message EntitlementInfo {
+  // enabled indicates the feature is 'on' if true
+  bool enabled = 1;
+  // limit indicates the allotted amount of use when limited
+  int32 limit = 2;
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -788,6 +834,12 @@ message CreateAppSessionRequest {
   // An optional field, that when provided, the response will be validated and
   // the ID of the validated MFA device will be stored in session's certificate.
   MFAAuthenticateResponse MFAResponse = 8 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+  // AppName is the name of the application.
+  string AppName = 9 [(gogoproto.jsontag) = "app_name"];
+  // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  string URI = 10 [(gogoproto.jsontag) = "uri"];
+  // ClientAddr is a client (user's) address.
+  string ClientAddr = 11 [(gogoproto.jsontag) = "client_addr,omitempty"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -2245,6 +2297,8 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryPong Pong = 3;
     // UpstreamInventoryAgentMetadata advertises instance metadata.
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
+    // UpstreamInventoryGoodbye advertises that the instance is terminating.
+    UpstreamInventoryGoodbye Goodbye = 5;
   }
 }
 
@@ -2325,6 +2379,51 @@ message DownstreamInventoryHello {
   string Version = 1;
   // ServerID advertises the server ID of the auth server.
   string ServerID = 2;
+
+  // SupportedCapabilities indicate which features of the ICS that
+  // the connect auth server supports. This allows agents to determine
+  // how they should interact with the auth server to maintain compatibility.
+  message SupportedCapabilities {
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool ProxyHeartbeats = 1;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool ProxyCleanup = 2;
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool AuthHeartbeats = 3;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AuthCleanup = 4;
+    // NodeHeartbeats indicates the ICS supports heartbeating ssh servers.
+    bool NodeHeartbeats = 5;
+    // NodeCleanup indicates the ICS supports deleting nodes when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool NodeCleanup = 6;
+    // AppHeartbeats indicates the ICS supports heartbeating app servers.
+    bool AppHeartbeats = 7;
+    // AppCleanup indicates the ICS supports deleting apps when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AppCleanup = 8;
+    // DatabaseHeartbeats indicates the ICS supports heartbeating databases.
+    bool DatabaseHeartbeats = 9;
+    // DatabaseCleanup indicates the ICS supports deleting databases when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseCleanup = 10;
+    // DatabaseServiceHeartbeats indicates the ICS supports heartbeating databse services.
+    bool DatabaseServiceHeartbeats = 11;
+    // DatabaseServiceCleanup indicates the ICS supports deleting database services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseServiceCleanup = 12;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop servers.
+    bool WindowsDesktopHeartbeats = 13;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopCleanup = 14;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+    bool WindowsDesktopServiceHeartbeats = 15;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopServiceCleanup = 16;
+    // KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
+    bool KubernetesHeartbeats = 17;
+    // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool KubernetesCleanup = 18;
+  }
+
+  // SupportedCapabilities advertises the supported features of the auth server.
+  SupportedCapabilities Capabilities = 3;
 }
 
 // LabelUpdateKind is the type of service to update labels for.
@@ -2365,6 +2464,14 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
+}
+
+// UpstreamInventoryGoodbye informs the upstream service that instance
+// is terminating
+message UpstreamInventoryGoodbye {
+  // DeleteResources indicates that any heartbeats received from
+  // the instance should be terminated when the stream is closed.
+  bool DeleteResources = 1;
 }
 
 // InventoryStatusRequest requests inventory status info.

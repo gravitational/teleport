@@ -164,8 +164,8 @@ In those cases, they can set up separate listeners in the config file.
 | Port | Downstream Service | Description |
 | - | - | - |
 | 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
-| 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service. |
-| 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. |
+| 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service or use a reverse tunnel connection. |
+| 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. All Teleport services (e.g., the SSH Service and Database Service) connecting through the Proxy Service will use this port to form their reverse tunnel connections.|
 | 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 | 3036 | Database Service | Traffic to MySQL databases.|
 | 5432 | Database Service | Traffic to Postgres databases.|
@@ -246,7 +246,7 @@ agents to the public internet.
 
 If you run a self-hosted Teleport cluster, you can join an agent [directly to
 the Teleport Auth
-Service](../agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
 In this setup, certain Teleport services open their own listeners rather than
 accepting connections via reverse tunnel. The Proxy Service connects to these
 agent services by dialing them directly.

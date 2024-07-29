@@ -29,7 +29,7 @@ Fedora/CentOS: `yum -y install awscli`
 
 Ubuntu/Debian: `apt-get -y install awscli`
 
-MacOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
+macOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
 
 When possible, installing via a package is always preferable. If you can't find a package available for
 your distribution, you can also download the tool from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
@@ -162,7 +162,7 @@ Teleport (Gravitational) automatically builds and publishes Teleport Community E
 AMIs when we release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
 where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
 and `<arch>` is either `x86_64` or `arm64`.
- 
+
 FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix after `<arch>`,
 e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
 
@@ -794,7 +794,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../agents/join-services-to-your-cluster.mdx)
+  cluster](../../enroll-resources/agents/join-services-to-your-cluster.mdx)
 
 ### Getting the SSH Service join token
 
@@ -806,13 +806,13 @@ $ aws ssm get-parameter --region <Var name="us-west-2" /> --name "/teleport/${CL
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../agents/join-services-to-your-cluster/join-token.mdx).
+You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 ### Joining agents to the cluster
 
 The easiest way to quickly join nodes to your cluster is to use the "Enroll New Resource" wizard in the Teleport web UI.
 
-To manually join Teleport agents to your cluster, you will need [a join token](../../agents/join-services-to-your-cluster/join-token.mdx).
+To manually join Teleport agents to your cluster, you will need [a join token](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 You should join your agents using the public facing Proxy Service address - `teleport.example.com:443` for our
 example.
@@ -867,4 +867,3 @@ $ ./connect.sh node
 ### AWS quotas
 
 (!docs/pages/includes/aws-quotas.mdx!)
-

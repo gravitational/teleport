@@ -18,7 +18,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
+import { Box, ButtonPrimary, Flex, Text, Alert, H1 } from 'design';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
@@ -52,9 +52,7 @@ export function Setup(props: {
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
-      <Text typography="h3" mb="4">
-        Connect My Computer
-      </Text>
+      <H1 mb="4">Connect My Computer</H1>
       {step === 'information' && (
         <Information
           onSetUpAgentClick={() => setStep('agent-setup')}

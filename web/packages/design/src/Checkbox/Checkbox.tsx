@@ -106,7 +106,7 @@ const Checkmark = styled(Icon.CheckThick)`
 const CheckboxInternal = styled.input.attrs(props => ({
   // TODO(bl-nero): Make radio buttons a separate control.
   type: props.type || 'checkbox',
-}))`
+}))<{ cbSize?: CheckboxSize }>`
   // reset the appearance so we can style the background
   -webkit-appearance: none;
   -moz-appearance: none;

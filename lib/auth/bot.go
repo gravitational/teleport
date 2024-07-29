@@ -26,15 +26,23 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // validateGenerationLabel validates and updates a generation label.
@@ -168,6 +176,165 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 	return nil
 }
 
+func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keys.MarshalPublicKey(cryptoPubKey)
+}
+
+// updateBotInstance updates the bot instance associated with the context
+// identity, if any. If the optional `templateAuthRecord` is provided, various
+// metadata fields will be copied into the newly generated auth record.
+func (a *Server) updateBotInstance(
+	ctx context.Context, req *certRequest,
+	botName, botInstanceID string,
+	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
+) error {
+	if !experiment.Enabled() {
+		// Only attempt to update bot instances if the experiment is enabled.
+		return nil
+	}
+
+	if botName == "" {
+		// Only applies to bot identities
+		return nil
+	}
+
+	// Check if this bot instance actually exists.
+	instanceNotFound := false
+	if botInstanceID != "" {
+		_, err := a.BotInstance.GetBotInstance(ctx, botName, botInstanceID)
+		if trace.IsNotFound(err) {
+			instanceNotFound = true
+		} else if err != nil {
+			// Some other error, bail.
+			return trace.Wrap(err)
+		}
+	}
+
+	// TODO(nklaassen): consider recording both public keys once they are
+	// actually separated.
+	var publicKeyPEM []byte
+	if req.tlsPublicKey != nil {
+		publicKeyPEM = req.tlsPublicKey
+	} else {
+		// At least one of tlsPublicKey or sshPublicKey will be set, this is validated by [req.check].
+		var err error
+		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.sshPublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
+		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
+		PublicKey:       publicKeyPEM,
+
+		// TODO: for now, this copy of the certificate generation only is
+		// informational. Future changes will transition to trusting (and
+		// verifying) this value in lieu of the old generation label on bot
+		// users.
+		Generation: int32(req.generation),
+
+		// Note: This is presumed to be a token join. If not, a
+		// `templateAuthRecord` should be provided to override this value.
+		JoinMethod: string(types.JoinMethodToken),
+	}
+
+	if templateAuthRecord != nil {
+		authRecord.JoinToken = templateAuthRecord.JoinToken
+		authRecord.JoinMethod = templateAuthRecord.JoinMethod
+		authRecord.Metadata = templateAuthRecord.Metadata
+	}
+
+	// An empty bot instance most likely means a bot is rejoining after an
+	// upgrade, so a new bot instance should be generated. We may consider
+	// making this an error in the future.
+	if botInstanceID == "" || instanceNotFound {
+		instanceID, err := uuid.NewRandom()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		log.WithFields(logrus.Fields{
+			"bot_name":            botName,
+			"invalid_instance_id": botInstanceID,
+			"new_instance_id":     instanceID.String(),
+		}).Info("bot has no valid instance ID, a new instance will be generated")
+
+		expires := a.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin)
+
+		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: instanceID.String(),
+		}, authRecord, expires)
+
+		if _, err := a.BotInstance.CreateBotInstance(ctx, bi); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Add the new ID to the cert request
+		req.botInstanceID = instanceID.String()
+
+		return nil
+	}
+
+	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+		if bi.Status == nil {
+			bi.Status = &machineidv1pb.BotInstanceStatus{}
+		}
+
+		// Update the record's expiration timestamp based on the request TTL
+		// plus an expiry margin.
+		bi.Metadata.Expires = timestamppb.New(a.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin))
+
+		// If we're at or above the limit, remove enough of the front elements
+		// to make room for the new one at the end.
+		if len(bi.Status.LatestAuthentications) >= machineidv1.AuthenticationHistoryLimit {
+			toRemove := len(bi.Status.LatestAuthentications) - machineidv1.AuthenticationHistoryLimit + 1
+			bi.Status.LatestAuthentications = bi.Status.LatestAuthentications[toRemove:]
+		}
+
+		// An initial auth record should have been added during initial join,
+		// but if not, add it now.
+		if bi.Status.InitialAuthentication == nil {
+			log.WithFields(logrus.Fields{
+				"bot_name":        botName,
+				"bot_instance_id": botInstanceID,
+			}).Warn("bot instance is missing its initial authentication record, a new one will be added")
+			bi.Status.InitialAuthentication = authRecord
+		}
+
+		bi.Status.LatestAuthentications = append(bi.Status.LatestAuthentications, authRecord)
+
+		return bi, nil
+	})
+
+	return trace.Wrap(err)
+}
+
+// newBotInstance constructs a new bot instance from a spec and initial authentication
+func newBotInstance(
+	spec *machineidv1pb.BotInstanceSpec,
+	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
+	expires time.Time,
+) *machineidv1pb.BotInstance {
+	return &machineidv1pb.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Expires: timestamppb.New(expires),
+		},
+		Spec: spec,
+		Status: &machineidv1pb.BotInstanceStatus{
+			InitialAuthentication: initialAuth,
+			LatestAuthentications: []*machineidv1pb.BotInstanceStatusAuthentication{initialAuth},
+		},
+	}
+}
+
 // generateInitialBotCerts is used to generate bot certs and overlaps
 // significantly with `generateUserCerts()`. However, it omits a number of
 // options (impersonation, access requests, role requests, actual cert renewal,
@@ -175,7 +342,15 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 // care if the current identity is Nop.  This function does not validate the
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
-func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username, loginIP string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
+//
+// Returns a second argument of the bot instance ID for inclusion in audit logs.
+func (a *Server) generateInitialBotCerts(
+	ctx context.Context, botName, username, loginIP string,
+	sshPubKey, tlsPubKey []byte,
+	expires time.Time, renewable bool,
+	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
+	existingInstanceID string,
+) (*proto.Certs, string, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -187,13 +362,13 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username,
 	userState, err := a.GetUserOrLoginState(ctx, username)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
-		return nil, trace.AccessDenied("access denied")
+		return nil, "", trace.AccessDenied("access denied")
 	}
 
 	// Do not allow SSO users to be impersonated.
 	if userState.GetUserType() == types.UserTypeSSO {
 		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
-		return nil, trace.AccessDenied("access denied")
+		return nil, "", trace.AccessDenied("access denied")
 	}
 
 	// Cap the cert TTL to the MaxRenewableCertTTL.
@@ -205,24 +380,26 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username,
 	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	// renewable cert request must include a generation
 	var generation uint64
 	if renewable {
 		generation = 1
+		initialAuth.Generation = 1
 	}
 
 	// Generate certificate
 	certReq := certRequest{
 		user:          userState,
 		ttl:           expires.Sub(a.GetClock().Now()),
-		publicKey:     pubKey,
+		sshPublicKey:  sshPubKey,
+		tlsPublicKey:  tlsPubKey,
 		checker:       checker,
 		traits:        accessInfo.Traits,
 		renewable:     renewable,
@@ -232,14 +409,51 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username,
 		botName:       botName,
 	}
 
+	if experiment.Enabled() {
+		if existingInstanceID == "" {
+			// If no existing instance ID is known, create a new one.
+			uuid, err := uuid.NewRandom()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
+				BotName:    botName,
+				InstanceId: uuid.String(),
+			}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+
+			_, err = a.BotInstance.CreateBotInstance(ctx, bi)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			certReq.botInstanceID = uuid.String()
+		} else {
+			// Otherwise, reuse the existing instance ID, and pass the
+			// initialAuth along.
+
+			// Note: botName is derived from the provision token rather than any
+			// value sent by the client, so we can trust it.
+			if err := a.updateBotInstance(ctx, &certReq, botName, existingInstanceID, initialAuth); err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			// Only set the bot instance ID if it's empty; `updateBotInstance()`
+			// may set it if a new instance is created.
+			if certReq.botInstanceID == "" {
+				certReq.botInstanceID = existingInstanceID
+			}
+		}
+	}
+
 	if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	return certs, nil
+	return certs, certReq.botInstanceID, nil
 }

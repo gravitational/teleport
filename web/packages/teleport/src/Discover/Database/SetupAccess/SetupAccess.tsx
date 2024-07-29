@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Text, Flex, Link, Mark, H3 } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
 import {
@@ -28,7 +28,7 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark, StyledBox } from 'teleport/Discover/Shared';
+import { StyledBox } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta } from 'teleport/Discover/useDiscover';
 import { Tabs } from 'teleport/components/Tabs';
@@ -205,11 +205,11 @@ const Info = (props: {
   <>
     <Flex mb={2}>
       <InfoIcon size="medium" mr={1} />
-      <Text bold>To allow access using your Database Users</Text>
+      <H3>To allow access using your Database Users</H3>
     </Flex>
     <DbEngineInstructions {...props} />
     <Box>
-      <Text bold>Access Definition</Text>
+      <H3>Access Definition</H3>
       <ul
         css={`
           margin-bottom: 0;

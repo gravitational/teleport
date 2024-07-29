@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -76,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -160,10 +162,18 @@ type ForwarderConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	// Tracer is used to start spans.
 	tracer oteltrace.Tracer
-	// ConnTLSConfig is the TLS client configuration to use when connecting to
-	// the upstream Teleport proxy or Kubernetes service when forwarding requests
-	// using the forward identity (i.e. proxy impersonating a user) method.
-	ConnTLSConfig *tls.Config
+	// GetConnTLSCertificate returns the TLS client certificate to use when
+	// connecting to the upstream Teleport proxy or Kubernetes service when
+	// forwarding requests using the forward identity (i.e. proxy impersonating
+	// a user) method. Paired with GetConnTLSRoots and ConnTLSCipherSuites to
+	// generate the correct [*tls.Config] on demand.
+	GetConnTLSCertificate utils.GetCertificateFunc
+	// GetConnTLSRoots returns the [*x509.CertPool] used to validate TLS
+	// connections to the upstream Teleport proxy or Kubernetes service.
+	GetConnTLSRoots utils.GetRootsFunc
+	// ConnTLSCipherSuites optionally contains a list of TLS ciphersuites to use
+	// when connecting to the upstream Teleport Proxy or Kubernetes service.
+	ConnTLSCipherSuites []uint16
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
@@ -171,6 +181,18 @@ type ForwarderConfig struct {
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 type ClusterFeaturesGetter func() proto.Features
+
+func (f ClusterFeaturesGetter) GetEntitlement(e entitlements.EntitlementKind) modules.EntitlementInfo {
+	al, ok := f().Entitlements[string(e)]
+	if !ok {
+		return modules.EntitlementInfo{}
+	}
+
+	return modules.EntitlementInfo{
+		Enabled: al.Enabled,
+		Limit:   al.Limit,
+	}
+}
 
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
@@ -233,12 +255,12 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	switch f.KubeServiceType {
 	case KubeService:
 	case ProxyService, LegacyProxyService:
-		if f.ConnTLSConfig == nil {
-			return trace.BadParameter("missing parameter TLSConfig")
+		if f.GetConnTLSCertificate == nil {
+			return trace.BadParameter("missing parameter GetConnTLSCertificate")
 		}
-		// Reset the ServerName to ensure that the proxy does not use the
-		// proxy's hostname as the SNI when connecting to the Kubernetes service.
-		f.ConnTLSConfig.ServerName = ""
+		if f.GetConnTLSRoots == nil {
+			return trace.BadParameter("missing parameter GetConnTLSRoots")
+		}
 	default:
 		return trace.BadParameter("unknown value for KubeServiceType")
 	}
@@ -491,7 +513,7 @@ const accessDeniedMsg = "[00] access denied"
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
-	if !f.cfg.ClusterFeatures().Kubernetes {
+	if !f.cfg.ClusterFeatures.GetEntitlement(entitlements.K8s).Enabled {
 		// If the cluster is not licensed for Kubernetes, return an error to the client.
 		return nil, trace.AccessDenied("Teleport cluster is not licensed for Kubernetes")
 	}

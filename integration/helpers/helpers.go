@@ -141,7 +141,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 // CreateAgent creates a SSH agent with the passed in private key and
 // certificate that can be used in tests. This is useful so tests don't
 // clobber your system agent.
-func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
+func CreateAgent(me *user.User, key *client.KeyRing) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
@@ -189,13 +189,13 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
+func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
 	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            key.MarshalSSHPublicKey(),
+		Key:            key.PrivateKey.MarshalSSHPublicKey(),
 		Username:       username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -209,9 +209,14 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
 	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	return key
+}
+
+func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
+	key := MustCreateUserKey(t, tc, username, ttl)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		Key:        key,
 		Format:     identityfile.FormatFile,
@@ -483,8 +488,11 @@ func UpsertAuthPrefAndWaitForCache(
 	_, err := srv.UpsertAuthPreference(ctx, pref)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		p, err := srv.GetAuthPreference(ctx)
+		// we need to wait for the in-memory copy of auth pref to be updated, which
+		// takes a bit longer than standard cache propagation.
+		rp, err := srv.GetReadOnlyAuthPreference(ctx)
 		require.NoError(t, err)
+		p := rp.Clone()
 		assert.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
 }

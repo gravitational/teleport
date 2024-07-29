@@ -25,7 +25,7 @@ import * as Icons from 'design/Icon';
 
 import { TextIcon } from 'teleport/Discover/Shared/Text';
 
-const HintBoxContainer = styled(Box).attrs((props: { maxWidth?: string }) => ({
+const HintBoxContainer = styled(Box).attrs<{ maxWidth?: string }>(props => ({
   maxWidth: props.maxWidth,
 }))`
   background-color: ${props => props.theme.colors.spotBackground[0]};
@@ -34,6 +34,7 @@ const HintBoxContainer = styled(Box).attrs((props: { maxWidth?: string }) => ({
   border: 2px solid ${props => props.theme.colors.warning.main};
 `;
 
+// TODO(bl-nero): Migrate this component to an info or neutral alert box.
 export const WaitingInfo = styled(Box)`
   max-width: 1000px;
   background-color: ${props => props.theme.colors.spotBackground[0]};

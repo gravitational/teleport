@@ -47,6 +47,8 @@ import {
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import { StepSlider, StepComponentProps } from 'design/StepSlider';
 
+import { P } from 'design/Text/Text';
+
 import { UserCredentials } from 'teleport/services/auth';
 
 import { PasskeyIcons } from '../Passkeys';
@@ -88,7 +90,7 @@ export default function LoginForm(props: Props) {
   // Everything below requires local auth to be enabled.
   return (
     <Card my="5" mx="auto" width={500} py={4}>
-      <Text typography="h3" mb={4} textAlign="center">
+      <Text typography="h1" mb={4} textAlign="center">
         Sign in to Teleport
       </Text>
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
@@ -101,10 +103,10 @@ export default function LoginForm(props: Props) {
           primaryAuthType={actualPrimaryType}
         />
       ) : (
-        <Text mx={4} typography="paragraph2">
+        <P mx={4}>
           The ability to login has not been enabled. Please contact your system
           administrator for more information.
-        </Text>
+        </P>
       )}
     </Card>
   );
@@ -138,7 +140,7 @@ const Passwordless = ({
   hasTransitionEnded,
   primary,
 }: Props & { hasTransitionEnded: boolean; primary: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
+  const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   // Firefox currently does not support passwordless and when
@@ -168,12 +170,12 @@ const Passwordless = ({
           <PasskeyIcons />
         </div>
         <div>
-          <Text typography="body1">
-            Your browser will prompt you for a device key.
-          </Text>
+          <P>Your browser will prompt you for a device key.</P>
         </div>
         <Button
-          kind={primary ? 'primary' : 'secondary'}
+          fill="filled"
+          intent={primary ? 'primary' : 'neutral'}
+          size="extra-large"
           setRef={ref}
           disabled={attempt.isProcessing}
           onClick={() => onLoginWithWebauthn()}
@@ -328,7 +330,7 @@ const LocalForm = ({
           <ButtonPrimary
             width="100%"
             type="submit"
-            size="large"
+            size="extra-large"
             onClick={e => onLoginClick(e, validator)}
             disabled={isProcessing}
           >
@@ -393,8 +395,8 @@ function AuthMethod({
         <LocalForm {...otherProps} autoFocus={true} />
       ) : (
         <Box py={2}>
-          <ButtonSecondary size="large" block onClick={next}>
-            Sign in with username and password
+          <ButtonSecondary size="extra-large" block onClick={next}>
+            Sign in with Username and Password
           </ButtonSecondary>
         </Box>
       );
@@ -412,6 +414,8 @@ const LocalLogin = ({
       <LocalForm {...otherProps} autoFocus={true} />
       <Box pt={3} textAlign="center">
         <ButtonText
+          width="100%"
+          size="extra-large"
           disabled={otherProps.attempt.isProcessing}
           onClick={() => {
             otherProps.clearAttempt();

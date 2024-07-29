@@ -21,6 +21,7 @@ package regular
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1488,8 +1489,10 @@ func TestProxyRoundRobin(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ClusterName:           f.testSrv.ClusterName(),
-		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		Listener:              listener,
 		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
@@ -1564,7 +1567,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		HostSigner:  f.signer,
+		AuthMethods: []ssh.AuthMethod{ssh.PublicKeys(f.signer)},
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
 	})
@@ -1578,7 +1581,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		HostSigner:  f.signer,
+		AuthMethods: []ssh.AuthMethod{ssh.PublicKeys(f.signer)},
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
 	})
@@ -1625,7 +1628,9 @@ func TestProxyDirectAccess(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2338,7 +2343,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-			ClientTLS:             proxyClient.TLSConfig(),
+			GetClientTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyClient.TLSConfig().Certificates[0], nil
+			},
 			ID:                    hostID,
 			ClusterName:           f.testSrv.ClusterName(),
 			Listener:              listener,
@@ -2600,7 +2607,9 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,

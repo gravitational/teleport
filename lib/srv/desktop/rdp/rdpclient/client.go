@@ -445,7 +445,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 
 		c.cfg.Logger.DebugContext(context.Background(), "Client changed screen size", "width", m.Width, "height", m.Height)
 		if errCode := C.client_write_screen_resize(
-			C.ulong(c.handle),
+			C.uintptr_t(c.handle),
 			C.uint32_t(m.Width),
 			C.uint32_t(m.Height),
 		); errCode != C.ErrCodeSuccess {
@@ -454,7 +454,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 	case tdp.MouseMove:
 		c.mouseX, c.mouseY = m.X, m.Y
 		if errCode := C.client_write_rdp_pointer(
-			C.ulong(c.handle),
+			C.uintptr_t(c.handle),
 			C.CGOMousePointerEvent{
 				x:      C.uint16_t(m.X),
 				y:      C.uint16_t(m.Y),
@@ -478,7 +478,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			button = C.PointerButtonNone
 		}
 		if errCode := C.client_write_rdp_pointer(
-			C.ulong(c.handle),
+			C.uintptr_t(c.handle),
 			C.CGOMousePointerEvent{
 				x:      C.uint16_t(c.mouseX),
 				y:      C.uint16_t(c.mouseY),
@@ -506,7 +506,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			wheel = C.PointerWheelNone
 		}
 		if errCode := C.client_write_rdp_pointer(
-			C.ulong(c.handle),
+			C.uintptr_t(c.handle),
 			C.CGOMousePointerEvent{
 				x:           C.uint16_t(c.mouseX),
 				y:           C.uint16_t(c.mouseY),
@@ -519,7 +519,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case tdp.KeyboardButton:
 		if errCode := C.client_write_rdp_keyboard(
-			C.ulong(c.handle),
+			C.uintptr_t(c.handle),
 			C.CGOKeyboardEvent{
 				code: C.uint16_t(m.KeyCode),
 				down: m.State == tdp.ButtonPressed,
@@ -528,7 +528,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			return trace.Errorf("KeyboardButton: client_write_rdp_keyboard: %v", errCode)
 		}
 	case tdp.SyncKeys:
-		if errCode := C.client_write_rdp_sync_keys(C.ulong(c.handle),
+		if errCode := C.client_write_rdp_sync_keys(C.uintptr_t(c.handle),
 			C.CGOSyncKeys{
 				scroll_lock_down: m.ScrollLockState == tdp.ButtonPressed,
 				num_lock_down:    m.NumLockState == tdp.ButtonPressed,
@@ -544,7 +544,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 		if len(m) > 0 {
 			if errCode := C.client_update_clipboard(
-				C.ulong(c.handle),
+				C.uintptr_t(c.handle),
 				(*C.uint8_t)(unsafe.Pointer(&m[0])),
 				C.uint32_t(len(m)),
 			); errCode != C.ErrCodeSuccess {
@@ -557,7 +557,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		if c.cfg.AllowDirectorySharing {
 			driveName := C.CString(m.Name)
 			defer C.free(unsafe.Pointer(driveName))
-			if errCode := C.client_handle_tdp_sd_announce(C.ulong(c.handle), C.CGOSharedDirectoryAnnounce{
+			if errCode := C.client_handle_tdp_sd_announce(C.uintptr_t(c.handle), C.CGOSharedDirectoryAnnounce{
 				directory_id: C.uint32_t(m.DirectoryID),
 				name:         driveName,
 			}); errCode != C.ErrCodeSuccess {
@@ -568,7 +568,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		if c.cfg.AllowDirectorySharing {
 			path := C.CString(m.Fso.Path)
 			defer C.free(unsafe.Pointer(path))
-			if errCode := C.client_handle_tdp_sd_info_response(C.ulong(c.handle), C.CGOSharedDirectoryInfoResponse{
+			if errCode := C.client_handle_tdp_sd_info_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryInfoResponse{
 				completion_id: C.uint32_t(m.CompletionID),
 				err_code:      m.ErrCode,
 				fso: C.CGOFileSystemObject{
@@ -586,7 +586,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		if c.cfg.AllowDirectorySharing {
 			path := C.CString(m.Fso.Path)
 			defer C.free(unsafe.Pointer(path))
-			if errCode := C.client_handle_tdp_sd_create_response(C.ulong(c.handle), C.CGOSharedDirectoryCreateResponse{
+			if errCode := C.client_handle_tdp_sd_create_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryCreateResponse{
 				completion_id: C.uint32_t(m.CompletionID),
 				err_code:      m.ErrCode,
 				fso: C.CGOFileSystemObject{
@@ -602,7 +602,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case tdp.SharedDirectoryDeleteResponse:
 		if c.cfg.AllowDirectorySharing {
-			if errCode := C.client_handle_tdp_sd_delete_response(C.ulong(c.handle), C.CGOSharedDirectoryDeleteResponse{
+			if errCode := C.client_handle_tdp_sd_delete_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryDeleteResponse{
 				completion_id: C.uint32_t(m.CompletionID),
 				err_code:      m.ErrCode,
 			}); errCode != C.ErrCodeSuccess {
@@ -635,7 +635,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
 			}
 
-			if errCode := C.client_handle_tdp_sd_list_response(C.ulong(c.handle), C.CGOSharedDirectoryListResponse{
+			if errCode := C.client_handle_tdp_sd_list_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryListResponse{
 				completion_id:   C.uint32_t(m.CompletionID),
 				err_code:        m.ErrCode,
 				fso_list_length: C.uint32_t(fsoListLen),
@@ -653,7 +653,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
 			}
 
-			if errCode := C.client_handle_tdp_sd_read_response(C.ulong(c.handle), C.CGOSharedDirectoryReadResponse{
+			if errCode := C.client_handle_tdp_sd_read_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryReadResponse{
 				completion_id:    C.uint32_t(m.CompletionID),
 				err_code:         m.ErrCode,
 				read_data_length: C.uint32_t(m.ReadDataLength),
@@ -664,7 +664,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case tdp.SharedDirectoryWriteResponse:
 		if c.cfg.AllowDirectorySharing {
-			if errCode := C.client_handle_tdp_sd_write_response(C.ulong(c.handle), C.CGOSharedDirectoryWriteResponse{
+			if errCode := C.client_handle_tdp_sd_write_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryWriteResponse{
 				completion_id: C.uint32_t(m.CompletionID),
 				err_code:      m.ErrCode,
 				bytes_written: C.uint32_t(m.BytesWritten),
@@ -674,7 +674,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case tdp.SharedDirectoryMoveResponse:
 		if c.cfg.AllowDirectorySharing {
-			if errCode := C.client_handle_tdp_sd_move_response(C.ulong(c.handle), C.CGOSharedDirectoryMoveResponse{
+			if errCode := C.client_handle_tdp_sd_move_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryMoveResponse{
 				completion_id: C.uint32_t(m.CompletionID),
 				err_code:      m.ErrCode,
 			}); errCode != C.ErrCodeSuccess {
@@ -683,7 +683,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case tdp.SharedDirectoryTruncateResponse:
 		if c.cfg.AllowDirectorySharing {
-			if errCode := C.client_handle_tdp_sd_truncate_response(C.ulong(c.handle), C.CGOSharedDirectoryTruncateResponse{
+			if errCode := C.client_handle_tdp_sd_truncate_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryTruncateResponse{
 				completion_id: C.uint32_t(m.CompletionID),
 				err_code:      m.ErrCode,
 			}); errCode != C.ErrCodeSuccess {
@@ -698,7 +698,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
 		if errCode := C.client_handle_tdp_rdp_response_pdu(
-			C.ulong(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
+			C.uintptr_t(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 		}

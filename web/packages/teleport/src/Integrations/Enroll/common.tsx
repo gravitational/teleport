@@ -17,8 +17,9 @@
  */
 
 import React from 'react';
-import { Box, Flex, Text } from 'design';
+import { Box, Flex, H2 } from 'design';
 import styled from 'styled-components';
+import { P } from 'design/Text/Text';
 
 export const IntegrationTile = styled(Flex)<{
   disabled?: boolean;
@@ -54,12 +55,10 @@ export const IntegrationTile = styled(Flex)<{
 
 export const NoCodeIntegrationDescription = () => (
   <Box mb={3}>
-    <Text fontWeight="bold" typography="h4">
-      No-Code Integrations
-    </Text>
-    <Text typography="body1">
+    <H2 mb={1}>No-Code Integrations</H2>
+    <P>
       Set up Teleport to post notifications to messaging apps, discover and
       import resources from cloud providers and other services.
-    </Text>
+    </P>
   </Box>
 );

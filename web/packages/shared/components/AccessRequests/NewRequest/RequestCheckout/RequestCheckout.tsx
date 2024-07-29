@@ -25,9 +25,12 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Image,
   Indicator,
   LabelInput,
+  P3,
+  Subtitle2,
   Text,
 } from 'design';
 import {
@@ -194,9 +197,9 @@ export function RequestCheckout<T extends PendingListItem>({
           style={{ cursor: 'pointer' }}
         />
         <Box>
-          <Text typography="h4" color="text.main" bold>
+          <H2>
             {data.length} {pluralize(data.length, 'Resource')} Selected
-          </Text>
+          </H2>
         </Box>
       </Flex>
     );
@@ -221,14 +224,12 @@ export function RequestCheckout<T extends PendingListItem>({
           {createAttempt.status === 'success' ? (
             <>
               <Box>
-                <Box mt={2} mb={7} textAlign="center">
-                  <Text typography="h4" color="text.main" bold>
-                    Resources Requested Successfully
-                  </Text>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
+                <Box as="header" mt={2} mb={7} textAlign="center">
+                  <H2 mb={1}>Resources Requested Successfully</H2>
+                  <Subtitle2 color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
-                  </Text>
+                  </Subtitle2>
                 </Box>
                 <Flex justifyContent="center" mb={3}>
                   <Image src={shieldCheck} width="250px" height="179px" />
@@ -281,7 +282,7 @@ export function RequestCheckout<T extends PendingListItem>({
                               theme.colors.buttons.trashButton.default};
                             border-radius: 2px;
 
-                            :hover {
+                            &:hover {
                               background-color: ${({ theme }) =>
                                 theme.colors.buttons.trashButton.hover};
                             }
@@ -490,7 +491,7 @@ function ResourceRequestRoles({
             <LabelInput mb={0} style={{ cursor: 'pointer' }}>
               Roles
             </LabelInput>
-            <Text typography="subtitle2" mb={2}>
+            <Text typography="body4" mb={2}>
               {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
               selected
             </Text>
@@ -552,10 +553,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <Text typography="subtitle2">
+              <P3>
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </Text>
+              </P3>
             </Flex>
           )}
         </Box>
@@ -570,12 +571,12 @@ const RoleRowContainer = styled.div<{ checked?: boolean }>`
 
   // TODO(bl-nero): That's the third place where we're copying these
   // definitions. We need to make them reusable.
-  :hover {
+  &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    :after {
+    &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       content: '';
       position: absolute;
@@ -638,7 +639,7 @@ function TextBox({
           outline: none;
           background: transparent;
 
-          ::placeholder {
+          &::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
 
