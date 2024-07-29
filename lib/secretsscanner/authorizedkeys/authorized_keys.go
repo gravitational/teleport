@@ -354,7 +354,7 @@ func (w *Watcher) parseAuthorizedKeysFile(ctx context.Context, u user.User, auth
 		if len(payload) == 0 || payload[0] == '#' {
 			continue
 		}
-		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(payload)
+		parsedKey, comment, _, _, err := ssh.ParseAuthorizedKey(payload)
 		if err != nil {
 			w.logger.WarnContext(ctx, "Failed to parse authorized key", "error", err)
 			continue
@@ -367,6 +367,8 @@ func (w *Watcher) parseAuthorizedKeysFile(ctx context.Context, u user.User, auth
 				HostId:         w.hostID,
 				HostUser:       u.Username,
 				KeyFingerprint: ssh.FingerprintSHA256(parsedKey),
+				KeyComment:     comment,
+				KeyType:        parsedKey.Type(),
 			},
 		)
 		if err != nil {

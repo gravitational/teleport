@@ -76,6 +76,10 @@ func ValidateAuthorizedKey(k *accessgraphv1pb.AuthorizedKey) error {
 		return trace.BadParameter("KeyFingerprint is unset")
 	}
 
+	if k.Spec.KeyType == "" {
+		return trace.BadParameter("KeyType is unset")
+	}
+
 	if k.Metadata.Name == "" {
 		return trace.BadParameter("Name is unset")
 	}
