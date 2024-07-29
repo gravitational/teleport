@@ -259,11 +259,9 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 		}
 	}
 
-	clusterDashboardURL := fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services", req.Region, aws.ToString(cluster.ClusterName))
-
 	return &DeployDatabaseServiceResponse{
 		ClusterARN:          aws.ToString(cluster.ClusterArn),
-		ClusterDashboardURL: clusterDashboardURL,
+		ClusterDashboardURL: ecsClusterDashboardURL(req.Region, aws.ToString(cluster.ClusterName)),
 	}, nil
 }
 
@@ -275,4 +273,28 @@ func ecsTaskName(teleportClusterName, deploymentMode, vpcid string) string {
 // ecsServiceName returns the normalized ECS Service Family
 func ecsServiceName(deploymentMode, vpcid string) string {
 	return normalizeECSResourceName(fmt.Sprintf("%s-%s", deploymentMode, vpcid))
+}
+
+// ecsClusterDashboardURL returns the ECS cluster dashboard URL for a given
+// region and ECS cluster.
+func ecsClusterDashboardURL(region, ecsClusterName string) string {
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services", region, ecsClusterName)
+}
+
+// ECSDatabaseServiceDashboardURL returns the ECS service dashboard URL for
+// a deployed database service.
+func ECSDatabaseServiceDashboardURL(region, teleportClusterName, vpcID string) (string, error) {
+	if region == "" {
+		return "", trace.BadParameter("empty region")
+	}
+	if teleportClusterName == "" {
+		return "", trace.BadParameter("empty cluster name")
+	}
+	if vpcID == "" {
+		return "", trace.BadParameter("empty VPC ID")
+	}
+	ecsClusterName := normalizeECSClusterName(teleportClusterName)
+	ecsClusterDashboard := ecsClusterDashboardURL(region, ecsClusterName)
+	serviceName := ecsServiceName(DatabaseServiceDeploymentMode, vpcID)
+	return fmt.Sprintf("%s/%s", ecsClusterDashboard, serviceName), nil
 }

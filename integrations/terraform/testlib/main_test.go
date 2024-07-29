@@ -213,9 +213,7 @@ func (s *TerraformBaseSuite) closeClient() {
 	s.T().Helper()
 	p, ok := s.terraformProvider.(*provider.Provider)
 	require.True(s.T(), ok)
-	if p != nil && p.Client != nil {
-		require.NoError(s.T(), p.Client.Close())
-	}
+	require.NoError(s.T(), p.Close())
 }
 
 // getFixture loads fixture and returns it as string or <error> if failed

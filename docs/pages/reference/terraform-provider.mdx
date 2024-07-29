@@ -3,6 +3,9 @@ title: "Teleport Terraform Provider"
 description: Reference documentation of the Teleport Terraform provider.
 ---
 
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
 The Teleport Terraform provider allows Terraform users to configure Teleport
 from Terraform.
 
@@ -134,6 +137,8 @@ This auth method has the following limitations:
 - `identity_file` (String, Sensitive) Teleport identity file content. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE`.
 - `identity_file_base64` (String, Sensitive) Teleport identity file content base64 encoded. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`.
 - `identity_file_path` (String) Teleport identity file path. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_PATH`.
+- `join_method` (String) Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](./join-methods.mdx) for possible values, you must use [a delegated join method](./join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_METHOD`.
+- `join_token` (String) Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](./join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_TOKEN`.
 - `key_base64` (String, Sensitive) Base64 encoded TLS auth key. This can also be set with the environment variable `TF_TELEPORT_KEY_BASE64`.
 - `key_path` (String) Path to Teleport auth key file. This can also be set with the environment variable `TF_TELEPORT_KEY`.
 - `profile_dir` (String) Teleport profile path. This can also be set with the environment variable `TF_TELEPORT_PROFILE_PATH`.
