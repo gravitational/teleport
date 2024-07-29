@@ -1,6 +1,7 @@
 ---
 title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
+tocDepth: 4
 ---
 
 This reference documents the various options that can be configured in the `tbot`
@@ -560,8 +561,7 @@ desired target host and port, terminated with a null byte. The multiplexer will
 then begin to forward traffic to the target host and port. The client can then
 make an SSH connection.
 
-Example in Python using Paramiko:
-
+<Details title="Example in Python (Paramiko)" closed>
 ```python
 import os
 import paramiko
@@ -601,91 +601,92 @@ ssh_client.connect(
 stdin, stdout, stderr = ssh_client.exec_command("hostname")
 print(stdout.read().decode())
 ```
+</Details>
 
-Example in Go:
-
+<Details title="Example in Go" closed>
 ```go
 package main
 
 import (
-	"fmt"
-	"net"
-	"path/filepath"
+    "fmt"
+    "net"
+    "path/filepath"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/crypto/ssh/knownhosts"
+    "golang.org/x/crypto/ssh"
+    "golang.org/x/crypto/ssh/agent"
+    "golang.org/x/crypto/ssh/knownhosts"
 )
 
 func main() {
-	host := "ubuntu.example.teleport.sh"
-	username := "root"
-	directoryDestination := "/opt/machine-id"
+    host := "ubuntu.example.teleport.sh"
+    username := "root"
+    directoryDestination := "/opt/machine-id"
 
-	// Setup Agent and Known Hosts
-	agentConn, err := net.Dial(
-		"unix", filepath.Join(directoryDestination, "agent.sock"),
-	)
-	if err != nil {
-		panic(err)
-	}
-	defer agentConn.Close()
-	agentClient := agent.NewClient(agentConn)
-	hostKeyCallback, err := knownhosts.New(
-		filepath.Join(directoryDestination, "known_hosts"),
-	)
-	if err != nil {
-		panic(err)
-	}
+    // Setup Agent and Known Hosts
+    agentConn, err := net.Dial(
+        "unix", filepath.Join(directoryDestination, "agent.sock"),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer agentConn.Close()
+    agentClient := agent.NewClient(agentConn)
+    hostKeyCallback, err := knownhosts.New(
+        filepath.Join(directoryDestination, "known_hosts"),
+    )
+    if err != nil {
+        panic(err)
+    }
 
-	// Create SSH Config
-	sshConfig := &ssh.ClientConfig{
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(agentClient.Signers),
-		},
-		User:            username,
-		HostKeyCallback: hostKeyCallback,
-	}
+    // Create SSH Config
+    sshConfig := &ssh.ClientConfig{
+        Auth: []ssh.AuthMethod{
+            ssh.PublicKeysCallback(agentClient.Signers),
+        },
+        User:            username,
+        HostKeyCallback: hostKeyCallback,
+    }
 
-	// Dial Unix Domain Socket and send multiplexing request
-	conn, err := net.Dial(
-		"unix", filepath.Join(directoryDestination, "v1.sock"),
-	)
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-	_, err = fmt.Fprint(conn, fmt.Sprintf("%s:0\x00", host))
-	if err != nil {
-		panic(err)
-	}
+    // Dial Unix Domain Socket and send multiplexing request
+    conn, err := net.Dial(
+        "unix", filepath.Join(directoryDestination, "v1.sock"),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer conn.Close()
+    _, err = fmt.Fprint(conn, fmt.Sprintf("%s:0\x00", host))
+    if err != nil {
+        panic(err)
+    }
 
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(
-		conn,
-		// Port here doesn't matter because Multiplexer has already established
-		// connection.
-		fmt.Sprintf("%s:22", host),
-		sshConfig,
-	)
-	if err != nil {
-		panic(err)
-	}
-	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
-	defer sshClient.Close()
+    sshConn, sshChan, sshReq, err := ssh.NewClientConn(
+        conn,
+        // Port here doesn't matter because Multiplexer has already established
+        // connection.
+        fmt.Sprintf("%s:22", host),
+        sshConfig,
+    )
+    if err != nil {
+        panic(err)
+    }
+    sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
+    defer sshClient.Close()
 
-	sshSess, err := sshClient.NewSession()
-	if err != nil {
-		panic(err)
-	}
-	defer sshSess.Close()
+    sshSess, err := sshClient.NewSession()
+    if err != nil {
+        panic(err)
+    }
+    defer sshSess.Close()
 
-	out, err := sshSess.CombinedOutput("hostname")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(out))
+    out, err := sshSess.CombinedOutput("hostname")
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println(string(out))
 }
 ```
+</Details>
 
 ### Destinations
 
