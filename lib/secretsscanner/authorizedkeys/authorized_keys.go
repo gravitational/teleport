@@ -143,12 +143,12 @@ func (w *Watcher) start(ctx context.Context) error {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	watcher, err := fsnotify.NewWatcher()
+	fileWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		if err := watcher.Close(); err != nil {
+		if err := fileWatcher.Close(); err != nil {
 			w.logger.WarnContext(ctx, "Failed to close watcher", "error", err)
 		}
 	}()
@@ -163,25 +163,25 @@ func (w *Watcher) start(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-watcher.Events:
+			case <-fileWatcher.Events:
 			innerLoop:
 				for {
 					select {
 					case <-ctx.Done():
 						return
-					case <-watcher.Events:
+					case <-fileWatcher.Events:
 					case reload <- struct{}{}:
 						break innerLoop
 					}
 				}
-			case err := <-watcher.Errors:
-				w.logger.Warn("Error watching authorized_keys file", "error", err)
+			case err := <-fileWatcher.Errors:
+				w.logger.WarnContext(ctx, "Error watching authorized_keys file", "error", err)
 			}
 		}
 	}()
 
-	if err := watcher.Add(w.usersAccountFile); err != nil {
-		w.logger.Warn("Failed to add watcher for file", "error", err)
+	if err := fileWatcher.Add(w.usersAccountFile); err != nil {
+		w.logger.WarnContext(ctx, "Failed to add watcher for file", "error", err)
 	}
 
 	stream, err := w.client.AccessGraphSecretsScannerClient().ReportAuthorizedKeys(ctx)
@@ -206,8 +206,8 @@ func (w *Watcher) start(ctx context.Context) error {
 	defer timer.Stop()
 	for {
 
-		if err := w.fetchAndReportAuthorizedKeys(ctx, stream, watcher); err != nil {
-			w.logger.Warn("Failed to report authorized keys", "error", err)
+		if err := w.fetchAndReportAuthorizedKeys(ctx, stream, fileWatcher); err != nil {
+			w.logger.WarnContext(ctx, "Failed to report authorized keys", "error", err)
 		}
 
 		if !timer.Stop() {
@@ -237,7 +237,7 @@ func (w *Watcher) isAuthorizedKeysReportEnabled(ctx context.Context) (bool, erro
 func (w *Watcher) fetchAndReportAuthorizedKeys(
 	ctx context.Context,
 	stream accessgraphsecretsv1pb.SecretsScannerService_ReportAuthorizedKeysClient,
-	watcher *fsnotify.Watcher,
+	fileWatcher *fsnotify.Watcher,
 ) error {
 	users, err := userList(ctx, w.logger, w.usersAccountFile)
 	if err != nil {
@@ -250,24 +250,26 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 			continue
 		}
 
-		authorizedKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
-		if fs, err := os.Stat(authorizedKeysPath); err != nil || fs.IsDir() {
-			continue
-		}
+		for _, file := range []string{"authorized_keys", "authorized_keys2"} {
+			authorizedKeysPath := filepath.Join(u.HomeDir, ".ssh", file)
+			if fs, err := os.Stat(authorizedKeysPath); err != nil || fs.IsDir() {
+				continue
+			}
 
-		hostKeys, err := w.parseAuthorizedKeysFile(u, authorizedKeysPath)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		} else if err != nil {
-			w.logger.Warn("Failed to parse authorized_keys file", "error", err)
-			continue
-		}
+			hostKeys, err := w.parseAuthorizedKeysFile(ctx, u, authorizedKeysPath)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			} else if err != nil {
+				w.logger.WarnContext(ctx, "Failed to parse authorized_keys file", "error", err)
+				continue
+			}
 
-		// Add the file to the watcher. If file was already added, this is a no-op.
-		if err := watcher.Add(authorizedKeysPath); err != nil {
-			w.logger.Warn("Failed to add watcher for file", "error", err)
+			// Add the file to the watcher. If file was already added, this is a no-op.
+			if err := fileWatcher.Add(authorizedKeysPath); err != nil {
+				w.logger.WarnContext(ctx, "Failed to add watcher for file", "error", err)
+			}
+			keys = append(keys, hostKeys...)
 		}
-		keys = append(keys, hostKeys...)
 	}
 
 	const maxKeysPerReport = 500
@@ -333,14 +335,14 @@ func userList(ctx context.Context, log *slog.Logger, filePath string) ([]user.Us
 	return users, nil
 }
 
-func (w *Watcher) parseAuthorizedKeysFile(u user.User, authorizedKeysPath string) ([]*accessgraphsecretsv1pb.AuthorizedKey, error) {
+func (w *Watcher) parseAuthorizedKeysFile(ctx context.Context, u user.User, authorizedKeysPath string) ([]*accessgraphsecretsv1pb.AuthorizedKey, error) {
 	file, err := os.Open(authorizedKeysPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			w.logger.Warn("Failed to close file", "error", err, "path", authorizedKeysPath)
+			w.logger.WarnContext(ctx, "Failed to close file", "error", err, "path", authorizedKeysPath)
 		}
 	}()
 
@@ -354,7 +356,7 @@ func (w *Watcher) parseAuthorizedKeysFile(u user.User, authorizedKeysPath string
 		}
 		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(payload)
 		if err != nil {
-			w.logger.Warn("Failed to parse authorized key", "error", err)
+			w.logger.WarnContext(ctx, "Failed to parse authorized key", "error", err)
 			continue
 		} else if parsedKey == nil {
 			continue
@@ -368,7 +370,7 @@ func (w *Watcher) parseAuthorizedKeysFile(u user.User, authorizedKeysPath string
 			},
 		)
 		if err != nil {
-			w.logger.Warn("Failed to create authorized key", "error", err)
+			w.logger.WarnContext(ctx, "Failed to create authorized key", "error", err)
 			continue
 		}
 		keys = append(keys, authorizedKey)
