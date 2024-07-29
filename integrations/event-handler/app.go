@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/integrations/diagnostics"
 )
 
 // App is the app structure
@@ -245,5 +247,11 @@ func (a *App) RegisterSession(ctx context.Context, e *TeleportEvent) {
 	log := logger.Get(ctx)
 	if err := a.sessionEventsJob.RegisterSession(ctx, e); err != nil {
 		log.Error("Registering session: ", err)
+	}
+}
+
+func (a *App) Profile() {
+	if err := diagnostics.Profile(filepath.Join(a.Config.StorageDir, "profiles")); err != nil {
+		logrus.WithError(err).Warn("failed to capture profiles")
 	}
 }
