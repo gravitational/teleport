@@ -533,12 +533,18 @@ func TestKubeMiddleware(t *testing.T) {
 		err := km.CheckAndSetDefaults()
 		require.NoError(t, err)
 
-		rw := responsewriters.NewMemoryResponseWriter()
-		// HandleRequest will reissue certificate if needed.
-		km.HandleRequest(rw, req)
+		var rw *responsewriters.MemoryResponseWriter
+		// We use `require.Eventually` to avoid a very rare test flakiness case when reissue goroutine manages to
+		// successfully finish before the parent goroutine has a chance to check the context (and see that it's expired).
+		require.Eventually(t, func() bool {
+			rw = responsewriters.NewMemoryResponseWriter()
+			// HandleRequest will reissue certificate if needed.
+			km.HandleRequest(rw, req)
 
-		// request timed out.
-		require.Equal(t, http.StatusInternalServerError, rw.Status())
+			// request timed out.
+			return rw.Status() == http.StatusInternalServerError
+
+		}, time.Second, 100*time.Millisecond)
 		require.Contains(t, rw.Buffer().String(), "context canceled")
 
 		// just let the reissuing goroutine some time to replace certs.
