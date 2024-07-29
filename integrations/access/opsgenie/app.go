@@ -293,7 +293,7 @@ func (a *App) getNotifyServiceNames(ctx context.Context, req types.AccessRequest
 	teamAnnotationKey := types.TeleportNamespace + types.ReqAnnotationTeamsLabel
 	teams, err := common.GetServiceNamesFromAnnotations(req, teamAnnotationKey)
 	if err != nil {
-		log.Debugf("No teams to notifiy in %s", teamAnnotationKey)
+		log.Debugf("No teams to notify in %s", teamAnnotationKey)
 	} else {
 		servicesNames = append(servicesNames, teams...)
 	}
