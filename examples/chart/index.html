@@ -55,6 +55,18 @@
         --set roleToRecipients.\*[0]=admin-channel \
         --set slack.token="${SLACK_TOKEN}"</pre>
     <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/tbot">tbot:</a></b>
+      # Install the TBot chart to automatically configure a tbot agent to
+      # generate short-lived credentials for consumption by clients.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/tbot \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set teleportProxyAddress="${TELEPORT_ADDR?}" \
+        --set defaultOutput.secretName="${ID_SECRET}" \
+        --set token="${TELEPORT_TOKEN?}"</pre>
+    <br />
     <h3>Changelog</h3>
     <pre>See the <a href="https://goteleport.com/docs/changelog/">Teleport Changelog</a> for a list of important changes between Helm chart versions.</pre>
   </body>
