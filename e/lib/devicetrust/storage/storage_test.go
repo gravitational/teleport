@@ -4488,6 +4488,53 @@ func TestS_DeleteDeviceWebAuthenticationAttempt(t *testing.T) {
 	})
 }
 
+func TestS_unassignDevice_missingByUserIndex(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	pubKeyDER, err := x509.MarshalPKIXPublicKey(privKey.Public())
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
+	}
+
+	// Assign device to user, simulating a legacy user without the by_user index.
+	const user = "llama"
+	dev, err := s.CreateDevice(ctx, &devicepb.Device{
+		Id:           "62005f63-7e12-451e-b836-586c07337e54",
+		OsType:       devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag:     "llama1",
+		CreateTime:   timestamppb.Now(),
+		UpdateTime:   timestamppb.Now(),
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+		Credential: &devicepb.DeviceCredential{
+			Id:           "fbcc498e-e773-40ea-a5a9-90fcb571b34a",
+			PublicKeyDer: pubKeyDER,
+		},
+		Owner: user,
+	}, true /* createAsResource */)
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// Unassign the device. Any action that causes the device to be unassigned
+	// works here.
+	if _, err := s.UpdateDevice(ctx, dev.Id, func(d *devicepb.Device) *devicepb.Device {
+		d.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+		return d
+	}); err != nil {
+		t.Fatalf("UpdateDevice errored, failed to uneroll the device: %v", err)
+	}
+}
+
 // diffDevices diffs two slices of devices, sorting both by ID first.
 func diffDevices(want, got []*devicepb.Device) string {
 	slices.SortFunc(want, func(a, b *devicepb.Device) int {

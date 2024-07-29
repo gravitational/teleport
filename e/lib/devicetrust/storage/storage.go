@@ -804,7 +804,10 @@ func (s *S) removeFromDeviceRefsIndex(
 	deviceID string,
 ) error {
 	item, err := s.backend.Get(ctx, key)
-	if err != nil {
+	switch {
+	case trace.IsNotFound(err):
+		return nil // Nothing to unassign.
+	case err != nil:
 		return trace.Wrap(err, "reading devices ref index")
 	}
 
