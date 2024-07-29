@@ -1,3 +1,23 @@
+it should match the snapshot (custom):
+  1: |
+    apiVersion: v1
+    data:
+      tbot.yaml: |
+        outputs:
+        - destination:
+            path: /fuzz
+            type: magic
+          type: bar
+        - destination:
+            path: /buzz
+            type: magic
+          type: bar
+        xyzzy: foo
+        yxzyy: 17
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 should match the snapshot (full):
   1: |
     apiVersion: v1
@@ -11,7 +31,6 @@ should match the snapshot (full):
         storage:
           type: kubernetes-secret
           name: RELEASE-NAME-data
-
         outputs:
           - type: identity
             destination:
@@ -38,7 +57,6 @@ should match the snapshot (simple):
         storage:
           type: kubernetes-secret
           name: RELEASE-NAME-data
-
         outputs:
           - type: identity
             destination:

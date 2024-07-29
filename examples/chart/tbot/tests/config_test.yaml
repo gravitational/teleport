@@ -12,3 +12,19 @@ tests:
       - ../.lint/full.yaml
     asserts:
       - matchSnapshot: {}
+  - it: it should match the snapshot (custom)
+    set:
+      customConfig:
+        xyzzy: foo
+        yxzyy: 17
+        outputs:
+          - type: bar
+            destination:
+              type: magic
+              path: /fuzz
+          - type: bar
+            destination:
+              type: magic
+              path: /buzz
+    asserts:
+      - matchSnapshot: {}

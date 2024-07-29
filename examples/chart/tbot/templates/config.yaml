@@ -27,7 +27,7 @@ data:
     storage:
       type: kubernetes-secret
       name: {{ .Release.Name }}-data
-    {{ if .Values.defaultOutput.enabled }}
+    {{- if .Values.defaultOutput.enabled }}
     outputs:
       - type: identity
         destination:

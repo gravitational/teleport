@@ -21,7 +21,7 @@ should match the snapshot (full):
       template:
         metadata:
           annotations:
-            checksum/config: ee30a5557f38577cf0de173799823fbb32dcfe9ee87b14989c7eaff03f14e904
+            checksum/config: 80afd3849e1016945811aeada62b8416ff11d6c29e7c2347cdab52b48f1ffc71
             test-key: test-annotation-pod
           labels:
             app.kubernetes.io/component: tbot
@@ -94,7 +94,7 @@ should match the snapshot (simple):
       template:
         metadata:
           annotations:
-            checksum/config: 77fca13d0c42ff1c8241b8d64e2ced6c5dc565d272f7a622560cc8f1ed2b1c21
+            checksum/config: a1922137f9b2b519e21debfc277a71cc652780ffdc1fe27114481a18d1de2222
           labels:
             app.kubernetes.io/component: tbot
             app.kubernetes.io/managed-by: Helm
