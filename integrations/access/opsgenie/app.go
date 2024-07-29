@@ -285,7 +285,7 @@ func (a *App) getNotifyServiceNames(ctx context.Context, req types.AccessRequest
 	scheduleAnnotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	schedules, err := common.GetServiceNamesFromAnnotations(req, scheduleAnnotationKey)
 	if err != nil {
-		log.Debugf("No schedules to notifiy in %s", scheduleAnnotationKey)
+		log.Debugf("No schedules to notify in %s", scheduleAnnotationKey)
 	} else {
 		servicesNames = append(servicesNames, schedules...)
 	}
