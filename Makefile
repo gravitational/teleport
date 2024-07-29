@@ -230,6 +230,7 @@ endif
 # and tsh.
 BINS_default = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
+BINS_darwin = $(subst tsh,tsh.app,$(BINS_default))
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
@@ -405,6 +406,13 @@ teleport-hot-reload:
 $(BUILDDIR)/fdpass-teleport:
 	cd tool/fdpass-teleport && cargo build --release --locked $(CARGO_TARGET)
 	install tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
+
+.PHONY: $(BUILDDIR)/tsh.app
+$(BUILDDIR)/tsh.app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
+$(BUILDDIR)/tsh.app: $(BUILDDIR)/tsh
+	cp -r $(TSH_APP_SKELETON)/ $(BUILDDIR)/tsh.app/
+	mkdir -p "$(BUILDDIR)/tsh.app/Contents/MacOS/"
+	mv "$(BUILDDIR)/tsh" "$(BUILDDIR)/tsh.app/Contents/MacOS/."
 
 #
 # BPF support (IF ENABLED)
@@ -586,7 +594,7 @@ ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release BINARIES=$(BINARIES_default); fi
 else
 
 # release-darwin for ARCH == universal does not build binaries, but instead
