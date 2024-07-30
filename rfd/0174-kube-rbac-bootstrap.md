@@ -173,7 +173,7 @@ $ tctl create -f kube_provision_staging.yaml
 kube provision "staging-rabc" had been created.
 ```
 
-To edit provisioned resource later Bob can use `tctl edit kube_provisions/staging-brac`.
+To edit provisioned resource later Bob can use `tctl edit kube_provisions/staging-rbac`.
 
 A single Teleport resource of that type can define multiple Kubernetes RBAC resources. There might be limit on size of a resource Teleport
 can save on the backend (DynamoDB has a limit of 400kb), therefore, if some users would have an unusually large amount of Kubernetes RBAC resources they 
@@ -289,7 +289,7 @@ itself, however it introduces a new vector of attack for a malicious actor.
 Teleport user with sufficient permissions to create/edit KubeProvision resources
 will be able to amend RBAC setup on all Kubernetes clusters enrolled in Teleport.
 We will emphasize in the user documentation the need to be vigilant when giving out
-the necessary permissions. We will also add new special label `teleport.dev/kube-provision-dsiabled`, that can
+the necessary permissions. We will also add new special label `teleport.dev/kube-provision-disabled`, that can
 exclude a Kubernetes cluster from the provisioning, selectively turning off this feature for the cluster.
 
 Even though we will always run the reconciliation loop, by default it will be a no-op, since three will
@@ -299,15 +299,10 @@ more difficult to accidentally misuse the feature.
 
 ## Alternatives
 
-Alternatively, we could take a bit of a different approach regarding permissions and default roles exposure.
-We could directly add permissions required to perform CRUD operations on Kubernetes RBAC resources to 
-Teleport kube agent/service account credentials on enrollment. We would also ship Teleport with a default KubeProvision 
-resource that defines role binding for the default user facing roles for edit and view. This default resource will not have any
-labels defined, so it would not be provisioned anywhere by default. If users wanted to enable the exposure of default view/edit roles,
-they would need to set labels on that resource. They can then use these roles with the fine-grained RBAC definitions for Kubernetes
-in Teleport roles. This is a more conservative scenario that will require more explicit decision-making from the user. 
-To expose the default Kubernetes user-facing roles, users would need to add labels to the default resource we provide,
-and KubeProvisioning will only be active for clusters where Teleport has the required permissions added to its credentials.
+Alternative approach for improving Day 1 experience that was explored was always exposing the default Kubernetes role - `view` and `edit`.
+We would create bindings for these roles on Cluster enrollment and allow using them through groups `default-view`/`default-edit`. This
+would allow users to always have an underlying role they could use when defining Teleport roles for Kubernetes access. This is a less complicated
+but also less powerful solution.
 
 We could also alternatively reverse targeting labels direction for Kube Provisioning. Instead of KubeProvision resource's labels
 selecting Kubernetes clusters for provisioning we could add a new field to the Kube service config, `kubeProvisionLabels`, 
