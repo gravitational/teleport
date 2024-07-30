@@ -17,6 +17,7 @@
 package daemon
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -46,6 +47,14 @@ type ClientCred struct {
 	Egid int
 	// Euid is the effective user ID of the unprivileged process.
 	Euid int
+}
+
+func (c ClientCred) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Bool("creds_valid", c.Valid),
+		slog.Int("egid", c.Egid),
+		slog.Int("euid", c.Euid),
+	)
 }
 
 func (c *Config) CheckAndSetDefaults() error {

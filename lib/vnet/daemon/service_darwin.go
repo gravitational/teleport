@@ -26,7 +26,6 @@ import "C"
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 	"unsafe"
 
@@ -78,7 +77,7 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 		"ipv6_prefix", config.IPv6Prefix,
 		"dns_addr", config.DNSAddr,
 		"home_path", config.HomePath,
-		"cred", fmt.Sprintf("%#v", config.ClientCred),
+		"client_cred", config.ClientCred,
 	)
 
 	return trace.Wrap(workFn(ctx, config))
