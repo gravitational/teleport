@@ -40,9 +40,7 @@ import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
-  /**
-   * @deprecated use cfg.edition instead
-   */
+  /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
   edition: 'oss',
   isCloud: false,
@@ -62,26 +60,22 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  /**
-   * isTeam is true if [Features.ProductType] == Team
-   * @deprecated use other flags do determine cluster features istead of relying on isTeam
-   * TODO(mcbattirola): remove isTeam when it is no longer used
-   */
+  /** @deprecated */
   isTeam: false,
   isStripeManaged: false,
   hasQuestionnaire: false,
   externalAuditStorage: false,
   premiumSupport: false,
   accessRequests: false,
+  /** @deprecated Use entitlements instead. */
   trustedDevices: false,
   oidc: false,
   saml: false,
+  /** @deprecated Use entitlements instead. */
   joinActiveSessions: false,
+  /** @deprecated Use entitlements instead. */
   mobileDeviceManagement: false,
-
-  // isIgsEnabled refers to Identity Governance & Security product.
-  // It refers to a group of features: access request, device trust,
-  // access list, and access monitoring.
+  /** @deprecated Use entitlements instead. */
   isIgsEnabled: false,
 
   // isPolicyEnabled refers to the Teleport Policy product
@@ -92,11 +86,13 @@ const cfg = {
   baseUrl: window.location.origin,
 
   // featureLimits define limits for features.
-  // Typically used with feature teasers if feature is not enabled for the
-  // product type eg: Team product contains teasers to upgrade to Enterprise.
+  /** @deprecated Use entitlements instead. */
   featureLimits: {
+    /** @deprecated Use entitlements instead. */
     accessListCreateLimit: 0,
+    /** @deprecated Use entitlements instead. */
     accessMonitoringMaxReportRangeLimit: 0,
+    /** @deprecated Use entitlements instead. */
     AccessRequestMonthlyRequestLimit: 0,
   },
 
@@ -453,18 +449,6 @@ const cfg = {
     if (cfg.auth.authType === 'local') return 'local';
 
     return 'sso';
-  },
-
-  // isLegacyEnterprise describes product that should have legacy support
-  // where certain features access remain unlimited. This was before
-  // product EUB (enterprise usage based) was introduced.
-  // eg: access request and device trust.
-  isLegacyEnterprise() {
-    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
-  },
-
-  getAuthType() {
-    return cfg.auth.authType;
   },
 
   getDeviceTrustAuthorizeRoute(id: string, token: string) {
