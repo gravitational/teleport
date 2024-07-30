@@ -314,6 +314,15 @@ Kube service. This also looses granularity of control when doing discovery and p
 
 ## Future work
 
+As mentioned above adding pattern matching to the `kubernetes_permissions` field is probably something we will need to add in the future, improving
+fine-grained control of RBAC users can setup.
+
+Described scheme of auto-provisioning requires Kube service to have access to all Teleport roles, but in the future we plan migration to a more
+centralised approach to authorization, where edge services will not see the roles. When this happens we could replace the "ephemeral KubeProvision"
+approach with a real KubeProvision approach - for example some watcher on the Auth service could monitor roles and create/update actual KubeProvisions
+on the backend, designated with a special kind. And then Kube service will just use regular KubeProvision reconciliation to distribute desired RBAC
+to the target clusters.
+
 KubeProvision capabilities might be expanded to include any type of resource in the future, effectively acting something like a 
 Terraform for Kubernetes, but defined completely in Teleport. We should gather feedback after releasing initial KubeProvision
 feature to understand if there's demand for such extension of capabilities.
