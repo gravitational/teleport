@@ -31,10 +31,6 @@ should match the snapshot (full):
         storage:
           type: memory
         outputs:
-          - type: identity
-            destination:
-              type: kubernetes-secret
-              name: test-output
           - app_name: foo
             destination:
               path: /bar

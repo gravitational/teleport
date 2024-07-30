@@ -21,7 +21,7 @@ should match the snapshot (full):
       template:
         metadata:
           annotations:
-            checksum/config: d45bee81ea09ba029c90e45c348911d4b2f12a2ab6e325c11cb0ef69c393cd0d
+            checksum/config: b5e9b3c0749c124a3a90e9d2c3f52ca389a1690dff6ea5c6f71b24591129e2c3
             test-key: test-annotation-pod
           labels:
             app.kubernetes.io/component: tbot

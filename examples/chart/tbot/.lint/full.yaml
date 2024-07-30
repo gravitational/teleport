@@ -1,7 +1,7 @@
 clusterName: "test.teleport.sh"
 teleportAuthAddress: "my-auth:3024"
 defaultOutput:
-  secretName: "test-output"
+  enabled: false
 token: "my-token"
 joinMethod: "modified-join-method"
 
