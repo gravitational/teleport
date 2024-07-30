@@ -148,26 +148,23 @@ func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn fun
 	rootEuid := os.Geteuid()
 
 	log.InfoContext(ctx, "Temporarily dropping root privileges.", "egid", c.daemonClientCred.Egid, "euid", c.daemonClientCred.Euid)
-	defer func() {
-		if err == nil {
-			log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
-		}
-	}()
 
 	if err := syscall.Setegid(c.daemonClientCred.Egid); err != nil {
-		return trace.Wrap(err, "setting egid")
+		panic(trace.Wrap(err, "setting egid"))
 	}
-	defer func() {
-		syscallErr := trace.Wrap(syscall.Setegid(rootEgid), "reverting egid")
-		err = trace.NewAggregate(err, syscallErr)
-	}()
-
 	if err := syscall.Seteuid(c.daemonClientCred.Euid); err != nil {
-		return trace.Wrap(err, "setting euid")
+		panic(trace.Wrap(err, "setting euid"))
 	}
+
 	defer func() {
-		syscallErr := trace.Wrap(syscall.Seteuid(rootEuid), "reverting euid")
-		err = trace.NewAggregate(err, syscallErr)
+		if err := syscall.Seteuid(rootEuid); err != nil {
+			panic(trace.Wrap(err, "reverting euid"))
+		}
+		if err := syscall.Setegid(rootEgid); err != nil {
+			panic(trace.Wrap(err, "reverting egid"))
+		}
+
+		log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
 	}()
 
 	return trace.Wrap(fn())
