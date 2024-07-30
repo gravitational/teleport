@@ -21,7 +21,10 @@ package readonly
 import (
 	"time"
 
+	protobuf "google.golang.org/protobuf/proto"
+
 	"github.com/gravitational/teleport/api/constants"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -102,4 +105,33 @@ func sealSessionRecordingConfig(c SessionRecordingConfig) SessionRecordingConfig
 		return nil
 	}
 	return sealedSessionRecordingConfig{SessionRecordingConfig: c}
+}
+
+// AccessGraphSettings is a read-only subset of clusterconfigpb.AccessGraphSettings used on certain hot paths
+// to ensure that we do not modify the underlying AccessGraphSettings as it may be shared across
+// multiple goroutines.
+type AccessGraphSettings interface {
+	SecretsScanConfig() clusterconfigpb.AccessGraphSecretsScanConfig
+	Clone() *clusterconfigpb.AccessGraphSettings
+}
+
+type sealedAccessGraphSettings struct {
+	*clusterconfigpb.AccessGraphSettings
+}
+
+// sealAccessGraphSettings returns a read-only version of the SessionRecordingConfig.
+func sealAccessGraphSettings(c *clusterconfigpb.AccessGraphSettings) AccessGraphSettings {
+	if c == nil {
+		// preserving nils simplifies error flow-control
+		return nil
+	}
+	return sealedAccessGraphSettings{c}
+}
+
+func (a sealedAccessGraphSettings) SecretsScanConfig() clusterconfigpb.AccessGraphSecretsScanConfig {
+	return a.GetSpec().GetSecretsScanConfig()
+}
+
+func (a sealedAccessGraphSettings) Clone() *clusterconfigpb.AccessGraphSettings {
+	return protobuf.Clone(a.AccessGraphSettings).(*clusterconfigpb.AccessGraphSettings)
 }

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -113,7 +114,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		// cannot handle caching, and will fail if caching is enabled.
 		var err error
 		opts.ReadOnlyAccessPoint, err = readonly.NewCache(readonly.CacheConfig{
-			Upstream: opts.AccessPoint,
+			Upstream: accessPointWrapper{opts.AccessPoint},
 			Disabled: !opts.PermitCaching,
 		})
 		if err != nil {
@@ -131,6 +132,15 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
+}
+
+type accessPointWrapper struct {
+	AuthorizerAccessPoint
+}
+
+// GetAccessGraphSettings returns the access graph settings.
+func (accessPointWrapper) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented("GetAccessGraphSettings is not implemented")
 }
 
 // Authorizer authorizes identity and returns auth context

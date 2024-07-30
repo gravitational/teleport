@@ -24,14 +24,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
 type testUpstream struct {
-	auth       types.AuthPreference
-	networking types.ClusterNetworkingConfig
-	recording  types.SessionRecordingConfig
+	auth                types.AuthPreference
+	networking          types.ClusterNetworkingConfig
+	recording           types.SessionRecordingConfig
+	accessGraphSettings *clusterconfigpb.AccessGraphSettings
 }
 
 func (u *testUpstream) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
@@ -44,6 +48,10 @@ func (u *testUpstream) GetClusterNetworkingConfig(ctx context.Context) (types.Cl
 
 func (u *testUpstream) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	return u.recording.Clone(), nil
+}
+
+func (u *testUpstream) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	return protobuf.Clone(u.accessGraphSettings).(*clusterconfigpb.AccessGraphSettings), nil
 }
 
 // TestAuthPreference tests the GetReadOnlyAuthPreference method and verifies the read-only protections
@@ -139,6 +147,38 @@ func TestCloneBreaksEquality(t *testing.T) {
 
 	recording := types.DefaultSessionRecordingConfig()
 	require.False(t, pointersEqual(recording, recording.Clone()))
+}
+
+func TestAccessGraphSettings(t *testing.T) {
+	// Create a new cache instance.
+	cache, err := NewCache(CacheConfig{
+		Upstream: &testUpstream{
+			accessGraphSettings: &clusterconfigpb.AccessGraphSettings{
+				Kind: types.KindAccessGraphSettings,
+				Metadata: &headerv1.Metadata{
+					Name: "access-graph-settings",
+				},
+			},
+		},
+		TTL: time.Hour,
+	})
+	require.NoError(t, err)
+
+	// Get the session recording config resource.
+	ag, err := cache.GetReadOnlyAccessGraphSettings(context.Background())
+	require.NoError(t, err)
+
+	// Verify that the access graph settings resource cannot be cast back to a write-supporting interface.
+	// We do this by checking if the resource is of the sealedAccessGraphSettings type, which is a read-only
+	// wrapper around the original resource and should not be directly castable back to the original type.
+	_, ok := ag.(sealedAccessGraphSettings)
+	require.True(t, ok)
+
+	ag2, err := cache.GetReadOnlyAccessGraphSettings(context.Background())
+	require.NoError(t, err)
+
+	// verify pointer equality (i.e. that subsequent reads return the same shared resource).
+	require.True(t, pointersEqual(ag, ag2))
 }
 
 // pointersEqual is a helper function that compares two pointers for equality. used to improve readability
