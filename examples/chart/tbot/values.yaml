@@ -12,12 +12,15 @@ clusterName: ""
 
 # teleportAuthAddress(string)
 # Mutually exclusive with teleportProxyAddress.
+# Ignored if `customConfig` is set.
 teleportAuthAddress: ""
 # teleportProxyAddress(string)
 # Mutually exclusive with teleportAuthAddress.
+# Ignored if `customConfig` is set.
 teleportProxyAddress: ""
 
 # defaultOutput -- controls the default output configured for the tbot agent.
+# Ignored if `customConfig` is set.
 defaultOutput:
   # defaultOutput.enabled(bool) -- controls whether the default output is enabled.
   enabled: true
@@ -30,13 +33,22 @@ defaultOutput:
 # certain values within this file will be meaningless.
 customConfig: {}
 
+# outputs(list) -- contains additional outputs to configure for the tbot agent.
+# These should be in the same format as the `outputs` field in the tbot.yaml.
+# Ignored if `customConfig` is set.
 outputs: []
+
+# services(list) -- contains additional services to configure for the tbot agent.
+# These should be in the same format as the `services` field in the tbot.yaml.
+# Ignored if `customConfig` is set.
 services: []
 
 # joinMethod(string) -- describes how tbot joins the Teleport cluster.
+# Ignored if `customConfig` is set.
 joinMethod: "kubernetes"
 
 # token(string) -- is the name of the token used by tbot to join the Teleport cluster.
+# Ignored if `customConfig` is set.
 token: ""
 
 # teleportVersionOverride(string) -- controls the tbot image version deployed by

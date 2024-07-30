@@ -21,7 +21,7 @@ should match the snapshot (full):
       template:
         metadata:
           annotations:
-            checksum/config: f0cefcfa83b34e0f638ce3e8075a9d3f7675901907f1ac1965a859b30efd1201
+            checksum/config: d45bee81ea09ba029c90e45c348911d4b2f12a2ab6e325c11cb0ef69c393cd0d
             test-key: test-annotation-pod
           labels:
             app.kubernetes.io/component: tbot
@@ -49,6 +49,8 @@ should match the snapshot (full):
             - --log-format
             - json
             - --extra-arg
+            - --diag-addr
+            - 0.0.0.0:3001
             env:
             - name: POD_NAMESPACE
               valueFrom:
@@ -66,7 +68,25 @@ should match the snapshot (full):
               value: test-value
             image: public.ecr.aws/gravitational/tbot-distroless:17.0.0-dev
             imagePullPolicy: Always
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /livez
+                port: diagnostics
+              initialDelaySeconds: 10
+              periodSeconds: 10
             name: tbot
+            ports:
+            - containerPort: 3001
+              name: diagnostics
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /readyz
+                port: diagnostics
+              initialDelaySeconds: 5
+              periodSeconds: 10
             resources:
               limits:
                 cpu: 500m
@@ -123,7 +143,7 @@ should match the snapshot (simple):
       template:
         metadata:
           annotations:
-            checksum/config: a1922137f9b2b519e21debfc277a71cc652780ffdc1fe27114481a18d1de2222
+            checksum/config: 0001a5b40fb7579fa213fbbe8502e21cb502aa3fc0223e33c14917c962b897fc
           labels:
             app.kubernetes.io/component: tbot
             app.kubernetes.io/managed-by: Helm
@@ -137,6 +157,8 @@ should match the snapshot (simple):
             - /config/tbot.yaml
             - --log-format
             - json
+            - --diag-addr
+            - 0.0.0.0:3001
             env:
             - name: POD_NAMESPACE
               valueFrom:
@@ -150,7 +172,25 @@ should match the snapshot (simple):
               value: /var/run/secrets/tokens/join-sa-token
             image: public.ecr.aws/gravitational/tbot-distroless:17.0.0-dev
             imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /livez
+                port: diagnostics
+              initialDelaySeconds: 10
+              periodSeconds: 10
             name: tbot
+            ports:
+            - containerPort: 3001
+              name: diagnostics
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /readyz
+                port: diagnostics
+              initialDelaySeconds: 5
+              periodSeconds: 10
             volumeMounts:
             - mountPath: /config
               name: config

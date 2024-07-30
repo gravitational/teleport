@@ -63,6 +63,8 @@ spec:
           {{- if .Values.extraArgs }}
             {{- toYaml .Values.extraArgs | nindent 12 }}
           {{- end }}
+            - --diag-addr
+            - 0.0.0.0:3001
           env:
             # POD_NAMESPACE is required for the kubernetes_secret` destination
             # type to work correctly.
@@ -100,6 +102,24 @@ spec:
         {{- if .Values.resources }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
         {{- end }}
+          ports:
+            - containerPort: 3001
+              name: diagnostics
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: diagnostics
+            initialDelaySeconds: 10 # After an initial 10 seconds
+            periodSeconds: 10 # Check every 10 seconds
+            failureThreshold: 6 # After 60 (6x10) seconds of failure, kill pod
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: diagnostics
+            initialDelaySeconds: 5 # After an initial 5 seconds
+            periodSeconds: 10 # Check every 10 seconds
+            failureThreshold: 3 # After 30 (3x10) seconds of failure, mark pod unready
       serviceAccountName: {{ template "tbot.serviceAccountName" . }}
       volumes:
         - name: config

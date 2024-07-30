@@ -25,8 +25,7 @@ data:
       join_method: {{ .Values.joinMethod }}
       token: {{ .Values.token }}
     storage:
-      type: kubernetes-secret
-      name: {{ .Release.Name }}-data
+      type: memory
     {{- if or (.Values.defaultOutput.enabled) (.Values.outputs) }}
     outputs:
     {{- if .Values.defaultOutput.enabled }}

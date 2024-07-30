@@ -29,8 +29,7 @@ should match the snapshot (full):
           join_method: modified-join-method
           token: my-token
         storage:
-          type: kubernetes-secret
-          name: RELEASE-NAME-data
+          type: memory
         outputs:
           - type: identity
             destination:
@@ -63,8 +62,7 @@ should match the snapshot (simple):
           join_method: kubernetes
           token: my-token
         storage:
-          type: kubernetes-secret
-          name: RELEASE-NAME-data
+          type: memory
         outputs:
           - type: identity
             destination:
