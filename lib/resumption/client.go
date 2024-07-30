@@ -219,6 +219,12 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 		case <-detached:
 		}
 
+		reconnectTicker.Stop()
+		select {
+		case <-reconnectTicker.Chan():
+		default:
+		}
+
 		slog.DebugContext(ctx, "connection lost, starting reconnection loop", "host_id", hostID)
 		reconnectDeadline := time.Now().Add(reconnectTimeout)
 		backoff := minBackoff
@@ -262,10 +268,6 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 		}
 
 		reconnectTicker.Reset(replacementInterval)
-		select {
-		case <-reconnectTicker.Chan():
-		default:
-		}
 	}
 }
 
