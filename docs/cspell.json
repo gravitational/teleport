@@ -188,6 +188,7 @@
     "SECURITYADMIN",
     "SIEM",
     "SIGINT",
+    "SIGUSR",
     "SLAVEOF",
     "SLES",
     "SLOWLOG",
