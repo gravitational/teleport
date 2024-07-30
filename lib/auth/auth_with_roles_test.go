@@ -8411,8 +8411,8 @@ func TestLocalUserAuthIfRoleDoesntExist(t *testing.T) {
 	userCtx, err := authz.ContextForLocalUser(ctx, localUser, testAuth.AuthServer.Services, testAuth.ClusterName, true)
 	require.NoError(t, err)
 
-	got := convertRolesToSlice(userCtx.Checker.Roles())
-	want := []string{role.GetName(), constants.DefaultImplicitRole}
+	got := userCtx.Checker.RoleNames()
+	want := []string{role.GetName()}
 	require.Equal(t, want, got)
 
 	unknownRole := "unknown-role"
@@ -8420,15 +8420,7 @@ func TestLocalUserAuthIfRoleDoesntExist(t *testing.T) {
 	userCtx, err = authz.ContextForLocalUser(ctx, localUser, testAuth.AuthServer.Services, testAuth.ClusterName, true)
 	require.NoError(t, err)
 
-	got = convertRolesToSlice(userCtx.Checker.Roles())
-	want = []string{role.GetName(), constants.DefaultImplicitRole}
+	got = userCtx.Checker.RoleNames()
+	want = []string{role.GetName()}
 	require.Equal(t, want, got)
-}
-
-func convertRolesToSlice(roles []types.Role) []string {
-	var roleNames []string
-	for _, role := range roles {
-		roleNames = append(roleNames, role.GetName())
-	}
-	return roleNames
 }

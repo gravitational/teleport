@@ -2612,6 +2612,75 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	))
 }
 
+func TestGenerateCertShouldSkipNonExistingRole(t *testing.T) {
+	t.Parallel()
+	ctx := contextWithGRPCClientUserAgent(context.Background(), "test-user-agent/1.0")
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+
+	user2, role2, err := CreateUserAndRole(p.a, "test-user2", []string{}, nil)
+	require.NoError(t, err)
+
+	t.Run("generateUserCert should encoded roles from checker.roles.GetNames", func(t *testing.T) {
+		accessInfo := services.AccessInfoFromUserState(user)
+		accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+		require.NoError(t, err)
+
+		_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+		// Make sure that nobody will change the generateCert logic (params.Roles: req.checker.RoleNames()) and
+		// requested roles will be taken from accessChecker.roles.GetNames() instead of user.GetRoles()
+		user.SetRoles(append(user.GetRoles(), role2.GetName()))
+		certReq := certRequest{
+			user:         user,
+			checker:      accessChecker,
+			sshPublicKey: sshPubKey,
+			tlsPublicKey: tlsPubKey,
+		}
+		resp, err := p.a.generateUserCert(ctx, certReq)
+		require.NoError(t, err)
+		cert, err := tlsca.ParseCertificatePEM(resp.TLS)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		require.NoError(t, err)
+		want := []string{role.GetName()}
+		require.Equal(t, want, identity.Groups)
+	})
+
+	t.Run("generateUserCert continue if user role doesn't exists and omit the unknown requester role", func(t *testing.T) {
+		user2.SetRoles(append(user2.GetRoles(), "unknown_role"))
+		accessInfo := services.AccessInfoFromUserState(user2)
+		want := []string{role2.GetName(), "unknown_role"}
+		require.Equal(t, want, accessInfo.Roles)
+
+		accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+		require.NoError(t, err)
+
+		want = []string{role2.GetName()}
+		require.Equal(t, want, accessChecker.RoleNames())
+
+		_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+
+		certReq := certRequest{
+			user:         user2,
+			checker:      accessChecker,
+			sshPublicKey: sshPubKey,
+			tlsPublicKey: tlsPubKey,
+		}
+		resp, err := p.a.generateUserCert(ctx, certReq)
+		require.NoError(t, err)
+		cert, err := tlsca.ParseCertificatePEM(resp.TLS)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		require.NoError(t, err)
+
+		want = []string{role2.GetName()}
+		require.Equal(t, want, identity.Groups)
+	})
+}
+
 func TestGenerateOpenSSHCert(t *testing.T) {
 	t.Parallel()
 

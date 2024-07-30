@@ -1330,7 +1330,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint, services.WithContinueIfRoleDoesntExists())
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
