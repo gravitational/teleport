@@ -320,7 +320,15 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 			}
 
 			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionCodeSigningRequirementFailure {
-				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "the daemon does not appear to be code signed correctly")
+				// If the client submits TELEPORT_HOME to which the user doesn't have access, the daemon is
+				// going to shut down with an error soon after starting. Because of that, macOS won't have
+				// enough time to perform the verification of the code signing requirement of the daemon, as
+				// requested by the client.
+				//
+				// In that scenario, macOS is going to simply error that connection with
+				// NSXPCConnectionCodeSigningRequirementFailure. Without looking at logs, it's not possible
+				// to differentiate that from a "legitimate" failure caused by an incorrect requirement.
+				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "either daemon is not signed correctly or it shut down before signature could be verified")
 				return
 			}
 
