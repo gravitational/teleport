@@ -1168,7 +1168,7 @@ exports[`support Enterprise with CTA 1`] = `
         <a
           class="c13"
           fill="filled"
-          href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
+          href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
           rel="noreferrer"
           style="text-transform: none;"
           target="blank"
