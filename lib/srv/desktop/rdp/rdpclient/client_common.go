@@ -74,7 +74,7 @@ type Config struct {
 	// KDCAddr is address of Key Distribution Center
 	KDCAddr string
 
-	// AD determines if the desktop is part of Active Domain
+	// AD determines if the desktop is part of an Active Directory domain
 	AD bool
 }
 
