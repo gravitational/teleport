@@ -995,7 +995,7 @@ func TestTimeReconciliation(t *testing.T) {
 		case msg := <-downstream.Recv():
 			downstream.Send(ctx, proto.UpstreamInventoryPong{
 				ID:          msg.(proto.DownstreamInventoryPing).ID,
-				SystemClock: time.Now().Add(-time.Minute).UTC(),
+				SystemClock: time.Now().Add(time.Minute).UTC(),
 			})
 		case <-downstream.Done():
 		case <-ctx.Done():
@@ -1005,9 +1005,9 @@ func TestTimeReconciliation(t *testing.T) {
 	clockCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	d, err := handle.TimeReconciliation(clockCtx, 1)
+	systemClock, d, err := handle.SystemClock(clockCtx, 1)
 	require.NoError(t, err)
-	require.InDelta(t, time.Minute, d, float64(time.Second))
+	require.WithinDuration(t, time.Now().Add(time.Minute).Add(-d/2), systemClock, time.Millisecond)
 }
 
 type eventOpts struct {

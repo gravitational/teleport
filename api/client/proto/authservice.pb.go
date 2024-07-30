@@ -13027,8 +13027,7 @@ func (*DownstreamInventoryOneOf) XXX_OneofWrappers() []interface{} {
 	}
 }
 
-// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
-// purposes.
+// DownstreamInventoryPing is sent down the inventory control stream.
 type DownstreamInventoryPing struct {
 	ID                   uint64   `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -13077,7 +13076,7 @@ func (m *DownstreamInventoryPing) GetID() uint64 {
 }
 
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
-// ping (used for testing/debug purposes).
+// ping including the system clock of the downstream.
 type UpstreamInventoryPong struct {
 	ID uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	// SystemClock advertises the system clock of the upstream.

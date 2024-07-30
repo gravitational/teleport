@@ -2307,14 +2307,13 @@ message DownstreamInventoryOneOf {
   }
 }
 
-// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
-// purposes.
+// DownstreamInventoryPing is sent down the inventory control stream.
 message DownstreamInventoryPing {
   uint64 ID = 1;
 }
 
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
-// ping (used for testing/debug purposes).
+// ping including the system clock of the downstream.
 message UpstreamInventoryPong {
   uint64 ID = 1;
   // SystemClock advertises the system clock of the upstream.

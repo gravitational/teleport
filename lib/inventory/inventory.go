@@ -383,9 +383,8 @@ type UpstreamHandle interface {
 
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
 
-	// TimeReconciliation compares the time difference between downstream and upstream,
-	// disregarding transport request/response time.
-	TimeReconciliation(ctx context.Context, id uint64) (d time.Duration, err error)
+	// SystemClock makes ping request to fetch the system clock of the node.
+	SystemClock(ctx context.Context, id uint64) (time.Time, time.Duration, error)
 
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
@@ -620,7 +619,7 @@ type pingRequest struct {
 
 type pingResponse struct {
 	reqDuration time.Duration
-	clockDiff   time.Duration
+	systemClock time.Time
 	err         error
 }
 
@@ -644,31 +643,24 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 	}
 }
 
-// TimeReconciliation makes ping request to compare time difference between upstream and downstream.
-func (h *upstreamHandle) TimeReconciliation(ctx context.Context, id uint64) (d time.Duration, err error) {
+// SystemClock makes ping request to fetch the system clock of the downstream.
+func (h *upstreamHandle) SystemClock(ctx context.Context, id uint64) (time.Time, time.Duration, error) {
 	rspC := make(chan pingResponse, 1)
 	select {
 	case h.pingC <- pingRequest{rspC: rspC, id: id}:
 	case <-h.Done():
-		return 0, trace.Errorf("failed to send downstream ping (stream closed)")
+		return time.Time{}, 0, trace.Errorf("failed to send downstream ping (stream closed)")
 	case <-ctx.Done():
-		return 0, trace.Errorf("failed to send downstream ping: %v", ctx.Err())
+		return time.Time{}, 0, trace.Errorf("failed to send downstream ping: %v", ctx.Err())
 	}
 
 	select {
 	case rsp := <-rspC:
-		switch {
-		case rsp.clockDiff == 0:
-			return 0, nil
-		case rsp.clockDiff > 0:
-			return rsp.clockDiff - rsp.reqDuration/2, nil
-		default:
-			return rsp.clockDiff + rsp.reqDuration/2, nil
-		}
+		return rsp.systemClock, rsp.reqDuration, rsp.err
 	case <-h.Done():
-		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")
+		return time.Time{}, 0, trace.Errorf("failed to recv upstream pong (stream closed)")
 	case <-ctx.Done():
-		return 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
+		return time.Time{}, 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
 	}
 }
 

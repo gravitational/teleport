@@ -493,13 +493,10 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		log.Warnf("Unexpected upstream pong from server %q (id=%d).", handle.Hello().ServerID, msg.ID)
 		return
 	}
-	rsp := pingResponse{
+	pending.rspC <- pingResponse{
 		reqDuration: c.clock.Since(pending.start),
+		systemClock: msg.SystemClock,
 	}
-	if !msg.SystemClock.IsZero() {
-		rsp.clockDiff = c.clock.Since(msg.SystemClock)
-	}
-	pending.rspC <- rsp
 	delete(handle.pings, msg.ID)
 }
 

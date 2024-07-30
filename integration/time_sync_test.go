@@ -42,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestTimeSyncDifference launches two instances with clock differences in system clock,
+// TestTimeReconciliation launches two instances with clock differences in system clock,
 // to verify that global notification is created about time drifting.
-func TestTimeSyncDifference(t *testing.T) {
+func TestTimeReconciliation(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
@@ -87,8 +87,8 @@ func TestTimeSyncDifference(t *testing.T) {
 	authCfg.Log = utils.NewLoggerForTests()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-	runErrCh := make(chan error, 1)
+	serviceC := make(chan *service.TeleportProcess, 2)
+	runErrCh := make(chan error, 2)
 	go func() {
 		runErrCh <- service.Run(ctx, *authCfg, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
@@ -121,9 +121,8 @@ func TestTimeSyncDifference(t *testing.T) {
 	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	agentCfg.Logger = utils.NewSlogLoggerForTests()
 
-	agentRunErrCh := make(chan error, 1)
 	go func() {
-		agentRunErrCh <- service.Run(ctx, *agentCfg, func(cfg *servicecfg.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *agentCfg, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err != nil {
 				return nil, err
@@ -137,8 +136,8 @@ func TestTimeSyncDifference(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		authService.Shutdown(context.Background())
-		agentService.Shutdown(context.Background())
+		require.NoError(t, authService.Close())
+		require.NoError(t, agentService.Close())
 	})
 
 	// Wait till the service is ready and inventory stream connection is established between services.
@@ -164,4 +163,10 @@ func TestTimeSyncDifference(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+
+	select {
+	case err := <-runErrCh:
+		require.NoError(t, err)
+	default:
+	}
 }
