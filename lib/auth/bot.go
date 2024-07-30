@@ -327,10 +327,10 @@ func (a *Server) updateBotInstance(
 			return trace.Wrap(err)
 		}
 
-		// TODO: consider making this the only path where bot instances are
-		// created. We could call `updateBotInstance()` unconditionally from
-		// `generateInitialBotCerts()` and have only one codepath. (But may need
-		// to clean up log messages.)
+		// TODO(timothyb89): consider making this the only path where bot
+		// instances are created. We could call `updateBotInstance()`
+		// unconditionally from `generateInitialBotCerts()` and have only one
+		// codepath. (But may need to clean up log messages.)
 
 		// Set the initial generation counter. Note that with bot instances, the
 		// counter is now set for all join methods, but only enforced for token
