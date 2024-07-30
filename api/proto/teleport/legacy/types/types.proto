@@ -4436,6 +4436,8 @@ message MaxAge {
 message SSOClientRedirectSettings {
   // a list of hostnames allowed for https client redirect URLs
   repeated string allowed_https_hostnames = 1;
+  // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+  repeated string insecure_allowed_cidr_ranges = 2;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
