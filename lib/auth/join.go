@@ -374,9 +374,6 @@ func (a *Server) generateCertsBot(
 		JoinToken:  provisionToken.GetSafeName(),
 		JoinMethod: string(provisionToken.GetJoinMethod()),
 		PublicKey:  req.PublicTLSKey,
-
-		// Note: Generation will be set during `generateInitialBotCerts()` as
-		// needed.
 	}
 
 	if joinAttributeSrc != nil {
@@ -398,6 +395,7 @@ func (a *Server) generateCertsBot(
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable, auth,
 		req.BotInstanceID,
+		req.BotGeneration,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
