@@ -7,16 +7,7 @@ import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { App } from 'teleport/services/apps';
-import { Desktop } from 'teleport/services/desktops';
-import { Kube } from 'teleport/services/kube';
-import { Database } from 'teleport/services/databases';
-import { Node } from 'teleport/services/nodes';
-import { UserGroup } from 'teleport/services/userGroups';
-
 import cfg from 'teleport/config';
-
 import {
   ResourceKind,
   ResourceMap,
@@ -136,8 +127,6 @@ export function useNewRequest(ctx: Ctx) {
     getEmptyResourceState()
   );
 
-  const [numAddedOnPage, setNumAddedOnPage] = useState(getNumAddedOnPage());
-
   const [usage, setUsage] = useState<{
     limit: number;
     used: number;
@@ -238,10 +227,6 @@ export function useNewRequest(ctx: Ctx) {
       sort: getDefaultSort(selectedResource),
     });
   }, [clusterId]);
-
-  useEffect(() => {
-    setNumAddedOnPage(getNumAddedOnPage());
-  }, [page, selectedResource, addedResources]);
 
   // when the selected user_group changes, we need to fetch the
   // list of applications that the app grants access to to display
@@ -476,114 +461,6 @@ export function useNewRequest(ctx: Ctx) {
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function unAddCurrentPage() {
-    switch (selectedResource) {
-      case 'node':
-        (fetchedData.agents as Node[]).forEach(
-          node => delete addedResources[selectedResource][node.id]
-        );
-        break;
-      case 'app':
-        (fetchedData.agents as App[]).forEach(
-          app => delete addedResources[selectedResource][app.name]
-        );
-        break;
-      case 'db':
-        (fetchedData.agents as Database[]).forEach(
-          db => delete addedResources[selectedResource][db.name]
-        );
-        break;
-      case 'kube_cluster':
-        (fetchedData.agents as Kube[]).forEach(
-          kube => delete addedResources[selectedResource][kube.name]
-        );
-        break;
-      case 'windows_desktop':
-        (fetchedData.agents as Desktop[]).forEach(
-          desktop => delete addedResources[selectedResource][desktop.name]
-        );
-        break;
-      case 'user_group':
-        (fetchedData.agents as UserGroup[]).forEach(
-          userGroup => delete addedResources[selectedResource][userGroup.name]
-        );
-        break;
-    }
-
-    setAddedResources({
-      ...addedResources,
-      app: { ...addedResources.app },
-      db: { ...addedResources.db },
-      kube_cluster: { ...addedResources.kube_cluster },
-      node: { ...addedResources.node },
-      windows_desktop: { ...addedResources.windows_desktop },
-      user_group: { ...addedResources.user_group },
-    });
-  }
-
-  function getNumAddedOnPage() {
-    let count = 0;
-    for (const agent in fetchedData.agents) {
-      switch (selectedResource) {
-        case 'node':
-          if (
-            addedResources[selectedResource][
-              (fetchedData.agents[agent] as Node).id
-            ]
-          ) {
-            count++;
-          }
-          break;
-        case 'app':
-          if (
-            addedResources[selectedResource][
-              (fetchedData.agents[agent] as App).name
-            ]
-          ) {
-            count++;
-          }
-          break;
-        case 'db':
-          if (
-            addedResources[selectedResource][
-              (fetchedData.agents[agent] as Database).name
-            ]
-          ) {
-            count++;
-          }
-          break;
-        case 'kube_cluster':
-          if (
-            addedResources[selectedResource][
-              (fetchedData.agents[agent] as Kube).name
-            ]
-          ) {
-            count++;
-          }
-          break;
-        case 'windows_desktop':
-          if (
-            addedResources[selectedResource][
-              (fetchedData.agents[agent] as Desktop).name
-            ]
-          ) {
-            count++;
-          }
-          break;
-        case 'user_group':
-          if (
-            addedResources[selectedResource][
-              (fetchedData.agents[agent] as UserGroup).name
-            ]
-          ) {
-            count++;
-          }
-          break;
-      }
-    }
-    return count;
-  }
-
   const requestableRoles = ctx.storeUser.getRequestableRoles();
 
   const addSelectedResources = (
@@ -652,8 +529,6 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources,
     requestableRoles,
     resourceRequestsDisabled,
-    unAddCurrentPage,
-    numAddedOnPage,
     addAllFetchAttempt: addAllFetchAttempt.attempt,
     fetchUsage,
     usage,
