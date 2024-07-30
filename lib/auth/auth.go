@@ -389,6 +389,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.StaticHostUsers == nil {
+		cfg.StaticHostUsers, err = local.NewStaticHostUserService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -427,6 +434,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
+		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
 	as := Server{
@@ -623,6 +631,7 @@ type Services struct {
 	services.BotInstance
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
+	services.StaticHostUser
 }
 
 // GetWebSession returns existing web session described by req.
@@ -640,6 +649,10 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
+}
+
+func (r *Services) StaticHostUserClient() services.StaticHostUser {
+	return r
 }
 
 var (
@@ -1983,8 +1996,6 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
-	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
-	appURI string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -3059,7 +3070,6 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
-			URI:               req.appURI,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,

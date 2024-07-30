@@ -306,6 +306,8 @@ type InitConfig struct {
 
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
+
+	StaticHostUsers services.StaticHostUser
 }
 
 // Init instantiates and configures an instance of AuthServer

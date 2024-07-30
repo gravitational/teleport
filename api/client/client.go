@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
+	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -86,6 +87,7 @@ import (
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -3182,6 +3184,34 @@ func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPo
 // session conditions are met.
 func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
 	return c.GetKubernetesWaitingContainerClient().DeleteKubernetesWaitingContainer(ctx, req)
+}
+
+func (c *Client) GetStaticHostUserClient() *statichostuserclient.Client {
+	return statichostuserclient.NewClient(userprovisioningpb.NewStaticHostUsersServiceClient(c.conn))
+}
+
+func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+	return c.GetStaticHostUserClient().ListStaticHostUsers(ctx, pageSize, pageToken)
+}
+
+func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+	return c.GetStaticHostUserClient().GetStaticHostUser(ctx, name)
+}
+
+func (c *Client) CreateStaticHostUser(ctx context.Context, hostUser *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.GetStaticHostUserClient().CreateStaticHostUser(ctx, hostUser)
+}
+
+func (c *Client) UpdateStaticHostUser(ctx context.Context, hostUser *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.GetStaticHostUserClient().UpdateStaticHostUser(ctx, hostUser)
+}
+
+func (c *Client) UpsertStaticHostUser(ctx context.Context, hostUser *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.GetStaticHostUserClient().UpsertStaticHostUser(ctx, hostUser)
+}
+
+func (c *Client) DeleteStaticHostUser(ctx context.Context, name string) error {
+	return c.GetStaticHostUserClient().DeleteStaticHostUser(ctx, name)
 }
 
 // CreateDatabase creates a new database resource.
