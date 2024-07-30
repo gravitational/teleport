@@ -136,6 +136,7 @@ export function DiscoveryConfigSsm() {
       iamRoleName: arnResourceName,
       region: selectedRegion,
       ssmDocument: ssmDocumentName,
+      integrationName: agentMeta.awsIntegration.name,
     });
     setScriptUrl(scriptUrl);
   }

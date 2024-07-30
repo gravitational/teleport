@@ -21,37 +21,14 @@ package vnet
 
 import (
 	"context"
-	"net"
-	"os"
-	"runtime"
 
 	"github.com/gravitational/trace"
-	"golang.zx2c4.com/wireguard/tun"
-
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-var (
-	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-)
-
-func createUnixSocket() (*net.UnixListener, string, error) {
-	return nil, "", trace.Wrap(ErrVnetNotImplemented)
-}
-
-func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
+func configureOS(ctx context.Context, cfg *osConfig) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
-func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
-	return nil, trace.Wrap(ErrVnetNotImplemented)
-}
-
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func DaemonSubcommand(ctx context.Context) error {
+func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
 	return trace.Wrap(ErrVnetNotImplemented)
 }

@@ -369,6 +369,11 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 
+	integrationName := queryParams.Get("integrationName")
+	if len(integrationName) == 0 {
+		return nil, trace.BadParameter("missing integrationName param")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -390,6 +395,11 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		proxyPublicURL = "https://" + proxyPublicURL
 	}
 
+	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// The script must execute the following command:
 	// teleport integration configure ec2-ssm-iam
 	argsList := []string{
@@ -398,6 +408,8 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(region)),
 		fmt.Sprintf("--ssm-document-name=%s", shsprintf.EscapeDefaultContext(ssmDocumentName)),
 		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyPublicURL)),
+		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
+		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
