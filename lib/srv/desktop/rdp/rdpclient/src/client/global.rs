@@ -27,8 +27,8 @@
 //! managed by Go).
 //!
 //! In practice this primarily means ensuring that any such global, static
-//! structures that might be accessed directly by a call from go are [`Send`]
-//! + [`Sync`] and thus are only mutated when locked. See [`assert_send_sync`]
+//! structures that might be accessed directly by a call from go are `Send + Sync`
+//! and thus are only mutated when locked. See `assert_send_sync`
 //! below for an example of how this is enforced.
 
 use super::ClientHandle;
