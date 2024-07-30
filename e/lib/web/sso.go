@@ -45,6 +45,7 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 		CheckUser:         true,
 		ProxyAddress:      r.Host,
 		ClientLoginIP:     remoteAddr,
+		ClientUserAgent:   r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -90,6 +91,7 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 		ProxyAddress:         r.Host,
 		AttestationStatement: req.AttestationStatement.ToProto(),
 		ClientLoginIP:        remoteAddr,
+		ClientUserAgent:      r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
@@ -153,6 +155,9 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 			return client.LoginFailedRedirectURL
 		}
 
+		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
+			logger.Debug("OIDC WebSession created with device web token")
+		}
 		return res.ClientRedirectURL
 	}
 
@@ -202,6 +207,7 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
 		ClientLoginIP:     remoteAddr,
+		ClientUserAgent:   r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -245,6 +251,7 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		KubernetesCluster:    req.KubernetesCluster,
 		AttestationStatement: req.AttestationStatement.ToProto(),
 		ClientLoginIP:        remoteAddr,
+		ClientUserAgent:      r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
@@ -322,6 +329,9 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 			return client.LoginFailedRedirectURL
 		}
 
+		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
+			logger.Debug("SAML WebSession created with device web token")
+		}
 		return res.ClientRedirectURL
 	}
 

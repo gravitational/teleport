@@ -522,8 +522,10 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	}
 
 	loginIP := ""
+	userAgent := ""
 	if request != nil {
 		loginIP = request.ClientLoginIP
+		userAgent = request.ClientUserAgent
 	} else if clientIP != "" {
 		// In case of IdP initiated login we don't have a request with the client IP, so we take the IP from
 		// incoming connection, sent by the Proxy.
@@ -680,13 +682,15 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
 		session, err := sas.auth.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
-			User:             userState.GetName(),
-			Roles:            userState.GetRoles(),
-			Traits:           userState.GetTraits(),
-			SessionTTL:       sessionTTL,
-			LoginTime:        sas.auth.GetClock().Now().UTC(),
-			LoginIP:          loginIP,
-			AttestWebSession: true,
+			User:                 userState.GetName(),
+			Roles:                userState.GetRoles(),
+			Traits:               userState.GetTraits(),
+			SessionTTL:           sessionTTL,
+			LoginTime:            sas.auth.GetClock().Now().UTC(),
+			LoginIP:              loginIP,
+			LoginUserAgent:       userAgent,
+			AttestWebSession:     true,
+			CreateDeviceWebToken: true,
 		})
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create web session.")
