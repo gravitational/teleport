@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -141,9 +142,19 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 	return matchingFiles, nil
 }
 
+var hasDroppedPrivileges atomic.Bool
+
 // doWithDroppedRootPrivileges drops the privileges of the current process to those of the client
 // process that called the VNet daemon.
 func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+	if !hasDroppedPrivileges.CompareAndSwap(false, true) {
+		// At the moment of writing, the VNet daemon wasn't expected to do multiple things in parallel
+		// with dropped privileges. If you run into this error, consider if employing a mutex is going
+		// to be enough or if a more elaborate refactoring is required.
+		return trace.CompareFailed("privileges are being temporarily dropped already")
+	}
+	defer hasDroppedPrivileges.Store(false)
+
 	rootEgid := os.Getegid()
 	rootEuid := os.Geteuid()
 
