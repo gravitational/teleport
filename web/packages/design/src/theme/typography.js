@@ -18,6 +18,7 @@
 
 const light = 300;
 const regular = 400;
+const medium = 500;
 const bold = 600;
 
 export const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34];
@@ -100,6 +101,84 @@ const typography = {
     fontWeight: bold,
     fontSize: '14px',
     lineHeight: '20px',
+  },
+
+  newBody1: {
+    fontSize: '16px',
+    fontWeight: light,
+    lineHeight: '24px',
+    letterSpacing: '0.08px',
+  },
+  newBody2: {
+    fontSize: '14px',
+    fontWeight: light,
+    lineHeight: '24px',
+    letterSpacing: '0.035px',
+  },
+  newBody3: {
+    fontSize: '12px',
+    fontWeight: regular,
+    lineHeight: '20px',
+    letterSpacing: '0.015px',
+  },
+  newBody4: {
+    fontSize: '10px',
+    fontWeight: regular,
+    lineHeight: '16px',
+    letterSpacing: '0.013px',
+  },
+
+  /**
+   * Don't use directly, prefer the `H1` component except for text that doesn't
+   * introduce document structure.
+   */
+  newH1: {
+    fontWeight: medium,
+    fontSize: '24px',
+    lineHeight: '32px',
+  },
+  /**
+   * Don't use directly, prefer the `H2` component except for text that doesn't
+   * introduce document structure.
+   */
+  newH2: {
+    fontWeight: medium,
+    fontSize: '18px',
+    lineHeight: '24px',
+  },
+  /**
+   * Don't use directly, prefer the `H3` component except for text that doesn't
+   * introduce document structure.
+   */
+  newH3: {
+    fontWeight: bold,
+    fontSize: '14px',
+    lineHeight: '20px',
+  },
+  newH4: {
+    fontWeight: medium,
+    fontSize: '12px',
+    lineHeight: '20px',
+    letterSpacing: '0.03px',
+    textTransform: 'uppercase',
+  },
+  newSubtitle1: {
+    fontSize: '16px',
+    fontWeight: regular,
+    lineHeight: '24px',
+    letterSpacing: '0.024px',
+  },
+  newSubtitle2: {
+    fontSize: '14px',
+    fontWeight: regular,
+    lineHeight: '20px',
+    letterSpacing: '0.014px',
+  },
+  newSubtitle3: {
+    fontSize: '12px',
+    fontWeight: bold,
+    lineHeight: '20px',
+    letterSpacing: '0.012px',
   },
 };
 

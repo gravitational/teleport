@@ -39,7 +39,18 @@ import LabelState from './LabelState';
 import Link from './Link';
 import { Mark } from './Mark';
 import Image from './Image';
-import Text from './Text';
+import Text, {
+  H1,
+  H2,
+  H3,
+  H4,
+  P1,
+  P2,
+  P3,
+  Subtitle1,
+  Subtitle2,
+  Subtitle3,
+} from './Text';
 import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
 import TopNav from './TopNav';
@@ -69,6 +80,10 @@ export {
   CardSuccessLogin,
   DocumentTitle,
   Flex,
+  H1,
+  H2,
+  H3,
+  H4,
   Indicator,
   Input,
   Label,
@@ -88,8 +103,14 @@ export {
   Menu,
   MenuItem,
   MenuItemIcon,
+  P1,
+  P2,
+  P3,
   TextArea,
   Toggle,
+  Subtitle1,
+  Subtitle2,
+  Subtitle3,
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
