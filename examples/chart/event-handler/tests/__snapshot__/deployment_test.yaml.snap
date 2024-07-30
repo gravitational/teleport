@@ -24,7 +24,7 @@ should match the snapshot:
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-event-handler
+            - /usr/local/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-event-handler.toml
@@ -73,7 +73,7 @@ should mount tls.existingCASecretName and set environment when set in values:
   1: |
     containers:
     - command:
-      - /usr/local/bin/teleport-event-handler
+      - /usr/local/bin/teleport-plugin
       - start
       - --config
       - /etc/teleport-event-handler.toml
