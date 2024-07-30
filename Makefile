@@ -592,7 +592,7 @@ ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release BINARIES=$(BINARIES_default); fi
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release BINARIES=$(subst tsh.app,tsh,$(BINARIES)); fi
 else
 
 # release-darwin for ARCH == universal does not build binaries, but instead
@@ -1327,7 +1327,7 @@ tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
-		--ref "v$(VERSION)" \
+		--ref "gus/unify-mac" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
