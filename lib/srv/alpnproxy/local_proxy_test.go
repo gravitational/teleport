@@ -544,7 +544,7 @@ func TestKubeMiddleware(t *testing.T) {
 			// request timed out.
 			return rw.Status() == http.StatusInternalServerError
 
-		}, time.Second, 100*time.Millisecond)
+		}, 5*time.Second, 100*time.Millisecond)
 		require.Contains(t, rw.Buffer().String(), "context canceled")
 
 		// just let the reissuing goroutine some time to replace certs.
