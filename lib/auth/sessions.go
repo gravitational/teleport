@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -263,10 +262,10 @@ func (a *Server) newWebSession(
 		// will be marked with the web session private key policy.
 		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
