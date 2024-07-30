@@ -3186,30 +3186,38 @@ func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kube
 	return c.GetKubernetesWaitingContainerClient().DeleteKubernetesWaitingContainer(ctx, req)
 }
 
+// GetStaticHostUserClient returns a new static host user client.
 func (c *Client) GetStaticHostUserClient() *statichostuserclient.Client {
 	return statichostuserclient.NewClient(userprovisioningpb.NewStaticHostUsersServiceClient(c.conn))
 }
 
+// ListStaticHostUsers lists static host users.
 func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
 	return c.GetStaticHostUserClient().ListStaticHostUsers(ctx, pageSize, pageToken)
 }
 
+// GetStaticHostUser returns a static host user by name.
 func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
 	return c.GetStaticHostUserClient().GetStaticHostUser(ctx, name)
 }
 
+// CreateStaticHostUser creates a static host user.
 func (c *Client) CreateStaticHostUser(ctx context.Context, hostUser *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
 	return c.GetStaticHostUserClient().CreateStaticHostUser(ctx, hostUser)
 }
 
+// UpdateStaticHostUser updates a static host user.
 func (c *Client) UpdateStaticHostUser(ctx context.Context, hostUser *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
 	return c.GetStaticHostUserClient().UpdateStaticHostUser(ctx, hostUser)
 }
 
+// UpsertStaticHostUser upserts a static host user.
 func (c *Client) UpsertStaticHostUser(ctx context.Context, hostUser *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
 	return c.GetStaticHostUserClient().UpsertStaticHostUser(ctx, hostUser)
 }
 
+// DeleteStaticHostUser deletes a static host user. Note that this does not
+// remove any host users created on nodes from the resource.
 func (c *Client) DeleteStaticHostUser(ctx context.Context, name string) error {
 	return c.GetStaticHostUserClient().DeleteStaticHostUser(ctx, name)
 }

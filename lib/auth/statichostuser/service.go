@@ -25,11 +25,15 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+// ServiceConfig holds configuration options for the static host user gRPC service.
 type ServiceConfig struct {
+	// Authorizer is the authorizer used to check access to resources.
 	Authorizer authz.Authorizer
-	Backend    services.StaticHostUser
+	// Backend is the backend used to store static host users.
+	Backend services.StaticHostUser
 }
 
+// Service implements the static host user RPC service.
 type Service struct {
 	userprovisioningpb.UnimplementedStaticHostUsersServiceServer
 
@@ -37,6 +41,7 @@ type Service struct {
 	backend    services.StaticHostUser
 }
 
+// NewService creates a new static host user gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	switch {
 	case cfg.Backend == nil:
@@ -51,6 +56,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
+// ListStaticHostUsers lists static host users.
 func (s *Service) ListStaticHostUsers(ctx context.Context, req *userprovisioningpb.ListStaticHostUsersRequest) (*userprovisioningpb.ListStaticHostUsersResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -70,6 +76,7 @@ func (s *Service) ListStaticHostUsers(ctx context.Context, req *userprovisioning
 	}, nil
 }
 
+// GetStaticHostUser returns a static host user by name.
 func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb.GetStaticHostUserRequest) (*userprovisioningpb.StaticHostUser, error) {
 	if req.Name == "" {
 		return nil, trace.BadParameter("missing name")
@@ -85,6 +92,7 @@ func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb
 	return out, trace.Wrap(err)
 }
 
+// CreateStaticHostUser creates a static host user.
 func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisioningpb.CreateStaticHostUserRequest) (*userprovisioningpb.StaticHostUser, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -97,6 +105,7 @@ func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisionin
 	return out, trace.Wrap(err)
 }
 
+// UpdateStaticHostUser updates a static host user.
 func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisioningpb.UpdateStaticHostUserRequest) (*userprovisioningpb.StaticHostUser, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -109,6 +118,7 @@ func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisionin
 	return out, trace.Wrap(err)
 }
 
+// UpsertStaticHostUser upserts a static host user.
 func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisioningpb.UpsertStaticHostUserRequest) (*userprovisioningpb.StaticHostUser, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -121,6 +131,8 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 	return out, trace.Wrap(err)
 }
 
+// DeleteStaticHostUser deletes a static host user. Note that this does not
+// remove any host users created on nodes from the resource.
 func (s *Service) DeleteStaticHostUser(ctx context.Context, req *userprovisioningpb.DeleteStaticHostUserRequest) (*emptypb.Empty, error) {
 	if req.Name == "" {
 		return nil, trace.BadParameter("missing name")

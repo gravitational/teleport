@@ -21,16 +21,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Client is a StaticHostUser client.
 type Client struct {
 	grpcClient userprovisioningpb.StaticHostUsersServiceClient
 }
 
+// NewClient creates a new StaticHostUser client.
 func NewClient(grpcClient userprovisioningpb.StaticHostUsersServiceClient) *Client {
 	return &Client{
 		grpcClient: grpcClient,
 	}
 }
 
+// ListStaticHostUsers lists static host users.
 func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
 	resp, err := c.grpcClient.ListStaticHostUsers(ctx, &userprovisioningpb.ListStaticHostUsersRequest{
 		PageSize:  int32(pageSize),
@@ -42,6 +45,7 @@ func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToke
 	return resp.Users, resp.NextPageToken, nil
 }
 
+// GetStaticHostUser returns a static host user by name.
 func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
@@ -52,6 +56,7 @@ func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovi
 	return out, trace.Wrap(err)
 }
 
+// CreateStaticHostUser creates a static host user.
 func (c *Client) CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
 	out, err := c.grpcClient.CreateStaticHostUser(ctx, &userprovisioningpb.CreateStaticHostUserRequest{
 		User: in,
@@ -59,6 +64,7 @@ func (c *Client) CreateStaticHostUser(ctx context.Context, in *userprovisioningp
 	return out, trace.Wrap(err)
 }
 
+// UpdateStaticHostUser updates a static host user.
 func (c *Client) UpdateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
 	out, err := c.grpcClient.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
 		User: in,
@@ -66,6 +72,7 @@ func (c *Client) UpdateStaticHostUser(ctx context.Context, in *userprovisioningp
 	return out, trace.Wrap(err)
 }
 
+// UpsertStaticHostUser upserts a static host user.
 func (c *Client) UpsertStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
 	out, err := c.grpcClient.UpsertStaticHostUser(ctx, &userprovisioningpb.UpsertStaticHostUserRequest{
 		User: in,
@@ -73,6 +80,8 @@ func (c *Client) UpsertStaticHostUser(ctx context.Context, in *userprovisioningp
 	return out, trace.Wrap(err)
 }
 
+// DeleteStaticHostUser deletes a static host user. Note that this does not
+// remove any host users created on nodes from the resource.
 func (c *Client) DeleteStaticHostUser(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteStaticHostUser(ctx, &userprovisioningpb.DeleteStaticHostUserRequest{
 		Name: name,

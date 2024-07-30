@@ -1473,6 +1473,7 @@ type ClientI interface {
 	services.KubeWaitingContainer
 	services.Notifications
 	services.VnetConfigGetter
+	services.StaticHostUser
 	types.Events
 
 	types.WebSessionsGetter
