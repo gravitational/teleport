@@ -73,15 +73,11 @@ void OpenSystemSettingsLoginItems(void) {
   }
 }
 
-@interface VNEDaemonClient ()
-
-@property(nonatomic, strong, readwrite) NSXPCConnection *connection;
-@property(nonatomic, strong, readonly) NSString *bundlePath;
-@property(nonatomic, strong, readonly) NSString *codeSigningRequirement;
-
-@end
-
-@implementation VNEDaemonClient
+@implementation VNEDaemonClient {
+  NSXPCConnection *_connection;
+  NSString *_bundlePath;
+  NSString *_codeSigningRequirement;
+}
 
 - (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement {
   self = [super init];
