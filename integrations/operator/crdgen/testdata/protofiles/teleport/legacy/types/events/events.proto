@@ -3562,6 +3562,8 @@ message RouteToApp {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+  // URI is the application URI.
+  string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
