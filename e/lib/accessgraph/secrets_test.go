@@ -2,6 +2,7 @@ package accessgraph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -154,7 +155,10 @@ func TestReportAuthorizedKeys(t *testing.T) {
 				Keys:      tt.newAuthorizedKeys,
 				Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_ADD,
 			})
-			require.NoError(t, err)
+			/* ignore error if it's EOF, as it's expected */
+			if !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
 
 			if tt.failEarly {
 				tt.assertErr(t, stream)
@@ -172,7 +176,10 @@ func TestReportAuthorizedKeys(t *testing.T) {
 			}, 5*time.Second, 100*time.Millisecond)
 
 			err = stream.CloseSend()
-			require.NoError(t, err)
+			/* ignore error if it's EOF, as it's expected */
+			if !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
 
 			tt.assertErr(t, stream)
 
