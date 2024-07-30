@@ -15,7 +15,7 @@ require (
 	cloud.google.com/go/resourcemanager v1.9.7
 	cloud.google.com/go/spanner v1.60.0
 	cloud.google.com/go/storage v1.40.0
-	connectrpc.com/connect v1.16.1
+	connectrpc.com/connect v1.16.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1
