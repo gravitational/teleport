@@ -191,7 +191,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	options = append(options, func(creds *stscreds.AssumeRoleProvider) {
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
-		creds.RoleSessionName = req.Identity.Username
+		creds.RoleSessionName = awsutils.TruncateRoleSessionName(req.Identity.Username)
 
 		// Setting web console session duration through AssumeRole call for AWS
 		// sessions with temporary credentials.

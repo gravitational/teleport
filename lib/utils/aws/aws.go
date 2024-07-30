@@ -68,6 +68,9 @@ const (
 	AmzJSON1_0 = "application/x-amz-json-1.0"
 	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
 	AmzJSON1_1 = "application/x-amz-json-1.1"
+
+	// MaxRoleSessionName is the maximum length of the role session name used by the AssumeRole call.
+	MaxRoleSessionName = 64
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -483,4 +486,12 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
 	}.String()
+}
+
+// TruncateRoleSessionName truncates the role session name to AWS character limit (64).
+func TruncateRoleSessionName(roleSessionName string) string {
+	if len(roleSessionName) > MaxRoleSessionName {
+		return roleSessionName[:MaxRoleSessionName]
+	}
+	return roleSessionName
 }

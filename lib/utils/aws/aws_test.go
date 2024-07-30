@@ -493,3 +493,26 @@ func TestResourceARN(t *testing.T) {
 		})
 	}
 }
+
+func TestTruncateRoleSessionName(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		role     string
+		expected string
+	}{
+		{
+			name:     "role session name not truncated, less than 64 characters",
+			role:     "MyRole",
+			expected: "MyRole",
+		},
+		{
+			name:     "role session name truncated, longer than 64 characters",
+			role:     "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.com",
+			expected: "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.co",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, TruncateRoleSessionName(tt.role))
+		})
+	}
+}
