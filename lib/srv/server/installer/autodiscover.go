@@ -350,7 +350,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		// However, for the last scenario (teleport was manually installed), this flow must not replace the currently running teleport service configuration.
 		// To prevent this, this flow checks for the existence of the discover notice file, and only allows replacement if it does exist.
 		if _, err := os.Stat(discoverNoticeFile); err != nil {
-			ani.Logger.InfoContext(ctx, "Refusing to replace the existing teleport configuration. For the script to replace the existing configuration remove the Teleport configuration.).",
+			ani.Logger.InfoContext(ctx, "Refusing to replace the existing teleport configuration. For the script to replace the existing configuration remove the Teleport configuration.",
 				"teleport_configuration", teleportYamlConfigurationPath,
 				"discover_notice_file", discoverNoticeFile)
 			return trace.BadParameter("missing discover notice file")
