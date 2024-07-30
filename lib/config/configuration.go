@@ -336,6 +336,12 @@ type IntegrationConfEC2SSMIAM struct {
 	// No trailing / is expected.
 	// Eg https://tenant.teleport.sh
 	ProxyPublicURL string
+	// ClusterName is the Teleport cluster name.
+	// Used for resource tagging.
+	ClusterName string
+	// IntegrationName is the Teleport AWS OIDC Integration name.
+	// Used for resource tagging.
+	IntegrationName string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
