@@ -18,7 +18,9 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { Alert, Box, Button, Flex, Link, Text } from 'design';
+import { Alert, Box, Button, Flex, H3, Link } from 'design';
+
+import { P } from 'design/Text/Text';
 
 import {
   FeatureBox,
@@ -152,16 +154,14 @@ export function Roles(props: State) {
           color="text.main"
           style={{ flexShrink: 0 }}
         >
-          <Text typography="h6" mb={3} caps>
-            Role-based access control
-          </Text>
-          <Text typography="subtitle1" mb={3}>
+          <H3 mb={3}>Role-based access control</H3>
+          <P mb={3}>
             Teleport Role-based access control (RBAC) provides fine-grained
             control over who can access resources and in which contexts. A
             Teleport role can be assigned automatically based on user identity
             when used with single sign-on (SSO).
-          </Text>
-          <Text>
+          </P>
+          <P>
             Learn more in{' '}
             <Link
               color="text.main"
@@ -171,7 +171,7 @@ export function Roles(props: State) {
               the cluster management (RBAC)
             </Link>{' '}
             section of online documentation.
-          </Text>
+          </P>
         </Box>
       </Flex>
       {(resources.status === 'creating' || resources.status === 'editing') && (

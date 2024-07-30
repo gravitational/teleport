@@ -18,9 +18,9 @@
 
 import React from 'react';
 
-import Text, { H1 } from '../Text';
+import Box from 'design/Box';
 
-import { H2 } from './Text';
+import Text, { H1, H2, H3, H4, P1, P2 } from '.';
 
 export default {
   title: 'Design/Text',
@@ -30,26 +30,14 @@ export const FontSizes = () => (
   <>
     <H1>H1 Heading</H1>
     <H2>H2 Heading</H2>
-    <Text as="h3" typography="h3">
-      h3
-    </Text>
-    <Text as="h4" typography="h4">
-      h4
-    </Text>
-    <Text as="h5" typography="h5">
-      h5
-    </Text>
-    <Text as="h6" typography="h6">
-      h6
-    </Text>
+    <H3>H3 Heading</H3>
+    <H4>H4 Heading</H4>
   </>
 );
 
 export const FontAttributes = () => (
   <>
-    <Text regular mb={3}>
-      Hello Regular
-    </Text>
+    <Text mb={3}>Hello Regular</Text>
     <Text bold mb={3}>
       Hello Bold
     </Text>
@@ -72,5 +60,38 @@ export const Alignments = () => (
     <Text textAlign="left">Hello Left</Text>
     <Text textAlign="center">Hello Center</Text>
     <Text textAlign="right">Hello Right</Text>
+  </>
+);
+
+export const Paragraphs = () => (
+  <>
+    <Box border={1} p={1} mb={3}>
+      <P1>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua.
+      </P1>
+      <P1>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua.
+      </P1>
+      <P1>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua.
+      </P1>
+    </Box>
+    <Box border={1} p={1}>
+      <P2>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua.
+      </P2>
+      <P2>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua.
+      </P2>
+      <P2>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua.
+      </P2>
+    </Box>
   </>
 );

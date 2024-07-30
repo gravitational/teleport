@@ -29,6 +29,8 @@ import {
   Image,
   Indicator,
   LabelInput,
+  P3,
+  Subtitle2,
   Text,
 } from 'design';
 import {
@@ -222,12 +224,12 @@ export function RequestCheckout<T extends PendingListItem>({
           {createAttempt.status === 'success' ? (
             <>
               <Box>
-                <Box mt={2} mb={7} textAlign="center">
+                <Box as="header" mt={2} mb={7} textAlign="center">
                   <H2 mb={1}>Resources Requested Successfully</H2>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
+                  <Subtitle2 color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
-                  </Text>
+                  </Subtitle2>
                 </Box>
                 <Flex justifyContent="center" mb={3}>
                   <Image src={shieldCheck} width="250px" height="179px" />
@@ -489,7 +491,7 @@ function ResourceRequestRoles({
             <LabelInput mb={0} style={{ cursor: 'pointer' }}>
               Roles
             </LabelInput>
-            <Text typography="subtitle2" mb={2}>
+            <Text typography="body4" mb={2}>
               {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
               selected
             </Text>
@@ -551,10 +553,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <Text typography="subtitle2">
+              <P3>
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </Text>
+              </P3>
             </Flex>
           )}
         </Box>

@@ -121,6 +121,8 @@ type ProvisionToken interface {
 	GetAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
+	// GetGCPRules will return the GCP rules within this token.
+	GetGCPRules() *ProvisionTokenSpecV2GCP
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -383,6 +385,11 @@ func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 // SetAllowRules sets the allow rules.
 func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
+}
+
+// GetGCPRules will return the GCP rules within this token.
+func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
+	return p.Spec.GCP
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs

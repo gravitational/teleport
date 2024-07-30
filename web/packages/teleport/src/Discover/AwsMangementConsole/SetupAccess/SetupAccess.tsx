@@ -17,13 +17,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { LabelInput, Text, Link, Mark } from 'design';
+import { LabelInput, Link, Mark } from 'design';
 import { useTheme } from 'styled-components';
 import { Cross } from 'design/Icon';
 
 import { OutlineInfo } from 'design/Alert/Alert';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
+
+import { P } from 'design/Text/Text';
 
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import { IAM_ROLE_ARN_REGEX } from 'teleport/services/integrations/aws';
@@ -80,14 +82,14 @@ export function SetupAccess() {
 
   const preContent = (
     <OutlineInfo mt={-3} mb={3} linkColor="buttons.link.default">
-      <Text>
+      <P>
         Only{' '}
         <Link target="_blank" href={AWS_TAG_INFO_LINK}>
           IAM roles with tag
         </Link>{' '}
         key <Mark>teleport.dev/integration</Mark> and value <Mark>true</Mark>{' '}
         are allowed to be used by the integration.
-      </Text>
+      </P>
     </OutlineInfo>
   );
 
