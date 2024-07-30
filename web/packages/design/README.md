@@ -27,7 +27,7 @@ concept and principles on which this design system is built.
 
 ## Typography
 
-Here are some general rules for using typography in our web app and Teleterm:
+Here are some general rules for using typography in our apps:
 
 ### General order of preference
 
@@ -44,10 +44,10 @@ Here are some general rules for using typography in our web app and Teleterm:
 - Headings: `<H1/>`, `<H2/>`, `<H3/>`, `<H4/>` wrappers render actual HTML tags,
   which is better for accessibility. Usage examples:
   - `<H1/>` — page titles, empty result set notifications followed up by
-    additional content
+    additional content.
   - `<H2/>` — dialog titles, dialog-like side panel titles, resource enrollment
-    subpage titles
-  - `<H3/>` — explanatory side panel titles, resource enrollment step boxes
+    subpage titles.
+  - `<H3/>` — explanatory side panel titles, resource enrollment step boxes.
 - Don’t use semantic heading wrappers if the heading typography is used only to
   make text bigger or bolder or otherwise stand out, and it doesn’t introduce
   structure to the page with even a brief follow-up content. In this case,
@@ -86,6 +86,6 @@ Here are some general rules for using typography in our web app and Teleterm:
   modifier or the `<H4/>` component, which uses all caps for its content; this
   way, it will be easier to refactor your code.
 - This document was created a long time after we started working on our UI, and
-  after a redesign. You may see a lot of legacy code that doesn’t follow there
+  after a redesign. You may see a lot of legacy code that doesn’t follow these
   rules. If you work with such, consider spending a couple of minutes to fix it!
   Consistency is important.
