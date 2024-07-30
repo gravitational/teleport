@@ -316,6 +316,7 @@ $ tsh login [<flags>] [<cluster>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--bind-addr` | none | host:port | Address in the form of host:port to bind to for login command webhook |
+| `--callback` | none | host:port | Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.
 | `-o, --out` | none | filepath | Identity output filepath |
 | `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig) |
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands |
