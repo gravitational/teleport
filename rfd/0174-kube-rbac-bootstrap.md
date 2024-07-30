@@ -12,8 +12,8 @@ state: draft
 
 ## What
 
-Improve RBAC setup capabilities for Kubernetes and make it easier to use with Teleport by exposing
-the default Kubernetes user-facing roles and adding the ability to define RBAC setup to be
+Improve RBAC setup capabilities for Kubernetes and make it easier to use with Teleport by
+adding the ability to define Kubernetes RBAC completely in Teleport and adding the ability to define RBAC setup to be
 automatically provisioned to Kubernetes clusters.
 
 ## Why
@@ -29,17 +29,71 @@ and we will not allow them to be provisioned. Although other resources might be 
 
 ## Details
 
-### Improving Day 1 experience - Exposing the default Kubernetes user facing cluster roles (cluster-admin, view, edit)
+### Improving Day 1 experience - Adding capability to manage Kubernetes RBAC from Teleport. 
 
-Kubernetes clusters have default user-facing cluster roles: cluster-admin, view, edit. By default they are not usable, because
-they are not exposed through role bindings to any subjects (the cluster-admin role has internal Kubernetes bindings to "system:masters" group). 
-Currently, we only expose the cluster-admin role on GKE
-installations, since system:masters group is not available for impersonation there. We will expand on this and when
-discovering a cluster/installing kube-agent/creating a service account, we will
-create cluster role bindings for those roles, accordingly linking them to the groups "default-cluster-admin", "default-view" and
-"default-edit". It will give users an opportunity to always have standard set of Kubernetes permissions which they can use together
-with Teleport's fine-grained RBAC definitions for Kubernetes. This will make enrolling and starting using Kubernetes clusters
-into Teleport a much simpler process, since user will be able to setup RBAC completely in Teleport if they want. We will also be able
+Currently users rely on `kubernetes_groups` and/or `kubernetes_users` fields of the role definition when setting up
+access for Kubernetes. This requires roles/bindings to be created by the client in Kubernetes cluster independently from the 
+RBAC setup in the Teleport. These roles/bindings also should be kept in sync with the Teleport RBAC side,
+which creates additional hurdles for clients, especially the new ones, when using Kubernetes access. 
+To improve this situation we will introduce auto-provisioning of the Kubernetes RBAC based on 
+the Teleport roles, which means users will be able to define required permissions completely in the Teleport, and under the hood
+we will keep them in sync transparently for the users.
+
+We will add a new field to the role definition - `kubernetes_permissions`. That field will contain desired Kubernetes RBAC permissions
+for that role and will be similar in structure to the native Kubernetes RBAC:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: kube-role
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_groups: ["kube_group"]
+    kubernetes_permissions:
+      namespaces: ["namespace1", "namespace2"]
+      rules:
+      - resources: ["pod", "pod/exec"]
+        verbs: ["get", "list", "create"]
+      - resources: ["deployments"]
+        apiGroups: ["app"]
+        verbs: ["*"]
+      - resources: ["secrets"]
+        apiGroups: [""]
+        resourceNames: ["secret1", "secret2"]
+        verbs: ["get", "list""]
+```
+
+Presence of this field will signal that user wants Teleport to auto-provision these permissions into the Kubernetes clusters.
+Teleport will translate permissions defined in that field into Kubernetes RBAC definitions and will automatically create roles and bindings
+on the target Kubernetes clusters (as specified by the labels). If `namespaces` field includes '*' Teleport will create ClusterRole/ClusterRoleBinding
+pair on the Kubernetes cluster, otherwise Role/Binding pair will be created in the each listed namespace. 
+
+Subject for the bindings will be a group named `teleport:*RoleName*`, e.g. for a Teleport role `kube-role` the resulting 
+group name will be `teleport:kube-role`. This will allow Kube service to setup correct impersonation group headers based on the roles available to the user.
+
+If `kubernetes_permissions` field is set in the `allow` part of the Teleport role, fields `kubernetes_resources`, `kubernetes_users` and `kubernetes_groups` 
+should not be set, we will return an error if user will try to create a role mixing those fields. In the future we might relax this rule.
+
+The field `kubernetes_permissions` will be forbidden from appearing in the `deny` part of the role definition since we are trying to keep its meaning close to
+native Kubernetes RBAC, which can only allow access. Although the field `kubernetes_resource` could appear in the `deny` part of the role, 
+even if `kubernetes_permissions` is set in the `allow` part, giving user more flexibility using Teleport-level permissions check.
+
+Pattern matching for resource names that is supported by the `kubernetes_resources` field will not be supported (same as in native Kubernetes RBAC)
+by the `kubernetes_permissions` in the
+first implementation, but we will be able to add it later. Not allowing pattern matching, though limiting functionality compared to the `kubernetes_resources` field,
+will allow us to translate permissions defined in Teleport 1-to-1 into Kubernetes RBAC definitions. Since this feature is targeted primarily for the new users of 
+Teleport and/or users with less complicated RBAC setups, this should not be a critical issue. If we add pattern matching later, it will need to rely on 
+additional checks at the Teleport level - the way it currently works for the `kubernetes_resources`.
+
+Kubernetes RBAC will be auto-provisioned using the KubeProvisions functionality described in the next section of this RFD. For the best UX any change to
+a role that contains `kubernetes_permissions` will trigger auto-provisioning immediately to reduce latency between the moments when role was created 
+or changed and when clients can use Kubernetes cluster with the updated RBAC.
+
+Introducing `kubernetes_permissions` field will make enrolling into Teleport and starting using Kubernetes clusters
+a much simpler process, since user will be able to setup RBAC completely in Teleport if they want. We will also be able
 to amend our documentation to make our guides simpler, which will also help users to start with Teleport more easily. 
 
 #### UX
@@ -47,8 +101,7 @@ to amend our documentation to make our guides simpler, which will also help user
 Let's look at an example user story. Alice is a system administrator and she explores Teleport capabilities.
 She doesn't know much about Teleport yet, except for basic foundation (agents, roles). She just enrolled her first Kubernetes cluster into Teleport.
 This cluster contains the staging environment and she wants to give read-only pod access to the developers in an app namespace.
-When she was enrolling Kubernetes cluster, she saw that she can rely on `default-view` group for giving a readonly access, so she goes to the UI 
-and creates a new role, putting this content into it:
+She goes to the UI and creates a new role, putting this content into it:
 
 ```yaml
 kind: role
@@ -59,45 +112,22 @@ spec:
   allow:
     kubernetes_labels:
       'env': 'staging'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "main-company-app"
-        name: "*"
-    kubernetes_groups:
-    - default-view
-    kubernetes_users:
-    - developer
+    kubernetes_permissions:
+      - namespaces: ["main-company-app"]
+      - resources: ["pod"]
+        apiGroups: [""]
+        verbs: ["get", "list", "watch"]
   deny: {}
 ```
 
 After that Alice assigns this role to the developers she wants to try out and at this point she is done. Alice will not need to create a 
-separate role binding in Kubernetes for it to work - once the cluster is enrolled in Teleport, the default-view group binding is already there.
+separate role binding in Kubernetes for it to work - once the role is created Teleport will automatically create required Role/Binding in the
+staging Kubernetes cluster.
 
 #### Upgrade path
 
-Default roles will be exposed on the new Kubernetes clusters enrollments. To expose those roles in an already enrolled Kubernetes cluster users will 
-need to perform a manual helm chart upgrade by `helm upgrade ...` command (or manually create bindings).
-
-For users who want to avoid this default behaviour, we will add an option to the teleport-kube-agent chart and to our
-kubeconfig generation script to not create those cluster role bindings, but it will be enabled by default. 
-In the teleport-kube-agent Helm chart we will add another field to the `rbac` section, `bindDefaultRoles`, that would control whether we expose the default
-roles through cluster bindings or not.
-
-Example content of a `cluster-values.yaml` file that could be used when installing the Helm chart:
-```yaml
-roles: kube,app,discovery
-authToken: test-auth-token
-proxyAddr: tele.local:3080
-kubeClusterName: test
-rbac:
-  create: true           <-- existing setting, defaults to true
-  bindDefaultRoles: true <-- new setting, also defaults to true
-labels:
-  teleport.internal/resource-id: b34f651c-32de-45f6-86dc-ab5173f716c9
-enterprise: true
-```
-
-If either `rbac.create` or `rbac.bindDefaultRoles` is false, we won't expose the default roles.
+Existing users will not see any changes and don't need to migrate anything. To use the new feature clients will need to explicitly 
+set the new `kubernetes_permissions` field in the role definition.
 
 ### Improving Day 2 experience - Automatically provisioning RBAC resources to Kubernetes clusters.
 
@@ -211,7 +241,12 @@ service KubeProvisionService {
 Every five minutes we will run a reconciliation loop that will compare the current state on Kubernetes clusters under
 Teleport management with the desired state and update the cluster's RBAC if there's a difference. KubeProvision resources
 will be added to the KubeService cache, so we won't need to request potentially large but rarely changed resources from the 
-Auth server every reconciliation iteration.
+Auth server every reconciliation iteration. 
+
+As described in the earlier in the RFD, Teleport roles with `kubernetes_permissions` field set will also trigger the reconciliation.
+Relevant Teleport roles will be treated as a "ephemeral KubeProvision" - meaning that we will not actually create KubeProvision for them
+on the backend, but they will reuse same code paths that serves provisioning - Teleport roles will be just another source for the 
+reconciliation process.
 
 Teleport will mark RBAC resources under its control with the "app.kubernetes.io/managed-by: Teleport" label. That way we will
 separate resources managed by Teleport and those managed by the user manually.
@@ -225,10 +260,8 @@ Existing clusters will not be affected by this feature by default, since there w
 will need to make decision and create KubeProvisions resources to actively start using this feature.
 
 In order to be able to reconcile the state, Teleport will need to perform CRUD operations on Kubernetes RBAC resources.
-When performing CRUD operations, Teleport will impersonate the "default-cluster-admin" group, that was described in the previous
-section. This means that only newly enrolled
-Kubernetes clusters, or cluster where the user performed a manual upgrade of permissions will be in scope of provisioning the resources,
-since otherwise the "default-cluster-admin" role won't be available.
+When performing CRUD operations, Teleport will impersonate the "system:masters" group for most cases, but on GKE `cluster-admin` 
+group will be used instead - it is a group we create on GKE cluster enrollment, since GKE doesn't allow impersonation of `system:masters`.
 
 ## Security
 
