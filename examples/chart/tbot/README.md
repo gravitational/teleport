@@ -16,9 +16,9 @@ you use the `token` join method with this chart.
 
 ## How To
 
-### Simple configuration
+### Basic configuration
 
-This simple configuration will write a Teleport identity file to a secret in
+This basic configuration will write a Teleport identity file to a secret in
 the deployment namespace called `test-output`.
 
 ```yaml
