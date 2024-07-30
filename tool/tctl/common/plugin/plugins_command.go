@@ -86,7 +86,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 
 	p.cleanupCmd = pluginsCommand.Command("cleanup", "Cleans up the given plugin type.")
-	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports Okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
+	p.cleanupCmd.Arg("type", "The type of plugin to clean up. Only supports Okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
 	p.initInstall(pluginsCommand, config)
