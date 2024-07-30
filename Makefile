@@ -228,7 +228,6 @@ endif
 # and tsh.
 BINS_default = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
-BINS_darwin = $(subst tsh,tsh.app,$(BINS_default))
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
@@ -407,10 +406,13 @@ $(BUILDDIR)/fdpass-teleport:
 
 .PHONY: $(BUILDDIR)/tsh.app
 $(BUILDDIR)/tsh.app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
-$(BUILDDIR)/tsh.app: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh.app: APP_BUNDLE = $(BUILDDIR)/tsh.app
+$(BUILDDIR)/tsh.app: APP_BUNDLE_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
+$(BUILDDIR)/tsh.app: | $(BUILDDIR)/tsh
 	cp -r $(TSH_APP_SKELETON)/ $(BUILDDIR)/tsh.app/
 	mkdir -p "$(BUILDDIR)/tsh.app/Contents/MacOS/"
 	mv "$(BUILDDIR)/tsh" "$(BUILDDIR)/tsh.app/Contents/MacOS/."
+	$(NOTARIZE_APP_BUNDLE)
 
 #
 # BPF support (IF ENABLED)
@@ -591,8 +593,9 @@ release-darwin-unsigned: full build-archive
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release BINARIES=$(subst tsh.app,tsh,$(BINARIES)); fi
+	$(MAKE) $(BUILDDIR)/tsh.app
+	$(MAKE) build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
 # release-darwin for ARCH == universal does not build binaries, but instead
@@ -612,13 +615,13 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
-	tsh_relpath=tsh.app/Contents/MacOS/tsh
 
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
-	lipo -create -output $(BUILDDIR)/$$tsh_relpath $(BUILDDIR_arm64)/$$tsh_relpath $(BUILDDIR_amd64)/$$tsh_relpath
+	tsh_relpath=tsh.app/Contents/MacOS/tsh \
+		lipo -create -output $(BUILDDIR)/$$tsh_relpath $(BUILDDIR_arm64)/$$tsh_relpath $(BUILDDIR_amd64)/$$tsh_relpath
 	$(MAKE) ARCH=universal build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif

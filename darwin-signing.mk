@@ -114,6 +114,27 @@ define notarize_binaries_cmd
 	rm -rf $(notary_dir) $(notary_file)
 endef
 
+NOTARIZE_APP_BUNDLE = $(if $(SHOULD_NOTARIZE),$(notarize_app_bundle),$(not_notarizing_cmd))
+
+define notarize_app_bundle
+	codesign \
+		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--force \
+		--verbose \
+		--timestamp \
+		--options kill,hard,runtime \
+		--entitlements $(APP_BUNDLE_ENTITLEMENTS)
+		$(APP_BUNDLE)
+
+	ditto $(APP_BUNDLE) $(notary_dir)
+	ditto -c -k $(notary_dir) $(notary_file)
+	xcrun notarytool submit $(notary_file) \
+		--team-id="$(TEAMID)" \
+		--apple-id="$(APPLE_USERNAME)" \
+		--password="$(APPLE_PASSWORD)" \
+		--wait
+	rm $(notary_file)
+endef
 
 NOTARIZE_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_pkg),$(not_notarizing_cmd))
 
