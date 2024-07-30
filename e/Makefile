@@ -249,11 +249,19 @@ $(BUILDDIR)/tsh: KUBECTL_SETVERSION=-X k8s.io/component-base/version.gitVersion=
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
 
+TBOT_DYNAMIC :=
+ifneq ("$(FIPS)","")
+# FIPS requires cgo and dynamic linking
+	TBOT_DYNAMIC = yes
+else ifeq ("$(CGO_ENABLED)", "1")
+# The -buildmode=pie flag requires external cgo linking.
+	TBOT_DYNAMIC = yes
+endif
+
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
-# The -buildmode=pie flag requires external cgo linking.
-ifeq ("$(CGO_ENABLED)", "1")
+ifeq ("$(TBOT_DYNAMIC)", "yes")
 	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ../tool/tbot
 else
 	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
