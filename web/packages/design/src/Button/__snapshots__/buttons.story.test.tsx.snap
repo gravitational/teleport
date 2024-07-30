@@ -1,6 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`buttons 1`] = `
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c33 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1822,19 +1835,6 @@ exports[`buttons 1`] = `
 .c40:focus,
 .c40:active {
   background: #222C59;
-}
-
-.c28 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c33 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
 }
 
 .c30 {

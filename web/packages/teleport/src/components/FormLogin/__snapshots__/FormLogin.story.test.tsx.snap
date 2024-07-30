@@ -2727,26 +2727,39 @@ exports[`cloud auth2faType: on rendering 1`] = `
 `;
 
 exports[`no login enabled 1`] = `
-.c3 {
-  display: flex;
+.c5 {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+}
+
+.c3 {
+  border-radius: 8px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
-  line-height: 1.5;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
   margin: 24px;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255, 98, 87, 0.1);
+  border-color: #FF6257;
 }
 
 .c3 a {
   color: #FFFFFF;
+}
+
+.c4 {
+  border-radius: 50%;
+  line-height: 0;
+  margin-right: 16px;
+  color: #000000;
+  background: #FF6257;
+  padding: 8px;
 }
 
 .c0 {
@@ -2758,6 +2771,11 @@ exports[`no login enabled 1`] = `
   padding-top: 24px;
   padding-bottom: 24px;
   width: 500px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  flex: 1;
 }
 
 .c1 {
@@ -2777,7 +2795,16 @@ exports[`no login enabled 1`] = `
   text-align: center;
 }
 
-.c4 {
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -2785,7 +2812,7 @@ exports[`no login enabled 1`] = `
   margin-right: 24px;
 }
 
-p+.c5 {
+p+.c9 {
   margin-top: 16px;
   margin-left: 24px;
   margin-right: 24px;
@@ -2804,10 +2831,45 @@ p+.c5 {
     class="c3"
     kind="danger"
   >
-    Login has not been enabled
+    <div
+      class="c4"
+      kind="danger"
+    >
+      <span
+        class="c5 icon icon-warning"
+      >
+        <svg
+          fill="currentColor"
+          height="16"
+          viewBox="0 0 24 24"
+          width="16"
+        >
+          <path
+            d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+          />
+          <path
+            d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+          />
+          <path
+            clip-rule="evenodd"
+            d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+            fill-rule="evenodd"
+          />
+        </svg>
+      </span>
+    </div>
+    <div
+      class="c6"
+    >
+      <div
+        class="c7"
+      >
+        Login has not been enabled
+      </div>
+    </div>
   </div>
   <p
-    class="c4 c5"
+    class="c8 c9"
   >
     The ability to login has not been enabled. Please contact your system administrator for more information.
   </p>
@@ -2815,26 +2877,39 @@ p+.c5 {
 `;
 
 exports[`server error rendering 1`] = `
-.c3 {
-  display: flex;
+.c5 {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+}
+
+.c3 {
+  border-radius: 8px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
-  line-height: 1.5;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
   margin: 24px;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255, 98, 87, 0.1);
+  border-color: #FF6257;
 }
 
 .c3 a {
   color: #FFFFFF;
+}
+
+.c4 {
+  border-radius: 50%;
+  line-height: 0;
+  margin-right: 16px;
+  color: #000000;
+  background: #FF6257;
+  padding: 8px;
 }
 
 .c0 {
@@ -2848,34 +2923,39 @@ exports[`server error rendering 1`] = `
   width: 500px;
 }
 
-.c4 {
+.c6 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.c8 {
   box-sizing: border-box;
 }
 
-.c6 {
+.c10 {
   box-sizing: border-box;
   padding-left: 24px;
   padding-right: 24px;
 }
 
-.c8 {
+.c12 {
   box-sizing: border-box;
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
 }
 
-.c10 {
+.c14 {
   box-sizing: border-box;
   margin-bottom: 16px;
 }
 
-.c13 {
+.c17 {
   box-sizing: border-box;
   margin-bottom: 0;
   width: 100%;
 }
 
-.c14 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2906,8 +2986,8 @@ exports[`server error rendering 1`] = `
   width: 100%;
 }
 
-.c14:focus-visible,
-.teleport-button__force-focus-visible .c14 {
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -2915,22 +2995,22 @@ exports[`server error rendering 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c14:hover,
-.teleport-button__force-hover .c14 {
+.c18:hover,
+.teleport-button__force-hover .c18 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c14:active,
-.teleport-button__force-active .c14 {
+.c18:active,
+.teleport-button__force-active .c18 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c14:disabled {
+.c18:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -2944,7 +3024,7 @@ exports[`server error rendering 1`] = `
   background-color: #222C59;
 }
 
-.c12 {
+.c16 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
@@ -2961,31 +3041,31 @@ exports[`server error rendering 1`] = `
   margin-top: 4px;
 }
 
-.c12:hover,
-.c12:focus,
-.c12:active {
+.c16:hover,
+.c16:focus,
+.c16:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
-.c12::-ms-clear {
+.c16::-ms-clear {
   display: none;
 }
 
-.c12::placeholder {
+.c16::placeholder {
   color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
-.c12:read-only {
+.c16:read-only {
   cursor: not-allowed;
 }
 
-.c12:disabled {
+.c16:disabled {
   color: rgba(255, 255, 255, 0.36);
   border-color: rgba(255, 255, 255, 0.36);
 }
 
-.c11 {
+.c15 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -3010,18 +3090,27 @@ exports[`server error rendering 1`] = `
 }
 
 .c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.c11 {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.c9 {
+.c13 {
   display: flex;
   justify-content: center;
   flex-direction: column;
 }
 
-.c5 .prev-slide-enter {
+.c9 .prev-slide-enter {
   transform: translateX(-100%);
   opacity: 0;
   position: absolute;
@@ -3031,19 +3120,19 @@ exports[`server error rendering 1`] = `
   bottom: 0;
 }
 
-.c5 .prev-slide-enter-active {
+.c9 .prev-slide-enter-active {
   transform: translateX(0);
   opacity: 1;
   transition: transform 500ms ease;
 }
 
-.c5 .prev-slide-exit {
+.c9 .prev-slide-exit {
   transform: translateX(100%);
   opacity: 1;
   transition: transform 500ms ease;
 }
 
-.c5 .next-slide-enter {
+.c9 .next-slide-enter {
   transform: translateX(100%);
   opacity: 0;
   position: absolute;
@@ -3053,13 +3142,13 @@ exports[`server error rendering 1`] = `
   bottom: 0;
 }
 
-.c5 .next-slide-enter-active {
+.c9 .next-slide-enter-active {
   transform: translateX(0);
   opacity: 1;
   transition: transform 500ms ease;
 }
 
-.c5 .next-slide-exit {
+.c9 .next-slide-exit {
   transform: translateX(-100%);
   opacity: 1;
   transition: transform 500ms ease;
@@ -3078,35 +3167,70 @@ exports[`server error rendering 1`] = `
     class="c3"
     kind="danger"
   >
-    invalid credentials with looooooooooooooooooooooooooooooooong text
+    <div
+      class="c4"
+      kind="danger"
+    >
+      <span
+        class="c5 icon icon-warning"
+      >
+        <svg
+          fill="currentColor"
+          height="16"
+          viewBox="0 0 24 24"
+          width="16"
+        >
+          <path
+            d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+          />
+          <path
+            d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+          />
+          <path
+            clip-rule="evenodd"
+            d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+            fill-rule="evenodd"
+          />
+        </svg>
+      </span>
+    </div>
+    <div
+      class="c6"
+    >
+      <div
+        class="c7"
+      >
+        invalid credentials with looooooooooooooooooooooooooooooooong text
+      </div>
+    </div>
   </div>
   <div
-    class="c4"
+    class="c8"
     style="position: relative; height: auto; transition: height 500ms ease;"
   >
     <div
-      class="c5"
+      class="c9"
     >
       <div
-        class="c4"
+        class="c8"
       >
         <div
-          class="c6 c7"
+          class="c10 c11"
         >
           <form
-            class="c8 c9"
+            class="c12 c13"
             data-testid="userpassword"
           >
             <div
-              class="c10"
+              class="c14"
             >
               <label
-                class="c11"
+                class="c15"
               >
                 Username
                 <input
                   autocomplete="off"
-                  class="c12"
+                  class="c16"
                   inputmode="text"
                   placeholder="Username"
                   type="text"
@@ -3115,19 +3239,19 @@ exports[`server error rendering 1`] = `
               </label>
             </div>
             <div
-              class="c10"
+              class="c14"
             >
               <div
-                class="c13"
+                class="c17"
                 width="100%"
               >
                 <label
-                  class="c11"
+                  class="c15"
                 >
                   Password
                   <input
                     autocomplete="off"
-                    class="c12"
+                    class="c16"
                     inputmode="text"
                     placeholder="Password"
                     type="password"
@@ -3137,7 +3261,7 @@ exports[`server error rendering 1`] = `
               </div>
             </div>
             <button
-              class="c14"
+              class="c18"
               fill="filled"
               type="submit"
               width="100%"
@@ -3153,6 +3277,13 @@ exports[`server error rendering 1`] = `
 `;
 
 exports[`sso list still renders when local auth is disabled 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
 .c0 {
   box-sizing: border-box;
   margin-top: 32px;
@@ -3235,13 +3366,6 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
 }
 
 .c1 {
@@ -3460,6 +3584,13 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 `;
 
 exports[`sso providers rendering 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
 .c0 {
   box-sizing: border-box;
   margin-top: 32px;
@@ -3619,13 +3750,6 @@ exports[`sso providers rendering 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
 }
 
 .c1 {

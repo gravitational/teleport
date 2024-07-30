@@ -1,6 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded approved role based request state 1`] = `
+.c21 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -226,20 +240,6 @@ exports[`loaded approved role based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c21 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c12 {
@@ -803,6 +803,20 @@ exports[`loaded approved role based request state 1`] = `
 `;
 
 exports[`loaded denied role based request state 1`] = `
+.c21 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.c29 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -965,20 +979,6 @@ exports[`loaded denied role based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c21 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
-}
-
-.c29 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c12 {
@@ -1494,6 +1494,13 @@ exports[`loaded denied role based request state 1`] = `
 `;
 
 exports[`loaded pending role based request state 1`] = `
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1727,13 +1734,6 @@ exports[`loaded pending role based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
 }
 
 .c12 {
@@ -2381,6 +2381,13 @@ exports[`loaded pending role based request state 1`] = `
 `;
 
 exports[`loaded pending search based request state 1`] = `
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2623,13 +2630,6 @@ exports[`loaded pending search based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
 }
 
 .c12 {

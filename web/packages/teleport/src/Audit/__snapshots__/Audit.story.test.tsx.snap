@@ -1,6 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`list of all events 1`] = `
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c19 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
 .c6 {
   box-sizing: border-box;
   margin-bottom: 4px;
@@ -148,20 +162,6 @@ exports[`list of all events 1`] = `
 
 .c16:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c19 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  margin-right: 16px;
 }
 
 .c10 {
@@ -13455,6 +13455,20 @@ exports[`list of all events 1`] = `
 `;
 
 exports[`loaded audit log screen 1`] = `
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c18 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -13526,20 +13540,6 @@ exports[`loaded audit log screen 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c16 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c18 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  margin-right: 16px;
 }
 
 .c5 {

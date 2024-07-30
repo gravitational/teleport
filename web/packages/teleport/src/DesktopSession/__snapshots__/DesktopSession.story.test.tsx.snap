@@ -325,6 +325,26 @@ exports[`connected settings false 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -381,26 +401,6 @@ exports[`connected settings false 1`] = `
 
 .c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -663,6 +663,26 @@ exports[`connected settings true 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -719,26 +739,6 @@ exports[`connected settings true 1`] = `
 
 .c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -937,7 +937,7 @@ exports[`connected settings true 1`] = `
 `;
 
 exports[`connection error 1`] = `
-.c11 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -968,8 +968,8 @@ exports[`connection error 1`] = `
   width: 30%;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -977,22 +977,22 @@ exports[`connection error 1`] = `
   outline: none;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c15:hover,
+.teleport-button__force-hover .c15 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c15:active,
+.teleport-button__force-active .c15 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c11:disabled {
+.c15:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1000,25 +1000,38 @@ exports[`connection error 1`] = `
   cursor: auto;
 }
 
-.c10 {
-  display: flex;
+.c12 {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+}
+
+.c10 {
+  border-radius: 8px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
-  line-height: 1.5;
-  background: #039be5;
-  color: #000000;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  background: rgba(0, 158, 255, 0.1);
+  border-color: #009EFF;
 }
 
 .c10 a {
   color: #FFFFFF;
+}
+
+.c11 {
+  border-radius: 50%;
+  line-height: 0;
+  margin-right: 16px;
+  color: #000000;
+  background: #009EFF;
+  padding: 8px;
 }
 
 .c7 {
@@ -1031,6 +1044,11 @@ exports[`connection error 1`] = `
   min-height: 32px;
 }
 
+.c13 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1038,6 +1056,15 @@ exports[`connection error 1`] = `
   font-weight: 500;
   font-size: 18px;
   line-height: 24px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c8 {
@@ -1136,7 +1163,42 @@ exports[`connection error 1`] = `
           class="c10"
           kind="info"
         >
-          some tdp error
+          <div
+            class="c11"
+            kind="info"
+          >
+            <span
+              class="c12 icon icon-info"
+            >
+              <svg
+                fill="currentColor"
+                height="16"
+                viewBox="0 0 24 24"
+                width="16"
+              >
+                <path
+                  d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                />
+                <path
+                  d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                />
+                <path
+                  clip-rule="evenodd"
+                  d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="c13"
+          >
+            <div
+              class="c14"
+            >
+              some tdp error
+            </div>
+          </div>
         </div>
         Refresh the page to reconnect.
       </div>
@@ -1144,7 +1206,7 @@ exports[`connection error 1`] = `
         class="c7"
       >
         <button
-          class="c11"
+          class="c15"
           fill="filled"
           width="30%"
         >
@@ -1221,6 +1283,26 @@ exports[`disconnected 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1277,26 +1359,6 @@ exports[`disconnected 1`] = `
 
 .c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -1495,7 +1557,7 @@ exports[`disconnected 1`] = `
 `;
 
 exports[`fetch error 1`] = `
-.c11 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1526,8 +1588,8 @@ exports[`fetch error 1`] = `
   width: 30%;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -1535,22 +1597,22 @@ exports[`fetch error 1`] = `
   outline: none;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c15:hover,
+.teleport-button__force-hover .c15 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c15:active,
+.teleport-button__force-active .c15 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c11:disabled {
+.c15:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -1558,25 +1620,38 @@ exports[`fetch error 1`] = `
   cursor: auto;
 }
 
-.c10 {
-  display: flex;
+.c12 {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+}
+
+.c10 {
+  border-radius: 8px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
-  line-height: 1.5;
-  background: #039be5;
-  color: #000000;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  background: rgba(0, 158, 255, 0.1);
+  border-color: #009EFF;
 }
 
 .c10 a {
   color: #FFFFFF;
+}
+
+.c11 {
+  border-radius: 50%;
+  line-height: 0;
+  margin-right: 16px;
+  color: #000000;
+  background: #009EFF;
+  padding: 8px;
 }
 
 .c7 {
@@ -1589,6 +1664,11 @@ exports[`fetch error 1`] = `
   min-height: 32px;
 }
 
+.c13 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1596,6 +1676,15 @@ exports[`fetch error 1`] = `
   font-weight: 500;
   font-size: 18px;
   line-height: 24px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c8 {
@@ -1694,7 +1783,42 @@ exports[`fetch error 1`] = `
           class="c10"
           kind="info"
         >
-          some fetch  error
+          <div
+            class="c11"
+            kind="info"
+          >
+            <span
+              class="c12 icon icon-info"
+            >
+              <svg
+                fill="currentColor"
+                height="16"
+                viewBox="0 0 24 24"
+                width="16"
+              >
+                <path
+                  d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                />
+                <path
+                  d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                />
+                <path
+                  clip-rule="evenodd"
+                  d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="c13"
+          >
+            <div
+              class="c14"
+            >
+              some fetch  error
+            </div>
+          </div>
         </div>
         Refresh the page to reconnect.
       </div>
@@ -1702,7 +1826,7 @@ exports[`fetch error 1`] = `
         class="c7"
       >
         <button
-          class="c11"
+          class="c15"
           fill="filled"
           width="30%"
         >
@@ -1779,6 +1903,26 @@ exports[`fetch processing 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1841,26 +1985,6 @@ exports[`fetch processing 1`] = `
 
 .c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -2126,6 +2250,26 @@ exports[`processing 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2188,26 +2332,6 @@ exports[`processing 1`] = `
 
 .c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -2473,6 +2597,26 @@ exports[`tdp processing 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2535,26 +2679,6 @@ exports[`tdp processing 1`] = `
 
 .c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -2756,7 +2880,7 @@ exports[`tdp processing 1`] = `
 `;
 
 exports[`unintended disconnect 1`] = `
-.c11 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2787,8 +2911,8 @@ exports[`unintended disconnect 1`] = `
   width: 30%;
 }
 
-.c11:focus-visible,
-.teleport-button__force-focus-visible .c11 {
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -2796,22 +2920,22 @@ exports[`unintended disconnect 1`] = `
   outline: none;
 }
 
-.c11:hover,
-.teleport-button__force-hover .c11 {
+.c15:hover,
+.teleport-button__force-hover .c15 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c11:active,
-.teleport-button__force-active .c11 {
+.c15:active,
+.teleport-button__force-active .c15 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c11:disabled {
+.c15:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -2819,25 +2943,38 @@ exports[`unintended disconnect 1`] = `
   cursor: auto;
 }
 
-.c10 {
-  display: flex;
+.c12 {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+}
+
+.c10 {
+  border-radius: 8px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
-  line-height: 1.5;
-  background: #039be5;
-  color: #000000;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  background: rgba(0, 158, 255, 0.1);
+  border-color: #009EFF;
 }
 
 .c10 a {
   color: #FFFFFF;
+}
+
+.c11 {
+  border-radius: 50%;
+  line-height: 0;
+  margin-right: 16px;
+  color: #000000;
+  background: #009EFF;
+  padding: 8px;
 }
 
 .c7 {
@@ -2850,6 +2987,11 @@ exports[`unintended disconnect 1`] = `
   min-height: 32px;
 }
 
+.c13 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2857,6 +2999,15 @@ exports[`unintended disconnect 1`] = `
   font-weight: 500;
   font-size: 18px;
   line-height: 24px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .c8 {
@@ -2955,7 +3106,42 @@ exports[`unintended disconnect 1`] = `
           class="c10"
           kind="info"
         >
-          websocket disconnected for an unknown reason
+          <div
+            class="c11"
+            kind="info"
+          >
+            <span
+              class="c12 icon icon-info"
+            >
+              <svg
+                fill="currentColor"
+                height="16"
+                viewBox="0 0 24 24"
+                width="16"
+              >
+                <path
+                  d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                />
+                <path
+                  d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                />
+                <path
+                  clip-rule="evenodd"
+                  d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="c13"
+          >
+            <div
+              class="c14"
+            >
+              websocket disconnected for an unknown reason
+            </div>
+          </div>
         </div>
         Refresh the page to reconnect.
       </div>
@@ -2963,7 +3149,7 @@ exports[`unintended disconnect 1`] = `
         class="c7"
       >
         <button
-          class="c11"
+          class="c15"
           fill="filled"
           width="30%"
         >

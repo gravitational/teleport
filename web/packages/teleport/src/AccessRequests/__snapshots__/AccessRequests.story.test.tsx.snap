@@ -1,6 +1,12 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`locked 1`] = `
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -100,12 +106,6 @@ exports[`locked 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c9 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c13 {
@@ -322,7 +322,7 @@ exports[`locked 1`] = `
     </div>
   </div>
   <div
-    class="c11 c12 sc-gEvDqW c11 c13"
+    class="c11 c12 sc-fqkwJk c11 c13"
     width="auto"
   >
     <header

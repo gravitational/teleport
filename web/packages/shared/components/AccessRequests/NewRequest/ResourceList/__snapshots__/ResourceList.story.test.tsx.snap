@@ -1,6 +1,12 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render Apps 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -67,12 +73,6 @@ exports[`render Apps 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -319,6 +319,12 @@ exports[`render Apps 1`] = `
 `;
 
 exports[`render Databases 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -385,12 +391,6 @@ exports[`render Databases 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -657,6 +657,12 @@ exports[`render Databases 1`] = `
 `;
 
 exports[`render Desktops 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -723,12 +729,6 @@ exports[`render Desktops 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -947,6 +947,12 @@ exports[`render Desktops 1`] = `
 `;
 
 exports[`render Kubes 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1013,12 +1019,6 @@ exports[`render Kubes 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -1229,6 +1229,12 @@ exports[`render Kubes 1`] = `
 `;
 
 exports[`render Nodes 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1295,12 +1301,6 @@ exports[`render Nodes 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -1519,6 +1519,12 @@ exports[`render Nodes 1`] = `
 `;
 
 exports[`render Roles 1`] = `
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1667,12 +1673,6 @@ exports[`render Roles 1`] = `
 
 .c16:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c12 {
@@ -2046,6 +2046,12 @@ exports[`render Roles 1`] = `
 `;
 
 exports[`render UserGroups 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2112,12 +2118,6 @@ exports[`render UserGroups 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {

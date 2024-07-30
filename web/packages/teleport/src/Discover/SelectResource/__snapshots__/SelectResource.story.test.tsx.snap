@@ -1,6 +1,12 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render with URL loc state set to "server" 1`] = `
+.c14 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -37,12 +43,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   box-sizing: border-box;
   margin-right: 16px;
   width: 24px;
-}
-
-.c14 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c25 {
@@ -752,7 +752,7 @@ p+.c28 {
     </a>
   </div>
   <p
-    class="c27 c28 sc-eDPFhE c29"
+    class="c27 c28 sc-eldOKa c29"
   >
     Looking for something else?
      
@@ -2744,7 +2744,7 @@ p+.c22 {
     </a>
   </div>
   <p
-    class="c21 c22 sc-eDPFhE c23"
+    class="c21 c22 sc-eldOKa c23"
   >
     Looking for something else?
      
@@ -4891,7 +4891,7 @@ p+.c23 {
     </div>
   </div>
   <p
-    class="c22 c23 sc-eDPFhE c24"
+    class="c22 c23 sc-eldOKa c24"
   >
     Looking for something else?
      
@@ -7047,7 +7047,7 @@ p+.c25 {
     </a>
   </div>
   <p
-    class="c24 c25 sc-eDPFhE c26"
+    class="c24 c25 sc-eldOKa c26"
   >
     Looking for something else?
      

@@ -1,6 +1,36 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`active sessions CTA 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c30 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
+.c33 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
+.c14 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -287,36 +317,6 @@ exports[`active sessions CTA 1`] = `
 
 .c27:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c30 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  margin-right: 16px;
-}
-
-.c33 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 4px;
-}
-
-.c14 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 8px;
 }
 
 .c6 {
@@ -1309,6 +1309,36 @@ exports[`active sessions CTA 1`] = `
 `;
 
 exports[`loaded 1`] = `
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
+.c31 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1529,36 +1559,6 @@ exports[`loaded 1`] = `
 
 .c25:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c28 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  margin-right: 16px;
-}
-
-.c31 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 4px;
-}
-
-.c11 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 8px;
 }
 
 .c6 {
@@ -2507,6 +2507,36 @@ exports[`loaded 1`] = `
 `;
 
 exports[`moderated sessions CTA for non-enterprise 1`] = `
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
+.c31 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2727,36 +2757,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 
 .c25:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c28 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  margin-right: 16px;
-}
-
-.c31 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 4px;
-}
-
-.c11 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 8px;
 }
 
 .c6 {

@@ -1,6 +1,12 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`support Cloud 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
@@ -39,12 +45,6 @@ exports[`support Cloud 1`] = `
 .c16 {
   box-sizing: border-box;
   margin-bottom: 16px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -439,6 +439,12 @@ exports[`support Cloud 1`] = `
 `;
 
 exports[`support Enterprise 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
@@ -477,12 +483,6 @@ exports[`support Enterprise 1`] = `
 .c16 {
   box-sizing: border-box;
   margin-bottom: 16px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -886,6 +886,12 @@ exports[`support Enterprise 1`] = `
 `;
 
 exports[`support Enterprise with CTA 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
@@ -989,12 +995,6 @@ exports[`support Enterprise with CTA 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -1429,6 +1429,12 @@ exports[`support Enterprise with CTA 1`] = `
 `;
 
 exports[`support OSS 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
@@ -1467,12 +1473,6 @@ exports[`support OSS 1`] = `
 .c16 {
   box-sizing: border-box;
   margin-bottom: 16px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {
@@ -1868,6 +1868,12 @@ exports[`support OSS 1`] = `
 `;
 
 exports[`support OSSWithCTA 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
@@ -1971,12 +1977,6 @@ exports[`support OSSWithCTA 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {

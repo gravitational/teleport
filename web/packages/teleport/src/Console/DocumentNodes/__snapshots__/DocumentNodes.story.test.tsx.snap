@@ -1,6 +1,28 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render DocumentNodes 1`] = `
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c40 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
 .c0 {
   box-sizing: border-box;
   margin: -16px;
@@ -243,28 +265,6 @@ exports[`render DocumentNodes 1`] = `
 
 .c34:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 8px;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c40 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
-  margin-left: 4px;
 }
 
 .c37 {
