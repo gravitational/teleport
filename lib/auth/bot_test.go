@@ -194,6 +194,9 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		renewedIdent, err := tlsca.FromSubject(renewedCert.Subject, renewedCert.NotAfter)
 		require.NoError(t, err)
 
+		// Validate that we receive 2 TLS CAs (Host and User)
+		require.Len(t, certs.TLSCACerts, 2)
+
 		// Cert must be renewable.
 		require.True(t, renewedIdent.Renewable)
 		require.False(t, renewedIdent.DisallowReissue)
