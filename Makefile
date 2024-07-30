@@ -612,11 +612,13 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
+	tsh_relpath=tsh.app/Contents/MacOS/tsh
+
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
-	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
+	lipo -create -output $(BUILDDIR)/$$tsh_relpath $(BUILDDIR_arm64)/$$tsh_relpath $(BUILDDIR_amd64)/$$tsh_relpath
 	$(MAKE) ARCH=universal build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
@@ -1586,24 +1588,28 @@ ifneq ("$(OSS_TARBALL_PATH)", "")
 endif
 
 # build .pkg
+# builds two package files: tsh-$VERSION.pkg and teleport-bin-$VERSION.pkg
+# combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
+	
+	@echo Building tsh-$(VERSION).pkg
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	mv tsh*.pkg* $(BUILDDIR)/
+
+	@echo Building teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# runtime is currently ignored on OS X
 	# we pass it through for consistency - it will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	cp $(BUILDDIR)/teleport-*.pkg $(RELEASE_DIR)
-	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
-# build tsh client-only .pkg
-.PHONY: pkg-tsh
-pkg-tsh: | $(RELEASE_DIR)
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
-	mkdir -p $(BUILDDIR)/
-	mv tsh*.pkg* $(BUILDDIR)/
-	cp $(BUILDDIR)/tsh-*.pkg $(RELEASE_DIR)
+	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
+	$(call $(NOTARIZE_PKG),$(BUILDDIR)/teleport-$(VERSION).unsigned.pkg,$(RELEASE_DIR)/teleport-$(VERSION.pkg))
+
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build .rpm
 .PHONY: rpm

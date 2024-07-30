@@ -114,6 +114,24 @@ define notarize_binaries_cmd
 	rm -rf $(notary_dir) $(notary_file)
 endef
 
+
+NOTARIZE_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_pkg),$(not_notarizing_cmd))
+
+define notarize_pkg
+	$(eval $@_IN_PKG = $(1))
+	$(eval $@_OUT_PKG = $(2))
+	productsign \
+		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--timestamp \
+		$($@_IN_PKG) \
+		$($@_OUT_PKG)
+	xcrun notarytool submit $(@_OUT_PKG) \
+		--team-id="$(TEAMID)" \
+		--apple-id="$(APPLE_USERNAME)" \
+		--password="$(APPLE_PASSWORD)" \
+		--wait
+endef
+
 echo_var = @echo $(1)=\''$($(1))'\'
 
 .PHONY: print-darwin-signing-vars
