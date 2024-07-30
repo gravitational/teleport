@@ -8,7 +8,7 @@
   {{ if not .Values.token }}
     {{- required "When `customConfig` has not been set, `token` must be provided" "" }}
   {{ end }}
-  {{ if not .Values.defaultOutput.secretName }}
+  {{ if and (.Values.defaultOutput.enabled) (not .Values.defaultOutput.secretName) }}
     {{- required "When `customConfig` has not been set, `defaultOutput.secretName` must be provided" "" }}
   {{ end }}
 {{ end }}
