@@ -35,11 +35,13 @@ type Config struct {
 	// HomePath points to TELEPORT_HOME that will be used by the admin process.
 	HomePath string
 	// ClientCred are the credentials of the unprivileged process that wants to start VNet.
-	ClientCred *ClientCred
+	ClientCred ClientCred
 }
 
 // ClientCred are the credentials of the unprivileged process that wants to start VNet.
 type ClientCred struct {
+	// Valid is set if the Euid and Egid fields have been set.
+	Valid bool
 	// Egid is the effective group ID of the unprivileged process.
 	Egid int
 	// Euid is the effective user ID of the unprivileged process.
@@ -56,7 +58,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing DNS address")
 	case c.HomePath == "":
 		return trace.BadParameter("missing home path")
-	case c.ClientCred == nil:
+	case c.ClientCred.Valid == false:
 		return trace.BadParameter("missing client credentials")
 	}
 	return nil

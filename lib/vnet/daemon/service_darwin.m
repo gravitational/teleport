@@ -25,6 +25,21 @@
 
 #include <string.h>
 
+@interface VNEClientCred : NSObject
+{
+  BOOL valid;
+  gid_t egid;
+  uid_t euid;
+}
+@property(nonatomic, readwrite) BOOL valid;
+@property(nonatomic, readwrite) gid_t egid;
+@property(nonatomic, readwrite) uid_t euid;
+@end
+
+@implementation VNEClientCred
+@synthesize valid,egid,euid;
+@end
+
 @interface VNEDaemonService () <NSXPCListenerDelegate, VNEDaemonProtocol>
 
 @property(nonatomic, strong, readwrite) NSXPCListener *listener;
@@ -37,8 +52,7 @@
 @property(nonatomic, readwrite) NSString *ipv6Prefix;
 @property(nonatomic, readwrite) NSString *dnsAddr;
 @property(nonatomic, readwrite) NSString *homePath;
-@property(nonatomic, readwrite) gid_t egid;
-@property(nonatomic, readwrite) uid_t euid;
+@property(nonatomic, readwrite) VNEClientCred *clientCred;
 @property(nonatomic, readwrite) dispatch_semaphore_t gotVnetConfigSema;
 
 @end
@@ -109,8 +123,10 @@
     _homePath = @(vnetConfig->home_path);
 
     NSXPCConnection *currentConn = [NSXPCConnection currentConnection];
-    _egid = [currentConn effectiveGroupIdentifier];
-    _euid = [currentConn effectiveUserIdentifier];
+    _clientCred = [[VNEClientCred alloc] init];
+    [_clientCred setEgid:[currentConn effectiveGroupIdentifier]];
+    [_clientCred setEuid:[currentConn effectiveUserIdentifier]];
+    [_clientCred setValid:YES];
 
     dispatch_semaphore_signal(_gotVnetConfigSema);
     completion(nil);
@@ -164,7 +180,7 @@ void DaemonStop(void) {
   }
 }
 
-void WaitForVnetConfig(VnetConfigResult *outResult) {
+void WaitForVnetConfig(VnetConfigResult *outResult, ClientCred *outClientCred) {
   if (!daemonService) {
     outResult->error_description = strdup("daemon was not initialized yet");
     return;
@@ -186,8 +202,13 @@ void WaitForVnetConfig(VnetConfigResult *outResult) {
     outResult->ipv6_prefix = VNECopyNSString([daemonService ipv6Prefix]);
     outResult->dns_addr = VNECopyNSString([daemonService dnsAddr]);
     outResult->home_path = VNECopyNSString([daemonService homePath]);
-    outResult->egid = [daemonService egid];
-    outResult->euid = [daemonService euid];
+
+    if ([daemonService clientCred] && [[daemonService clientCred] valid]) {
+      outClientCred->egid = [[daemonService clientCred] egid];
+      outClientCred->euid = [[daemonService clientCred] euid];
+      outClientCred->valid = true;
+    }
+    
     outResult->ok = true;
   }
 }
