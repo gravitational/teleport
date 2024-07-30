@@ -112,9 +112,10 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		IPv6Prefix: c.ipv6Prefix,
 		DNSAddr:    c.dnsAddr,
 		HomePath:   homePath,
-		ClientCred: &daemon.ClientCred{
-			Egid: c.egid,
-			Euid: c.euid,
+		ClientCred: daemon.ClientCred{
+			Valid: true,
+			Egid:  c.egid,
+			Euid:  c.euid,
 		},
 	}
 

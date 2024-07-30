@@ -240,7 +240,7 @@ func AdminSetup(ctx context.Context, config daemon.Config) error {
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, *config.ClientCred))
+		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, config.ClientCred))
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
