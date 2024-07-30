@@ -24,6 +24,8 @@ import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
+import { P } from 'design/Text/Text';
+
 import {
   ActionButtons,
   HeaderSubtitle,
@@ -102,12 +104,11 @@ export function CreateDatabaseView({
           </HeaderSubtitle>
           {!canCreateDatabase && (
             <Box>
-              <Text>
-                You don't have permission to register a database.
-                <br />
+              <P>You don't have permission to register a database.</P>
+              <P>
                 Please ask your Teleport administrator to update your role and
                 add the <Mark>db</Mark> rule:
-              </Text>
+              </P>
               <Flex minHeight="195px" mt={3}>
                 <TextEditor
                   readOnly={true}

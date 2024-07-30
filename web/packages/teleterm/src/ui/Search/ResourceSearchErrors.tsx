@@ -58,7 +58,7 @@ export function ResourceSearchErrors(props: {
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
-        <Text typography="body1" color="text.slightlyMuted">
+        <Text typography="body2" color="text.slightlyMuted">
           <pre
             css={`
               padding: ${props => props.theme.space[2]}px;

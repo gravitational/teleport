@@ -4782,6 +4782,9 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+  // ClientUserAgent is the user agent of the Web browser, used for issuing
+  // a DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5282,6 +5285,11 @@ message RegisterUsingTokenRequest {
   // service and is ignored otherwise; bots should otherwise rejoin with their
   // existing client certificate to prove their instance identity.
   string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
