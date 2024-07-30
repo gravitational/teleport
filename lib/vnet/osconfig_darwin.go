@@ -147,6 +147,13 @@ func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn fun
 	rootEgid := os.Getegid()
 	rootEuid := os.Geteuid()
 
+	log.InfoContext(ctx, "Temporarily dropping root privileges.", "egid", c.daemonClientCred.Egid, "euid", c.daemonClientCred.Euid)
+	defer func() {
+		if err == nil {
+			log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
+		}
+	}()
+
 	if err := syscall.Setegid(c.daemonClientCred.Egid); err != nil {
 		return trace.Wrap(err, "setting egid")
 	}
@@ -161,13 +168,6 @@ func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn fun
 	defer func() {
 		syscallErr := trace.Wrap(syscall.Seteuid(rootEuid), "reverting euid")
 		err = trace.NewAggregate(err, syscallErr)
-	}()
-
-	log.InfoContext(ctx, "Temporarily dropping root privileges.", "egid", c.daemonClientCred.Egid, "euid", c.daemonClientCred.Euid)
-	defer func() {
-		if err == nil {
-			log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
-		}
 	}()
 
 	return trace.Wrap(fn())
