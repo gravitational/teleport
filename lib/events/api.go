@@ -799,6 +799,13 @@ const (
 	PluginUpdateEvent = "plugin.update"
 	// PluginDeleteEvent is emitted when a plugin resource is deleted.
 	PluginDeleteEvent = "plugin.delete"
+
+	// StaticHostUserCreateEvent is emitted when a static host user resource is created.
+	StaticHostUserCreateEvent = "static_host_user.create"
+	//StaticHostUserUpdateEvent is emitted when a static host user resource is updated.
+	StaticHostUserUpdateEvent = "static_host_user.update"
+	// StaticHostUserDeleteEvent is emitted when a static host user resource is deleted.
+	StaticHostUserDeleteEvent = "static_host_user.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

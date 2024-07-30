@@ -107,9 +107,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SESSION_COMMAND]: Icons.Cli,
   [eventCodes.SESSION_PROCESS_EXIT]: Icons.Cli,
   [eventCodes.SESSION_CONNECT]: Icons.Cli,
-  [eventCodes.USER_CREATED]: Icons.Info,
-  [eventCodes.USER_UPDATED]: Icons.Info,
-  [eventCodes.USER_DELETED]: Icons.Info,
+  [eventCodes.USER_CREATED]: Icons.User,
+  [eventCodes.USER_UPDATED]: Icons.User,
+  [eventCodes.USER_DELETED]: Icons.User,
   [eventCodes.BOT_CREATED]: Icons.Info,
   [eventCodes.BOT_UPDATED]: Icons.Info,
   [eventCodes.BOT_DELETED]: Icons.Info,
@@ -288,6 +288,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.INTEGRATION_CREATE]: Icons.Info,
   [eventCodes.INTEGRATION_UPDATE]: Icons.Info,
   [eventCodes.INTEGRATION_DELETE]: Icons.Info,
+  [eventCodes.STATIC_HOST_USER_CREATE]: Icons.User,
+  [eventCodes.STATIC_HOST_USER_UPDATE]: Icons.User,
+  [eventCodes.STATIC_HOST_USER_DELETE]: Icons.User,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

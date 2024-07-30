@@ -48,7 +48,9 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -58,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -127,6 +130,7 @@ type testPack struct {
 	crownJewels             services.CrownJewels
 	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
+	staticHostUsers         services.StaticHostUser
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -148,6 +152,7 @@ type testFuncs153[T types.Resource153] struct {
 	cacheGet    func(context.Context, string) (T, error)
 	cacheList   func(context.Context) ([]T, error)
 	update      func(context.Context, T) error
+	delete      func(context.Context, string) error
 	deleteAll   func(context.Context) error
 }
 
@@ -349,6 +354,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.notifications = notificationsSvc
 
+	staticHostUserService, err := local.NewStaticHostUserService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.staticHostUsers = staticHostUserService
+
 	return p, nil
 }
 
@@ -396,6 +407,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		CrownJewels:             p.crownJewels,
 		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -608,6 +620,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		StaticHostUsers:         p.staticHostUsers,
 		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
@@ -800,6 +813,7 @@ func TestCompletenessInit(t *testing.T) {
 			CrownJewels:             p.crownJewels,
 			DatabaseObjects:         p.databaseObjects,
 			SPIFFEFederations:       p.spiffeFederations,
+			StaticHostUsers:         p.staticHostUsers,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -878,6 +892,7 @@ func TestCompletenessReset(t *testing.T) {
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1082,6 +1097,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1171,6 +1187,7 @@ func initStrategy(t *testing.T) {
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2672,6 +2689,34 @@ func TestGlobalNotifications(t *testing.T) {
 	})
 }
 
+// TestStaticHostUsers tests that CRUD operations on static host user resources are
+// replicated from the backend to the cache.
+func TestStaticHostUsers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*userprovisioningpb.StaticHostUser]{
+		newResource: func(name string) (*userprovisioningpb.StaticHostUser, error) {
+			return newStaticHostUser(t, name), nil
+		},
+		create: func(ctx context.Context, item *userprovisioningpb.StaticHostUser) error {
+			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
+			items, _, err := p.staticHostUsers.ListStaticHostUsers(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
+			items, _, err := p.cache.ListStaticHostUsers(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.cache.staticHostUsersCache.DeleteAllStaticHostUsers,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2764,18 +2809,21 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		protocmp.Transform(),
 	}
 
+	assertCacheContents := func(expected []T) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			out, err := funcs.cacheList(ctx)
+			assert.NoError(collect, err)
+			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
+		}, 2*time.Second, 250*time.Millisecond)
+	}
+
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{r})
 
 	// cacheGet is optional as not every resource implements it
 	if funcs.cacheGet != nil {
@@ -2800,24 +2848,25 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{r})
+
+	if funcs.delete != nil {
+		// Add a second resource.
+		r2, err := funcs.newResource("test-resource-2")
+		require.NoError(t, err)
+		require.NoError(t, funcs.create(ctx, r2))
+		assertCacheContents([]T{r, r2})
+		// Check that only one resource is deleted.
+		require.NoError(t, funcs.delete(ctx, r2.GetMetadata().Name))
+		assertCacheContents([]T{r})
+	}
 
 	// Remove all resources from the backend.
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		assert.Empty(t, out)
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{})
 }
 
 func TestRelativeExpiry(t *testing.T) {
@@ -3247,6 +3296,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3774,6 +3824,23 @@ func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonito
 		},
 	}
 	return notification
+}
+
+func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHostUser {
+	t.Helper()
+	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+		Matchers: []*userprovisioningpb.Matcher{
+			{
+				NodeLabels: []*labelv1.Label{
+					{
+						Name:   "foo",
+						Values: []string{"bar"},
+					},
+				},
+				Groups: []string{"foo", "bar"},
+			},
+		},
+	})
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
