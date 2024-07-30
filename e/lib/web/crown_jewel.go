@@ -8,6 +8,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth/crownjewel"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
@@ -66,7 +67,7 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 
 	p.Log.Debug("Crown jewel created", "resp", resp)
 
-	return `{"status": "ok"}`, nil
+	return ui.ToCrownJewel(resp), nil
 }
 
 func (p *Plugin) deleteCrownJewel(_ http.ResponseWriter, r *http.Request, params httprouter.Params, webCtx *web.SessionContext) (any, error) {
