@@ -80,6 +80,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  insecure_allowed_cidr_ranges:
+                    description: a list of CIDRs allowed for HTTP or HTTPS client
+                      redirect URLs
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                 type: object
               client_secret:
                 description: ClientSecret is used to authenticate the client.
