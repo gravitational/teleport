@@ -882,14 +882,38 @@ func ExtractFromIdentity(ctx context.Context, access UserGetter, identity tlsca.
 	return identity.Groups, identity.Traits, nil
 }
 
+type fetchRolesOptions struct {
+	continueIfRoleDoesntExists bool
+}
+
+// FetchRolesOption is a functional option for FetchRoleList
+type FetchRolesOption func(*fetchRolesOptions)
+
+// WithContinueIfRoleDoesntExists is an option that allows the caller to
+// continue if a role doesn't exist. This is useful when the caller wants to
+// fetch multiple roles and some of them may not exist.
+func WithContinueIfRoleDoesntExists() FetchRolesOption {
+	return func(o *fetchRolesOptions) {
+		o.continueIfRoleDoesntExists = true
+	}
+}
+
 // FetchRoleList fetches roles by their names, applies the traits to role
 // variables, and returns the list
-func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
+func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]string, opts ...FetchRolesOption) (RoleSet, error) {
 	var roles []types.Role
+
+	var options fetchRolesOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 
 	for _, roleName := range roleNames {
 		role, err := access.GetRole(context.TODO(), roleName)
 		if err != nil {
+			if trace.IsNotFound(err) && options.continueIfRoleDoesntExists {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
 		role, err = ApplyTraits(role, traits)
@@ -905,8 +929,8 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 // FetchRoles fetches roles by their names, applies the traits to role
 // variables, and returns the RoleSet. Adds runtime roles like the default
 // implicit role to RoleSet.
-func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
-	roles, err := FetchRoleList(roleNames, access, traits)
+func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string, opts ...FetchRolesOption) (RoleSet, error) {
+	roles, err := FetchRoleList(roleNames, access, traits, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

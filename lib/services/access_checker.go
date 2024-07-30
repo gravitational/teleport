@@ -310,7 +310,7 @@ type accessChecker struct {
 //   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
 //     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
-	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	roleSet, err := FetchRoles(info.Roles, access, info.Traits, WithContinueIfRoleDoesntExists())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
