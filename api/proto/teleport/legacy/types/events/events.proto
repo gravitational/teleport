@@ -4369,6 +4369,9 @@ message OneOf {
     events.DiscoveryConfigDelete DiscoveryConfigDelete = 162;
     events.DiscoveryConfigDeleteAll DiscoveryConfigDeleteAll = 163;
     events.AccessGraphSettingsUpdate AccessGraphSettingsUpdate = 164;
+    events.IntegrationCreate IntegrationCreate = 165;
+    events.IntegrationUpdate IntegrationUpdate = 166;
+    events.IntegrationDelete IntegrationDelete = 167;
   }
 }
 

@@ -364,14 +364,14 @@ func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
 	page, next, err := service.ListResources(ctx, 1, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "ID"),
 	))
 	require.Equal(t, next, "another-unique-prefix"+string(backend.Separator)+r2.GetName())
 
 	page, next, err = service.ListResources(ctx, 1, next)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "ID"),
 	))
 	require.Empty(t, next)
 
@@ -380,14 +380,14 @@ func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
 	page, next, err = service.WithPrefix("a-unique-prefix").ListResources(ctx, 1, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "ID"),
 	))
 	require.Equal(t, next, r2.GetName())
 
 	page, next, err = service.WithPrefix("a-unique-prefix").ListResources(ctx, 1, next)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "ID"),
 	))
 	require.Empty(t, next)
 }

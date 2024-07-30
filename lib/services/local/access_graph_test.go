@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	accessgraphsecretspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/accessgraph"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -89,6 +90,7 @@ func TestAccessGraphAuthorizedKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(authKeys, keys,
 		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id"),
 		cmpopts.SortSlices(func(a, b *accessgraphsecretspb.AuthorizedKey) bool {
 			return a.Metadata.Name < b.Metadata.Name
 		})))
@@ -196,6 +198,7 @@ func TestAccessGraphPrivateKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(authKeys, keys,
 		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id"),
 		cmpopts.SortSlices(func(a, b *accessgraphsecretspb.PrivateKey) bool {
 			return a.Metadata.Name < b.Metadata.Name
 		})))

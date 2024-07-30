@@ -1902,8 +1902,8 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			testSetup: func(t *testing.T) {
 				m := modules.TestModules{
 					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+						Policy: modules.PolicyFeature{
+							Enabled: true,
 						},
 					},
 				}
@@ -2060,8 +2060,8 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 			testSetup: func(t *testing.T) {
 				m := modules.TestModules{
 					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+						Policy: modules.PolicyFeature{
+							Enabled: true,
 						},
 					},
 				}
@@ -2185,8 +2185,8 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 			testSetup: func(t *testing.T) {
 				m := modules.TestModules{
 					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+						Policy: modules.PolicyFeature{
+							Enabled: true,
 						},
 					},
 				}
@@ -2279,8 +2279,8 @@ func TestResetAccessGraphSettings(t *testing.T) {
 			testSetup: func(t *testing.T) {
 				m := modules.TestModules{
 					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+						Policy: modules.PolicyFeature{
+							Enabled: true,
 						},
 					},
 				}
