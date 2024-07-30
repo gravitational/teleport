@@ -42,24 +42,11 @@ message SPIFFEFederationBundleSourceHTTPSWeb {
   string bundle_endpoint_url = 1;
 }
 
-// SPIFFEFederationBundleSourceHTTPSSPIFFE is a bundle source that fetches the bundle
-// from a HTTPS endpoint that is protected by a SPIFFE certificate that is
-// "self-served" (i.e. the SPIFFE certificate is issued by the same trust domain
-// that the bundle is for).
-message SPIFFEFederationBundleSourceHTTPSSPIFFE {
-  // The URL of the SPIFFE Bundle Endpoint.
-  string bundle_endpoint_url = 1;
-  // The initial SPIFFE bundle that is used to bootstrap the connection to the
-  // bundle endpoint. After the first sync, this field will no longer be used.
-  string bundle_bootstrap = 2;
-}
-
 // SPIFFEFederationBundleSource configures how the federation bundle is sourced.
 // Only one field can be set.
 message SPIFFEFederationBundleSource {
   SPIFFEFederationBundleSourceStatic static = 1;
   SPIFFEFederationBundleSourceHTTPSWeb https_web = 2;
-  SPIFFEFederationBundleSourceHTTPSSPIFFE https_spiffe = 3;
 }
 
 // SPIFFEFederationSpec is the configuration of a trust domain federation.

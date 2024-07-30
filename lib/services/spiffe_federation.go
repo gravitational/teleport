@@ -25,7 +25,7 @@ import (
 // SPIFFEFederation is an interface for the SPIFFEFederation service.
 type SPIFFEFederation interface {
 	// CreateBotInstance
-	CreateSPIFFEFederation(ctx context.Context, botInstance *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
+	CreateSPIFFEFederation(ctx context.Context, spiffeFederation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
 
 	// GetBotInstance
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
