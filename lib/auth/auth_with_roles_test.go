@@ -8400,6 +8400,7 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 }
 
 func TestLocalUserAuthIfRoleDoesntExist(t *testing.T) {
+	t.Parallel()
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	ctx := context.Background()
