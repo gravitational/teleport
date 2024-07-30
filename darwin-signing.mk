@@ -123,11 +123,10 @@ define notarize_app_bundle
 		--verbose \
 		--timestamp \
 		--options kill,hard,runtime \
-		--entitlements $(APP_BUNDLE_ENTITLEMENTS)
+		--entitlements $(APP_BUNDLE_ENTITLEMENTS) \
 		$(APP_BUNDLE)
 
-	ditto $(APP_BUNDLE) $(notary_dir)
-	ditto -c -k $(notary_dir) $(notary_file)
+	ditto -c -k --keepParent $(APP_BUNDLE) $(notary_file)
 	xcrun notarytool submit $(notary_file) \
 		--team-id="$(TEAMID)" \
 		--apple-id="$(APPLE_USERNAME)" \
