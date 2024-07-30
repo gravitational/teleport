@@ -740,8 +740,8 @@ func authClientForCerts(t *testing.T, ctx context.Context, addr *utils.NetAddr, 
 }
 
 // instanceIDFromCerts parses a TLS identity from the certificates and returns
-// the embedded BotInstanceID, if any.
-func instanceIDFromCerts(t *testing.T, certs *proto.Certs) string {
+// the embedded BotInstanceID and generation, if any.
+func instanceIDFromCerts(t *testing.T, certs *proto.Certs) (string, uint64) {
 	t.Helper()
 
 	cert, err := tlsca.ParseCertificatePEM(certs.TLS)
@@ -750,7 +750,7 @@ func instanceIDFromCerts(t *testing.T, certs *proto.Certs) string {
 	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 
-	return ident.BotInstanceID
+	return ident.BotInstanceID, ident.Generation
 }
 
 // registerHelper calls `join.Register` with the given token, prefilling params
@@ -889,13 +889,15 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		p.KubernetesReadFileFunc = k8sReadFileFunc
 	})
 	require.NoError(t, err)
-	initialK8sInstanceID := instanceIDFromCerts(t, k8sCerts)
+	initialK8sInstanceID, initialK8sGeneration := instanceIDFromCerts(t, k8sCerts)
 	require.NotEmpty(t, initialK8sInstanceID)
+	require.Equal(t, uint64(1), initialK8sGeneration)
 
 	awsCerts, err := registerHelper(ctx, awsToken, addr, tlsPublicKey, sshPublicKey)
 	require.NoError(t, err)
-	initialAWSInstanceID := instanceIDFromCerts(t, awsCerts)
+	initialAWSInstanceID, initialAWSGeneration := instanceIDFromCerts(t, awsCerts)
 	require.NotEmpty(t, initialAWSInstanceID)
+	require.Equal(t, uint64(1), initialAWSGeneration)
 
 	// They should be issued unique IDs despite being the same bot.
 	require.NotEqual(t, initialK8sInstanceID, initialAWSInstanceID, "instance IDs must not be the same when no client certs are provided")
@@ -908,7 +910,10 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		p.AuthClient = k8sClient
 	})
 	require.NoError(t, err)
-	require.Equal(t, initialK8sInstanceID, instanceIDFromCerts(t, rejoinedK8sCerts))
+
+	rejoinedK8sID, rejoinedK8sGeneration := instanceIDFromCerts(t, rejoinedK8sCerts)
+	require.Equal(t, initialK8sInstanceID, rejoinedK8sID)
+	require.Equal(t, uint64(2), rejoinedK8sGeneration)
 
 	// Repeat for the AWS client. Note that the AWS client is routed through the
 	// join service, the instance ID must be provided to auth by the proxy as
@@ -918,7 +923,10 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		p.AuthClient = iamClient
 	})
 	require.NoError(t, err)
-	require.Equal(t, initialAWSInstanceID, instanceIDFromCerts(t, rejoinedAWSCerts))
+
+	rejoinedAWSID, rejoinedAWSGeneration := instanceIDFromCerts(t, rejoinedAWSCerts)
+	require.Equal(t, initialAWSInstanceID, rejoinedAWSID)
+	require.Equal(t, uint64(2), rejoinedAWSGeneration)
 
 	// Last, try to lie to auth. The k8s value should be overwritten with the
 	// correct instance ID since auth can directly inspect the client identity.
@@ -934,7 +942,10 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		BotInstanceID: initialAWSInstanceID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, initialK8sInstanceID, instanceIDFromCerts(t, certs))
+
+	rejoinedK8sID, rejoinedK8sGeneration = instanceIDFromCerts(t, certs)
+	require.Equal(t, initialK8sInstanceID, rejoinedK8sID)
+	require.Equal(t, uint64(3), rejoinedK8sGeneration)
 
 	// Note: Lying via IAM join not tested as that must be routed through the
 	// join service (along with Azure and TPM).
@@ -1024,9 +1035,10 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should not issue certs with an obviously invalid instance ID, or no ID.
-	id := instanceIDFromCerts(t, certs)
+	id, generation := instanceIDFromCerts(t, certs)
 	require.NotEmpty(t, id)
 	require.NotEqual(t, "foo", id)
+	require.Equal(t, uint64(1), generation)
 
 	// Try registering with a non-proxy client; this is untrusted and the
 	// client-provided ID should be discarded.
@@ -1044,9 +1056,236 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	// generated.
 	require.NoError(t, err)
 
-	id = instanceIDFromCerts(t, certs)
+	id, generation = instanceIDFromCerts(t, certs)
 	require.NotEmpty(t, id)
 	require.NotEqual(t, "foo", id)
+	require.Equal(t, uint64(1), generation)
+}
+
+func TestRegisterBotMultipleTokens(t *testing.T) {
+	// TODO: Enable parallel once the experiment is removed
+	//  t.Parallel()
+
+	experimentBefore := experiment.Enabled()
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	srv := newTestTLSServer(t)
+
+	// Initial setup, create a bot and join token.
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tokenA, err := types.NewProvisionTokenFromSpec("a", time.Time{}, types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: bot.Metadata.Name,
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.CreateToken(ctx, tokenA))
+
+	tokenB, err := types.NewProvisionTokenFromSpec("b", time.Time{}, types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: bot.Metadata.Name,
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.CreateToken(ctx, tokenB))
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	certsA, err := join.Register(ctx, join.RegisterParams{
+		Token: tokenA.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
+	})
+	require.NoError(t, err)
+
+	initialInstanceA, _ := instanceIDFromCerts(t, certsA)
+	require.NotEmpty(t, initialInstanceA)
+
+	tlsA, err := tls.X509KeyPair(certsA.TLS, privateKey)
+	require.NoError(t, err)
+
+	certsB, err := join.Register(ctx, join.RegisterParams{
+		Token: tokenB.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
+	})
+	require.NoError(t, err)
+
+	initialInstanceB, _ := instanceIDFromCerts(t, certsB)
+	require.NotEmpty(t, initialInstanceB)
+
+	require.NotEqual(t, initialInstanceA, initialInstanceB)
+
+	tlsB, err := tls.X509KeyPair(certsB.TLS, privateKey)
+	require.NoError(t, err)
+
+	for i := 0; i < 6; i++ {
+		_, certsA, tlsA, err = renewBotCerts(ctx, srv, tlsA, bot.Status.UserName, publicKey, privateKey)
+		require.NoError(t, err)
+
+		instanceA, generationA := instanceIDFromCerts(t, certsA)
+		require.Equal(t, initialInstanceA, instanceA)
+		require.Equal(t, uint64(i+2), generationA)
+
+		// Only renew bot B 3x.
+		if i < 3 {
+			_, certsB, tlsB, err = renewBotCerts(ctx, srv, tlsB, bot.Status.UserName, publicKey, privateKey)
+			require.NoError(t, err)
+
+			instanceB, generationB := instanceIDFromCerts(t, certsB)
+			require.Equal(t, initialInstanceB, instanceB)
+			require.Equal(t, uint64(i+2), generationB)
+		}
+	}
+
+	// Renew B again. This will be the final renewal, but the legacy generation
+	// counter on the user will be greater as it should have been incremented by
+	// bot A.
+	_, certsB, _, err = renewBotCerts(ctx, srv, tlsB, bot.Status.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	instanceB, generationB := instanceIDFromCerts(t, certsB)
+	require.Equal(t, initialInstanceB, instanceB)
+	require.Equal(t, uint64(5), generationB)
+
+	botUser, err := client.GetUser(ctx, bot.Status.UserName, false)
+	require.NoError(t, err)
+	genStr := botUser.BotGenerationLabel()
+	require.Equal(t, "7", genStr)
+}
+
+func TestRegisterBotGenerationCounterUpgradeDowngrade(t *testing.T) {
+	// Note, sadly we won't be able to keep this test without an experiment flag
+	// to toggle, so it'll be short lived.
+	experimentBefore := experiment.Enabled()
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	srv := newTestTLSServer(t)
+
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// Create a new bot.
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: bot.Metadata.Name,
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.CreateToken(ctx, token))
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	// First, with the experiment disabled, join a bot
+	experiment.SetEnabled(false)
+
+	certs, err := join.Register(ctx, join.RegisterParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
+	})
+	require.NoError(t, err)
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	require.NoError(t, err)
+
+	// It should have no instance ID but should have a sane generation counter.
+	instanceID, generation := instanceIDFromCerts(t, certs)
+	require.Empty(t, instanceID)
+	require.Equal(t, uint64(1), generation)
+
+	// Increment the counter once for good measure
+	_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	instanceID, generation = instanceIDFromCerts(t, certs)
+	require.Empty(t, instanceID)
+	require.Equal(t, uint64(2), generation)
+
+	// Enable the experiment and try again. The bot should be issued a new
+	// instance ID, but the counter should be retained.
+	experiment.SetEnabled(true)
+
+	_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	instanceID, generation = instanceIDFromCerts(t, certs)
+	require.NotEmpty(t, instanceID)
+	require.Equal(t, uint64(3), generation)
+
+	_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	instanceID, generation = instanceIDFromCerts(t, certs)
+	require.NotEmpty(t, instanceID)
+	require.Equal(t, uint64(4), generation)
+
+	// Toggle the experiment off again and
+	experiment.SetEnabled(false)
+
+	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	instanceID, generation = instanceIDFromCerts(t, certs)
+	require.Empty(t, instanceID)
+	require.Equal(t, uint64(5), generation)
 }
 
 func checkCertLoginIP(t *testing.T, certBytes []byte, loginIP string) {
