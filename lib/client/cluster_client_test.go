@@ -187,10 +187,11 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
-				require.NotEmpty(t, keyRing.KubeTLSCredentials["test"])
-				cert, err := tlsca.ParseCertificatePEM(keyRing.KubeTLSCredentials["test"].Cert)
+				cred := keyRing.KubeTLSCredentials["test"]
+				require.NotEmpty(t, cred)
+				cert, err := cred.TLSCertificate()
 				require.NoError(t, err)
-				require.Equal(t, cert.PublicKeyAlgorithm, x509.ECDSA)
+				require.Equal(t, x509.ECDSA, cert.Leaf.PublicKeyAlgorithm)
 			},
 		},
 		{
@@ -202,10 +203,11 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
-				require.NotEmpty(t, keyRing.KubeTLSCredentials["test"])
-				cert, err := tlsca.ParseCertificatePEM(keyRing.KubeTLSCredentials["test"].Cert)
+				cred := keyRing.KubeTLSCredentials["test"]
+				require.NotEmpty(t, cred)
+				cert, err := cred.TLSCertificate()
 				require.NoError(t, err)
-				require.Equal(t, cert.PublicKeyAlgorithm, x509.RSA)
+				require.Equal(t, x509.RSA, cert.Leaf.PublicKeyAlgorithm)
 			},
 		},
 		{
@@ -249,10 +251,11 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
-				require.NotEmpty(t, keyRing.DBTLSCredentials["test"])
-				cert, err := tlsca.ParseCertificatePEM(keyRing.DBTLSCredentials["test"].Cert)
+				cred := keyRing.DBTLSCredentials["test"]
+				require.NotEmpty(t, cred)
+				cert, err := cred.TLSCertificate()
 				require.NoError(t, err)
-				require.Equal(t, cert.PublicKeyAlgorithm, x509.RSA)
+				require.Equal(t, x509.RSA, cert.Leaf.PublicKeyAlgorithm)
 			},
 		},
 		{
