@@ -36,3 +36,17 @@ type SPIFFEFederation interface {
 	// DeleteBotInstance
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
 }
+
+// MarshalSPIFFEFederation marshals the SPIFFEFederation object into a JSON byte array.
+func MarshalSPIFFEFederation(object *machineidv1.SPIFFEFederation, opts ...MarshalOption) ([]byte, error) {
+	return MarshalProtoResource(object, opts...)
+}
+
+// UnmarshalSPIFFEFederation unmarshals the CrownJewel object from a JSON byte array.
+func UnmarshalSPIFFEFederation(data []byte, opts ...MarshalOption) (*machineidv1.SPIFFEFederation, error) {
+	return UnmarshalProtoResource[*machineidv1.SPIFFEFederation](data, opts...)
+}
+
+func ValidateSPIFFEFederation(object *machineidv1.SPIFFEFederation) error {
+
+}

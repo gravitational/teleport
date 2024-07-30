@@ -56,7 +56,7 @@ func NewSPIFFEFederationService(
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "bot_instance.service")
+		cfg.Logger = slog.With(teleport.ComponentKey, "spiffe_federation.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -150,6 +150,9 @@ func (s *SPIFFEFederationService) DeleteSPIFFEFederation(
 	if err := authCtx.CheckAccessToKind(types.KindSPIFFEFederation, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
@@ -172,6 +175,9 @@ func (s *SPIFFEFederationService) CreateSPIFFEFederation(
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.CheckAccessToKind(types.KindSPIFFEFederation, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
