@@ -25,6 +25,8 @@ import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import { P } from 'design/Text/Text';
+
 import {
   integrationService,
   SecurityGroup,
@@ -103,13 +105,13 @@ export const SelectSecurityGroups = ({
 
   return (
     <>
-      <Text bold>Select Security Groups</Text>
-      <Text mb={2}>
+      <P mb={2}>
         Select security groups to assign to the Fargate service that will be
         running the database access agent. The security groups you pick must
         allow outbound connectivity to this Teleport cluster. If you don't
         select any security groups, the default one for the VPC will be used.
-      </Text>
+      </P>
+      {/* TODO(bl-nero): Convert this to an alert box with embedded retry button */}
       {attempt.status === 'failed' && (
         <>
           <Flex my={3}>

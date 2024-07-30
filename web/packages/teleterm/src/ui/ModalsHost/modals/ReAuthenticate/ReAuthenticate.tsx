@@ -135,7 +135,7 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text typography="body1" color="text.slightlyMuted">
+                <Text color="text.slightlyMuted">
                   {req.reason}
                   {isLeafCluster && ` from trusted cluster "${clusterName}"`}
                 </Text>

@@ -54,7 +54,7 @@ export function AdditionalOptions({
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Text mr={2} fontSize={1}>
+        <Text mr={2} typography="body3">
           Additional Options
         </Text>
         <ButtonIcon

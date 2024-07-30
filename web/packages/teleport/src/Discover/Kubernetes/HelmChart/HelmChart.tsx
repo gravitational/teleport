@@ -18,11 +18,13 @@
 
 import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import { P } from 'design/Text/Text';
 
 import { ResourceLabel } from 'teleport/services/agents';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -210,10 +212,12 @@ const Heading = () => {
 const StepOne = () => {
   return (
     <StyledBox mb={5}>
-      <Text bold>Step 1</Text>
-      <Text typography="subtitle1" mb={3}>
-        Add teleport-agent chart to your charts repository
-      </Text>
+      <header>
+        <H3>Step 1</H3>
+        <Subtitle3 mb={3}>
+          Add teleport-agent chart to your charts repository
+        </Subtitle3>
+      </header>
       <TextSelectCopyMulti
         lines={[
           {
@@ -253,11 +257,13 @@ const StepTwo = ({
 
   return (
     <StyledBox mb={5}>
-      <Text bold>Step 2</Text>
-      <Text typography="subtitle1" mb={3}>
-        Generate a command to automatically configure and install the
-        teleport-agent namespace
-      </Text>
+      <header>
+        <H3>Step 2</H3>
+        <Subtitle3 mb={3}>
+          Generate a command to automatically configure and install the
+          teleport-agent namespace
+        </Subtitle3>
+      </header>
       <Validation>
         {({ validator }) => (
           <>
@@ -489,12 +495,12 @@ const InstallHelmChart = ({
       <CommandBox
         header={
           <>
-            <Text bold>Step 3</Text>
-            <Text typography="subtitle1" mb={3}>
+            <H3>Step 3</H3>
+            <P mb={3}>
               Run the command below on the server running your Kubernetes
               cluster. It may take up to a minute for the Teleport Service to
               join after running the command.
-            </Text>
+            </P>
           </>
         }
       >

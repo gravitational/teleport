@@ -253,9 +253,11 @@ exports[`render correct dialog after creating a new account 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
@@ -293,9 +295,11 @@ exports[`render correct dialog after creating a new account 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 8px;
 }
 
@@ -731,9 +735,11 @@ exports[`render correct dialog after resetting account 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
@@ -771,9 +777,11 @@ exports[`render correct dialog after resetting account 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 8px;
 }
 

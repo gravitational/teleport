@@ -99,7 +99,7 @@ export function TraitsEditor({
 
   return (
     <Box>
-      <Text fontSize={1}>User Traits</Text>
+      <Text typography="body3">User Traits</Text>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (

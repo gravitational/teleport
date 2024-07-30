@@ -22,7 +22,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 
 import * as Icons from 'design/Icon';
 
-import Text from 'design/Text';
+import Text, { P3 } from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
 
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
@@ -179,21 +179,21 @@ export function Notification({
               <content.QuickAction markAsClicked={onMarkAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
-              <Text typography="subtitle3" color="error.main">
+              <Text typography="body4" color="error.main">
                 Failed to hide notification:{' '}
                 {hideNotificationAttempt.statusText}
               </Text>
             )}
             {markAsClickedAttempt.status === 'error' && (
-              <Text typography="subtitle3" color="error.main">
+              <P3 color="error.main">
                 Failed to mark notification as read:{' '}
                 {markAsClickedAttempt.statusText}
-              </Text>
+              </P3>
             )}
           </ContentBody>
           <SideContent>
             {!content?.hideDate && (
-              <Text typography="subtitle3">{formattedDate}</Text>
+              <Text typography="body4">{formattedDate}</Text>
             )}
             {!notification.localNotification && (
               <MenuIcon

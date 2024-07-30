@@ -116,6 +116,7 @@ exports[`auth2faType: off 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -154,6 +155,10 @@ exports[`auth2faType: off 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 
@@ -429,6 +434,7 @@ exports[`auth2faType: optional rendering 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -467,6 +473,10 @@ exports[`auth2faType: optional rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 
@@ -476,6 +486,10 @@ exports[`auth2faType: optional rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c2 {
@@ -994,6 +1008,7 @@ exports[`auth2faType: otp rendering 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -1032,6 +1047,10 @@ exports[`auth2faType: otp rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 
@@ -1041,6 +1060,10 @@ exports[`auth2faType: otp rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c2 {
@@ -1571,6 +1594,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -1609,6 +1633,10 @@ exports[`auth2faType: webauthn rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 
@@ -1618,6 +1646,10 @@ exports[`auth2faType: webauthn rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c2 {
@@ -2232,6 +2264,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -2270,6 +2303,10 @@ exports[`cloud auth2faType: on rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 
@@ -2279,6 +2316,10 @@ exports[`cloud auth2faType: on rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c2 {
@@ -2740,9 +2781,12 @@ exports[`no login enabled 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+p+.c5 {
+  margin-top: 16px;
   margin-left: 24px;
   margin-right: 24px;
 }
@@ -2762,11 +2806,11 @@ exports[`no login enabled 1`] = `
   >
     Login has not been enabled
   </div>
-  <div
-    class="c4"
+  <p
+    class="c4 c5"
   >
     The ability to login has not been enabled. Please contact your system administrator for more information.
-  </div>
+  </p>
 </div>
 `;
 
@@ -2908,6 +2952,7 @@ exports[`server error rendering 1`] = `
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -2946,6 +2991,10 @@ exports[`server error rendering 1`] = `
   font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-bottom: 0;
 }
 

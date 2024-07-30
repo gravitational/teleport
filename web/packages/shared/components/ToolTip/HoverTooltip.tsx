@@ -96,7 +96,7 @@ export const HoverTooltip: React.FC<
           px={2}
           py={1}
           fontWeight="regular"
-          typography="subtitle2"
+          typography="body2"
           css={`
             word-wrap: break-word;
           `}
