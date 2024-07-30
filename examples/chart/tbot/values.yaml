@@ -30,6 +30,9 @@ defaultOutput:
 # certain values within this file will be meaningless.
 customConfig: {}
 
+outputs: []
+services: []
+
 # joinMethod(string) -- describes how tbot joins the Teleport cluster.
 joinMethod: "kubernetes"
 

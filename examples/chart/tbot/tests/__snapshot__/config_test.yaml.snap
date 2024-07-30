@@ -36,6 +36,14 @@ should match the snapshot (full):
             destination:
               type: kubernetes-secret
               name: test-output
+          - app_name: foo
+            destination:
+              path: /bar
+              type: directory
+            type: application
+        services:
+          - param: boo
+            type: example-service
     kind: ConfigMap
     metadata:
       annotations:

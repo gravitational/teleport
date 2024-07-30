@@ -798,7 +798,7 @@ test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 -u examples/chart/access/*
 	helm unittest -3 -u examples/chart/event-handler
-	helm unittest -3 examples/chart/tbot
+	helm unittest -3 -u examples/chart/tbot
 
 #
 # Runs all Go tests except integration, called by CI/CD.

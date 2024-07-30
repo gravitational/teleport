@@ -11,6 +11,17 @@ serviceAccount:
 anonymousTelemetry: true
 debug: true
 
+outputs:
+  - type: "application"
+    app_name: "foo"
+    destination:
+      type: "directory"
+      path: "/bar"
+
+services:
+  - type: "example-service"
+    param: boo
+
 imagePullPolicy: "Always"
 
 extraLabels:

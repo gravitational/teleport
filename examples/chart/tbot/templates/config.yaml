@@ -27,11 +27,19 @@ data:
     storage:
       type: kubernetes-secret
       name: {{ .Release.Name }}-data
-    {{- if .Values.defaultOutput.enabled }}
+    {{- if or (.Values.defaultOutput.enabled) (.Values.outputs) }}
     outputs:
+    {{- if .Values.defaultOutput.enabled }}
       - type: identity
         destination:
           type: kubernetes-secret
           name: {{ .Values.defaultOutput.secretName }}
+    {{- end }}
+    {{- if .Values.outputs }}
+    {{- toYaml .Values.outputs | nindent 6}}
+    {{- end }}
+    {{- end }}
+    {{- if .Values.services }}
+    services: {{- toYaml .Values.services | nindent 6}}
     {{- end }}
     {{- end }}
