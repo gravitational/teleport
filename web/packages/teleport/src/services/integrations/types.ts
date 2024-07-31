@@ -303,6 +303,8 @@ type DeployDatabaseServiceDeployment = {
 // -account-id: <AccountID>s
 // -vpc-id: <Deployments[].VPCID>
 export type AwsOidcDeployDatabaseServicesRequest = {
+  // The AWS account to deploy the db service to.
+  accountId: string;
   // Region is the AWS Region for the Service.
   region: string;
   // TaskRoleARN is the AWS Role's ARN used within the Task execution.
