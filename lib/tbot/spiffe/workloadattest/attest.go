@@ -47,12 +47,16 @@ func (a Attestation) LogValue() slog.Value {
 	)
 }
 
+type attestor[T any] interface {
+	Attest(ctx context.Context, pid int) (T, error)
+}
+
 // Attestor runs the workload attestation process on a given PID to determine
 // key information about the process.
 type Attestor struct {
 	log        *slog.Logger
-	kubernetes *KubernetesAttestor
-	unix       *UnixAttestor
+	kubernetes attestor[KubernetesAttestation]
+	unix       attestor[UnixAttestation]
 }
 
 // Config is the configuration for Attestor

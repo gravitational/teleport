@@ -1,3 +1,5 @@
+//go:build unix
+
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
