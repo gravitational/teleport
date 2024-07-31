@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
-	"github.com/gravitational/teleport/e/lib/idp/saml"
+	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/okta"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
@@ -121,7 +121,7 @@ type Plugin struct {
 
 	// samlIdP is the SAML identity provider.
 	samlIdPMu sync.RWMutex
-	samlIdP   *saml.Service
+	samlIdP   *samlidp.Service
 
 	// authMiddleware is the auth middleware.
 	authMiddlewareMu sync.RWMutex
@@ -175,7 +175,7 @@ func (p *Plugin) RegisterAuthWebHandlers(srv interface{}) error {
 // RegisterSAMLIdP will register the SAML IdP with the plugin.
 //
 //nolint:revive // Because we want this to be IdP.
-func (p *Plugin) RegisterSAMLIdP(samlIdP *saml.Service) {
+func (p *Plugin) RegisterSAMLIdP(samlIdP *samlidp.Service) {
 	p.samlIdPMu.Lock()
 	defer p.samlIdPMu.Unlock()
 	p.samlIdP = samlIdP
@@ -399,8 +399,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	// Access graph
 	h.GET("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
 
-	h.GET(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
-	h.POST(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
+	h.GET(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
+	h.POST(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 
 	p.registerSCIMHandlers()
 
@@ -454,6 +454,18 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 
 // withSAMLAuth authenticates request against a valid Teleport web session except for
 // the SAML IdP metadata endpoint "/saml-idp/metadata", which is served unauthenticated.
+//
+// Teleport SAML IdP supports both the HTTP-POST and HTTP-Redirect protocol binding formats.
+// In an HTTP-Redirect binding, the SSO request is sent using an HTTP GET method.
+// In an HTTP-POST binding, the SSO request is sent using an HTTP POST method.
+// In order to preseve the original request format throughout the login redirection,
+//   - For an HTTP-Redirect binding request: we just retrieve the SSO request message
+//     from the URL query and append it to the redirect_uri query param.
+//   - For an HTTP-POST binding request: we parse the incoming HTML form, append the form
+//     values to the redirect_uri, along with a new query param "Method=POST". When the user is
+//     redirected back to this middleware after authentication, if the request contains query
+//     param "Method=POST", we convert the GET request to the original POST request by responding
+//     with an HTML POST form that will be auto submitted by the browser.
 func (p *Plugin) withSAMLAuth() httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 		p.samlIdPMu.RLock()
@@ -481,13 +493,39 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 		}
 		sessCtx, err := p.h.AuthenticateRequest(w, r, false)
 		if err != nil {
-			redirectURI := (&url.URL{
-				Scheme:   "https",
-				Host:     r.Host,
-				Path:     r.URL.Path,
-				RawQuery: url.QueryEscape(r.URL.Query().Encode()),
-			}).String()
-			http.Redirect(w, r, "/web/login?redirect_uri="+redirectURI, http.StatusSeeOther)
+			redirectURI, err := samlidp.SSORedirectURL(r, r.URL.Path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			http.Redirect(w, r, "/web/login?redirect_uri="+redirectURI.String(), http.StatusSeeOther)
+			return nil, nil
+		}
+		// If the URL contains "Method=POST" query, it means the request is redirected here
+		// after authenticating with Teleport and the original request format was HTTP-POST binding.
+		// We will convert the request to the POST method so the original request format remains
+		// unchanged.
+		queryParams := r.URL.Query()
+		if queryParams.Get("Method") == http.MethodPost {
+			webauthnData := queryParams.Get(samlidp.Webauthn.String())
+			if webauthnData != "" {
+				webauthnData = url.Values{
+					samlidp.Webauthn.String(): []string{webauthnData},
+				}.Encode()
+			}
+			if err := samlidp.WriteSAMLPOSTFormWithHeaders(w, samlidp.POSTFormData{
+				URL: (&url.URL{
+					Scheme:   "https",
+					Host:     r.Host,
+					Path:     r.URL.Path,
+					RawQuery: webauthnData,
+				}).String(),
+				SAMLAuthnMessageType: samlidp.SAMLRequest,
+				SAMLAuthnMessage:     queryParams.Get(samlidp.SAMLRequest.String()),
+				RelayState:           queryParams.Get(samlidp.RelayState.String()),
+			}); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			return nil, nil
 		}
 

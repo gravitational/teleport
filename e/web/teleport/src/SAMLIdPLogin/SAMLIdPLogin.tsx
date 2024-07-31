@@ -8,7 +8,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 import history from 'teleport/services/history';
 import { parsePath } from 'history';
-
+import { bufferToBase64url } from 'shared/utils/base64';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function SAMLIdPLogin() {
@@ -27,17 +27,24 @@ export function SAMLIdPLogin() {
           null,
           signal.signal
         );
-        const mfaResponseJSON = JSON.stringify({
-          webauthnAssertionResponse: webauthnResponse,
-        });
+        // url safe base64 encoding is chosen here because with just a
+        // plain JSON or even encodeURIComponent encoded string, it can break
+        // the CSP header or result in a mismatch between the CSP directive and
+        // form action URL when the value passes through the Go's html templating.
+        const mfaResponseBytes = new TextEncoder().encode(
+          JSON.stringify({
+            webauthnAssertionResponse: webauthnResponse,
+          })
+        );
+        const urlSafeMfaResponse = bufferToBase64url(mfaResponseBytes.buffer);
 
         // Add the mfa response as a query param while preserving
         // existing query params (saml request).
         let { pathname, search } = parsePath(history.getRedirectParam());
         if (search) {
-          search = `${search}&webauthn=${mfaResponseJSON}`;
+          search = `${search}&Webauthn=${urlSafeMfaResponse}`;
         } else {
-          search = `?webauthn=${mfaResponseJSON}`;
+          search = `?Webauthn=${urlSafeMfaResponse}`;
         }
 
         const url = `${pathname}${search}`;

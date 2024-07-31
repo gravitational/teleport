@@ -57,7 +57,7 @@ func TestAuth(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, path, nil)
 
 	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
@@ -92,7 +92,7 @@ func TestAuth(t *testing.T) {
 	r = r.WithContext(authz.ContextWithUser(ctx, user))
 
 	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
@@ -113,7 +113,7 @@ func TestAuth(t *testing.T) {
 	r = r.WithContext(authz.ContextWithUser(ctx, user))
 
 	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
@@ -166,7 +166,7 @@ func TestAuth(t *testing.T) {
 	webauthnBytes, err := json.Marshal(fakeWebauthnResponse)
 	require.NoError(t, err)
 	r.URL.RawQuery = url.Values{
-		"webauthn": []string{string(webauthnBytes)},
+		Webauthn.String(): []string{base64.RawURLEncoding.EncodeToString(webauthnBytes)},
 	}.Encode()
 
 	env.samlIdPService.ServeHTTP(w, r)
@@ -303,7 +303,7 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	node, err := html.Parse(w.Body)
 	require.NoError(t, err)
 
-	formNode := findNode(node, "form")
+	formNode := testenv.FindNode(node, "form")
 	require.NotNil(t, formNode)
 	require.Equal(t, "method", formNode.Attr[0].Key)
 	require.Equal(t, "post", formNode.Attr[0].Val)
@@ -360,7 +360,7 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 	node, err := html.Parse(w.Body)
 	require.NoError(t, err)
 
-	formNode := findNode(node, "form")
+	formNode := testenv.FindNode(node, "form")
 	require.NotNil(t, formNode)
 	require.Equal(t, "method", formNode.Attr[0].Key)
 	require.Equal(t, "post", formNode.Attr[0].Val)
@@ -408,7 +408,7 @@ func TestLockUser(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, path, nil)
 		r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 		env.samlIdPService.ServeHTTP(w, r)
-		return w.Code == http.StatusNotFound
+		return w.Code == http.StatusUnauthorized
 	}, time.Second*3, time.Millisecond*250)
 }
 
@@ -448,21 +448,4 @@ func setupUser(t *testing.T, svcs testenv.TEnv, expireTime time.Time) authz.Loca
 		Username: user.GetName(),
 		Identity: identity,
 	}
-}
-
-func findNode(node *html.Node, name string) *html.Node {
-	if node.Data == name {
-		return node
-	}
-
-	childNode := node.FirstChild
-	for childNode != nil {
-		foundNode := findNode(childNode, name)
-		if foundNode != nil {
-			return foundNode
-		}
-		childNode = childNode.NextSibling
-	}
-
-	return nil
 }

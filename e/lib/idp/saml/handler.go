@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -75,13 +74,11 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 		if err != nil {
 			if errors.Is(err, services.ErrSessionMFARequired) {
 				// redirect user to /web/saml-idp-login to provide mfa and try again.
-				redirectURI := (&url.URL{
-					Scheme:   "https",
-					Host:     r.Host,
-					Path:     IdPRoute + r.URL.Path,
-					RawQuery: url.QueryEscape(r.URL.Query().Encode()),
-				}).String()
-				http.Redirect(w, r, "/web/saml-idp/login?redirect_uri="+redirectURI, http.StatusSeeOther)
+				redirectURL, err := SSORedirectURL(r, IdPRoute+r.URL.Path)
+				if err != nil {
+					trace.Wrap(err)
+				}
+				http.Redirect(w, r, "/web/saml-idp/login?redirect_uri="+redirectURL.String(), http.StatusSeeOther)
 				return
 			}
 
@@ -94,7 +91,7 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 				user = identity.Username
 			}
 			s.emitAuthAttemptEvent(r.Context(), user, "", "", err)
-			s.writeError(w, http.StatusNotFound)
+			s.writeError(w, http.StatusUnauthorized)
 			return
 		}
 		fn(w, r.WithContext(ctxWithIdentity(r.Context(), identity)), p)
@@ -123,7 +120,7 @@ func (s *Service) authorize(r *http.Request) (*tlsca.Identity, error) {
 	}
 
 	accessState := authCtx.Checker.GetAccessState(authPref)
-	if r.URL.Query().Get("webauthn") != "" {
+	if r.URL.Query().Get(Webauthn.String()) != "" {
 		// For now, authorize the user on the assumption that the provided MFA
 		// Response is valid. It will be passed to the Auth Server for verification
 		// before the final assertion is signed.

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/idp/saml"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -150,6 +151,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			Addr:     accessGraphServer.Listener.Addr().String(),
 			Insecure: true,
 		},
+		Clock: s.clock,
 	})
 	s.webPlugin = webPlugin
 	require.NoError(t, err)
@@ -260,6 +262,19 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	serverURL, err := url.Parse("https://" + s.webServer.Listener.Addr().String())
 	require.NoError(t, err)
 	s.webServerURL = serverURL
+
+	samlIdP, err := saml.New(s.ctx, saml.Config{
+		Log:         s.webPlugin.Log,
+		Clock:       s.webPlugin.Clock,
+		Client:      s.webPlugin.GetProxyClient(),
+		AccessPoint: s.webPlugin.GetAccessPoint(),
+		Authorizer:  s.testAuthServer.AuthServer.Authorizer,
+		BaseURL:     s.webServerURL.String(),
+		Emitter:     s.webPlugin.GetProxyClient(),
+		HighLimiter: s.webPlugin.GetHighLimiter(),
+	})
+	require.NoError(t, err)
+	s.webPlugin.RegisterSAMLIdP(samlIdP)
 
 	t.Cleanup(func() {
 		s.cancel()
@@ -465,6 +480,10 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 			BPF:               apidefaults.EnhancedEvents(),
 			RecordSession: &types.RecordSession{
 				Desktop: types.NewBoolOption(false),
+			},
+			IDP: &types.IdPOptions{
+				SAML: &types.IdPSAMLOptions{
+					Enabled: types.NewBoolOption(true)},
 			},
 		},
 		Allow: types.RoleConditions{

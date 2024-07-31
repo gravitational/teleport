@@ -1,6 +1,7 @@
 package saml
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -195,10 +196,13 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	ctx := req.HTTPRequest.Context()
 
 	var mfaProtoResponse *proto.MFAAuthenticateResponse
-	if webauthnQuery := req.HTTPRequest.URL.Query().Get("webauthn"); webauthnQuery != "" {
+	if webauthnQuery := req.HTTPRequest.URL.Query().Get(Webauthn.String()); webauthnQuery != "" {
 		var webauthn mfaResponse
-
-		if err := json.Unmarshal([]byte(webauthnQuery), &webauthn); err != nil {
+		decodedWebauthn, err := base64.RawURLEncoding.DecodeString(webauthnQuery)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := json.Unmarshal(decodedWebauthn, &webauthn); err != nil {
 			return trace.Wrap(err)
 		}
 

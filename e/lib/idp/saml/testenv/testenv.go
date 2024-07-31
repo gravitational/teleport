@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/html"
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -212,3 +213,20 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
+
+func FindNode(node *html.Node, name string) *html.Node {
+	if node.Data == name {
+		return node
+	}
+
+	childNode := node.FirstChild
+	for childNode != nil {
+		foundNode := FindNode(childNode, name)
+		if foundNode != nil {
+			return foundNode
+		}
+		childNode = childNode.NextSibling
+	}
+
+	return nil
+}
