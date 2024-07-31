@@ -18,35 +18,94 @@ package services
 
 import (
 	"context"
+	"net/url"
+	"strings"
+
+	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // SPIFFEFederation is an interface for the SPIFFEFederation service.
 type SPIFFEFederation interface {
-	// CreateBotInstance
+	// CreateSPIFFEFederation creates a new SPIFFE Federation.
 	CreateSPIFFEFederation(ctx context.Context, spiffeFederation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
 
-	// GetBotInstance
+	// GetSPIFFEFederation gets a SPIFFE Federation by name.
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 
-	// ListBotInstances
+	// ListSPIFFEFederations lists all SPIFFE Federations using Google style
+	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 
-	// DeleteBotInstance
+	// DeleteSPIFFEFederation deletes a SPIFFE Federation by name.
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
 }
 
 // MarshalSPIFFEFederation marshals the SPIFFEFederation object into a JSON byte array.
 func MarshalSPIFFEFederation(object *machineidv1.SPIFFEFederation, opts ...MarshalOption) ([]byte, error) {
+	object.Version = types.V1
+	object.Kind = types.KindSPIFFEFederation
 	return MarshalProtoResource(object, opts...)
 }
 
-// UnmarshalSPIFFEFederation unmarshals the CrownJewel object from a JSON byte array.
+// UnmarshalSPIFFEFederation unmarshals the SPIFFEFederation object from a JSON byte array.
 func UnmarshalSPIFFEFederation(data []byte, opts ...MarshalOption) (*machineidv1.SPIFFEFederation, error) {
 	return UnmarshalProtoResource[*machineidv1.SPIFFEFederation](data, opts...)
 }
 
-func ValidateSPIFFEFederation(object *machineidv1.SPIFFEFederation) error {
+// ValidateSPIFFEFederation validates the SPIFFEFederation object.
+func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
+	switch {
+	case s.Metadata.Name == "":
+		return trace.BadParameter("metadata.name: is required")
+	case s.Spec == nil:
+		return trace.BadParameter("spec: is required")
+	case s.Spec.BundleSource == nil:
+		return trace.BadParameter("spec.bundle_source: is required")
+	case s.Spec.BundleSource.HttpsWeb != nil && s.Spec.BundleSource.Static != nil:
+		return trace.BadParameter("spec.bundle_source: at most one of https_web or static can be set")
+	case s.Spec.BundleSource.HttpsWeb == nil && s.Spec.BundleSource.Static == nil:
+		return trace.BadParameter("spec.bundle_source: at least one of https_web or static must be set")
+	}
 
+	// Validate name is valid SPIFFE Trust Domain name without the "spiffe://"
+	name := s.Metadata.Name
+	if strings.HasPrefix(name, "spiffe://") {
+		return trace.BadParameter("metadata.name: must not include the spiffe:// prefix")
+	}
+	td, err := spiffeid.TrustDomainFromString(name)
+	if err != nil {
+		return trace.Wrap(err, "validating metadata.name")
+	}
+
+	// Validate Static
+	if s.Spec.BundleSource.Static != nil {
+		if s.Spec.BundleSource.Static.Bundle == "" {
+			return trace.BadParameter("spec.bundle_source.static.bundle: is required")
+		}
+		// Validate contents
+		// TODO(noah): Is this a bit intense to run on every validation?
+		// This could easily be moved into reconciliation...
+		_, err := spiffebundle.Parse(td, []byte(s.Spec.BundleSource.Static.Bundle))
+		if err != nil {
+			return trace.Wrap(err, "validating spec.bundle_source.static.bundle")
+		}
+	}
+
+	// Validate HTTPSWeb
+	if s.Spec.BundleSource.HttpsWeb != nil {
+		if s.Spec.BundleSource.HttpsWeb.BundleEndpointUrl == "" {
+			return trace.BadParameter("spec.bundle_source.https_web.bundle_endpoint_url: is required")
+		}
+		_, err := url.Parse(s.Spec.BundleSource.HttpsWeb.BundleEndpointUrl)
+		if err != nil {
+			return trace.Wrap(err, "validating spec.bundle_source.https_web.bundle_endpoint_url")
+		}
+	}
+
+	return nil
 }
