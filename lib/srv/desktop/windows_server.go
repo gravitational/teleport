@@ -186,7 +186,8 @@ type WindowsServiceConfig struct {
 	// domain.
 	PKIDomain string
 	// KCDAddr configures address of Key Distribution Center used during Kerberos NLA negotiation.
-	// If empty LDAP address will be used
+	// If empty LDAP address will be used.
+	// Used for NLA support when AD is true.
 	KDCAddr string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
@@ -198,7 +199,7 @@ type WindowsServiceConfig struct {
 	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
 	// into Teleport labels.
 	DiscoveryLDAPAttributeLabels []string
-	// Hostname of the windows desktop service
+	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
@@ -864,12 +865,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsDNSHostName)
 	if !ok {
-		computerName = strings.Split(desktop.GetAddr(), ":")[0]
+		if computerName, err = utils.Host(desktop.GetAddr()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	kdcAddr := s.cfg.KDCAddr
-	if kdcAddr == "" {
-		kdcAddr = strings.Split(s.cfg.LDAPConfig.Addr, ":")[0]
+	if kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
+		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
