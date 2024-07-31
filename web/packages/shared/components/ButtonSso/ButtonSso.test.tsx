@@ -26,12 +26,13 @@ import ButtonSso from '.';
 test.each`
   ssoType           | expectedIcon
   ${'default type'} | ${'icon-key'}
-  ${'Microsoft'}    | ${'icon-windows'}
-  ${'github'}       | ${'icon-github'}
-  ${'bitbucket'}    | ${'icon-key'}
-  ${'google'}       | ${'icon-google'}
+  ${'Microsoft'}    | ${'res-icon-microsoft'}
+  ${'github'}       | ${'res-icon-github'}
+  ${'bitbucket'}    | ${'res-icon-atlassianbitbucket'}
+  ${'google'}       | ${'res-icon-google'}
 `('rendering of $ssoType', ({ ssoType, expectedIcon }) => {
   render(<ButtonSso ssoType={ssoType} title="hello" />);
+  screen.debug();
 
   expect(screen.getByTestId('icon')).toHaveClass(expectedIcon);
   expect(screen.getByText(/hello/i)).toBeInTheDocument();

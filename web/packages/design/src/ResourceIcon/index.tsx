@@ -45,7 +45,9 @@ export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
   if (!icon) {
     return null;
   }
-  return <Image src={icon} {...props} />;
+  // Note: we add the class name for consistency with `Icon`, where it's used
+  // for testing.
+  return <Image src={icon} className={`res-icon-${name}`} {...props} />;
 };
 
 export { type ResourceIconName, resourceIconSpecs, iconNames };

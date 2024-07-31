@@ -21,25 +21,27 @@ import { Flex, Text } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 import { AuthProvider } from 'shared/services';
 
-const SSOBtnList = forwardRef<HTMLInputElement, Props>(
+const SSOBtnList = forwardRef<HTMLButtonElement, Props>(
   ({ providers, isDisabled, onClick, autoFocus = false }, ref) => {
     const $btns = providers.map((item, index) => {
       let { name, type, displayName } = item;
       const title = displayName || name;
       const ssoType = guessProviderType(title, type);
       return (
-        <ButtonSso
-          setRef={index === 0 ? ref : null}
-          key={index}
-          title={title}
-          ssoType={ssoType}
-          disabled={isDisabled}
-          autoFocus={index === 0 && autoFocus}
-          onClick={e => {
-            e.preventDefault();
-            onClick(item);
-          }}
-        />
+        <React.Fragment key={index}>
+          <ButtonSso
+            ref={index === 0 ? ref : null}
+            key={index}
+            title={title}
+            ssoType={ssoType}
+            disabled={isDisabled}
+            autoFocus={index === 0 && autoFocus}
+            onClick={e => {
+              e.preventDefault();
+              onClick(item);
+            }}
+          />
+        </React.Fragment>
       );
     });
 

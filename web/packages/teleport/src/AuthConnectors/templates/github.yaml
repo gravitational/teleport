@@ -10,8 +10,8 @@ spec:
   # GitHub will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at
   redirect_url: 'https://<cluster-url>/v1/webapi/github/callback'
-  # connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with GitHub"
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
   display: GitHub
   # mapping of GitHub team memberships to Teleport roles
   teams_to_roles:
