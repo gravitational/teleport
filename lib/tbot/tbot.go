@@ -639,7 +639,7 @@ func clientForFacade(
 		ClientConfig:          sshConfig,
 		Log:                   logrus.StandardLogger(),
 		InsecureSkipTLSVerify: cfg.Insecure,
-		ClusterCAs:            tlsConfig.RootCAs,
+		GetClusterCAs:         client.ClusterCAsFromCertPool(tlsConfig.RootCAs),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
