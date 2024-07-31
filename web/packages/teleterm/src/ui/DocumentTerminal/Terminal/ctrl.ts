@@ -24,6 +24,7 @@ import { debounce } from 'shared/utils/highbar';
 import { WindowsPty } from 'teleterm/services/pty';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
+import { ConfigService } from 'teleterm/services/config';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
@@ -33,6 +34,7 @@ type Options = {
   fontSize: number;
   theme: ITheme;
   windowsPty: WindowsPty;
+  openContextMenu(e: MouseEvent): void;
 };
 
 export default class TtyTerminal {
@@ -47,6 +49,7 @@ export default class TtyTerminal {
   constructor(
     private ptyProcess: IPtyProcess,
     private options: Options,
+    private configService: ConfigService,
     private keyboardShortcutsService: KeyboardShortcutsService
   ) {
     this.el = options.el;
@@ -81,6 +84,15 @@ export default class TtyTerminal {
       },
     });
 
+    this.term.onSelectionChange(() => {
+      if (
+        this.configService.get('terminal.copyOnSelect').value &&
+        this.term.hasSelection()
+      ) {
+        void this.copy();
+      }
+    });
+
     this.term.loadAddon(this.fitAddon);
 
     this.registerResizeHandler();
@@ -106,6 +118,49 @@ export default class TtyTerminal {
       }
 
       return true;
+    });
+
+    this.term.element.addEventListener('contextmenu', e => {
+      // We always call preventDefault because:
+      // 1. When `terminalRightClick` is not `menu`, we don't want to show it.
+      // 2. When `terminalRightClick` is `menu`, opening two menus at
+      //  the same time on Linux causes flickering.
+      e.preventDefault();
+
+      if (this.configService.get('terminal.rightClick').value === 'menu') {
+        this.options.openContextMenu(e);
+      }
+    });
+
+    this.term.element.addEventListener('mousedown', e => {
+      // Secondary button, usually the right button.
+      if (e.button !== 2) {
+        return;
+      }
+
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      e.preventDefault();
+
+      const terminalRightClick = this.configService.get(
+        'terminal.rightClick'
+      ).value;
+
+      switch (terminalRightClick) {
+        case 'paste': {
+          void this.paste();
+          break;
+        }
+        case 'copyPaste': {
+          if (this.term.hasSelection()) {
+            void this.copy();
+            this.term.clearSelection();
+          } else {
+            void this.paste();
+          }
+          break;
+        }
+      }
     });
 
     this.fitAddon.fit();
