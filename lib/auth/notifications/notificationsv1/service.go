@@ -481,3 +481,17 @@ func (s *Service) UpsertUserLastSeenNotification(ctx context.Context, req *notif
 
 	return out, nil
 }
+
+// CreateGlobalNotification creates a global notification.
+func (s *Service) CreateGlobalNotification(ctx context.Context, req *notificationsv1.CreateGlobalNotificationRequest) (*notificationsv1.GlobalNotification, error) {
+	if req.GlobalNotification == nil {
+		return nil, trace.BadParameter("missing notification")
+	}
+
+	out, err := s.backend.CreateGlobalNotification(ctx, req.GlobalNotification)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}

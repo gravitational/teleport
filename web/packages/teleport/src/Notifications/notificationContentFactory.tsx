@@ -63,6 +63,22 @@ export function notificationContentFactory({
       break;
     }
 
+    case NotificationSubKind.AutoDiscoverAWSEC2Failed: {
+      const error = getLabelValue(labels, 'error');
+      const instanceID = getLabelValue(labels, 'instance-id');
+      const invocationURL = getLabelValue(labels, 'invocation-url');
+      const region = getLabelValue(labels, 'aws-region');
+      const textContent = `(${instanceID} at ${region}) ${error} ${invocationURL}`;
+      notificationContent = {
+        kind: 'text',
+        title: notification.title,
+        textContent,
+        type: 'failure',
+        icon: Icons.PlugsConnected,
+      };
+      break;
+    }
+
     default:
       return null;
   }
