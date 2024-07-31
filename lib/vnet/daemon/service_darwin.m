@@ -38,19 +38,13 @@
 
 // started describes whether the XPC listener is listening for new connections.
 @property(readonly) BOOL started;
-
-@property(readonly) NSString *socketPath;
-@property(readonly) NSString *ipv6Prefix;
-@property(readonly) NSString *dnsAddr;
-@property(readonly) NSString *homePath;
+@property(readonly) VNEConfig *config;
 @property(readonly) VNEClientCred *clientCred;
 
 @end
 
 @implementation VNEDaemonService {
   NSXPCListener *_listener;
-  // gotConfig describes if the daemon received a VNet config from a client.
-  BOOL _gotConfig;
   dispatch_semaphore_t _gotVnetConfigSema;
 }
 
@@ -94,7 +88,7 @@
 
 #pragma mark - VNEDaemonProtocol
 
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *error))completion {
+- (void)startVnet:(VNEConfig *)config completion:(void (^)(NSError *error))completion {
   @synchronized(self) {
     // startVnet is expected to be called only once per daemon's lifetime.
     // Between the process with the daemon client exiting and the admin process (which runs the
@@ -103,7 +97,7 @@
     //
     // In such scenarios, we want to return an error so that the client can wait for the daemon
     // to exit and retry the call.
-    if (_gotConfig) {
+    if (_config != nil) {
       NSError *error = [[NSError alloc] initWithDomain:@(VNEErrorDomain)
                                                   code:VNEAlreadyRunningError
                                               userInfo:nil];
@@ -111,11 +105,7 @@
       return;
     }
 
-    _gotConfig = YES;
-    _socketPath = @(vnetConfig->socket_path);
-    _ipv6Prefix = @(vnetConfig->ipv6_prefix);
-    _dnsAddr = @(vnetConfig->dns_addr);
-    _homePath = @(vnetConfig->home_path);
+    _config = config;
 
     NSXPCConnection *currentConn = [NSXPCConnection currentConnection];
     _clientCred = [[VNEClientCred alloc] init];
@@ -193,14 +183,14 @@ void WaitForVnetConfig(VnetConfigResult *outResult, ClientCred *outClientCred) {
   }
 
   @synchronized(daemonService) {
-    outResult->socket_path = VNECopyNSString([daemonService socketPath]);
-    outResult->ipv6_prefix = VNECopyNSString([daemonService ipv6Prefix]);
-    outResult->dns_addr = VNECopyNSString([daemonService dnsAddr]);
-    outResult->home_path = VNECopyNSString([daemonService homePath]);
+    outResult->socket_path = VNECopyNSString(daemonService.config.socketPath);
+    outResult->ipv6_prefix = VNECopyNSString(daemonService.config.ipv6Prefix);
+    outResult->dns_addr = VNECopyNSString(daemonService.config.dnsAddr);
+    outResult->home_path = VNECopyNSString(daemonService.config.homePath);
 
     if (daemonService.clientCred && [daemonService.clientCred valid]) {
-      outClientCred->egid = [daemonService.clientCred egid];
-      outClientCred->euid = [daemonService.clientCred euid];
+      outClientCred->egid = daemonService.clientCred.egid;
+      outClientCred->euid = daemonService.clientCred.euid;
       outClientCred->valid = true;
     }
     
