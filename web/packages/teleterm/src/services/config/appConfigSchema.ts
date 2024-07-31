@@ -103,6 +103,16 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.newTerminalTab': shortcutSchema
       .default(defaultKeymap['newTerminalTab'])
       .describe(getShortcutDesc('open a new terminal tab')),
+    // Even if this is set to a non-default copy shortcut for a given platform,
+    // the default shortcut will still work (for example, Command+C on Macs).
+    'keymap.terminalCopy': shortcutSchema
+      .default(defaultKeymap['terminalCopy'])
+      .describe(getShortcutDesc('to copy text')),
+    // Even if this is set to a non-default paste shortcut for a given platform,
+    // the default shortcut will still work (for example, Command+V on Macs).
+    'keymap.terminalPaste': shortcutSchema
+      .default(defaultKeymap['terminalPaste'])
+      .describe(getShortcutDesc('to paste text')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
@@ -156,7 +166,9 @@ export type KeyboardShortcutAction =
   | 'openSearchBar'
   | 'openConnections'
   | 'openClusters'
-  | 'openProfiles';
+  | 'openProfiles'
+  | 'terminalCopy'
+  | 'terminalPaste';
 
 const getDefaultKeymap = (
   platform: Platform
@@ -182,6 +194,8 @@ const getDefaultKeymap = (
         openConnections: 'Ctrl+Shift+P',
         openClusters: 'Ctrl+Shift+E',
         openProfiles: 'Ctrl+Shift+I',
+        terminalCopy: 'Ctrl+Shift+C',
+        terminalPaste: 'Ctrl+Shift+V',
       };
     case 'linux':
       return {
@@ -203,6 +217,8 @@ const getDefaultKeymap = (
         openConnections: 'Ctrl+Shift+P',
         openClusters: 'Ctrl+Shift+E',
         openProfiles: 'Ctrl+Shift+I',
+        terminalCopy: 'Ctrl+Shift+C',
+        terminalPaste: 'Ctrl+Shift+V',
       };
     case 'darwin':
       return {
@@ -224,6 +240,8 @@ const getDefaultKeymap = (
         openConnections: 'Command+P',
         openClusters: 'Command+E',
         openProfiles: 'Command+I',
+        terminalCopy: 'Command+C',
+        terminalPaste: 'Command+V',
       };
   }
 };

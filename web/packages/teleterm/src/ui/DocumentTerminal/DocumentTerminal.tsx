@@ -133,6 +133,7 @@ export function DocumentTerminal(props: {
           fontSize={terminalFontSize}
           onEnterKey={attempt.data.refreshTitle}
           windowsPty={attempt.data.windowsPty}
+          keyboardShortcutsService={ctx.keyboardShortcutsService}
         />
       )}
     </Document>
