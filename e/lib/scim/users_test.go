@@ -21,7 +21,7 @@ import (
 )
 
 func TestUserList(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	// make a list of 50 users, where every 3rd user is one that belongs to the
 	// test plugin
@@ -128,7 +128,7 @@ func TestUserList(t *testing.T) {
 }
 
 func TestUsersListHandlesPagedUsers(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...
@@ -240,7 +240,7 @@ func resourceToTestUser(_ context.Context, res *scimpb.Resource) (types.User, er
 }
 
 func TestUserGet(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	// make a list of 50 users, where every 3rd user is one that belongs to the
 	// test plugin
@@ -329,7 +329,7 @@ func TestUserGet(t *testing.T) {
 func TestUserCreate(t *testing.T) {
 	const userRevision = "user revision number"
 
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	mockCreateUser := func(_ context.Context, u types.User) (types.User, error) {
 		u.SetRevision(userRevision)
@@ -451,7 +451,7 @@ func TestUserCreate(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...

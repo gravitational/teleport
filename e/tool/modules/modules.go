@@ -301,10 +301,13 @@ func setLegacyLogic(license types.License) modules.Features {
 
 	// Override if Identity is enabled (unlimited & enabled identity entitlements)
 	if f.Entitlements[entitlements.Identity].Enabled {
+		f.Entitlements[entitlements.AccessLists] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.AccessMonitoring] = modules.EntitlementInfo{Enabled: true}
 		f.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true}
 		f.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true}
-		f.Entitlements[entitlements.AccessMonitoring] = modules.EntitlementInfo{Enabled: true}
-		f.Entitlements[entitlements.AccessLists] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.OktaSCIM] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.OktaUserSync] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.SessionLocks] = modules.EntitlementInfo{Enabled: true}
 	}
 
 	return f

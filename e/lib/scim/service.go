@@ -192,9 +192,8 @@ func (s *Service) makeProviderShim(ctx context.Context, pluginID string) (provid
 // authorizeGRPCRequest checks that the service has the correct license GRPC call that is forwarding a SCIM
 // request to the server comes from a Teleport proxy.
 func (s *Service) authorizeGRPCRequest(ctx context.Context) error {
-	// todo (michellescripts) replace with entitlements.OktaSCIM
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
-		return trace.NotImplemented("SCIM support requires IGS license")
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OktaSCIM).Enabled {
+		return trace.NotImplemented("SCIM support requires Identity license")
 	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)

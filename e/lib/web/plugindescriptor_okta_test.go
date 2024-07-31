@@ -149,52 +149,52 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 	defaultOwners := []string{"owner1", "owner2"}
 
 	testCases := []struct {
-		name                  string
-		orgURL                string
-		enableIGS             bool
-		enabledAccessListSync bool
-		correctedOrgURL       string
-		expectSCIMToken       require.ValueAssertionFunc
-		expectSCIMTokenCred   require.ErrorAssertionFunc
-		expectAppFilters      require.ValueAssertionFunc
-		expectGroupFilters    require.ValueAssertionFunc
-		expectDefaultOwners   require.ValueAssertionFunc
+		name                      string
+		orgURL                    string
+		enableOktaSCIMEntitlement bool
+		enabledAccessListSync     bool
+		correctedOrgURL           string
+		expectSCIMToken           require.ValueAssertionFunc
+		expectSCIMTokenCred       require.ErrorAssertionFunc
+		expectAppFilters          require.ValueAssertionFunc
+		expectGroupFilters        require.ValueAssertionFunc
+		expectDefaultOwners       require.ValueAssertionFunc
 	}{
 		{
-			name:                  "full org URL",
-			orgURL:                oktaTestOrg,
-			enableIGS:             true,
-			enabledAccessListSync: true,
-			correctedOrgURL:       oktaTestOrg,
-			expectSCIMToken:       requireEqualTo(oktaSCIMToken),
-			expectSCIMTokenCred:   require.NoError,
-			expectAppFilters:      requireEqualTo(appFilters),
-			expectGroupFilters:    requireEqualTo(groupFilters),
-			expectDefaultOwners:   requireEqualTo(defaultOwners),
+			name:                      "full org URL",
+			orgURL:                    oktaTestOrg,
+			enableOktaSCIMEntitlement: true,
+			enabledAccessListSync:     true,
+			correctedOrgURL:           oktaTestOrg,
+			expectSCIMToken:           requireEqualTo(oktaSCIMToken),
+			expectSCIMTokenCred:       require.NoError,
+			expectAppFilters:          requireEqualTo(appFilters),
+			expectGroupFilters:        requireEqualTo(groupFilters),
+			expectDefaultOwners:       requireEqualTo(defaultOwners),
 		},
 		{
-			name:                  "missing URL scheme is fixed",
-			orgURL:                "example-org.okta.com",
-			enableIGS:             true,
-			enabledAccessListSync: false,
-			correctedOrgURL:       "https://example-org.okta.com",
-			expectSCIMToken:       requireEqualTo(oktaSCIMToken),
-			expectSCIMTokenCred:   require.NoError,
-			expectAppFilters:      require.Empty,
-			expectGroupFilters:    require.Empty,
-			expectDefaultOwners:   require.Empty,
+			name:                      "missing URL scheme is fixed",
+			orgURL:                    "example-org.okta.com",
+			enableOktaSCIMEntitlement: true,
+			enabledAccessListSync:     false,
+			correctedOrgURL:           "https://example-org.okta.com",
+			expectSCIMToken:           requireEqualTo(oktaSCIMToken),
+			expectSCIMTokenCred:       require.NoError,
+			expectAppFilters:          require.Empty,
+			expectGroupFilters:        require.Empty,
+			expectDefaultOwners:       require.Empty,
 		},
 		{
-			name:                  "IGS disabled",
-			orgURL:                oktaTestOrg,
-			enableIGS:             false,
-			enabledAccessListSync: false,
-			correctedOrgURL:       oktaTestOrg,
-			expectSCIMToken:       require.Empty,
-			expectSCIMTokenCred:   requireNotFound,
-			expectAppFilters:      require.Empty,
-			expectGroupFilters:    require.Empty,
-			expectDefaultOwners:   require.Empty,
+			name:                      "IGS disabled",
+			orgURL:                    oktaTestOrg,
+			enableOktaSCIMEntitlement: false,
+			enabledAccessListSync:     false,
+			correctedOrgURL:           oktaTestOrg,
+			expectSCIMToken:           require.Empty,
+			expectSCIMTokenCred:       requireNotFound,
+			expectAppFilters:          require.Empty,
+			expectGroupFilters:        require.Empty,
+			expectDefaultOwners:       require.Empty,
 		},
 	}
 
@@ -298,7 +298,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			})
 
 			s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
-				string(entitlements.Identity): {Enabled: testCase.enableIGS},
+				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
 
 			form := url.Values{
@@ -307,7 +307,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 				"apiToken":   {oktaAPIToken},
 				"csrf_token": {webPack.csrfToken},
 			}
-			if testCase.enableIGS {
+			if testCase.enableOktaSCIMEntitlement {
 				form.Set("scimToken", oktaSCIMToken)
 
 				appFilterB, err := json.Marshal(appFilters)
@@ -464,21 +464,21 @@ func requireEqualTo(expected interface{}) require.ValueAssertionFunc {
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
 func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 	testCases := []struct {
-		name                string
-		igsEnabled          bool
-		expectSCIMToken     require.ValueAssertionFunc
-		expectSCIMTokenCred require.ErrorAssertionFunc
+		name                      string
+		enableOktaSCIMEntitlement bool
+		expectSCIMToken           require.ValueAssertionFunc
+		expectSCIMTokenCred       require.ErrorAssertionFunc
 	}{
 		{
-			name:                "IGS Enabled",
-			igsEnabled:          true,
-			expectSCIMToken:     requireEqualTo(oktaSCIMToken),
-			expectSCIMTokenCred: require.NoError,
+			name:                      "OktaSCIM Enabled",
+			enableOktaSCIMEntitlement: true,
+			expectSCIMToken:           requireEqualTo(oktaSCIMToken),
+			expectSCIMTokenCred:       require.NoError,
 		}, {
-			name:                "IGS Disabled",
-			igsEnabled:          false,
-			expectSCIMToken:     require.Empty,
-			expectSCIMTokenCred: requireNotFound,
+			name:                      "OktaSCIM Disabled",
+			enableOktaSCIMEntitlement: false,
+			expectSCIMToken:           require.Empty,
+			expectSCIMTokenCred:       requireNotFound,
 		},
 	}
 
@@ -559,7 +559,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			})
 
 			s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
-				string(entitlements.Identity): {Enabled: testCase.igsEnabled},
+				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
 
 			// When I invoke the installer via the web interface...
@@ -570,7 +570,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 				"apiToken":   {oktaAPIToken},
 				"csrf_token": {webPack.csrfToken},
 			}
-			if testCase.igsEnabled {
+			if testCase.enableOktaSCIMEntitlement {
 				form.Set("scimToken", oktaSCIMToken)
 			}
 			resp, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, form)
@@ -676,7 +676,7 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
 
 	s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
-		string(entitlements.Identity): {Enabled: true},
+		string(entitlements.OktaSCIM): {Enabled: true},
 	}
 
 	mockta.On("RoundTrip", requestForPath("GET", "/api/v1/users/me")).

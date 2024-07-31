@@ -69,11 +69,11 @@ func TestGetSelfHostedLicenseFeatures_LegacyLicenseFields(t *testing.T) {
 					entitlements.K8s:                    {},
 					entitlements.MobileDeviceManagement: {Enabled: true},
 					entitlements.OIDC:                   {Enabled: true},
-					entitlements.OktaSCIM:               {},
-					entitlements.OktaUserSync:           {},
+					entitlements.OktaSCIM:               {Enabled: true},
+					entitlements.OktaUserSync:           {Enabled: true},
 					entitlements.Policy:                 {},
 					entitlements.SAML:                   {Enabled: true},
-					entitlements.SessionLocks:           {},
+					entitlements.SessionLocks:           {Enabled: true},
 					entitlements.UpsellAlert:            {},
 					entitlements.UsageReporting:         {},
 				},
@@ -126,9 +126,9 @@ func TestGetSelfHostedLicenseFeatures_LegacyLicenseFields(t *testing.T) {
 					entitlements.DeviceTrust:            {Enabled: true},
 					entitlements.AccessMonitoring:       {Enabled: true},
 					entitlements.AccessLists:            {Enabled: true},
-					entitlements.OktaSCIM:               {},
-					entitlements.OktaUserSync:           {},
-					entitlements.SessionLocks:           {},
+					entitlements.OktaSCIM:               {Enabled: true},
+					entitlements.OktaUserSync:           {Enabled: true},
+					entitlements.SessionLocks:           {Enabled: true},
 				},
 			},
 		},
@@ -166,9 +166,9 @@ func TestGetLicenseFeatures_LegacyIdentityFeatures(t *testing.T) {
 				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.DeviceTrust])
 				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.AccessMonitoring])
 				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.AccessLists])
-				require.Equal(t, modules.EntitlementInfo{Enabled: false}, s.Entitlements[entitlements.OktaSCIM])
-				require.Equal(t, modules.EntitlementInfo{Enabled: false}, s.Entitlements[entitlements.OktaUserSync])
-				require.Equal(t, modules.EntitlementInfo{Enabled: false}, s.Entitlements[entitlements.SessionLocks])
+				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.OktaSCIM])
+				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.OktaUserSync])
+				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.SessionLocks])
 			},
 		},
 		{
@@ -185,9 +185,9 @@ func TestGetLicenseFeatures_LegacyIdentityFeatures(t *testing.T) {
 				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.DeviceTrust])
 				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.AccessMonitoring])
 				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.AccessLists])
-				require.Equal(t, modules.EntitlementInfo{Enabled: false}, s.Entitlements[entitlements.OktaSCIM])
-				require.Equal(t, modules.EntitlementInfo{Enabled: false}, s.Entitlements[entitlements.OktaUserSync])
-				require.Equal(t, modules.EntitlementInfo{Enabled: false}, s.Entitlements[entitlements.SessionLocks])
+				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.OktaSCIM])
+				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.OktaUserSync])
+				require.Equal(t, modules.EntitlementInfo{Enabled: true}, s.Entitlements[entitlements.SessionLocks])
 			},
 		},
 		{

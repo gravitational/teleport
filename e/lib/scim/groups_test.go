@@ -28,7 +28,7 @@ const (
 )
 
 func TestGroupList(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	testAccessLists := mkTestAccessLists(t, 50, 3)
 
@@ -129,7 +129,7 @@ func TestGroupList(t *testing.T) {
 }
 
 func TestGroupListHandlesPagedAccessLists(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...
@@ -171,7 +171,7 @@ func TestGroupListHandlesPagedAccessLists(t *testing.T) {
 }
 
 func TestGroupGet(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	testAccessLists := mkTestAccessLists(t, 10, 2)
 	clock := clockwork.NewFakeClock()
@@ -305,7 +305,7 @@ func TestGroupGet(t *testing.T) {
 }
 
 func TestGroupCreate(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 	clock := clockwork.NewFakeClock()
 
 	users := mkTestUserList(t, 10, 1)
@@ -533,7 +533,7 @@ func TestGroupCreate(t *testing.T) {
 }
 
 func TestGroupUpdate(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	clock := clockwork.NewFakeClock()
 	users := mkTestUserList(t, 10, 1)
@@ -678,7 +678,7 @@ func TestGroupUpdate(t *testing.T) {
 
 func TestGroupDelete(t *testing.T) {
 	logrus.StandardLogger().SetLevel(logrus.DebugLevel)
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 
 	clock := clockwork.NewFakeClock()
 

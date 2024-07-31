@@ -24,14 +24,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// enableIGS configures the system modules to allow IGS features for the life of
-// the supplied test.
-func enableIGS(t *testing.T) {
+func enableOktaSCIMEntitlement(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
+				entitlements.OktaSCIM: {Enabled: true},
 			},
 		},
 	})
@@ -47,7 +45,7 @@ func bindTestFn[A, B any](fn func(context.Context, A) (B, error), val A) func(co
 // TestSCIMServiceDeniesAccessToNonProxyUser tests that a non-proxy user always
 // causes an AccessDenied error without touching any other resources.
 func TestSCIMServiceDeniesAccessToNonProxyUser(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 	uut, _ := newTestService(t)
 
 	nonProxyCtx := authz.ContextWithUser(
@@ -100,13 +98,13 @@ func TestSCIMServiceDeniesAccessToNonProxyUser(t *testing.T) {
 
 // TestSCIMServiceFailsWithoutIGS asserts that the SCIM service will refuse to
 // serve requests when IGS is disabled
-func TestSCIMServiceFailsWithoutIGS(t *testing.T) {
+func TestSCIMServiceFailsWithoutEntitlement(t *testing.T) {
 	// Explicitly disable IGS
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: false},
+				entitlements.OktaSCIM: {Enabled: false},
 			},
 		},
 	})
@@ -267,7 +265,7 @@ func (c *credMock) GetPluginStaticCredentialsByLabels(ctx context.Context, label
 }
 
 func TestListSCIMResourcesUserPredicate(t *testing.T) {
-	enableIGS(t)
+	enableOktaSCIMEntitlement(t)
 	plugin := &types.PluginV1{
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Okta{

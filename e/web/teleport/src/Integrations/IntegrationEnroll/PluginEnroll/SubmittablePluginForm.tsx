@@ -23,7 +23,7 @@ import cfg from 'e-teleport/config';
 import { getCTAForPlugin, pluginsService } from 'e-teleport/services/plugins';
 
 import { CloudHostablePlugin } from './plugins';
-import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue';
+import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue'; // SubmittablePluginForm is a form that will use the default form submission event
 
 // SubmittablePluginForm is a form that will use the default form submission event
 // if the plugin is an `OAuth` plugin. Otherwise it will send off a conventional

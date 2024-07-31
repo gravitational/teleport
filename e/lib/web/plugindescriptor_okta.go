@@ -145,8 +145,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 	}
 
 	// Only create the SCIM token credential if IGS is enabled
-	// todo (michellescripts) replace this with teleport.OktaSCIM
-	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.Identity).Enabled {
+	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.OktaSCIM).Enabled {
 		pluginCredentials = append(pluginCredentials, &types.PluginStaticCredentialsV1{
 			ResourceHeader: types.ResourceHeader{
 				Metadata: types.Metadata{
@@ -331,8 +330,7 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		return oktaPluginInputs{}, trace.Wrap(err, "invalid Okta config")
 	}
 
-	// todo (michellescripts) replace with teleport.OktaScim
-	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.Identity).Enabled {
+	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.OktaSCIM).Enabled {
 		params.enableAccessListSync = true
 
 		params.scimBearerToken = args.form.Get("scimToken")

@@ -39,7 +39,7 @@ type DurationOption = Option<Days> & {
   isDisabled?: boolean;
 };
 
-// todo (michellescripts) today the limit for access monitoring is set in cloud to 30 but we don't leverage the limit here other than t/f
+// Note: today the limit for access monitoring is set on entitlements as 30, but we don't leverage the limit here
 export function Timeframe(props: TimeframeProps) {
   const limited = cfg.entitlements.AccessMonitoring.limit > 0;
   const timeframes: DurationOption[] = [
