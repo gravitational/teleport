@@ -377,9 +377,6 @@ func (a *Server) generateCertsBot(
 		// TODO(nklaassen): consider logging the SSH public key as well, for now
 		// the SSH and TLS public keys are still identical for tbot.
 		PublicKey: req.PublicTLSKey,
-
-		// Note: Generation will be set during `generateInitialBotCerts()` as
-		// needed.
 	}
 
 	if joinAttributeSrc != nil {
@@ -398,12 +395,23 @@ func (a *Server) generateCertsBot(
 		}
 	}
 
-	certs, err := a.generateInitialBotCerts(
-		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, req.PublicTLSKey, expires, renewable, auth,
+	certs, botInstanceID, err := a.generateInitialBotCerts(
+		ctx,
+		botName,
+		machineidv1.BotResourceName(botName),
+		req.RemoteAddr,
+		req.PublicSSHKey,
+		req.PublicTLSKey,
+		expires,
+		renewable,
+		auth,
+		req.BotInstanceID,
+		req.BotGeneration,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinEvent.BotInstanceID = botInstanceID
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
@@ -415,8 +423,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	// Emit audit event for bot join.
-	log.Infof("Bot %q has joined the cluster.", botName)
-
+	log.Infof("Bot %q (instance: %s) has joined the cluster.", botName, botInstanceID)
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}

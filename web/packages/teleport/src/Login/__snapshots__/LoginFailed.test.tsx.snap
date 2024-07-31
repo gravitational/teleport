@@ -64,17 +64,29 @@ exports[`callback error message 1`] = `
   text-align: center;
 }
 
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
+  text-align: center;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 16px;
-  line-height: 32px;
   text-align: center;
 }
 
-.c6 {
+p+.c6 {
+  margin-top: 16px;
+}
+
+.c8 {
   color: #009EFF;
 }
 
@@ -100,16 +112,16 @@ exports[`callback error message 1`] = `
       custom message
     </div>
      
-    <div
-      class="c5"
+    <p
+      class="c5 c6 sc-eDPFhE c7"
     >
       <a
-        class="c6"
+        class="c8"
         href="/web/login"
       >
         Please attempt to log in again.
       </a>
-    </div>
+    </p>
   </div>
 </div>
 `;
@@ -178,17 +190,29 @@ exports[`default error message 1`] = `
   text-align: center;
 }
 
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 24px;
+  letter-spacing: 0.08px;
+  text-align: center;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 16px;
-  line-height: 32px;
   text-align: center;
 }
 
-.c6 {
+p+.c6 {
+  margin-top: 16px;
+}
+
+.c8 {
   color: #009EFF;
 }
 
@@ -214,16 +238,16 @@ exports[`default error message 1`] = `
       unable to login, please check Teleport's log for details
     </div>
      
-    <div
-      class="c5"
+    <p
+      class="c5 c6 sc-eDPFhE c7"
     >
       <a
-        class="c6"
+        class="c8"
         href="/web/login"
       >
         Please attempt to log in again.
       </a>
-    </div>
+    </p>
   </div>
 </div>
 `;

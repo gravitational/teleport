@@ -17,7 +17,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Text, Flex, Button, Card, ButtonIcon } from 'design';
+import { Flex, Button, Card, ButtonIcon, H3 } from 'design';
 import styled, { useTheme } from 'styled-components';
 import { Notification } from 'shared/components/Notification';
 import { Warning, Cross } from 'design/Icon';
@@ -77,9 +77,9 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
           }}
         >
           <Flex alignItems="center" justifyContent="space-between">
-            <Text typography="h6" px={3} style={{ overflow: 'visible' }}>
+            <H3 px={3} style={{ overflow: 'visible' }}>
               {warnings.length} {warnings.length > 1 ? 'Warnings' : 'Warning'}
-            </Text>
+            </H3>
             <ButtonIcon size={1} ml={1} mr={2} onClick={toggleDropdown}>
               <Cross size="medium" />
             </ButtonIcon>

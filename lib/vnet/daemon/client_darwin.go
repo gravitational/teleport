@@ -19,11 +19,9 @@
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
-// #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
-// #include "protocol_darwin.h"
+// #include "common_darwin.h"
 import "C"
 
 import (
@@ -304,6 +302,36 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 				return
 			}
 
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionInterrupted {
+				const clientNSXPCConnectionInterruptedDebugMsg = "The connection was interrupted when trying to " +
+					"reach the XPC service. If there's no clear error logs on the daemon side, it might mean that " +
+					"the client does not satisfy the code signing requirement enforced by the daemon. " +
+					"Start capturing logs in Console.app and repeat the scenario. Look for " +
+					"\"xpc_support_check_token: <private> error: <private> status: -67050\" in the logs to verify " +
+					"that the connection was interrupted due to the code signing requirement."
+				log.DebugContext(ctx, clientNSXPCConnectionInterruptedDebugMsg)
+				errC <- trace.Wrap(errXPCConnectionInterrupted)
+				return
+			}
+
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+				errC <- trace.Wrap(errMissingCodeSigningIdentifiers)
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionCodeSigningRequirementFailure {
+				// If the client submits TELEPORT_HOME to which the user doesn't have access, the daemon is
+				// going to shut down with an error soon after starting. Because of that, macOS won't have
+				// enough time to perform the verification of the code signing requirement of the daemon, as
+				// requested by the client.
+				//
+				// In that scenario, macOS is going to simply error that connection with
+				// NSXPCConnectionCodeSigningRequirementFailure. Without looking at logs, it's not possible
+				// to differentiate that from a "legitimate" failure caused by an incorrect requirement.
+				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "either daemon is not signed correctly or it shut down before signature could be verified")
+				return
+			}
+
 			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
 			return
 		}
@@ -318,15 +346,6 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		return trace.Wrap(err, "connecting to the VNet daemon")
 	}
 }
-
-var (
-	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
-	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
-	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
-	// received a message to start after it was already running.
-	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
-	errAlreadyRunning       = errors.New("VNet is already running")
-)
 
 func sleepOrDone(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)

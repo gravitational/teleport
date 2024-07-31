@@ -29,8 +29,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -244,7 +246,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
+				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
 

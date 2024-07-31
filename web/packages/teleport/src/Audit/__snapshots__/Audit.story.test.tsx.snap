@@ -168,11 +168,11 @@ exports[`list of all events 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 4px;
-  font-weight: 500;
 }
 
 .c7 {
@@ -229,6 +229,7 @@ exports[`list of all events 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -410,8 +411,7 @@ exports[`list of all events 1`] = `
       >
         <div
           class="c10"
-          font-weight="500"
-          style="white-space: nowrap; letter-spacing: 0.15px;"
+          style="white-space: nowrap;"
         >
           Showing 
           <strong>
@@ -13381,8 +13381,7 @@ exports[`list of all events 1`] = `
       >
         <div
           class="c10"
-          font-weight="500"
-          style="white-space: nowrap; letter-spacing: 0.15px;"
+          style="white-space: nowrap;"
         >
           Showing 
           <strong>
@@ -13795,6 +13794,7 @@ exports[`loaded audit log screen 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;

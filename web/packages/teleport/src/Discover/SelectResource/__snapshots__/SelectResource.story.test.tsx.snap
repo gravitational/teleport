@@ -53,7 +53,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-transform: none;
 }
 
-.c28 {
+.c30 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -82,6 +82,10 @@ exports[`render with URL loc state set to "server" 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -96,6 +100,9 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -114,11 +121,26 @@ exports[`render with URL loc state set to "server" 1`] = `
   color: #FFFFFF;
 }
 
-.c27 {
+.c29 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c28 {
+  margin-top: 16px;
   margin-top: 40px;
 }
 
@@ -240,11 +262,11 @@ exports[`render with URL loc state set to "server" 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -323,7 +345,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -364,7 +385,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -405,7 +425,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -446,7 +465,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -487,7 +505,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -528,7 +545,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -602,7 +618,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -643,7 +658,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -684,7 +698,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -725,7 +738,6 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c23"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
@@ -739,21 +751,20 @@ exports[`render with URL loc state set to "server" 1`] = `
       </div>
     </a>
   </div>
-  <div
-    class="c27"
-    font-size="12px"
+  <p
+    class="c27 c28 sc-eDPFhE c29"
   >
     Looking for something else?
      
     <a
-      class="c28"
+      class="c30"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;
 
@@ -788,7 +799,7 @@ exports[`render with all access 1`] = `
   text-transform: none;
 }
 
-.c22 {
+.c24 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -817,6 +828,10 @@ exports[`render with all access 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -825,6 +840,9 @@ exports[`render with all access 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -843,11 +861,26 @@ exports[`render with all access 1`] = `
   color: #FFFFFF;
 }
 
-.c21 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c22 {
+  margin-top: 16px;
   margin-top: 40px;
 }
 
@@ -955,11 +988,11 @@ exports[`render with all access 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -1008,7 +1041,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -1049,7 +1081,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -1124,7 +1155,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -1165,7 +1195,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -1240,7 +1269,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -1281,7 +1309,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -1322,7 +1349,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -1363,7 +1389,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -1404,7 +1429,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -1445,7 +1469,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -1486,7 +1509,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -1527,7 +1549,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -1568,7 +1589,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -1609,7 +1629,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -1683,7 +1702,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
@@ -1724,7 +1742,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -1765,7 +1782,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -1806,7 +1822,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
@@ -1847,7 +1862,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
@@ -1888,7 +1902,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -1929,7 +1942,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
@@ -1970,7 +1982,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2011,7 +2022,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2052,7 +2062,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -2093,7 +2102,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
@@ -2134,7 +2142,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2175,7 +2182,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
@@ -2216,7 +2222,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -2291,7 +2296,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -2332,7 +2336,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -2373,7 +2376,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2414,7 +2416,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2455,7 +2456,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2496,7 +2496,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -2537,7 +2536,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -2578,7 +2576,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2619,7 +2616,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -2694,7 +2690,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -2735,7 +2730,6 @@ exports[`render with all access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
@@ -2749,21 +2743,20 @@ exports[`render with all access 1`] = `
       </div>
     </a>
   </div>
-  <div
-    class="c21"
-    font-size="12px"
+  <p
+    class="c21 c22 sc-eDPFhE c23"
   >
     Looking for something else?
      
     <a
-      class="c22"
+      class="c24"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;
 
@@ -2805,7 +2798,7 @@ exports[`render with no access 1`] = `
   text-transform: none;
 }
 
-.c23 {
+.c25 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2834,6 +2827,10 @@ exports[`render with no access 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -2842,6 +2839,9 @@ exports[`render with no access 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -2860,11 +2860,26 @@ exports[`render with no access 1`] = `
   font-weight: 600;
 }
 
-.c22 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c23 {
+  margin-top: 16px;
   margin-top: 40px;
 }
 
@@ -2968,11 +2983,11 @@ exports[`render with no access 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -3025,7 +3040,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
@@ -3068,7 +3082,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -3145,7 +3158,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3187,7 +3199,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3267,7 +3278,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -3313,7 +3323,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -3359,7 +3368,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
@@ -3405,7 +3413,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
@@ -3451,7 +3458,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -3529,7 +3535,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -3574,7 +3579,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
@@ -3620,7 +3624,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3663,7 +3666,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3705,7 +3707,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3750,7 +3751,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3796,7 +3796,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -3842,7 +3841,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
@@ -3888,7 +3886,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -3931,7 +3928,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -3976,7 +3972,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
@@ -4019,7 +4014,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -4064,7 +4058,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -4149,7 +4142,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -4192,7 +4184,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -4234,7 +4225,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -4279,7 +4269,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -4322,7 +4311,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4364,7 +4352,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4409,7 +4396,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4455,7 +4441,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4501,7 +4486,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4547,7 +4531,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -4593,7 +4576,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -4639,7 +4621,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4685,7 +4666,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -4728,7 +4708,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -4812,7 +4791,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -4858,7 +4836,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
@@ -4901,7 +4878,6 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -4914,21 +4890,20 @@ exports[`render with no access 1`] = `
       </div>
     </div>
   </div>
-  <div
-    class="c22"
-    font-size="12px"
+  <p
+    class="c22 c23 sc-eDPFhE c24"
   >
     Looking for something else?
      
     <a
-      class="c23"
+      class="c25"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;
 
@@ -4970,7 +4945,7 @@ exports[`render with partial access 1`] = `
   text-transform: none;
 }
 
-.c25 {
+.c27 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -4999,6 +4974,10 @@ exports[`render with partial access 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.024px;
   margin-bottom: 32px;
 }
 
@@ -5007,6 +4986,9 @@ exports[`render with partial access 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -5025,11 +5007,26 @@ exports[`render with partial access 1`] = `
   color: #FFFFFF;
 }
 
-.c24 {
+.c26 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
   font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-top: 40px;
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-top: 40px;
+}
+
+p+.c25 {
+  margin-top: 16px;
   margin-top: 40px;
 }
 
@@ -5163,11 +5160,11 @@ exports[`render with partial access 1`] = `
       Select Resource To Add
     </h1>
   </div>
-  <div
+  <p
     class="c5"
   >
     Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
-  </div>
+  </p>
   <div
     class="c6"
     height="90px"
@@ -5216,7 +5213,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -5257,7 +5253,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -5366,7 +5361,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -5407,7 +5401,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -5448,7 +5441,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -5489,7 +5481,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -5530,7 +5521,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -5571,7 +5561,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Server
           </div>
@@ -5645,7 +5634,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
@@ -5686,7 +5674,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Windows Desktop
           </div>
@@ -5729,7 +5716,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -5771,7 +5757,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -5816,7 +5801,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -5862,7 +5846,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -5908,7 +5891,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
@@ -5954,7 +5936,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
@@ -6000,7 +5981,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6046,7 +6026,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
@@ -6092,7 +6071,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6138,7 +6116,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6184,7 +6161,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6230,7 +6206,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Database
           </div>
@@ -6276,7 +6251,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6322,7 +6296,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6407,7 +6380,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -6450,7 +6422,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6492,7 +6463,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6537,7 +6507,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -6580,7 +6549,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6622,7 +6590,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6667,7 +6634,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6713,7 +6679,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6759,7 +6724,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6805,7 +6769,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6851,7 +6814,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Self-Hosted
           </div>
@@ -6897,7 +6859,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -6943,7 +6904,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
@@ -7028,7 +6988,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Azure
           </div>
@@ -7074,7 +7033,6 @@ exports[`render with partial access 1`] = `
           <div
             class="c17"
             color="text.slightlyMuted"
-            font-size="12px"
           >
             Microsoft
           </div>
@@ -7088,20 +7046,19 @@ exports[`render with partial access 1`] = `
       </div>
     </a>
   </div>
-  <div
-    class="c24"
-    font-size="12px"
+  <p
+    class="c24 c25 sc-eDPFhE c26"
   >
     Looking for something else?
      
     <a
-      class="c25"
+      class="c27"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
       rel="noreferrer"
       target="_blank"
     >
       Request a feature
     </a>
-  </div>
+  </p>
 </div>
 `;

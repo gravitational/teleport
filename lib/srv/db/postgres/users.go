@@ -40,19 +40,17 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 )
 
-// connectAsAdmin connect to the database from db route as admin user.
-// If useDefaultDatabase is true and a default database is configured for the admin user, it will be used instead.
-func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session, useDefaultDatabase bool) (*pgx.Conn, error) {
-	loginDatabase := sessionCtx.DatabaseName
-	if useDefaultDatabase && sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
-		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
-	} else {
-		e.Log.InfoContext(ctx, "Connecting to session database", "database", loginDatabase)
-	}
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
-	return conn, trace.Wrap(err)
+// connectAsAdmin connects as the admin user to the default database, per database settings, or as a fallback to the one specified in sessionCtx.
+func (e *Engine) connectAsAdminDefaultDatabase(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	return e.newConnector(sessionCtx).withDefaultDatabase().connectAsAdmin(ctx)
+}
+
+// connectAsAdmin connects as the admin user to the database specified in sessionCtx.
+func (e *Engine) connectAsAdminSessionDatabase(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	return e.newConnector(sessionCtx).connectAsAdmin(ctx)
 }
 
 // ActivateUser creates or enables the database user.
@@ -66,7 +64,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.BadParameter("auto-user provisioning is not supported for RDS reader endpoints")
 	}
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -201,33 +199,25 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("fine-grained database permissions and database roles are mutually exclusive, yet both were provided.")
 	}
 
-	rules, err := e.AuthClient.GetDatabaseObjectImportRules(ctx)
+	fetcher, err := objects.GetObjectFetcher(ctx, sessionCtx.Database, objects.ObjectFetcherConfig{
+		ImportRules:  e.AuthClient,
+		Auth:         e.Auth,
+		CloudClients: e.CloudClients,
+		Log:          e.Log,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
-	if err != nil {
-		e.Log.ErrorContext(e.Context, "Failed to connect to the database.", "error", err)
-		return trace.Wrap(err)
-	}
-	defer conn.Close(ctx)
-
-	objsFetched, err := fetchDatabaseObjects(ctx, sessionCtx, conn)
+	objsImported, err := fetcher.FetchOneDatabase(ctx, sessionCtx.DatabaseName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	counts, _ := permissions.CountObjectKinds(objsFetched)
-	e.Log.InfoContext(ctx, "Database objects fetched from the database.", "counts", counts, "total", len(objsFetched))
-
-	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(ctx, e.Log, rules, sessionCtx.Database, objsFetched)
-	counts, _ = permissions.CountObjectKinds(objsImported)
-	e.Log.InfoContext(ctx, "Database objects imported.", "counts", counts, "err_count", errCount, "total", len(objsFetched))
 
 	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsImported)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	summary, eventData := permissions.SummarizePermissions(permissionSet)
 	e.Log.InfoContext(ctx, "Calculated database permissions.", "summary", summary, "user", sessionCtx.DatabaseUser)
 	e.auditUserPermissions(sessionCtx, eventData)
@@ -237,6 +227,15 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
+	if err != nil {
+		e.Log.ErrorContext(ctx, "Failed to connect to the database.", "error", err)
+		return trace.Wrap(err)
+	}
+	defer conn.Close(ctx)
+
+	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
+	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
 	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName, updatePermissionsProcName}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -263,7 +262,7 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 	}
 
 	logger.InfoContext(ctx, "Removing permissions from PostgreSQL user.")
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -290,7 +289,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	// removal may yield errors, but we will still attempt to deactivate the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
@@ -323,7 +322,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	// removal may yield errors, but we will still attempt to delete the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
@@ -406,21 +405,6 @@ func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn) error 
 	}
 
 	return nil
-}
-
-// pgxConnect connects to the database using pgx driver which is higher-level
-// than pgconn and is easier to use for executing queries.
-func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
-	config, err := e.getConnectConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgxConf, err := pgx.ParseConfig("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgxConf.Config = *config
-	return pgx.ConnectConfig(ctx, pgxConf)
 }
 
 // callProcedure calls the procedure with the provided arguments.

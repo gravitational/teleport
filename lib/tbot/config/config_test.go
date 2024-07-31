@@ -198,6 +198,19 @@ func TestDestinationFromURI(t *testing.T) {
 			in:      "foobar://",
 			wantErr: true,
 		},
+		{
+			in: "kubernetes-secret:///my-secret",
+			want: &DestinationKubernetesSecret{
+				Name: "my-secret",
+			},
+		},
+		{
+			in: "kubernetes-secret://my-secret",
+			want: &DestinationKubernetesSecret{
+				Name: "my-secret",
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {

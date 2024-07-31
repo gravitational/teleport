@@ -21,6 +21,8 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { Box, Indicator, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 
+import { P } from 'design/Text/Text';
+
 import cfg from 'teleport/config';
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -159,10 +161,9 @@ export function DownloadScript(props: AgentStepProps) {
     <>
       <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport Service.
-        <br />
-        Run the following command on the server you want to add.
+        Install and configure the Teleport Service
       </HeaderSubtitle>
+      <P mb={4}>Run the following command on the server you want to add.</P>
       <CommandBox>
         <TextSelectCopyMulti
           lines={[{ text: createBashCommand(joinToken.id) }]}

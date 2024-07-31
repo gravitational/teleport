@@ -25,6 +25,7 @@ import {
   ClipboardUser,
   Cluster,
   Integrations as IntegrationsIcon,
+  Key,
   Laptop,
   ListAddCheck,
   ListThin,
@@ -125,6 +126,16 @@ export class FeatureNodes implements TeleportFeature {
 // TODO (avatus) add navigationItem when ready to release
 export class FeatureJoinTokens implements TeleportFeature {
   category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  navigationItem = {
+    title: NavTitle.JoinTokens,
+    icon: Key,
+    exact: true,
+    getLink() {
+      return cfg.getJoinTokensRoute();
+    },
+  };
+
   route = {
     title: NavTitle.JoinTokens,
     path: cfg.routes.joinTokens,

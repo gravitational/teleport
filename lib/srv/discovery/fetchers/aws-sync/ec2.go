@@ -90,7 +90,7 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 				lHosts := make([]*accessgraphv1alpha.AWSInstanceV1, 0, len(page.Reservations))
 				for _, reservation := range page.Reservations {
 					for _, instance := range reservation.Instances {
-						hosts = append(hosts, awsInstanceToProtoInstance(instance, a.AccountID))
+						hosts = append(hosts, awsInstanceToProtoInstance(instance, region, a.AccountID))
 					}
 				}
 				collectHosts(lHosts, nil)
@@ -110,7 +110,7 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 
 // awsInstanceToProtoInstance converts an ec2.Instance to accessgraphv1alpha.AWSInstanceV1
 // representation.
-func awsInstanceToProtoInstance(instance *ec2.Instance, accountID string) *accessgraphv1alpha.AWSInstanceV1 {
+func awsInstanceToProtoInstance(instance *ec2.Instance, region string, accountID string) *accessgraphv1alpha.AWSInstanceV1 {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, tag := range instance.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
@@ -125,7 +125,7 @@ func awsInstanceToProtoInstance(instance *ec2.Instance, accountID string) *acces
 	}
 	return &accessgraphv1alpha.AWSInstanceV1{
 		InstanceId:            aws.ToString(instance.InstanceId),
-		Region:                aws.ToString(instance.Placement.AvailabilityZone),
+		Region:                region,
 		PublicDnsName:         aws.ToString(instance.PublicDnsName),
 		LaunchKeyName:         strPtrToWrapper(instance.KeyName),
 		IamInstanceProfileArn: instanceProfileMetadata,

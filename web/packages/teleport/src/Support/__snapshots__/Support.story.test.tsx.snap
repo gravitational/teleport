@@ -74,18 +74,20 @@ exports[`support Cloud 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c1 {
@@ -129,9 +131,10 @@ exports[`support Cloud 1`] = `
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c12:hover,
@@ -509,18 +512,20 @@ exports[`support Enterprise 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c1 {
@@ -564,9 +569,10 @@ exports[`support Enterprise 1`] = `
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c12:hover,
@@ -1018,18 +1024,20 @@ exports[`support Enterprise with CTA 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c1 {
@@ -1080,9 +1088,10 @@ exports[`support Enterprise with CTA 1`] = `
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c12:hover,
@@ -1159,7 +1168,7 @@ exports[`support Enterprise with CTA 1`] = `
         <a
           class="c13"
           fill="filled"
-          href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
+          href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
           rel="noreferrer"
           style="text-transform: none;"
           target="blank"
@@ -1493,18 +1502,20 @@ exports[`support OSS 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c1 {
@@ -1548,9 +1559,10 @@ exports[`support OSS 1`] = `
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c12:hover,
@@ -1994,18 +2006,20 @@ exports[`support OSSWithCTA 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 600;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c1 {
@@ -2056,9 +2070,10 @@ exports[`support OSSWithCTA 1`] = `
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
-  font-weight: 400;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
 }
 
 .c12:hover,

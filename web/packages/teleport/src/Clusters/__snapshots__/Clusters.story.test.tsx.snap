@@ -185,6 +185,7 @@ exports[`render clusters 1`] = `
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;

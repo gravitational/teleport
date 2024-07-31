@@ -18,12 +18,14 @@
 
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
+
+import { P } from 'design/Text/Text';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
@@ -142,7 +144,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         // to get picked up by this service we deployed.
         // So setting the attempt here to "success"
         // is not necessary.
-        .then(setSvcDeployedAwsUrl)
+        .then(url => {
+          setSvcDeployedAwsUrl(url);
+        })
         .catch((err: Error) => {
           setAttempt({ status: 'failed', statusText: err.message });
           emitErrorEvent(`deploy request failed: ${err.message}`);
@@ -215,7 +219,10 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             {!wantAutoDiscover && (
               <>
                 <StyledBox mb={5}>
-                  <Text bold>Step 2 (Optional)</Text>
+                  <header>
+                    <H3>Step 2 (Optional)</H3>
+                    <Subtitle3 mb={2}>Define Matcher Labels</Subtitle3>
+                  </header>
                   <Labels
                     labels={labels}
                     setLabels={setLabels}
@@ -228,7 +235,10 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                 </StyledBox>
                 {/* step three */}
                 <StyledBox mb={5}>
-                  <Text bold>Step 3 (Optional)</Text>
+                  <header>
+                    <H3>Step 3 (Optional)</H3>
+                    <Subtitle3 mb={2}>Select Security Groups</Subtitle3>
+                  </header>
                   <SelectSecurityGroups
                     selectedSecurityGroups={selectedSecurityGroups}
                     setSelectedSecurityGroups={setSelectedSecurityGroups}
@@ -240,8 +250,12 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             )}
 
             <StyledBox mb={5}>
-              <Text bold>Step {wantAutoDiscover ? 2 : 4}</Text>
-              <Text mb={2}>Deploy the Teleport Database Service.</Text>
+              <header>
+                <H3>Step {wantAutoDiscover ? 2 : 4}</H3>
+                <Subtitle3 mb={2}>
+                  Deploy the Teleport Database Service.
+                </Subtitle3>
+              </header>
               <ButtonSecondary
                 width="215px"
                 type="submit"
@@ -371,26 +385,23 @@ const CreateAccessRole = ({
 
   return (
     <StyledBox mb={5}>
-      <Text bold>Step 1</Text>
-      <Text mb={2}>
-        Name a Task Role ARN for this Database Service and generate a configure
-        command. This command will configure the required permissions in your
-        AWS account.
-      </Text>
+      <H3 mb={2}>Step 1</H3>
+      <P mb={2}>
+        Name an IAM role for the Teleport Database Service and generate a
+        configuration command. The generated command will create the role and
+        configure permissions for it in your AWS account.
+      </P>
       <FieldInput
         mb={4}
         disabled={disabled}
         rule={requiredIamRoleName}
-        label="Name a Task Role ARN"
+        label="Name an IAM role"
         autoFocus
         value={taskRoleArn}
         placeholder="TeleportDatabaseAccess"
         width="440px"
         mr="3"
         onChange={e => setTaskRoleArn(e.target.value)}
-        toolTipContent={`Amazon Resource Names (ARNs) uniquely identify AWS \
-        resources. In this case you will naming an IAM role that this \
-        deployed service will be using`}
       />
       <ButtonSecondary mb={3} onClick={generateAutoConfigScript}>
         {scriptUrl ? 'Regenerate Command' : 'Generate Command'}

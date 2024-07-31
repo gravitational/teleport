@@ -548,6 +548,13 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 		return unlock, trace.Wrap(err)
 	}
 
+	if !store.IsPersistent() {
+		b.log.WarnContext(
+			ctx,
+			"Bot is configured with a non-persistent storage destination. If the bot is running in a non-ephemeral environment, this will impact the ability to provide a long-lived bot instance identity",
+		)
+	}
+
 	return unlock, nil
 }
 
@@ -571,42 +578,6 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 		if err := initable.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	return nil
-}
-
-// checkIdentity performs basic startup checks on an identity and loudly warns
-// end users if it is unlikely to work.
-func checkIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) error {
-	var validAfter time.Time
-	var validBefore time.Time
-
-	if ident.X509Cert != nil {
-		validAfter = ident.X509Cert.NotBefore
-		validBefore = ident.X509Cert.NotAfter
-	} else if ident.SSHCert != nil {
-		validAfter = time.Unix(int64(ident.SSHCert.ValidAfter), 0)
-		validBefore = time.Unix(int64(ident.SSHCert.ValidBefore), 0)
-	} else {
-		return trace.BadParameter("identity is invalid and contains no certificates")
-	}
-
-	now := time.Now().UTC()
-	if now.After(validBefore) {
-		log.WarnContext(
-			ctx,
-			"Identity has expired. The renewal is likely to fail",
-			"expires", validBefore.Format(time.RFC3339),
-			"current_time", now.Format(time.RFC3339),
-		)
-	} else if now.Before(validAfter) {
-		log.WarnContext(
-			ctx,
-			"Identity is not yet valid. Confirm that the system time is correct",
-			"valid_after", validAfter.Format(time.RFC3339),
-			"current_time", now.Format(time.RFC3339),
-		)
 	}
 
 	return nil

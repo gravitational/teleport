@@ -27,6 +27,7 @@ import {
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
+import { WindowsPty } from 'teleterm/services/pty';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
 
@@ -48,6 +49,7 @@ type TerminalProps = {
   unsanitizedFontFamily: string;
   fontSize: number;
   onEnterKey?(): void;
+  windowsPty: WindowsPty;
 };
 
 export function Terminal(props: TerminalProps) {
@@ -72,6 +74,7 @@ export function Terminal(props: TerminalProps) {
       el: refElement.current,
       fontSize: props.fontSize,
       theme: theme.colors.terminal,
+      windowsPty: props.windowsPty,
     });
 
     // Start the PTY process.

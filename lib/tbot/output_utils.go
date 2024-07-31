@@ -276,9 +276,16 @@ func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.
 		}
 	}
 
+	botDesc := ""
+	if tlsIdent.BotInstanceID != "" {
+		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
+	}
+
 	duration := cert.NotAfter.Sub(cert.NotBefore)
 	return fmt.Sprintf(
-		"valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		tlsIdent.BotName,
+		botDesc,
 		cert.NotBefore.Format(time.RFC3339),
 		cert.NotAfter.Format(time.RFC3339),
 		duration,

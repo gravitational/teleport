@@ -1254,7 +1254,7 @@ message ProvisionTokenSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include "token", "ec2", and "iam".
+  // Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
   string JoinMethod = 4 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
@@ -2802,7 +2802,7 @@ message RoleOptions {
   // concurrent sessions per connection.
   int64 MaxSessions = 10 [(gogoproto.jsontag) = "max_sessions,omitempty"];
 
-  // RequestAccess defines the access request strategy (optional|note|always)
+  // RequestAccess defines the request strategy (optional|note|always)
   // where optional is the default.
   string RequestAccess = 11 [
     (gogoproto.jsontag) = "request_access,omitempty",
@@ -4436,6 +4436,8 @@ message MaxAge {
 message SSOClientRedirectSettings {
   // a list of hostnames allowed for https client redirect URLs
   repeated string allowed_https_hostnames = 1;
+  // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+  repeated string insecure_allowed_cidr_ranges = 2;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4506,6 +4508,10 @@ message OIDCAuthRequest {
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4648,6 +4654,10 @@ message SAMLAuthRequest {
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4774,6 +4784,9 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+  // ClientUserAgent is the user agent of the Web browser, used for issuing
+  // a DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5269,6 +5282,16 @@ message RegisterUsingTokenRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // BotInstanceID is a trusted instance identifier for a Machine ID bot,
+  // provided when rejoining. This parameters may only be provided by the join
+  // service and is ignored otherwise; bots should otherwise rejoin with their
+  // existing client certificate to prove their instance identity.
+  string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -6170,6 +6193,8 @@ message PluginStatusV1 {
     // gitlab is the status details for the Gitlab plugin.
     PluginGitlabStatusV1 gitlab = 4;
     PluginEntraIDStatusV1 entra_id = 5;
+    // Okta holds status details for the Okta plugin
+    PluginOktaStatusV1 okta = 7;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -6211,6 +6236,171 @@ enum PluginStatusCode {
   // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
   // that the bot has not been invited to a channel that it is configured to post in.
   SLACK_NOT_IN_CHANNEL = 10;
+}
+
+// OktaPluginSyncStatusCode indicates the possible states of an Okta
+// synchronization service.
+enum OktaPluginSyncStatusCode {
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_UNSPECIFIED is the status code zero value,
+  // indicating that the service has not yet reported a status code.
+  OKTA_PLUGIN_SYNC_STATUS_CODE_UNSPECIFIED = 0;
+
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS indicates that the service is running
+  // without error
+  OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS = 1;
+
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR indicates that the service is currently
+  // in an error state.
+  OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR = 2;
+}
+
+// PluginOktaStatusV1 contains the details for the running Okta plugin.
+message PluginOktaStatusV1 {
+  // SSODetails are status details relating to SSO.
+  PluginOktaStatusDetailsSSO sso_details = 1;
+
+  // AppGroupSyncDetails are status details relating to synchronizing apps and
+  // groups from Okta.
+  PluginOktaStatusDetailsAppGroupSync app_group_sync_details = 2;
+
+  // UsersSyncDetails are status details relating to synchronizing users from
+  // Okta.
+  PluginOktaStatusDetailsUsersSync users_sync_details = 3;
+
+  // ScimDetails are status details relating to SCIM integration with
+  // Okta.
+  PluginOktaStatusDetailsSCIM scim_details = 4;
+
+  // AccessListSyncDetails are status details relating to synchronizing access
+  // lists from Okta.
+  PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 5;
+}
+
+// PluginOktaStatusDetailsSSO are details related to the
+// current status of the Okta integration w/r/t SSO.
+message PluginOktaStatusDetailsSSO {
+  // Enabled indicates whether SSO login is enabled.
+  bool enabled = 1;
+
+  // AppId is the unique Okta application ID of the Okta Applicaion used for
+  // SSO login.
+  string app_id = 2;
+
+  // AppName is the human-readable name of the Okta Applicaion used for SSO.
+  string app_name = 3;
+}
+
+// PluginOktaStatusDetailsAppGroupSync are details related to the
+// current status of the Okta integration w/r/t application and group
+// sync.
+message PluginOktaStatusDetailsAppGroupSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the App & Group sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumAppsSynced is the total number of apps synchronized.
+  int32 num_apps_synced = 5;
+
+  // NumAppsSynced is the total number of groups synchronized.
+  int32 num_groups_synced = 6;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 7;
+}
+
+// PluginOktaStatusDetailsUsersSync are details related to the
+// current status of the Okta integration w/r/t users sync.
+message PluginOktaStatusDetailsUsersSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the User sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumUsersSynced is the total number of users synchronized.
+  int32 num_users_synced = 5;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 6;
+}
+
+// PluginOktaStatusDetailsSCIM are details related to the
+// current status of the Okta integration w/r/t SCIM.
+message PluginOktaStatusDetailsSCIM {
+  // Enabled is whether SCIM is enabled.
+  bool enabled = 1;
+}
+
+// PluginOktaStatusDetailsAccessListsSync are details related to the
+// current status of the Okta integration w/r/t access list sync.
+message PluginOktaStatusDetailsAccessListsSync {
+  // Enabled is whether access lists sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the AccessList sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // AppFilters are the app filters used for the access list sync.
+  repeated string app_filters = 5;
+
+  // NumAppsSynced are the number of applications synchronized as access lists.
+  int32 num_apps_synced = 6;
+
+  // GroupFilters are the group filters used for the access list sync.
+  repeated string group_filters = 7;
+
+  // NumGroupsSynced are the number of groups synchronized as access lists.
+  int32 num_groups_synced = 8;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 9;
 }
 
 // PluginCredentialsV1 represents "live" credentials
