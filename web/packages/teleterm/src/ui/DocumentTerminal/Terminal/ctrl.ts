@@ -24,6 +24,7 @@ import { debounce } from 'shared/utils/highbar';
 import { WindowsPty } from 'teleterm/services/pty';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
@@ -45,7 +46,8 @@ export default class TtyTerminal {
 
   constructor(
     private ptyProcess: IPtyProcess,
-    private options: Options
+    private options: Options,
+    private keyboardShortcutsService: KeyboardShortcutsService
   ) {
     this.el = options.el;
     this.term = null;
@@ -84,6 +86,27 @@ export default class TtyTerminal {
     this.registerResizeHandler();
 
     this.term.open(this.el);
+
+    this.term.attachCustomKeyEventHandler(e => {
+      const action = this.keyboardShortcutsService.getShortcutAction(e);
+      const isKeyDown = e.type === 'keydown';
+      if (action === 'terminalCopy' && isKeyDown) {
+        void this.copy();
+        // Do not invoke a copy action from the menu.
+        e.preventDefault();
+        // Event handled, do not process it in xterm.
+        return false;
+      }
+      if (action === 'terminalPaste' && isKeyDown) {
+        void this.paste();
+        // Do not invoke a copy action from the menu.
+        e.preventDefault();
+        // Event handled, do not process it in xterm.
+        return false;
+      }
+
+      return true;
+    });
 
     this.fitAddon.fit();
 
@@ -129,6 +152,18 @@ export default class TtyTerminal {
     this.el.innerHTML = null;
 
     window.removeEventListener('resize', this.debouncedResize);
+  }
+
+  private async copy(): Promise<void> {
+    const selection = this.term.getSelection();
+    if (selection.trim()) {
+      await navigator.clipboard.writeText(selection);
+    }
+  }
+
+  private async paste(): Promise<void> {
+    const text = await navigator.clipboard.readText();
+    this.term.paste(text);
   }
 
   private registerResizeHandler(): void {
