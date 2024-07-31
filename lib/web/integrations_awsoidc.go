@@ -197,7 +197,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 			types.Labels{
 				types.DiscoveryLabelVPCID:     []string{d.VPCID},
 				types.DiscoveryLabelRegion:    []string{req.Region},
-				types.DiscoveryLabelAccountID: []string{req.AccountId},
+				types.DiscoveryLabelAccountID: []string{req.AccountID},
 			},
 		)
 		if err != nil {
