@@ -27,14 +27,6 @@
     "nop": "exit 0"
   },
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "minimist": "^1.2.8",
-      "trim": "0.0.3",
-      "webpack": "^5.88.2",
-      "x-default-browser": "^0.5.2"
-    }
-  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@storybook/components": "^8.2.5",
