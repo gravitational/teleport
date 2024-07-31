@@ -68,10 +68,12 @@ type Config struct {
 	// Logger is the logger for status messages.
 	Logger *slog.Logger
 
-	// ComputerName is the name used to communicate with KDC
+	// ComputerName is the name used to communicate with KDC.
+	// Used for NLA support when AD is true.
 	ComputerName string
 
-	// KDCAddr is address of Key Distribution Center
+	// KDCAddr is address of Key Distribution Center.
+	// Used for NLA support when AD is true.
 	KDCAddr string
 
 	// AD determines if the desktop is part of an Active Directory domain
