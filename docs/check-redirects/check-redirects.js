@@ -1,4 +1,3 @@
-const yaml = require('yaml');
 const path = require('path');
 
 const teleportDocsURL = 'https://goteleport.com/docs';
