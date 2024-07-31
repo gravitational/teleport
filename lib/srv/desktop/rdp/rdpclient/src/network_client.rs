@@ -57,6 +57,11 @@ impl ReqwestNetworkClient {
     }
 }
 
+// 65535 bytes: maximum allowed token len in Windows
+// See note in https://learn.microsoft.com/en-us/troubleshoot/windows-server/group-policy/group-policy-add-maxtokensize-registry-entry
+const MAX_TOKEN_LENGTH: usize = 65536;
+const DEFAULT_KERBEROS_PORT: u16 = 88;
+
 impl ReqwestNetworkClient {
     async fn send_tcp(&self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
         let addr = format!(
@@ -102,7 +107,7 @@ impl ReqwestNetworkClient {
         let addr = format!(
             "{}:{}",
             url.host_str().unwrap_or_default(),
-            url.port().unwrap_or(88)
+            url.port().unwrap_or(DEFAULT_KERBEROS_PORT)
         );
 
         udp_socket
@@ -110,8 +115,7 @@ impl ReqwestNetworkClient {
             .await
             .map_err(|e| custom_err!("failed to send UDP request", e))?;
 
-        // 48 000 bytes: default maximum token len in Windows
-        let mut buf = vec![0; 0xbb80];
+        let mut buf = vec![0; MAX_TOKEN_LENGTH];
 
         let n = udp_socket
             .recv(&mut buf)
