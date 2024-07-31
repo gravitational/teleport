@@ -143,7 +143,7 @@ can change etc, so Bob wants all the help to make it easier to manage. If some a
 Teleport roles he needs to make sure Kubernetes clusters RBAC is amended correctly as well. Right now Kubernetes clusters themselves are managed by different people, so
 syncing RBAC resources state often takes a long time and increases the possibility of security incidents. With the new KubeProvision resource Bob can centralize control
 of the access in Teleport, without depending on another team. Bob can export RBAC resources to the new KubeProvision resources, set labels accordingly, so
-Kubernetes clusters in every type of environment have desired set of RBAC resources set up. Bow will login to Teleport on tsh, then will use tctl to create 
+Kubernetes clusters in every type of environment have desired set of RBAC resources set up. Bob will login to Teleport on tsh, then will use tctl to create 
 a new resource:
 
 ```bash
