@@ -18,6 +18,7 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -46,7 +47,20 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 	if err != nil {
 		return nil, trace.Wrap(err, "creating trust domain")
 	}
+
 	bundle := spiffebundle.New(td)
+	// The refresh hint indicates how often a federated trust domain should
+	// check for updates to the bundle. This should be a low value to ensure
+	// that CA rotations are picked up quickly. Since we're leveraging
+	// https_web, it's not critical for a federated trust domain to catch
+	// all phases of the rotation - however, if we support https_spiffe in
+	// future, we may need to consider a lower value or enforcing a wait
+	// period during rotations equivelant to the refresh hint.
+	bundle.SetRefreshHint(5 * time.Minute)
+	// TODO(noah):
+	// For now, we omit the SequenceNumber field. This is only a SHOULD not a
+	// MUST per the spec. To add this, we will add a sequence number to the
+	// cert authority and increment it on every update.
 
 	spiffeCA, err := h.GetAccessPoint().GetCertAuthority(r.Context(), types.CertAuthID{
 		Type:       types.SPIFFECA,
@@ -66,7 +80,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 
 	bundleBytes, err := bundle.Marshal()
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling bundle")
+		return nil, trace.Wrap(err, "marshaling bundle")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
