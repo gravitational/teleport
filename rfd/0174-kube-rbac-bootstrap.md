@@ -138,7 +138,7 @@ Teleport roles linking to Kubernetes RBAC more easily, without relying on the th
 #### UX
 
 Bob is an administrator of Teleport resources and access. He works in a large company that has hundreds of engineers/support staff etc and also
-has multiple Kubernetes clusters which those users need to access. The Kubernetes clusters might be dynamically created or destroyed, RBAC access patters
+has multiple Kubernetes clusters which those users need to access. The Kubernetes clusters might be dynamically created or destroyed, RBAC access patterns
 can change etc, so Bob wants all the help to make it easier to manage. If some access patterns change and Bob amends Kubernetes groups used in the
 Teleport roles he needs to make sure Kubernetes clusters RBAC is amended correctly as well. Right now Kubernetes clusters themselves are managed by different people, so
 syncing RBAC resources state often takes a long time and increases the possibility of security incidents. With the new KubeProvision resource Bob can centralize control
