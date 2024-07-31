@@ -119,8 +119,8 @@ type SPIFFEWorkloadAPIService struct {
 	// SVIDs is the list of SVIDs that the SPIFFE Workload API server should
 	// provide.
 	SVIDs []SVIDRequestWithRules `yaml:"svids"`
-	// Attestor is the configuration for the workload attestation process.
-	Attestor workloadattest.Config `yaml:"attestor"`
+	// Attestors is the configuration for the workload attestation process.
+	Attestors workloadattest.Config `yaml:"attestors"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -153,7 +153,7 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 			return trace.Wrap(err, "validating svid[%d]", i)
 		}
 	}
-	if err := s.Attestor.CheckAndSetDefaults(); err != nil {
+	if err := s.Attestors.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating attestor")
 	}
 	return nil

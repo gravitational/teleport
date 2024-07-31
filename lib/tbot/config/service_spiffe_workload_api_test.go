@@ -36,7 +36,7 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			name: "full",
 			in: SPIFFEWorkloadAPIService{
 				Listen: "unix:///var/run/spiffe.sock",
-				Attestor: workloadattest.Config{
+				Attestors: workloadattest.Config{
 					Kubernetes: workloadattest.KubernetesAttestorConfig{
 						Enabled: true,
 						Kubelet: workloadattest.KubeletClientConfig{

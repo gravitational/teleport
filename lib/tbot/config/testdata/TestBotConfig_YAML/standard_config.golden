@@ -39,7 +39,7 @@ services:
           - unix:
               pid: 100
             kubernetes: {}
-    attestor:
+    attestors:
       kubernetes:
         enabled: false
   - type: example

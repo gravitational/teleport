@@ -173,7 +173,7 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	}
 	s.trustDomain = authPing.ClusterName
 
-	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestor)
+	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
 	if err != nil {
 		return trace.Wrap(err, "setting up workload attestation")
 	}

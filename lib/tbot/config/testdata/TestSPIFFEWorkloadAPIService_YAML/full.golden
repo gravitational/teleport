@@ -21,7 +21,7 @@ svids:
           namespace: my-namespace
           service_account: service-account
           pod_name: my-pod
-attestor:
+attestors:
   kubernetes:
     enabled: true
     kubelet:
