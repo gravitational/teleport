@@ -237,6 +237,9 @@ type AWSOIDCDeployDatabaseServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	// AccountID is the AWS account to deploy service to.
+	AccountID string `json:"accountId"`
+
 	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
 	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
 	// This can be either the ARN or the short name of the AWS Role.

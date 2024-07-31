@@ -48,11 +48,20 @@ typedef struct VnetConfigResult {
   const char *home_path;
 } VnetConfigResult;
 
+typedef struct ClientCred {
+  // valid is set if the euid and egid fields have been set.
+  bool valid;
+  // egid is the effective group ID of the process on the other side of the XPC connection.
+  gid_t egid;
+  // euid is the effective user ID of the process on the other side of the XPC connection.
+  uid_t euid;
+} ClientCred;
+
 // WaitForVnetConfig blocks until a client calls the daemon with a config necessary to start VNet.
 // It can be interrupted by calling DaemonStop.
 //
 // The caller is expected to check outResult.ok to see if the call succeeded and to free strings
 // in VnetConfigResult.
-void WaitForVnetConfig(VnetConfigResult *outResult);
+void WaitForVnetConfig(VnetConfigResult *outResult, ClientCred *outClientCred);
 
 #endif /* TELEPORT_LIB_VNET_DAEMON_SERVICE_DARWIN_H_ */
