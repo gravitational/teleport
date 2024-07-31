@@ -292,7 +292,7 @@ We will emphasize in the user documentation the need to be vigilant when giving 
 the necessary permissions. We will also add new special label `teleport.dev/kube-provision-disabled`, that can
 exclude a Kubernetes cluster from the provisioning, selectively turning off this feature for the cluster.
 
-Even though we will always run the reconciliation loop, by default it will be a no-op, since three will
+Even though we will always run the reconciliation loop, by default it will be a no-op, since there will
 be no resources to provision, so users need to explicitly create KubeProvision resources to start actively using this new feature.
 We also will explicitly require labels to be present for the resource to be provisioned to the Kubernetes cluster, making it 
 more difficult to accidentally misuse the feature.
