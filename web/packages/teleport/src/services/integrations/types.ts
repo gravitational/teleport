@@ -324,7 +324,7 @@ type DeployDatabaseServiceDeployment = {
 // -account-id: <AccountID>s
 // -vpc-id: <Deployments[].VPCID>
 export type AwsOidcDeployDatabaseServicesRequest = {
-  // The aws account to deploy the db service to.
+  // The AWS account to deploy the db service to.
   accountId: string;
   // Region is the AWS Region for the Service.
   region: string;
