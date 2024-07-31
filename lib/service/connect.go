@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -1121,7 +1122,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 		}
 	}
 
-	clt, pingResponse, err := process.newClient(clientIdentity)
+	clt, pingResponse, err := process.newClient(newConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1213,13 +1214,20 @@ func getBaseEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) ma
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient.Client, *proto.PingResponse, error) {
-	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Client, *proto.PingResponse, error) {
+	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := connector.ClientGetCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsCert, nil
 	}
+	tlsConfig.ServerName = apiutils.EncodeClusterName(connector.ClusterName())
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(connector.ClientGetPool)
 
-	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
+	sshClientConfig, err := connector.clientSSHClientConfig(process.Config.FIPS)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1227,7 +1235,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 	authServers := process.Config.AuthServerAddresses()
 	connectToAuthServer := func(logger *slog.Logger) (*authclient.Client, *proto.PingResponse, error) {
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server directly.")
-		clt, pingResponse, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+		clt, pingResponse, err := process.newClientDirect(authServers, tlsConfig, connector.Role())
 		if err != nil {
 			logger.DebugContext(process.ExitContext(), "Failed to connect to Auth Server directly.")
 			return nil, nil, err
@@ -1249,7 +1257,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 		}
 
 		// Don't attempt to connect through a tunnel as a proxy or auth server.
-		if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
+		if connector.Role() == types.RoleAuth || connector.Role() == types.RoleProxy {
 			return nil, nil, trace.Wrap(directErr)
 		}
 
@@ -1258,7 +1266,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 		logger.DebugContext(process.ExitContext(), "Attempting to discover reverse tunnel address.")
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, identity.ID.Role)
+		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
 		if err != nil {
 			process.logger.ErrorContext(process.ExitContext(), "Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.logger.ErrorContext(process.ExitContext(), "- connecting to auth server directly", "error", directErr)
@@ -1282,8 +1290,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 		if !proxyServer.IsEmpty() {
 			logger := process.logger.With("proxy_server", proxyServer.String())
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
-
-			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, identity.ID.Role)
+			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
 			if err != nil {
 				return nil, nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1315,7 +1322,7 @@ func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) brea
 	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
@@ -1326,6 +1333,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// GetClusterCAs:         func(context.Context) (*x509.CertPool, error) { return getClusterCAs() },
 	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Dialer:  dialer,

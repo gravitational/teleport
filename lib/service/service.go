@@ -447,6 +447,27 @@ func (c *Connector) clientIdentityString() string {
 	return c.clientState.Load().identity.String()
 }
 
+func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	hostKeyCallback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: func() ([]ssh.PublicKey, error) {
+				return c.clientState.Load().hostCheckers, nil
+			},
+			FIPS: fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ssh.ClientConfig{
+		User: c.hostID,
+		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
+			return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
+		})},
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         apidefaults.DefaultIOTimeout,
+	}, nil
+}
+
 // ServerTLSConfig returns a new server-side [*tls.Config] that presents the
 // connector's credentials as its certificate. The returned tls.Config doesn't
 // request or trust any client certificates, so the caller is responsible for
