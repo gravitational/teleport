@@ -120,7 +120,6 @@ type SPIFFEWorkloadAPIService struct {
 	// provide.
 	SVIDs []SVIDRequestWithRules `yaml:"svids"`
 	// Attestor is the configuration for the workload attestation process.
-	// TODO(noah): Less ugly name ??
 	Attestor workloadattest.Config `yaml:"attestor"`
 }
 
