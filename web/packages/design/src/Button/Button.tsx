@@ -32,7 +32,7 @@ import {
   HeightProps,
   AlignSelfProps,
 } from 'design/system';
-import { TextAndBackgroundColors, Theme } from 'design/theme/themes/types';
+import { Theme } from 'design/theme/themes/types';
 
 export type ButtonProps<E extends React.ElementType> =
   React.ComponentPropsWithoutRef<E> &
@@ -158,23 +158,22 @@ const buttonStyle = <E extends React.ElementType>(
   const { fill, intent } = props;
   const palette = buttonPalette(props);
   return {
-    backgroundColor: palette.default.background,
+    backgroundColor: palette.default.background ?? 'transparent',
     color: palette.default.text,
-    borderColor: props.fill === 'border' ? palette.default.text : 'transparent',
+    borderColor: palette.default.border ?? 'transparent',
     ['&:focus-visible, .teleport-button__force-focus-visible &']: {
-      backgroundColor:
-        props.fill !== 'minimal' ? palette.focus.background : 'transparent',
+      backgroundColor: palette.focus.background ?? 'transparent',
       color: palette.focus.text,
-      borderColor: palette.focus.text,
+      borderColor: palette.focus.border ?? 'transparent',
       borderRadius: intent === 'neutral' || fill === 'minimal' ? '4px' : '2px',
       outline:
         intent !== 'neutral' && fill !== 'minimal'
-          ? `2px solid ${palette.focus.background}`
+          ? `2px solid ${palette.focus.background ?? 'transparent'}`
           : 'none',
     },
     '&:hover, .teleport-button__force-hover &': {
-      backgroundColor: palette.hover.background,
-      borderColor: 'transparent',
+      backgroundColor: palette.hover.background ?? 'transparent',
+      borderColor: palette.hover.border ?? 'transparent',
       color: palette.hover.text,
       boxShadow:
         intent === 'neutral' || fill === 'minimal'
@@ -184,18 +183,24 @@ const buttonStyle = <E extends React.ElementType>(
             0px 1px 14px 0px rgba(0, 0, 0, 0.12)`,
     },
     '&:active, .teleport-button__force-active &': {
-      backgroundColor: palette.active.background,
-      borderColor: 'transparent',
+      backgroundColor: palette.active.background ?? 'transparent',
+      borderColor: palette.active.border ?? 'transparent',
       color: palette.active.text,
     },
   };
 };
 
+type ButtonPaletteEntry = {
+  text: string;
+  background?: string;
+  border?: string;
+};
+
 type ButtonPalette = {
-  default: TextAndBackgroundColors;
-  hover: TextAndBackgroundColors;
-  active: TextAndBackgroundColors;
-  focus: TextAndBackgroundColors;
+  default: ButtonPaletteEntry;
+  hover: ButtonPaletteEntry;
+  active: ButtonPaletteEntry;
+  focus: ButtonPaletteEntry;
 };
 
 const buttonPalette = <E extends React.ElementType>({
@@ -210,20 +215,25 @@ const buttonPalette = <E extends React.ElementType>({
           default: colors.interactive.tonal.neutral[0],
           hover: colors.interactive.tonal.neutral[1],
           active: colors.interactive.tonal.neutral[2],
-          focus: colors.interactive.tonal.neutral[0],
+          focus: {
+            ...colors.interactive.tonal.neutral[0],
+            border: colors.interactive.tonal.neutral[0].text,
+          },
         };
       } else {
         return {
           default: colors.interactive.solid[intent].default,
           hover: colors.interactive.solid[intent].hover,
           active: colors.interactive.solid[intent].active,
-          focus: colors.interactive.solid[intent].default,
+          focus: {
+            ...colors.interactive.solid[intent].default,
+            border: colors.text.primaryInverse,
+          },
         };
       }
     case 'minimal':
       return {
         default: {
-          background: 'transparent',
           text:
             intent === 'neutral'
               ? colors.text.slightlyMuted
@@ -231,28 +241,37 @@ const buttonPalette = <E extends React.ElementType>({
         },
         hover: colors.interactive.tonal[intent][0],
         active: colors.interactive.tonal[intent][1],
-        focus: colors.interactive.tonal[intent][0],
+        focus: {
+          text: colors.interactive.tonal[intent][0].text,
+          border: colors.interactive.tonal[intent][0].text,
+        },
       };
     case 'border':
       if (intent === 'neutral') {
         return {
           default: {
-            background: 'transparent',
             text: colors.text.muted,
+            border: colors.interactive.tonal.neutral[0].background,
           },
           hover: colors.interactive.tonal.neutral[1],
           active: colors.interactive.tonal.neutral[2],
-          focus: colors.interactive.tonal.neutral[0],
+          focus: {
+            ...colors.interactive.tonal.neutral[0],
+            border: colors.interactive.tonal.neutral[0].text,
+          },
         };
       } else {
         return {
           default: {
-            background: 'transparent',
             text: colors.interactive.solid[intent].default.background,
+            border: colors.interactive.solid[intent].default.background,
           },
           hover: colors.interactive.solid[intent].hover,
           active: colors.interactive.solid[intent].active,
-          focus: colors.interactive.solid[intent].default,
+          focus: {
+            ...colors.interactive.solid[intent].default,
+            border: colors.text.primaryInverse,
+          },
         };
       }
     default:
