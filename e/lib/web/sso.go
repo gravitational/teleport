@@ -157,6 +157,11 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
 			logger.Debug("OIDC WebSession created with device web token")
+			// if a device web token is present, we must send the user to the device authorize page
+			// to upgrade the session.
+			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
+			// session with device trust. Once it does, append a redirect_url here as a query parameter
+			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
 		}
 		return res.ClientRedirectURL
 	}
@@ -331,6 +336,11 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
 			logger.Debug("SAML WebSession created with device web token")
+			// if a device web token is present, we must send the user to the device authorize page
+			// to upgrade the session.
+			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
+			// session with device trust. Once it does, append a redirect_url here as a query parameter
+			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
 		}
 		return res.ClientRedirectURL
 	}
