@@ -29,7 +29,11 @@ import {
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
-import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
+import {
+  PtyCommand,
+  PtyProcessCreationStatus,
+  WindowsPty,
+} from 'teleterm/services/pty';
 import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
@@ -72,7 +76,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
     return () => {
       if (attempt.status === 'success') {
-        attempt.data.ptyProcess.dispose();
+        void attempt.data.ptyProcess.dispose();
       }
     };
     // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
@@ -230,7 +234,7 @@ async function setUpPtyProcess(
     getClusterName()
   );
 
-  const ptyProcess = await createPtyProcess(ctx, cmd);
+  const { process: ptyProcess, windowsPty } = await createPtyProcess(ctx, cmd);
 
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
@@ -301,14 +305,15 @@ async function setUpPtyProcess(
     ptyProcess,
     refreshTitle,
     openContextMenu,
+    windowsPty,
   };
 }
 
 async function createPtyProcess(
   ctx: IAppContext,
   cmd: PtyCommand
-): Promise<IPtyProcess> {
-  const { process, creationStatus } =
+): Promise<{ process: IPtyProcess; windowsPty: WindowsPty }> {
+  const { process, creationStatus, windowsPty } =
     await ctx.terminalsService.createPtyProcess(cmd);
 
   if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
@@ -320,7 +325,7 @@ async function createPtyProcess(
     });
   }
 
-  return process;
+  return { process, windowsPty };
 }
 
 // TODO(ravicious): Instead of creating cmd within useDocumentTerminal, make useDocumentTerminal
