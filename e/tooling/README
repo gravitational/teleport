@@ -1,0 +1,7 @@
+These tools currently live in the teleport.e repo for convenience
+and are not part of the Teleport product.
+
+They will eventually be moved into a separate repo. If this ends
+up being to a public repository, don't forget to choose an
+appropriate OSS license and add license headers to all of the files.
+
