@@ -621,10 +621,12 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
-	lipo -create -output \
-		$(BUILDDIR)/tsh.app/Contents/MacOS/tsh \
+	lipo -create -output $(BUILDDIR)/tsh \
 		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
 		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+
+	$(NOTARIZE_BINARIES)
+	$(MAKE) $(BUILDDIR)/tsh.app
 	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
