@@ -105,6 +105,7 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 		if err != nil {
 			return trace.Wrap(err, "validating spec.bundle_source.https_web.bundle_endpoint_url")
 		}
+		// TODO: Enforce HTTPS??
 	}
 
 	return nil
