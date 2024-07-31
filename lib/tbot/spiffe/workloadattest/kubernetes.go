@@ -367,6 +367,9 @@ func (c *kubeletClient) httpClient() (url.URL, *http.Client, error) {
 
 	client := &http.Client{
 		Transport: transport,
+		// 10 seconds is fairly generous given that we're expecting to talk to
+		// kubelet on the same physical machine.
+		Timeout: 10 * time.Second,
 	}
 
 	switch {
