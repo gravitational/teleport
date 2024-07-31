@@ -15,11 +15,6 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ### 16.2.0
 
-#### Nested Access Lists
-
-Teleport admins and Access List owners will be able to add Access Lists as
-members in other Access Lists.
-
 #### NLA Support
 
 Teleport will support Network Level Authentication (NLA) when connecting to
@@ -44,7 +39,25 @@ to the `tctl tokens` commands.
 Teleport will support secure joining via Terraform Cloud, allowing Machine ID
 workflows to run on Terraform Cloud without shared secrets.
 
+#### Nested Access Lists
+
+Teleport admins and Access List owners will be able to add Access Lists as
+members in other Access Lists.
+
+*Delayed from Teleport 16.2.0.*
+
+#### Hardware Key support for Teleport Connect
+
+Teleport's support for [hardware-backed private
+keys](access-controls/guides/hardware-key-support.mdx) will be extended to
+Teleport Connect.
+
 ### 17.0.0
+
+#### New Nav
+
+Teleport 17 will include navigation updates to enhance usability and
+scalability of the web UI.
 
 #### Modern Signature Algorithms
 
@@ -58,14 +71,22 @@ Teleport will integrate with AWS Identity Center to allow users to sync and
 manage AWS IC group and their members and allow them to request access to AWS
 IC permission sets.
 
+#### Out-of-band user creation
+
+Cluster administrators will be able to configure Teleport's `ssh_service` to
+ensure that certain host users exist on the machine without the need to start
+an SSH session.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of         | Description                                                  |
-|-----------------|--------------------------------------------------------------|
-| August 19, 2024 | Teleport 16.2 will begin rollout on Cloud.                   |
-| August 19, 2024 | Teleport 16.2 agents will begin rollout to eligible tenants. |
+| Week of            | Description                                                  |
+|--------------------|--------------------------------------------------------------|
+| August 19, 2024    | Teleport 16.2 will begin rollout on Cloud.                   |
+| August 19, 2024    | Teleport 16.2 agents will begin rollout to eligible tenants. |
+| September 16, 2024 | Teleport 16.3 will begin rollout on Cloud.                   |
+| September 16, 2024 | Teleport 16.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
