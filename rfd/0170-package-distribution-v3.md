@@ -29,17 +29,41 @@ because:
 
 This has lead to the following problems:
 * OS package publishing takes a very long time. It dwarfs the publishing time of
-  all other publishing steps. This is expensive, and makes any changes to the
-  publishing process difficult to test.
+  all other publishing steps, [typically taking about 30m, with the next closes
+  publishing step taking about
+  10m](https://github.com/gravitational/teleport.e/actions/runs/10118540375).
+  This is expensive, and makes any changes to the publishing process difficult
+  to test.
 * It is vulnerable to a cache poisoning attack. The current solution relies on
-  massive self-hosted caches in our EKS clusters. If an attacker is able to gain
-  access to the cache, then they could exploit this to overwrite published
+  massive self-hosted caches in our EKS clusters, which are available and used
+  by the OS package repo tool GHA runners. If an attacker is able to gain access
+  to the cache, then they could exploit thi to overwrite published
   artifacts. This could be used by an attacker to take over both internal
   systems, and customer systems.
 * The solution is extremely technically complex, and very brittle. Any change
   remotely related to OS package publishing requires extensive manual testing,
   and even with this, we still periodically break customer systems due to how
-  fragile the current solution is.
+  fragile the current solution is. Here are some specific examples of
+  issues caused by it in the past three months alone:
+  * Dev tag pushed to prod and customers began updating to it. This was
+    discovered late in the afternoon on Thursday and if I hadn't happen to be
+    working late, a lot more customers would have been impacted by it. It took
+    two engineers about six hours each to pull the package. More details
+    available upon request (in private Slack channel).
+  * Package violating a key security constraint found during the above incident
+    response. Package had been published for months and we only happen to notice
+    when querying an internal SQLite database that one of the system's
+    dependencies uses.More details available upon request (in private Slack
+    channel).
+  * [Unable to pull packages with less than twelve engineer hours worth of work,
+    causing a major outage for a customer while we were trying to close the
+    largest single deal in company
+    history](https://gravitational.slack.com/archives/C04P78M46F2/p1718125441924689).
+  * [A couple of relatively simple changes to the system's pipelines caused
+    release times to increase from thirty minutes to three to six
+    hours](https://gravitational.slack.com/archives/C04P78M46F2/p1717726105917779).
+    This caused major issues trying to get `fdpass` out the door for a large
+    prospective customer.
 * We are unable to make certain changes to how we publish artifacts, resulting
   in lots of lost development time on certain projects (such as auto upgrades)
   working around these limitations. For example, we cannot set _any_ APT repo
