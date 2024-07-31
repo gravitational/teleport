@@ -19,15 +19,8 @@ considered.
 ## Why
 
 RFD 58 defined our current OS package repo solution. The solution built based
-off of this does not meet our current needs, which were primarily missed
-because:
-* When I wrote the RFD I was new to Teleport, and did not fully understand the
-  impact of the work, and
-* The requirements for this project were not fully captured, and
-* We did not fully anticipate how moving to GHA would affect the specified
-  solution.
-
-This has lead to the following problems:
+off of this does not meet our current needs. This has lead to the following
+problems:
 * OS package publishing takes a very long time. It dwarfs the publishing time of
   all other publishing steps, [typically taking about 30m, with the next closes
   publishing step taking about
@@ -108,9 +101,17 @@ Any new solution must meet the following:
   functionality, and no required change for how customers install our products.
   The implementation of a new solution must be _entirely_ transparent to
   customers.
+* Customer-facing requests (such as those generated when a customer runs `apt
+  install`) must not run through a service that we are responsible for keeping
+  online.
+* The customer-facing portion of the solution (the repos themselves) must be
+  highly available and fault-tolerant. No regular maintenance tasks (such as
+  upgrades of the solution) may result in downtime or outages of the
+  customer-facing portion.
 * We must not be required to provide sensitive secrets to any new third-party
-  vendor, including signing keys for the repos metadata. These keys must never
-  leave the trusted systems that we control.
+  vendor, except for one of the "big three" Cloud providers. This includes
+  signing keys for the repos metadata. These keys must never leave the systems
+  and services that we trust.
 * The new solution must meet all of our typical security requirements for
   release pipelines (audit logging, RBAC or Teleport support, etc.) and must
   pass an external security audit.
@@ -127,12 +128,6 @@ Any new solution must meet the following:
   * Add and remove packages/products
   * Configure repo-type-specific properties (such as APT
     Phased-Update-Percentage)
-* The customer-facing portion of the solution (the repos themselves) must be
-  highly available and fault-tolerant. No regular maintenance tasks (such as
-  upgrades of the solution) may result in downtime or outages of the
-  customer-facing portion. Customer-facing requests (such as those generated
-  when a customer runs `apt install`) must not run through a service that we are
-  responsible for keeping online.
 * We cannot go with any SaaS solution except one provided by a major Cloud
   provider (AWS, GCP, Azure) that we already trust.
 * The solution must be manageable via some form of "GitOps", where all changes
