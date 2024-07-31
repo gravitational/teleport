@@ -32,6 +32,8 @@ import (
 // getSPIFFEBundle returns the SPIFFE-compatible trust bundle which allows other
 // trust domains to federate with this Teleport cluster.
 //
+// Mounted at /webapi/spiffe/bundle.json
+//
 // Must abide by the standard for a "https_web" profile as described in
 // https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md#5-serving-and-consuming-a-spiffe-bundle-endpoint
 func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
