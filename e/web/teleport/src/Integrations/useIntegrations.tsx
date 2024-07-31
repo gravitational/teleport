@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import {
   IntegrationKind,
-  IntegrationStatusCode,
   integrationService,
+  IntegrationStatusCode,
 } from 'teleport/services/integrations';
 import {
   EditableIntegrationFields,
@@ -54,7 +55,7 @@ export function useIntegrations() {
     const hasIntegrationAccess = ctx.getFeatureFlags().integrations;
     const hasExternalAuditStorageAccess =
       cfg.isCloud &&
-      cfg.externalAuditStorage &&
+      cfg.entitlements.ExternalAuditStorage.enabled &&
       ctx.getFeatureFlags().externalAuditStorage;
 
     // There can be two failure points:
@@ -366,6 +367,7 @@ function makeClusterExternalAuditStorageIntegration(
     `Audit Log Events and Session Recordings Storage in AWS Integration ${externalAuditStorage?.integrationName}`
   );
 }
+
 function makeDraftExternalAuditStorageIntegration(
   externalAuditStorage: ExternalAuditStorage | null
 ): ExternalAuditStorageIntegration | null {

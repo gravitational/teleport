@@ -32,9 +32,10 @@ jest.mock('shared/libs/logger', () => {
   };
 });
 
-const defaultIgsFlag = cfg.isIgsEnabled;
 const defaultEnterpriseFlag = cfg.isEnterprise;
 const defaultPolicyFlag = cfg.isPolicyEnabled;
+const defaultPolicyEntitlement = cfg.entitlements.Policy;
+const defaultIdentityEntitlement = cfg.entitlements.Identity;
 
 const authConnectorValue = 'entra-id-custom';
 const tenantIdValue = 'some-tenant-id';
@@ -76,14 +77,16 @@ beforeEach(() => {
 afterEach(() => {
   jest.clearAllMocks();
   cfg.isEnterprise = defaultEnterpriseFlag;
-  cfg.isIgsEnabled = defaultIgsFlag;
   cfg.isPolicyEnabled = defaultPolicyFlag;
+  cfg.entitlements.Policy = defaultPolicyEntitlement;
+  cfg.entitlements.Identity = defaultIdentityEntitlement;
 });
 
 test('entra onboard with policy disabled', async () => {
   cfg.isEnterprise = true;
-  cfg.isIgsEnabled = true;
   cfg.isPolicyEnabled = false;
+  cfg.entitlements.Policy = { enabled: false, limit: 0 };
+  cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
 
@@ -127,8 +130,9 @@ test('entra onboard with policy disabled', async () => {
 
 test('entra onboard with policy enabled', async () => {
   cfg.isEnterprise = true;
-  cfg.isIgsEnabled = true;
   cfg.isPolicyEnabled = true;
+  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
 

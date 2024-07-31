@@ -25,7 +25,6 @@ import { ImportUserGroupsAndApps as ImportComponent } from './ImportUserGroupsAn
 const oktaPlugin = pluginMap['okta'] as CloudHostablePlugin;
 
 const defaultIsEnterprise = cfg.isEnterprise;
-const defaultIgs = cfg.isIgsEnabled;
 
 export default {
   title: 'TeleportE/Integrations/Enroll/Okta',
@@ -35,7 +34,6 @@ export default {
         // Clean up
         return () => {
           cfg.isEnterprise = defaultIsEnterprise;
-          cfg.isIgsEnabled = defaultIgs;
         };
       }, []);
       return <Story />;
@@ -43,15 +41,18 @@ export default {
   ],
 };
 
-export const EnrollOktaEnterprise = () => {
-  cfg.mobileDeviceManagement = false;
+export const EnrollOktaEnterpriseMissingUserSyncEntitlement = () => {
+  cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
+  cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
+  cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
+
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
 };
 
 export const EnrollOktaEnterpriseWithCleanUp = () => {
-  cfg.mobileDeviceManagement = true;
+  cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return (
@@ -77,14 +78,15 @@ EnrollOktaEnterpriseWithCleanUp.parameters = {
   },
 };
 
-export const EnrollOktaWithIgs = () => {
-  cfg.isIgsEnabled = true;
+export const EnrollOktaWithEntitlements = () => {
   const ctx = createTeleportContextE();
+  cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
+  cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
 };
 
 export const SetUpScim = () => {
-  cfg.isIgsEnabled = true;
   return (
     <PluginProvider selectedPlugin={oktaPlugin}>
       <MockInstalledPlugin>
@@ -95,7 +97,6 @@ export const SetUpScim = () => {
 };
 
 export const ImportInitLoading = () => {
-  cfg.isIgsEnabled = true;
   const ctx = createTeleportContext();
 
   return (
@@ -123,7 +124,6 @@ ImportInitLoading.parameters = {
 };
 
 export const Import = () => {
-  cfg.isIgsEnabled = true;
   const ctx = createTeleportContext();
 
   return (
@@ -252,8 +252,6 @@ const MockInstalledPlugin: React.FC<PropsWithChildren> = ({ children }) => {
 };
 
 export const Finished = () => {
-  cfg.isIgsEnabled = true;
-
   return (
     <MemoryRouter>
       <PluginProvider selectedPlugin={oktaPlugin}>

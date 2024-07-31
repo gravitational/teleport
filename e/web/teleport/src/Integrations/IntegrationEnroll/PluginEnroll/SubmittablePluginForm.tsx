@@ -2,12 +2,13 @@ import React, { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import {
+  Alert,
+  Box,
   ButtonPrimary,
   ButtonSecondary,
-  Box,
   Flex,
-  Alert,
   H1,
+  H2,
   H3,
 } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -18,10 +19,8 @@ import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import { H2 } from 'design';
-
 import cfg from 'e-teleport/config';
-import { pluginsService, getCTAForPlugin } from 'e-teleport/services/plugins';
+import { getCTAForPlugin, pluginsService } from 'e-teleport/services/plugins';
 
 import { CloudHostablePlugin } from './plugins';
 import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue';
@@ -110,7 +109,8 @@ export function SubmittablePluginForm({
   }
 
   const pluginRequiresPermission =
-    plugin.disabledIfNoMdmSupport && !cfg.oss.mobileDeviceManagement;
+    plugin.disabledIfNoMdmSupport &&
+    !cfg.oss.entitlements.MobileDeviceManagement.enabled;
   let wrapperStyle;
   if (pluginRequiresPermission) {
     // blurs the form

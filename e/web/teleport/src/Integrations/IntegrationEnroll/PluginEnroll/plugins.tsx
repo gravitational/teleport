@@ -2,7 +2,7 @@ import React, { useState, JSX, FunctionComponent } from 'react';
 import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
-import { Text, Link, Flex, Box } from 'design';
+import { Text, Link, Flex, Box, H2 } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
@@ -30,8 +30,6 @@ import { OutlineWarn } from 'design/Alert/Alert';
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import { H2 } from 'design';
 
 import { P } from 'design/Text/Text';
 
@@ -104,6 +102,7 @@ export type PluginBase = {
   selfHostable: boolean;
 
   disabledIfNoMdmSupport?: boolean;
+  // todo (michellescripts) replace with new entitlement `EntraIDSync`
   requiresIgs?: boolean;
 
   /**
@@ -256,7 +255,10 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     selfHostable: true,
     fullName: 'Okta Integration',
     views: () => {
-      if (cfg.oss.isIgsEnabled) {
+      if (
+        cfg.oss.entitlements.OktaSCIM.enabled &&
+        cfg.oss.entitlements.OktaUserSync.enabled
+      ) {
         return [
           { title: 'Connect Okta', component: CreateOkta },
           { title: 'Import', component: ImportUserGroupsAndApps },
@@ -305,7 +307,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               management and auditing capabilities
             </li>
           </StyledUl>
-          {!cfg.oss.isIgsEnabled && (
+          {!cfg.oss.entitlements.OktaUserSync.enabled && (
             <ButtonLockedFeature
               event={CtaEvent.CTA_OKTA_USER_SYNC}
               width={'460px'}
@@ -1448,6 +1450,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     fullName: 'Entra ID directory synchronization',
     cloudHostable: true,
     selfHostable: true,
+    // todo (michellescripts) replace with new entitlement `EntraIDSync`
     requiresIgs: true,
 
     permissions: [
@@ -1491,7 +1494,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             directory and SSO applications using Teleport Access Graph.
           </li>
         </StyledUl>
-        {!cfg.oss.isPolicyEnabled && (
+        {(!cfg.oss.entitlements.Policy.enabled || !cfg.oss.isPolicyEnabled) && (
           <ButtonLockedFeature
             event={CtaEvent.CTA_ENTRA_ID}
             width={'460px'}

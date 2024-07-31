@@ -2,8 +2,6 @@ import React from 'react';
 import { Box, Flex, P1, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 
-import cfg from 'shared/config';
-
 import Link from 'design/Link';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -107,8 +105,7 @@ export const Cycle = ({
   const getSalesLink = () => {
     const version = ctx.storeUser.state.cluster.authVersion;
     const isEnterprise = ctx.isEnterprise;
-    const isTeam = cfg.isTeam;
-    return getSalesURL(version, isEnterprise, isTeam);
+    return getSalesURL(version, isEnterprise);
   };
 
   return (

@@ -193,10 +193,13 @@ function PluginTile({
   const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
 
   const pluginAccess: PluginAccess = (() => {
-    if (plugin.disabledIfNoMdmSupport && !cfg.mobileDeviceManagement) {
+    if (
+      plugin.disabledIfNoMdmSupport &&
+      !cfg.entitlements.MobileDeviceManagement.enabled
+    ) {
       return 'requires-enterprise';
     }
-    if (plugin.requiresIgs && !cfg.isIgsEnabled) {
+    if (plugin.requiresIgs && !cfg.entitlements.Identity.enabled) {
       return 'requires-identity';
     }
     return hostedButNoAccess ? 'denied' : 'allowed';

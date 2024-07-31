@@ -5,9 +5,8 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { renderPluginEnroll } from './StorybookHelper';
 
-const defaultMdmFlag = cfg.mobileDeviceManagement;
+const defaultMdmFlag = cfg.entitlements.MobileDeviceManagement;
 const defaultIsEnterprise = cfg.isEnterprise;
-const defaultIgs = cfg.isIgsEnabled;
 
 export default {
   title: 'TeleportE/Integrations/Enroll',
@@ -16,9 +15,8 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.mobileDeviceManagement = defaultMdmFlag;
+          cfg.entitlements.MobileDeviceManagement = defaultMdmFlag;
           cfg.isEnterprise = defaultIsEnterprise;
-          cfg.isIgsEnabled = defaultIgs;
         };
       }, []);
       return <Story />;
@@ -32,13 +30,13 @@ export const EnrollMattermost = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('mattermost'));
 
 export const EnrollJamf = () => {
-  cfg.mobileDeviceManagement = true;
+  cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
 };
 
 export const EnrollJamfDisabled = () => {
-  cfg.mobileDeviceManagement = false;
+  cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);

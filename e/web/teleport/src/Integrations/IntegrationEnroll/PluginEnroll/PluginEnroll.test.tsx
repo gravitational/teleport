@@ -31,7 +31,8 @@ jest.mock('shared/libs/logger', () => {
   };
 });
 
-const defaultIgsFlag = cfg.isIgsEnabled;
+const defaultSyncEntitlement = cfg.entitlements.OktaUserSync;
+const defaultScimEntitlement = cfg.entitlements.OktaSCIM;
 
 describe('slack PluginEnroll.tsx', () => {
   beforeEach(() => {
@@ -42,7 +43,8 @@ describe('slack PluginEnroll.tsx', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    cfg.isIgsEnabled = defaultIgsFlag;
+    cfg.entitlements.OktaUserSync = defaultSyncEntitlement;
+    cfg.entitlements.OktaSCIM = defaultScimEntitlement;
   });
 
   test('missing input prevents submitting', async () => {
@@ -129,11 +131,11 @@ describe('okta PluginEnroll.tsx', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    cfg.isIgsEnabled = defaultIgsFlag;
   });
 
-  test('okta flow without igs enabled, only the first step is allowed', async () => {
-    cfg.isIgsEnabled = false;
+  test('okta flow without user sync and without scim, only the first step is allowed', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: false, limit: 0 };
 
     renderPluginEnroll('okta');
 
@@ -189,8 +191,9 @@ describe('okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
   });
 
-  test('okta flow with igs enabled, default (no custom filters)', async () => {
-    cfg.isIgsEnabled = true;
+  test('okta flow with user sync & scim enabled, default (no custom filters)', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
 
     renderPluginEnroll('okta');
 
@@ -268,8 +271,9 @@ describe('okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
   });
 
-  test('okta flow with igs enabled, with app & group custom filters', async () => {
-    cfg.isIgsEnabled = true;
+  test('okta flow with user sync & scim enabled, with app & group custom filters', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
 
     renderPluginEnroll('okta');
     await fillInFirstStepInputs();
@@ -312,8 +316,9 @@ describe('okta PluginEnroll.tsx', () => {
     );
   });
 
-  test('okta flow with igs enabled, skipping step', async () => {
-    cfg.isIgsEnabled = true;
+  test('okta flow with user sync & scim enabled, skipping step', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
 
     renderPluginEnroll('okta');
     await fillInFirstStepInputs();
@@ -334,7 +339,8 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow, requiring clean up', async () => {
-    cfg.isIgsEnabled = true;
+    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
 
     jest
       .spyOn(pluginsService, 'checkPluginRequiresCleanup')
@@ -364,8 +370,9 @@ describe('okta PluginEnroll.tsx', () => {
     expect(screen.queryByText('cleanup required')).not.toBeInTheDocument();
   });
 
-  test('okta flow with igs enabled, custom filter error handling', async () => {
-    cfg.isIgsEnabled = true;
+  test('okta flow with user sync & scim enabled, custom filter error handling', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
 
     renderPluginEnroll('okta');
     await fillInFirstStepInputs();
@@ -420,6 +427,9 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta validation error', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: false, limit: 0 };
+
     jest
       .spyOn(pluginsService, 'validatePlugin')
       .mockRejectedValue(new Error('some validation error'));
@@ -440,6 +450,9 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta create error', async () => {
+    cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
+    cfg.entitlements.OktaSCIM = { enabled: false, limit: 0 };
+
     jest
       .spyOn(pluginsService, 'createPlugin')
       .mockRejectedValue(new Error('some create error'));

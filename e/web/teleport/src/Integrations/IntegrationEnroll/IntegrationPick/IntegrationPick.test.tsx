@@ -16,7 +16,7 @@ import { IntegrationEnroll } from '../IntegrationEnroll';
 
 describe('test PluginPick.tsx', () => {
   const originalCloudFlag = cfg.isCloud; // should be false
-  const originalMdmFlag = cfg.mobileDeviceManagement;
+  const originalMdmEntitlement = cfg.entitlements.MobileDeviceManagement;
   beforeEach(() => {
     cfg.isCloud = true;
     jest
@@ -30,7 +30,7 @@ describe('test PluginPick.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = originalCloudFlag;
-    cfg.mobileDeviceManagement = originalMdmFlag;
+    cfg.entitlements.MobileDeviceManagement = originalMdmEntitlement;
     jest.clearAllMocks();
   });
 
@@ -46,7 +46,7 @@ describe('test PluginPick.tsx', () => {
 
   test('full access and slack available to enroll', async () => {
     cfg.externalAuditStorage = true;
-    cfg.mobileDeviceManagement = true;
+    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
     const { container } = renderIntegrationPicker(ctx);
 
@@ -75,7 +75,7 @@ describe('test PluginPick.tsx', () => {
 
   test('no plugin access disables plugin tiles', async () => {
     cfg.externalAuditStorage = true;
-    cfg.mobileDeviceManagement = true;
+    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, plugins: noAccess },
     });
@@ -96,7 +96,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('no integration access disables integration tiles', async () => {
-    cfg.mobileDeviceManagement = true;
+    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
     });
@@ -117,7 +117,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('disables jamf plugin tile in plans without MDM', async () => {
-    cfg.mobileDeviceManagement = false;
+    cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
     await screen.findByText(/no-code integrations/i);
@@ -128,7 +128,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('show jamf plugin tiles in cloud plan', async () => {
-    cfg.mobileDeviceManagement = true;
+    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
     await screen.findByText(/no-code integrations/i);

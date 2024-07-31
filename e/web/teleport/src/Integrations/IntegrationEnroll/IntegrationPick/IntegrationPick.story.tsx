@@ -5,7 +5,7 @@ import {
   IntegrationStatusCode,
   PluginKind,
 } from 'teleport/services/integrations';
-import { noAccess, allAccessAcl } from 'teleport/mocks/contexts';
+import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 
 import { StoryObj } from '@storybook/react';
 
@@ -26,10 +26,9 @@ const onboardSupportPluginKinds: PluginKind[] = [
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
-const defaultMdmFlag = cfg.oss.mobileDeviceManagement;
-const defaultEasFlag = cfg.oss.externalAuditStorage;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
-const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
+const defaultMdmEntitlement = cfg.oss.entitlements.MobileDeviceManagement;
+const defaultEasEntitlement = cfg.oss.entitlements.ExternalAuditStorage;
 
 export default {
   title: 'TeleportE/Integrations/Picker',
@@ -41,10 +40,9 @@ export default {
         // Clean up
         return () => {
           cfg.oss.isCloud = defaultIsCloudFlag;
-          cfg.oss.mobileDeviceManagement = defaultMdmFlag;
-          cfg.oss.externalAuditStorage = defaultEasFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
-          cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
+          cfg.oss.entitlements.MobileDeviceManagement = defaultMdmEntitlement;
+          cfg.oss.entitlements.ExternalAuditStorage = defaultEasEntitlement;
         };
       }, []);
 
@@ -140,7 +138,8 @@ export const RequiresEnterprise: StoryObj = {
     },
   },
   render() {
-    cfg.oss.isTeam = true;
+    cfg.oss.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
+    cfg.oss.entitlements.ExternalAuditStorage = { enabled: false, limit: 0 };
     const ctx = createTeleportContextE();
 
     return render(ctx);
@@ -161,10 +160,9 @@ export const FullFeatures: StoryObj = {
     },
   },
   render() {
-    cfg.oss.mobileDeviceManagement = true;
-    cfg.oss.externalAuditStorage = true;
+    cfg.oss.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
+    cfg.oss.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
     cfg.oss.isEnterprise = true;
-    cfg.oss.isIgsEnabled = true;
     const ctx = createTeleportContextE();
 
     return render(ctx);
