@@ -192,6 +192,7 @@
     "SECURITYADMIN",
     "SIEM",
     "SIGINT",
+    "SIGUSR",
     "SLAVEOF",
     "SLES",
     "SLOWLOG",
@@ -985,5 +986,7 @@
   "flagWords": [
     "hte"
   ],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }
