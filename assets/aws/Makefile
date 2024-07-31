@@ -2,7 +2,7 @@
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://goteleport.com/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 16.1.0
+TELEPORT_VERSION ?= v16.0.0; echo TEST
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -50,4 +50,4 @@ create-update-pr: update-ami-ids-terraform
 	git checkout -b $(AUTO_BRANCH_NAME)
 	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"
 	git push --set-upstream origin $(AUTO_BRANCH_NAME)
-	gh pr create --fill --label=automated --label=terraform --label=no-changelog $(if $(AMI_PR_REVIEWER),--reviewer=$(AMI_PR_REVIEWER))
+	echo gh pr create --fill --label=automated --label=terraform --label=no-changelog $(if $(AMI_PR_REVIEWER),--reviewer=$(AMI_PR_REVIEWER))
