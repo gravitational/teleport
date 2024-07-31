@@ -1,5 +1,12 @@
 # Changelog
 
+## 15.4.10 (07/29/24)
+
+* Fixed an issue that could cause auth servers to panic when their backend connectivity was interrupted. [#44787](https://github.com/gravitational/teleport/pull/44787)
+* Reduced the probability that the event-handler deadlocks when encountering errors processing session recordings. [#44772](https://github.com/gravitational/teleport/pull/44772)
+* Improved event-handler diagnostics by providing a way to capture profiles dynamically via `SIGUSR1`. [#44759](https://github.com/gravitational/teleport/pull/44759)
+* Added support for Teams to Opsgenie plugin alert creation. [#44330](https://github.com/gravitational/teleport/pull/44330)
+
 ## 15.4.10 (07/28/24)
 
 * Improved stability of very large teleport clusters during temporary backend disruption/degradation. [#44695](https://github.com/gravitational/teleport/pull/44695)
