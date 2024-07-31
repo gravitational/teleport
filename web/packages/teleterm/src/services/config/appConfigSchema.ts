@@ -63,6 +63,16 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(
         '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
       ),
+    'terminal.rightClick': z
+      .enum(['paste', 'copyPaste', 'menu'])
+      .default(platform === 'win32' ? 'copyPaste' : 'menu')
+      .describe(
+        '`paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.'
+      ),
+    'terminal.copyOnSelect': z
+      .boolean()
+      .default(false)
+      .describe('Automatically copies selected text to the clipboard.'),
     'usageReporting.enabled': z
       .boolean()
       .default(false)

@@ -32,6 +32,8 @@ import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
+import { ConfigService } from 'teleterm/services/config';
+
 import { Reconnect } from '../Reconnect';
 
 import XTermCtrl from './ctrl';
@@ -51,6 +53,8 @@ type TerminalProps = {
   fontSize: number;
   onEnterKey?(): void;
   windowsPty: WindowsPty;
+  openContextMenu(): void;
+  configService: ConfigService;
   keyboardShortcutsService: KeyboardShortcutsService;
 };
 
@@ -79,7 +83,9 @@ export function Terminal(props: TerminalProps) {
         fontSize: props.fontSize,
         theme: theme.colors.terminal,
         windowsPty: props.windowsPty,
+        openContextMenu: props.openContextMenu,
       },
+      props.configService,
       props.keyboardShortcutsService
     );
 

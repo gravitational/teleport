@@ -56,7 +56,68 @@ test('keyboard shortcut pastes text', async () => {
   });
 });
 
-function ConfiguredTerminal(props: { appContext: IAppContext }) {
+test.each([
+  {
+    name: "mouse right click pastes text when 'terminal.rightClick: paste' is configured",
+    getAppContext: () => {
+      const appContext = new MockAppContext();
+      appContext.configService.set('terminal.rightClick', 'paste');
+      return appContext;
+    },
+  },
+  {
+    name: "mouse right click pastes text when 'terminal.rightClick: copyPaste' is configured",
+    getAppContext: () => {
+      const appContext = new MockAppContext();
+      appContext.configService.set('terminal.rightClick', 'copyPaste');
+      return appContext;
+    },
+  },
+])(`$name`, async testCase => {
+  const appContext = testCase.getAppContext();
+
+  render(<ConfiguredTerminal appContext={appContext} />);
+
+  await userEvent.keyboard('some-command ');
+  const terminalContent = await screen.findByText('some-command');
+
+  await navigator.clipboard.writeText('--flag=test');
+  await userEvent.pointer({ keys: '[MouseRight>]', target: terminalContent });
+
+  await waitFor(() => {
+    expect(screen.getByText('some-command --flag=test')).toBeInTheDocument();
+  });
+});
+
+test("mouse right click opens context menu when 'terminal.rightClick: menu' is configured", async () => {
+  const appContext = new MockAppContext();
+  jest.spyOn(appContext.mainProcessClient, 'openTerminalContextMenu');
+  appContext.configService.set('terminal.rightClick', 'menu');
+  const openContextMenu = jest.fn();
+
+  render(
+    <ConfiguredTerminal
+      appContext={appContext}
+      onOpenContextMenu={openContextMenu}
+    />
+  );
+
+  await userEvent.keyboard('some-command ');
+  const terminalContent = await screen.findByText('some-command');
+
+  await navigator.clipboard.writeText('--flag=test');
+  await userEvent.pointer({ keys: '[MouseRight>]', target: terminalContent });
+
+  expect(openContextMenu).toHaveBeenCalledTimes(1);
+  expect(openContextMenu).toHaveBeenCalledWith(
+    expect.objectContaining({ defaultPrevented: true })
+  );
+});
+
+function ConfiguredTerminal(props: {
+  appContext: IAppContext;
+  onOpenContextMenu?(): void;
+}) {
   const emitter = new EventEmitter();
   const writeFn = jest.fn().mockImplementation(a => {
     emitter.emit('', a);
@@ -84,7 +145,7 @@ function ConfiguredTerminal(props: { appContext: IAppContext }) {
       visible={true}
       unsanitizedFontFamily={'monospace'}
       fontSize={12}
-      openContextMenu={() => {}}
+      openContextMenu={props.onOpenContextMenu}
       windowsPty={undefined}
       configService={props.appContext.configService}
       keyboardShortcutsService={props.appContext.keyboardShortcutsService}

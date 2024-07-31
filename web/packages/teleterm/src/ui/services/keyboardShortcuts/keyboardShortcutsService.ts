@@ -73,6 +73,8 @@ export class KeyboardShortcutsService {
       openConnections: this.configService.get('keymap.openConnections').value,
       openClusters: this.configService.get('keymap.openClusters').value,
       openProfiles: this.configService.get('keymap.openProfiles').value,
+      terminalCopy: this.configService.get('keymap.terminalCopy').value,
+      terminalPaste: this.configService.get('keymap.terminalPaste').value,
     };
     this.acceleratorsToActions = mapAcceleratorsToActions(this.shortcutsConfig);
     this.attachKeydownHandler();
