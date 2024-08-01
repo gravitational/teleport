@@ -26,6 +26,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1259,6 +1260,9 @@ type fakeResourceClient struct {
 	apiclient.GetResourcesClient
 
 	nodes []*types.ServerV2
+	// listResources represents the pages returned by the ListUnifiedResources
+	listResources    [][]*proto.PaginatedResource
+	listResourcesErr error
 }
 
 func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
@@ -1268,6 +1272,32 @@ func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListRes
 	}
 
 	return &proto.ListResourcesResponse{Resources: out}, nil
+}
+
+func (f fakeResourceClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	if f.listResourcesErr != nil {
+		return nil, f.listResourcesErr
+	}
+
+	if len(f.listResources) == 0 {
+		return &proto.ListUnifiedResourcesResponse{}, nil
+	}
+
+	pageIdx, err := strconv.Atoi(req.StartKey)
+	if req.StartKey != "" && (err != nil || pageIdx >= len(f.listResources)) {
+		return &proto.ListUnifiedResourcesResponse{}, nil
+	}
+
+	currPage := f.listResources[pageIdx]
+	var nextKey string
+	if pageIdx+1 < len(f.listResources) {
+		nextKey = strconv.Itoa(pageIdx + 1)
+	}
+
+	return &proto.ListUnifiedResourcesResponse{
+		Resources: currPage,
+		NextKey:   nextKey,
+	}, nil
 }
 
 func TestGetTargetNodes(t *testing.T) {
@@ -1332,5 +1362,76 @@ func TestGetTargetNodes(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
 		})
+	}
+}
+
+func TestGetAppsWithLogin(t *testing.T) {
+	ctx := context.Background()
+
+	for name, tc := range map[string]struct {
+		clt          fakeResourceClient
+		expectedApps []appWithLogins
+		expectedErr  string
+	}{
+		"single app": {
+			clt: fakeResourceClient{listResources: [][]*proto.PaginatedResource{
+				{paginatedAppServer("sample", []string{"llama", "bird"})},
+			}},
+			expectedApps: []appWithLogins{
+				{app: appWithNameURI("sample"), logins: []string{"llama", "bird"}},
+			},
+		},
+		"multiple pages": {
+			clt: fakeResourceClient{listResources: [][]*proto.PaginatedResource{
+				{paginatedAppServer("first", []string{"llama", "bird"}),
+					paginatedAppServer("second", []string{"bob", "alice"})},
+				{paginatedAppServer("third", []string{}),
+					paginatedAppServer("forth", []string{"bob"})},
+			}},
+			expectedApps: []appWithLogins{
+				{app: appWithNameURI("first"), logins: []string{"llama", "bird"}},
+				{app: appWithNameURI("second"), logins: []string{"bob", "alice"}},
+				{app: appWithNameURI("third"), logins: []string{}},
+				{app: appWithNameURI("forth"), logins: []string{"bob"}},
+			},
+		},
+		"no apps": {
+			clt: fakeResourceClient{listResources: [][]*proto.PaginatedResource{}},
+		},
+		"list error": {
+			clt:         fakeResourceClient{listResourcesErr: errors.New("failure")},
+			expectedErr: "failure",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clt := TeleportClient{Config: Config{Tracer: tracing.NoopTracer("")}}
+			// Given we're mocking the list result, the expression won't be
+			// considered.
+			res, err := clt.getAppWithLogins(ctx, tc.clt, "")
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.EqualValues(t, tc.expectedApps, res)
+		})
+	}
+}
+
+func appWithNameURI(name string) *types.AppV3 {
+	return &types.AppV3{Metadata: types.Metadata{Name: name}, Spec: types.AppSpecV3{URI: name}}
+}
+
+func paginatedAppServer(name string, logins []string) *proto.PaginatedResource {
+	return &proto.PaginatedResource{
+		Logins: logins,
+		Resource: &proto.PaginatedResource_AppServer{
+			AppServer: &types.AppServerV3{
+				Spec: types.AppServerSpecV3{
+					App: appWithNameURI(name),
+				},
+			},
+		},
 	}
 }

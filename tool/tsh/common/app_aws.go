@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -284,7 +286,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 	return nil
 }
 
-func printAWSRoles(roles awsutils.Roles) {
+func printAWSRoles(w io.Writer, roles awsutils.Roles) {
 	if len(roles) == 0 {
 		return
 	}
@@ -296,14 +298,14 @@ func printAWSRoles(roles awsutils.Roles) {
 		t.AddRow([]string{role.Display, role.ARN})
 	}
 
-	fmt.Println("Available AWS roles:")
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, "Available AWS roles:")
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
-func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Application) (string, error) {
+func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (string, error) {
 	// Filter AWS roles by AWS account ID. If AWS account ID is empty, all
 	// roles are returned.
-	roles := awsutils.FilterAWSRoles(profile.AWSRolesARNs, app.GetAWSAccountID())
+	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
 
 	if cf.AWSRole == "" {
 		if len(roles) == 1 {
@@ -311,7 +313,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 			return roles[0].ARN, nil
 		}
 
-		printAWSRoles(roles)
+		printAWSRoles(cf.Stdout(), roles)
 		return "", trace.BadParameter("--aws-role flag is required")
 	}
 
@@ -321,7 +323,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 			return role.ARN, nil
 		}
 
-		printAWSRoles(roles)
+		printAWSRoles(cf.Stdout(), roles)
 		return "", trace.NotFound("failed to find the %q role ARN", cf.AWSRole)
 	}
 
@@ -331,13 +333,46 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	case 1:
 		return rolesMatched[0].ARN, nil
 	case 0:
-		printAWSRoles(roles)
+		printAWSRoles(cf.Stdout(), roles)
 		return "", trace.NotFound("failed to find the %q role name", cf.AWSRole)
 	default:
 		// Print roles matched the provided role name.
-		printAWSRoles(rolesMatched)
+		printAWSRoles(cf.Stdout(), rolesMatched)
 		return "", trace.BadParameter("provided role name %q is ambiguous, please specify full role ARN", cf.AWSRole)
 	}
+}
+
+// getARNFromRoles fetches the available AWS ARNs logins for given app.
+// If any step of fetching the roles ARNs fail, fallback into returning the
+// profile ARNs.
+//
+// TODO(gabrielcorado): DELETE IN V18.0.0
+// This is here for backward compatibility in case the auth server
+// does not support enriched resources yet.
+func getARNFromRoles(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) []string {
+	var clusterClient *client.ClusterClient
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
+		return trace.Wrap(err)
+	}); err != nil {
+		log.WithError(err).Debugf("Failed to create cluster client.")
+		return profile.AWSRolesARNs
+	}
+
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	if err != nil {
+		log.WithError(err).Debugf("Failed to fetch user roles.")
+		return profile.AWSRolesARNs
+	}
+
+	logins, err := accessChecker.GetAllowedLoginsForResource(app)
+	if err != nil {
+		log.WithError(err).Debugf("Failed to fetch app logins.")
+		return profile.AWSRolesARNs
+	}
+
+	return logins
 }
 
 func matchAWSApp(app tlsca.RouteToApp) bool {

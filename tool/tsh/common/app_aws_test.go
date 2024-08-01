@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"os/exec"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestAWS(t *testing.T) {
@@ -44,17 +46,25 @@ func TestAWS(t *testing.T) {
 
 	connector := mockConnector(t)
 	user, awsRole := makeUserWithAWSRole(t)
-
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, awsRole))
-	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
-		Name: "aws-app",
-		URI:  constants.AWSConsoleURL,
-	})
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithBootstrap(connector, user, awsRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "aws-app",
+					URI:  constants.AWSConsoleURL,
+				},
+			}
+		}),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	proxyAddr, err := authProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
@@ -174,6 +184,103 @@ func TestAWS(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+}
+
+// TestAWSConsoleLogins given a AWS console application, execute a app login
+// without proving a role ARN and verify the provided list of available logins
+// is correct.
+func TestAWSConsoleLogins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	lib.SetInsecureDevMode(true)
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	userARNs := []string{"arn:aws:iam::111111111111:role/user-1", "arn:aws:iam::111111111111:role/user-2"}
+	rootARNs := []string{"arn:aws:iam::111111111111:role/root-1", "arn:aws:iam::111111111111:role/root-2"}
+	rootAWSRole, err := types.NewRole("aws", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			AWSRoleARNs: rootARNs,
+		},
+	})
+	require.NoError(t, err)
+	user, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	user.SetRoles([]string{"access", rootAWSRole.GetName()})
+	user.SetAWSRoleARNs(userARNs)
+	rootServer := testserver.MakeTestServer(
+		t,
+		testserver.WithClusterName(t, "root"),
+		testserver.WithBootstrap(connector, user, rootAWSRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "awsconsole",
+					URI:  constants.AWSConsoleURL,
+				},
+			}
+		}),
+	)
+
+	leafARNs := []string{"arn:aws:iam::999999999999:role/leaf-1", "arn:aws:iam::999999999999:role/leaf-2"}
+	leafAWSRole, err := types.NewRole("aws", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			AWSRoleARNs: leafARNs,
+		},
+	})
+	require.NoError(t, err)
+	leafServer := testserver.MakeTestServer(
+		t,
+		testserver.WithClusterName(t, "leaf"),
+		testserver.WithBootstrap(leafAWSRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "awsconsole",
+					URI:  constants.AWSConsoleURL,
+				},
+			}
+		}),
+	)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, types.RoleMapping{Remote: "aws", Local: []string{"aws"}})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(context.Background(), []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	for cluster, expectedARNs := range map[string][]string{
+		"root": append(userARNs, rootARNs...),
+		"leaf": append(leafARNs, append(userARNs, rootARNs...)...),
+	} {
+		t.Run(cluster, func(t *testing.T) {
+			commandOutput := new(bytes.Buffer)
+			// Don't provide the `--aws-role`. We expect a failure since there
+			// are mulitple ARN roles.
+			err = Run(
+				context.Background(),
+				[]string{"app", "login", "--cluster", cluster, "awsconsole"},
+				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
+			)
+			require.ErrorContains(t, err, "--aws-role flag is required")
+			for _, arn := range expectedARNs {
+				require.Contains(t, commandOutput.String(), arn, "expected role ARN %q to be present on the command output", arn)
+			}
+		})
+	}
 }
 
 func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {

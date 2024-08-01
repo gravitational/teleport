@@ -2550,6 +2550,82 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 	return types.DeduplicateApps(apps), nil
 }
 
+// GetAppWithLogins returns an application with available logins.
+func (tc *TeleportClient) GetAppWithLogins(ctx context.Context, predicateExpression string) (types.Application, []string, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/GetAppWithLogins",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("predicate", predicateExpression)),
+	)
+	defer span.End()
+
+	clt, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	apps, err := tc.getAppWithLogins(ctx, clt.AuthClient, predicateExpression)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if len(apps) == 0 {
+		return nil, nil, trace.NotFound("application not found")
+	}
+
+	return apps[0].app, apps[0].logins, nil
+}
+
+// appWithLogins represents an application with its available logins.
+type appWithLogins struct {
+	app    types.Application
+	logins []string
+}
+
+// getAppWithLogins returns a list of apps with their available logins.
+func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.ListUnifiedResourcesClient, predicateExpression string) ([]appWithLogins, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/getAppsWithLogins",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindApp},
+		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+		PredicateExpression: predicateExpression,
+		IncludeLogins:       true,
+	}
+
+	var apps []appWithLogins
+	for {
+		page, next, err := client.GetUnifiedResourcePage(ctx, clt, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page {
+			appServer, ok := r.ResourceWithLabels.(types.AppServer)
+			if !ok {
+				log.Warnf("expected types.AppServer but received unexpected type %T", r.ResourceWithLabels)
+				continue
+			}
+
+			apps = append(apps, appWithLogins{app: appServer.GetApp(), logins: r.Logins})
+		}
+
+		req.StartKey = next
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return apps, nil
+}
+
 // DeleteAppSession removes the specified application access session.
 func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string) error {
 	ctx, span := tc.Tracer.Start(

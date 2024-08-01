@@ -518,9 +518,13 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, err := getApp(cf.Context, tc, cf.AppName)
+	app, logins, err := getApp(cf.Context, tc, cf.AppName)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(logins) == 0 {
+		logins = getARNFromRoles(cf, tc, profile, app)
 	}
 
 	appInfo := &appInfo{
@@ -537,7 +541,7 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	// If this is a cloud app, set additional applicable fields from CLI flags or roles.
 	switch {
 	case app.IsAWSConsole():
-		awsRoleARN, err := getARNFromFlags(cf, profile, app)
+		awsRoleARN, err := getARNFromFlags(cf, app, logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -592,7 +596,7 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, err := getApp(ctx, tc, a.Name)
+	app, _, err := getApp(ctx, tc, a.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -601,23 +605,20 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.
 }
 
 // getApp returns the registered application with the specified name.
-func getApp(ctx context.Context, tc *client.TeleportClient, name string) (app types.Application, err error) {
-	var apps []types.Application
+func getApp(ctx context.Context, tc *client.TeleportClient, name string) (app types.Application, logins []string, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
-		apps, err = tc.ListApps(ctx, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
-		})
+		app, logins, err = tc.GetAppWithLogins(ctx, fmt.Sprintf(`name == "%s"`, name))
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+		}
+
+		return nil, nil, trace.Wrap(err)
 	}
-	if len(apps) == 0 {
-		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
-	}
-	return apps[0], nil
+
+	return
 }
 
 // pickActiveApp returns the app the current profile is logged into.
