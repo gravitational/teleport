@@ -7,7 +7,7 @@ check_access = $(addprefix check-chart-ref-access-,$(access))
 render_access = $(addprefix render-chart-ref-access-,$(access))
 
 .PHONY: render-chart-ref
-render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent $(render_access)  # render-chart-ref-teleport-cluster
+render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-tbot $(render_access)  # render-chart-ref-teleport-cluster
 
 .PHONY: render-chart-ref-example
 render-chart-ref-example:
@@ -30,13 +30,18 @@ render-chart-ref-teleport-operator:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-cluster/charts/teleport-operator -output ../../docs/pages/reference/helm-reference/includes/zz_generated.teleport-operator.mdx
 
+.PHONY: render-chart-ref-tbot
+render-chart-ref-tbot:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output ../../docs/pages/reference/helm-reference/includes/zz_generated.tbot.mdx
+
 .PHONY: render-chart-ref-access-%
 render-chart-ref-access-%:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/$* -output ../../docs/pages/reference/helm-reference/includes/zz_generated.access-$*.mdx
 
 .PHONY: check-chart-ref
-check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent $(check_access) #check-chart-ref-teleport-cluster
+check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-tbot $(check_access) #check-chart-ref-teleport-cluster
 
 .PHONY: check-chart-ref-example
 check-chart-ref-example:
@@ -64,6 +69,13 @@ check-chart-ref-teleport-operator:
 	@echo "Checking teleport-operator reference"
 	@ cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-cluster/charts/teleport-operator -output - | diff ../../docs/pages/reference/helm-reference/includes/zz_generated.teleport-operator.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
+
+.PHONY: check-chart-ref-tbot
+check-chart-ref-tbot:
+	@echo "Checking tbot reference"
+	@ cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output - | diff ../../docs/pages/reference/helm-reference/includes/zz_generated.tbot.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
 
 .PHONY: check-chart-ref-access-%
