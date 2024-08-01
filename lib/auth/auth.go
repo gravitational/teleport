@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -614,6 +615,8 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
 }
 
 // SecReportsClient returns the security reports client.
@@ -679,6 +682,16 @@ func (r *Services) UserLoginStateClient() services.UserLoginStates {
 // container client.
 func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
 	return r
+}
+
+// GetAccessGraphSecretsGetter returns the AccessGraph secrets service.
+func (r *Services) GetAccessGraphSecretsGetter() services.AccessGraphSecretsGetter {
+	return r.AccessGraphSecretsGetter
+}
+
+// GetDevicesGetter returns the trusted devices service.
+func (r *Services) GetDevicesGetter() services.DevicesGetter {
+	return r.DevicesGetter
 }
 
 var (
@@ -815,6 +828,10 @@ var (
 // for enterprise services that need to add in feature specific operations after a user has been
 // successfully authenticated. An example would be creating objects based on the user.
 type LoginHook func(context.Context, types.User) error
+
+// CreateDeviceAssertionFunc creates a new device assertion ceremony to authenticate
+// a trusted device.
+type CreateDeviceAssertionFunc func() (assertserver.Ceremony, error)
 
 // ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
 // where it would have a naming conflict with other types named Cache.
@@ -994,6 +1011,15 @@ type Server struct {
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
 
+	// deviceAssertionServer holds the server-side implementation of device assertions.
+	//
+	// It is used to authenticate devices previously enrolled in the cluster. The goal
+	// is to provide an API for devices to authenticate with the cluster without the need
+	// for valid user credentials, e.g. when running `tsh scan keys`.
+	//
+	// The value is nil on OSS clusters.
+	deviceAssertionServer CreateDeviceAssertionFunc
+
 	// bcryptCostOverride overrides the bcrypt cost for operations executed
 	// directly by [Server].
 	// Used for testing.
@@ -1140,6 +1166,26 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// SetDeviceAssertionServer sets the device assertion implementation.
+func (a *Server) SetDeviceAssertionServer(f CreateDeviceAssertionFunc) {
+	a.lock.Lock()
+	a.deviceAssertionServer = f
+	a.lock.Unlock()
+}
+
+// GetDeviceAssertionServer returns the device assertion implementation.
+// On OSS clusters, this will return a non nil function that returns an error.
+func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.deviceAssertionServer == nil {
+		return func() (assertserver.Ceremony, error) {
+			return nil, trace.NotImplemented("device assertions are not supported on OSS clusters")
+		}
+	}
+	return a.deviceAssertionServer
 }
 
 func (a *Server) bcryptCost() int {
@@ -1740,6 +1786,16 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
+}
+
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecretsGetter) {
+	a.Services.AccessGraphSecretsGetter = s
+}
+
+// SetDevicesGetter sets the server's device service
+func (a *Server) SetDevicesGetter(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
 }
 
 // SetAuditLog sets the server's audit log

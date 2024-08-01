@@ -246,6 +246,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessRequest, nil
 	case types.KindPlugin, types.KindPlugin + "s":
 		return types.KindPlugin, nil
+	case types.KindAccessGraphSettings, "ags":
+		return types.KindAccessGraphSettings, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

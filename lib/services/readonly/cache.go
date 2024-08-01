@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -33,6 +34,7 @@ type Upstream interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+	GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 }
 
 // Cache provides simple ttl-based in-memory caching for select resources that are frequently accessed
@@ -120,6 +122,19 @@ func (c *Cache) GetReadOnlySessionRecordingConfig(ctx context.Context) (SessionR
 	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindSessionRecordingConfig}, func(ctx context.Context) (SessionRecordingConfig, error) {
 		cfg, err := c.cfg.Upstream.GetSessionRecordingConfig(ctx)
 		return sealSessionRecordingConfig(cfg), trace.Wrap(err)
+	})
+	return cfg, trace.Wrap(err)
+}
+
+// GetReadOnlyAccessGraphSettings returns a read-only shared reference to the dynamic access graph settings resource.
+func (c *Cache) GetReadOnlyAccessGraphSettings(ctx context.Context) (AccessGraphSettings, error) {
+	if c.cfg.Disabled {
+		cfg, err := c.cfg.Upstream.GetAccessGraphSettings(ctx)
+		return sealAccessGraphSettings(cfg), trace.Wrap(err)
+	}
+	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindAccessGraphSettings}, func(ctx context.Context) (AccessGraphSettings, error) {
+		cfg, err := c.cfg.Upstream.GetAccessGraphSettings(ctx)
+		return sealAccessGraphSettings(cfg), trace.Wrap(err)
 	})
 	return cfg, trace.Wrap(err)
 }

@@ -604,6 +604,8 @@ const (
 	ClusterNetworkingConfigUpdateCode = "TCNET002I"
 	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
 	SessionRecordingConfigUpdateCode = "TCREC003I"
+	// AccessGraphSettingsUpdateCode is the access graph settings updated event code.
+	AccessGraphSettingsUpdateCode = "TCAGC003I"
 
 	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
 	AccessGraphAccessPathChangedCode = "TAG001I"

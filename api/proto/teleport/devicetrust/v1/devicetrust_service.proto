@@ -20,6 +20,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/rpc/status.proto";
+import "teleport/devicetrust/v1/authenticate_challenge.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
@@ -497,35 +498,6 @@ message AuthenticateDeviceInit {
   // Matched against the device registration information and any previously
   // collected data.
   DeviceCollectedData device_data = 3;
-}
-
-// TPMAuthenticateDeviceChallenge carries the authentication challenge
-// specific to TPMs.
-message TPMAuthenticateDeviceChallenge {
-  // Randomly-generated nonce to be used during platform attestation by the
-  // TPM.
-  bytes attestation_nonce = 1;
-}
-
-// TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
-// response specific to TPMs.
-message TPMAuthenticateDeviceChallengeResponse {
-  // The result of the client's platform attestation with the nonce provided
-  // in `TPMAuthenticateDeviceChallenge`.
-  TPMPlatformParameters platform_parameters = 1;
-}
-
-// AuthenticateDeviceChallenge carries the authentication challenge.
-message AuthenticateDeviceChallenge {
-  // Randomly-generated, opaque challenge to be signed using the device key.
-  bytes challenge = 1;
-}
-
-// AuthenticateDeviceChallengeResponse carries the authentication challenge
-// response.
-message AuthenticateDeviceChallengeResponse {
-  // Signature over the challenge, using the device key.
-  bytes signature = 1;
 }
 
 // Request for SyncInventory.

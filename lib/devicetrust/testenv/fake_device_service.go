@@ -34,6 +34,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 )
 
 // FakeEnrollmentToken is a "free", never spent enrollment token.
@@ -414,6 +415,58 @@ func enrollMacOS(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq 
 	}, ecPubKey, nil
 }
 
+// CreateAssertCeremony creates a fake, server-side device assertion ceremony.
+func (s *FakeDeviceService) CreateAssertCeremony() (assertserver.Ceremony, error) {
+	return s, nil
+}
+
+// AssertDevice implements a fake, server-side device assertion ceremony.
+//
+// AssertDevice requires an enrolled device, so the challenge signature
+// can be verified.
+func (s *FakeDeviceService) AssertDevice(ctx context.Context, stream assertserver.AssertDeviceServerStream) (*devicepb.Device, error) {
+	// 1. Init.
+	req, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	initReq := req.GetInit()
+	switch {
+	case initReq == nil:
+		return nil, trace.BadParameter("init required")
+	case initReq.CredentialId == "":
+		return nil, trace.BadParameter("credential ID required")
+	}
+	if err := validateCollectedData(initReq.DeviceData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dev, err := s.findDeviceByCredential(initReq.DeviceData, initReq.CredentialId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch dev.pb.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = authenticateDeviceMacOS(dev, assertStreamAdapter{stream: stream})
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
+		err = authenticateDeviceTPM(assertStreamAdapter{stream: stream})
+	default:
+		err = fmt.Errorf("unrecognized os type %q", dev.pb.OsType)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Success.
+	return dev.pb, trace.Wrap(stream.Send(&devicepb.AssertDeviceResponse{
+		Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{},
+	}))
+}
+
 // AuthenticateDevice implements a fake, server-side device authentication
 // ceremony.
 //
@@ -469,7 +522,7 @@ func (s *FakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	return trace.Wrap(err)
 }
 
-func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+func authenticateDeviceMacOS(dev *storedDevice, stream authenticateDeviceStream) error {
 	// 2. Challenge.
 	chal, err := newChallenge()
 	if err != nil {
@@ -500,7 +553,7 @@ func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustServi
 	return trace.Wrap(verifyChallenge(chal, chalResp.Signature, dev.pub))
 }
 
-func authenticateDeviceTPM(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+func authenticateDeviceTPM(stream authenticateDeviceStream) error {
 	// Produce a nonce we can send in the challenge that we expect to see in
 	// the EventLog field of the challenge response.
 	nonce, err := randomBytes()
@@ -594,4 +647,65 @@ func verifyChallenge(chal, sig []byte, pub *ecdsa.PublicKey) error {
 		return trace.BadParameter("signature verification failed")
 	}
 	return nil
+}
+
+type authenticateDeviceStream interface {
+	Recv() (*devicepb.AuthenticateDeviceRequest, error)
+	Send(*devicepb.AuthenticateDeviceResponse) error
+}
+
+// assertStreamAdapter adapts an [assertserver.AssertDeviceServerStream] to an
+// [authenticateDeviceStream].
+type assertStreamAdapter struct {
+	stream assertserver.AssertDeviceServerStream
+}
+
+func (s assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error) {
+	req, err := s.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert AssertDeviceRequest to AuthenticateDeviceRequest.
+	if req == nil || req.Payload == nil {
+		return nil, trace.BadParameter("assert request payload required")
+	}
+	authnReq := &devicepb.AuthenticateDeviceRequest{}
+	switch req.Payload.(type) {
+	case *devicepb.AssertDeviceRequest_ChallengeResponse:
+		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+			ChallengeResponse: req.GetChallengeResponse(),
+		}
+	case *devicepb.AssertDeviceRequest_TpmChallengeResponse:
+		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: req.GetTpmChallengeResponse(),
+		}
+	default:
+		return nil, trace.BadParameter("unexpected assert request payload: %T", req.Payload)
+	}
+
+	return authnReq, nil
+}
+
+func (s assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceResponse) error {
+	if authnResp == nil || authnResp.Payload == nil {
+		return trace.BadParameter("authenticate response payload required")
+	}
+
+	// Convert AuthenticateDeviceResponse to AssertDeviceResponse.
+	resp := &devicepb.AssertDeviceResponse{}
+	switch authnResp.Payload.(type) {
+	case *devicepb.AuthenticateDeviceResponse_Challenge:
+		resp.Payload = &devicepb.AssertDeviceResponse_Challenge{
+			Challenge: authnResp.GetChallenge(),
+		}
+	case *devicepb.AuthenticateDeviceResponse_TpmChallenge:
+		resp.Payload = &devicepb.AssertDeviceResponse_TpmChallenge{
+			TpmChallenge: authnResp.GetTpmChallenge(),
+		}
+	default:
+		return trace.BadParameter("unexpected authentication response payload: %T", authnResp.Payload)
+	}
+
+	return trace.Wrap(s.stream.Send(resp))
 }
