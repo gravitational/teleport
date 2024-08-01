@@ -221,6 +221,25 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			matches: false,
 		},
 		{
+			name: "get namespace match denying everything",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
+		},
+		{
 			name: "get namespace doesn't match denying secrets",
 			input: types.KubernetesResource{
 				Kind:  types.KindNamespace,
