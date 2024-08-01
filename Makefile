@@ -1601,7 +1601,7 @@ endif
 # combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
 pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
-pkg: TELEPORT_PKG_SIGNED = $(BUILDDIR)/teleport-$(VERSION).pkg
+pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 
