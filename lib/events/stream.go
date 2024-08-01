@@ -685,6 +685,7 @@ func (w *sliceWriter) completeStream() {
 		sort.Slice(w.completedParts, func(i, j int) bool {
 			return w.completedParts[i].Number < w.completedParts[j].Number
 		})
+
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {

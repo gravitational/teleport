@@ -67,7 +67,8 @@ func NewSessionTracker(ctx context.Context, trackerSpec types.SessionTrackerSpec
 	}, nil
 }
 
-// Close closes the session tracker and sets the tracker state to terminated
+// Close closes the session tracker and sets the tracker state to terminated.
+// The tracker will remain in a terminated state until it expires from the backend.
 func (s *SessionTracker) Close(ctx context.Context) error {
 	close(s.closeC)
 	err := s.UpdateState(ctx, types.SessionState_SessionStateTerminated)

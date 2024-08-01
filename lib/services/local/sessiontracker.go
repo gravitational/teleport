@@ -34,9 +34,17 @@ import (
 const (
 	sessionPrefix   = "session_tracker"
 	retryDelay      = time.Second
-	terminatedTTL   = 3 * time.Minute
 	casRetryLimit   = 7
 	casErrorMessage = "CompareAndSwap reached retry limit"
+
+	// terminatedTTL is the TTL we set when a session tracker
+	// is put in a terminated state.
+	//
+	// Teleport's upload completer will attempt ot operate on any
+	// session that does not contain an active session tracker, so
+	// we choose a value here that will give sessions enough time
+	// to be uploaded.
+	terminatedTTL = 90 * time.Minute
 )
 
 type sessionTracker struct {
