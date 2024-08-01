@@ -284,30 +284,36 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
-				"awsRegion":   []string{"us-east-1"},
-				"role":        []string{"myRole"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"myRole"},
+				"ssmDocument":     []string{"TeleportDiscoveryInstallerTest"},
+				"integrationName": []string{"my-integration"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
 				"--role=myRole " +
 				"--aws-region=us-east-1 " +
 				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
-				"--proxy-public-url=" + proxyPublicURL,
+				"--proxy-public-url=" + proxyPublicURL + " " +
+				"--cluster=localhost " +
+				"--name=my-integration",
 		},
 		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
-				"awsRegion":   []string{"us-east-1"},
-				"role":        []string{"Test+1=2,3.4@5-6_7"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"Test+1=2,3.4@5-6_7"},
+				"ssmDocument":     []string{"TeleportDiscoveryInstallerTest"},
+				"integrationName": []string{"my-integration"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
 				"--role=Test\\+1=2,3.4\\@5-6_7 " +
 				"--aws-region=us-east-1 " +
 				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
-				"--proxy-public-url=" + proxyPublicURL,
+				"--proxy-public-url=" + proxyPublicURL + " " +
+				"--cluster=localhost " +
+				"--name=my-integration",
 		},
 		{
 			name: "missing aws-region",
