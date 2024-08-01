@@ -72,8 +72,12 @@ on the target Kubernetes clusters. Target Kubernetes clusters are determined by 
 If `namespaces` field includes '*' Teleport will create ClusterRole/ClusterRoleBinding
 pair on the Kubernetes cluster, otherwise Role/Binding pair will be created in the each listed namespace. 
 
-Subject for the bindings will be a group named `teleport:*RoleName*`, e.g. for a Teleport role `kube-role` the resulting 
-group name will be `teleport:kube-role`. This will allow Kube service to setup correct impersonation group headers based on the roles available to the user.
+Subject for the bindings by default will be a group named `teleport:*ClusterName:*RoleName*`, e.g. for a Teleport role `kube-role` on Teleport
+cluster `telecluster1` the resulting group name will be `teleport:telecluster1:kube-role`. The referenced role name will be the same.
+Cluster name is used in this scheme to avoid collisions in cases when one Kubernetes cluster is enrolled in more than one Teleport cluster.
+Kubernetes has a limit of 63 characters for the role names, in the edge case when the combined name exceeds that limit we will 
+use hashing to keep it under 63 characters - `teleport:hash(*ClusterName*,*RoleName*)`.
+This will allow Kube service to setup correct impersonation group headers based on the roles available to the user.
 
 If `kubernetes_permissions` field is set in the `allow` part of the Teleport role, fields `kubernetes_resources`, `kubernetes_users` and `kubernetes_groups` 
 should not be set, we will return an error if user will try to create a role mixing those fields. In the future we might relax this rule.
