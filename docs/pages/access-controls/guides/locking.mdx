@@ -8,7 +8,7 @@ prevent access during cluster maintenance—by placing a lock
 on a session, user or host identity.
 
 Teleport will reject new API requests and terminate active
-connections to SSH, database, desktop, and Kubernetes sessions
+connections to SSH, application, database, desktop, and Kubernetes sessions
 matching the lock's target.
 
 A lock can target the following objects or attributes:

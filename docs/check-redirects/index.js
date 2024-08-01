@@ -1,10 +1,11 @@
 #!/user/bin/env node
-const { RedirectChecker } = require('./check-redirects.js');
-const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers');
-const process = require('node:process');
-const fs = require('node:fs');
-const path = require('node:path');
+import process from 'node:process';
+import fs from 'node:fs';
+
+import { hideBin } from 'yargs/helpers';
+import yargs from 'yargs/yargs';
+
+import { RedirectChecker } from './check-redirects.js';
 
 const args = yargs(hideBin(process.argv))
   .option('in', {

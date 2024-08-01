@@ -35,7 +35,6 @@ test('loaded', async () => {
 });
 
 test('active sessions CTA', async () => {
-  cfg.isTeam = true;
   cfg.isEnterprise = true;
   const { container } = render(<ActiveSessionsCTA />);
   await screen.findByText(/cluster: teleport/i);

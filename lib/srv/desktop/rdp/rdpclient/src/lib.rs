@@ -486,19 +486,6 @@ pub enum CGODisconnectCode {
     DisconnectCodeServer = 2,
 }
 
-#[repr(C)]
-pub struct CGOReadRdpOutputReturns {
-    user_message: *const c_char,
-    disconnect_code: CGODisconnectCode,
-    err_code: CGOErrCode,
-}
-
-#[repr(C)]
-pub struct CGOClientOrError {
-    client: u64,
-    err: CGOErrCode,
-}
-
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
 /// PointerEvent is a mouse move or click update from the user.
 #[repr(C)]

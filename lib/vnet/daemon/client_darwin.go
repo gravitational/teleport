@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -201,6 +200,8 @@ const (
 	ServiceStatusEnabled          ServiceStatus = 1
 	ServiceStatusRequiresApproval ServiceStatus = 2
 	ServiceStatusNotFound         ServiceStatus = 3
+	// ServiceStatusNotSupported is returned by us when macOS version is < 13.0.
+	ServiceStatusNotSupported ServiceStatus = -1
 )
 
 func (s ServiceStatus) String() string {
@@ -213,6 +214,8 @@ func (s ServiceStatus) String() string {
 		return "requires approval"
 	case ServiceStatusNotFound:
 		return "not found"
+	case ServiceStatusNotSupported:
+		return "not supported"
 	default:
 		return strconv.Itoa(int(s))
 	}
@@ -261,28 +264,20 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	errC := make(chan error, 1)
 
 	go func() {
-		var pinner runtime.Pinner
-		defer pinner.Unpin()
-
 		req := C.StartVnetRequest{
 			bundle_path: C.CString(bundlePath),
-			vnet_config: &C.VnetConfig{
-				socket_path: C.CString(config.SocketPath),
-				ipv6_prefix: C.CString(config.IPv6Prefix),
-				dns_addr:    C.CString(config.DNSAddr),
-				home_path:   C.CString(config.HomePath),
-			},
+			socket_path: C.CString(config.SocketPath),
+			ipv6_prefix: C.CString(config.IPv6Prefix),
+			dns_addr:    C.CString(config.DNSAddr),
+			home_path:   C.CString(config.HomePath),
 		}
 		defer func() {
 			C.free(unsafe.Pointer(req.bundle_path))
-			C.free(unsafe.Pointer(req.vnet_config.socket_path))
-			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
-			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
-			C.free(unsafe.Pointer(req.vnet_config.home_path))
+			C.free(unsafe.Pointer(req.socket_path))
+			C.free(unsafe.Pointer(req.ipv6_prefix))
+			C.free(unsafe.Pointer(req.dns_addr))
+			C.free(unsafe.Pointer(req.home_path))
 		}()
-		// Structs passed directly as arguments to cgo functions are automatically pinned.
-		// However, structs within structs have to be pinned by hand.
-		pinner.Pin(req.vnet_config)
 
 		var res C.StartVnetResult
 		defer func() {
@@ -320,7 +315,15 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 			}
 
 			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionCodeSigningRequirementFailure {
-				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "the daemon does not appear to be code signed correctly")
+				// If the client submits TELEPORT_HOME to which the user doesn't have access, the daemon is
+				// going to shut down with an error soon after starting. Because of that, macOS won't have
+				// enough time to perform the verification of the code signing requirement of the daemon, as
+				// requested by the client.
+				//
+				// In that scenario, macOS is going to simply error that connection with
+				// NSXPCConnectionCodeSigningRequirementFailure. Without looking at logs, it's not possible
+				// to differentiate that from a "legitimate" failure caused by an incorrect requirement.
+				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "either daemon is not signed correctly or it shut down before signature could be verified")
 				return
 			}
 
