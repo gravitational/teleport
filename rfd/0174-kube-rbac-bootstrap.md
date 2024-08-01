@@ -68,7 +68,8 @@ spec:
 
 Presence of this field will signal that user wants Teleport to auto-provision these permissions into the Kubernetes clusters.
 Teleport will translate permissions defined in that field into Kubernetes RBAC definitions and will automatically create roles and bindings
-on the target Kubernetes clusters (as specified by the labels). If `namespaces` field includes '*' Teleport will create ClusterRole/ClusterRoleBinding
+on the target Kubernetes clusters. Target Kubernetes clusters are determined by `kubernetes_labels` or `kubernetes_labels_expressions`.
+If `namespaces` field includes '*' Teleport will create ClusterRole/ClusterRoleBinding
 pair on the Kubernetes cluster, otherwise Role/Binding pair will be created in the each listed namespace. 
 
 Subject for the bindings will be a group named `teleport:*RoleName*`, e.g. for a Teleport role `kube-role` the resulting 
