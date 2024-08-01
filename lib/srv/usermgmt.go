@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os/user"
 	"regexp"
 	"strings"
@@ -259,13 +260,12 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 
 	if tempUser != nil {
 		// Collect actions that need to be done together under a lock on the user.
-		actionsUnderLock := []func() error{
-			func() error {
-				// If the user exists, set user groups again as they might have changed.
-				return trace.Wrap(u.backend.SetUserGroups(name, groups))
-			},
-		}
+		actionsUnderLock := []func() error{}
 		doWithUserLock := func() error {
+			if len(actionsUnderLock) == 0 {
+				return nil
+			}
+
 			return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
 				for _, action := range actionsUnderLock {
 					if err := action(); err != nil {
@@ -274,6 +274,38 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 				}
 				return nil
 			}))
+		}
+
+		// Get the user's current groups.
+		currentGroups := make(map[string]struct{}, len(groups))
+		groupIds, err := u.backend.UserGIDs(tempUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, groupId := range groupIds {
+			group, err := u.backend.LookupGroupByID(groupId)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			currentGroups[group.Name] = struct{}{}
+		}
+
+		// Get the groups that the user should end up with, including the primary group.
+		finalGroups := make(map[string]struct{}, len(groups)+1)
+		for _, group := range groups {
+			finalGroups[group] = struct{}{}
+		}
+		primaryGroup, err := u.backend.LookupGroupByID(tempUser.Gid)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		finalGroups[primaryGroup.Name] = struct{}{}
+
+		// Check if the user's groups need to be updated.
+		if !maps.Equal(currentGroups, finalGroups) {
+			actionsUnderLock = append(actionsUnderLock, func() error {
+				return trace.Wrap(u.backend.SetUserGroups(name, groups))
+			})
 		}
 
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
