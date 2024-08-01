@@ -244,9 +244,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.CloudUsers == nil {
+		clusterName, err := c.AuthClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:    c.CloudClients,
-			UpdateMeta: c.CloudMeta.Update,
+			Clients:     c.CloudClients,
+			UpdateMeta:  c.CloudMeta.Update,
+			ClusterName: clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

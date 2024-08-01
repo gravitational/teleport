@@ -83,7 +83,7 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients)
+	secrets, err := newSecretStore(ctx, database, f.cfg.Clients, f.cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,9 +124,9 @@ func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, acl
 		userTags, err := f.getUserTags(ctx, user, client)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				f.cfg.Log.WithError(err).Debugf("No Permission to get tags for user %v", aws.StringValue(user.ARN))
+				f.cfg.Log.DebugContext(ctx, "No Permission to get tags.", "user", aws.StringValue(user.ARN), "error", err)
 			} else {
-				f.cfg.Log.WithError(err).Warnf("Failed to get tags for user %v", aws.StringValue(user.ARN))
+				f.cfg.Log.WarnContext(ctx, "Failed to get tags.", "user", aws.StringValue(user.ARN), "error", err)
 			}
 			continue
 		}
