@@ -63,11 +63,3 @@ test('dismiss button', async () => {
   await user.click(screen.getByRole('button', { name: 'Dismiss' }));
   expect(screen.queryByText('Message')).not.toBeInTheDocument();
 });
-
-// describe('dismiss button', () => {
-//   test('is displayed when the `dismissed` prop is false', () => {
-//     render(<Alert dismissed={false} />);
-//   });
-//   const user = userEvent.setup();
-//   render(<Alert dismissed={false} />);
-// });
