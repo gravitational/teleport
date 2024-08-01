@@ -50,7 +50,7 @@ export default function generateResourcePath(
 
   const output = path
     .replace(':clusterId', params.clusterId)
-    .replace(':limit?', params.limit)
+    .replace(':limit?', params.limit || '')
     .replace(':startKey?', params.startKey || '')
     .replace(':query?', processedParams.query || '')
     .replace(':search?', processedParams.search || '')
