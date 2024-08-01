@@ -406,14 +406,14 @@ $(BUILDDIR)/fdpass-teleport:
 
 .PHONY: $(BUILDDIR)/tsh.app
 $(BUILDDIR)/tsh.app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
-$(BUILDDIR)/tsh.app: APP_BUNDLE_DEST = $(BUILDDIR)/tsh.app
-$(BUILDDIR)/tsh.app: APP_BUNDLE_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
+$(BUILDDIR)/tsh.app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
+$(BUILDDIR)/tsh.app: TSH_APP_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
 $(BUILDDIR)/tsh.app: TSH_BINARY = $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh.app:
-	cp -rf "$(TSH_APP_SKELETON)/" "$(APP_BUNDLE_DEST)/"
-	mkdir -p "$(APP_BUNDLE_DEST)/Contents/MacOS/"
-	mv "$(TSH_BINARY)" "$(APP_BUNDLE_DEST)/Contents/MacOS/."
-	$(NOTARIZE_APP_BUNDLE)
+	cp -rf "$(TSH_APP_SKELETON)/" "$(TSH_APP_BUNDLE)"/
+	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
+	cp "$(TSH_BINARY)" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
+	$(NOTARIZE_TSH_APP)
 
 #
 # BPF support (IF ENABLED)
@@ -1600,9 +1600,11 @@ endif
 # builds two package files: tsh-$VERSION.pkg and teleport-bin-$VERSION.pkg
 # combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
+pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
+pkg: TELEPORT_PKG_SIGNED = $(BUILDDIR)/teleport-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
-	
+
 	@echo Building tsh-$(VERSION).pkg
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tsh*.pkg* $(BUILDDIR)/
@@ -1615,8 +1617,8 @@ pkg: | $(RELEASE_DIR)
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 
 	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
-	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
-	$(call $(NOTARIZE_PKG),$(BUILDDIR)/teleport-$(VERSION).unsigned.pkg,$(RELEASE_DIR)/teleport-$(VERSION.pkg))
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_PKG)
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
