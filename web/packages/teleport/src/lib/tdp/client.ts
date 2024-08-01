@@ -78,6 +78,7 @@ export enum TdpClientEvent {
   WS_CLOSE = 'ws close',
   RESET = 'reset',
   POINTER = 'pointer',
+  LATENCY_STATS = 'latency stats',
 }
 
 export enum LogType {
@@ -258,12 +259,20 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
           this.handleSharedDirectoryTruncateRequest(buffer);
           break;
+        case MessageType.LATENCY_STATS:
+          this.handleLatencyStats(buffer);
+          break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
     } catch (err) {
       this.handleError(err, TdpClientEvent.CLIENT_ERROR);
     }
+  }
+
+  handleLatencyStats(buffer: ArrayBuffer) {
+    const stats = this.codec.decodeLatencyStats(buffer);
+    this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
 
   handleClientScreenSpec(buffer: ArrayBuffer) {
