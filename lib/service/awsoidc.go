@@ -207,7 +207,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 		return trace.Wrap(err)
 	}
 
-	if !utils.MeetsVersion(updater.TeleportClusterVersion, minServerVersion) {
+	if !utils.MeetsMinVersion(updater.TeleportClusterVersion, minServerVersion) {
 		updater.Log.DebugContext(ctx, "Skipping update. AWS OIDC Deploy Service will not be compatible with cluster", "cluster_version", updater.TeleportClusterVersion, "stable_version", stableVersion)
 		return nil
 	}
