@@ -1,6 +1,6 @@
 # Changelog
 
-## 15.4.10 (07/29/24)
+## 15.4.11 (07/29/24)
 
 * Fixed an issue that could cause auth servers to panic when their backend connectivity was interrupted. [#44787](https://github.com/gravitational/teleport/pull/44787)
 * Reduced the probability that the event-handler deadlocks when encountering errors processing session recordings. [#44772](https://github.com/gravitational/teleport/pull/44772)
