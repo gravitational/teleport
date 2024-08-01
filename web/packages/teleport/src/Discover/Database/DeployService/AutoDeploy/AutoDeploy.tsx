@@ -18,7 +18,7 @@
 
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -56,6 +56,7 @@ import { DeployServiceProp } from '../DeployService';
 import { hasMatchingLabels, Labels } from '../../common';
 
 import { SelectSecurityGroups } from './SelectSecurityGroups';
+import { SelectSubnetIds } from './SelectSubnetIds';
 
 import type { Database } from 'teleport/services/databases';
 
@@ -69,6 +70,12 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const [svcDeployedAwsUrl, setSvcDeployedAwsUrl] = useState('');
   const [deployFinished, setDeployFinished] = useState(false);
 
+  // TODO(lisa): look into using validator.Validate() instead
+  // of manually validating by hand.
+  const [hasNoSubnets, setHasNoSubnets] = useState(false);
+  const [hasNoSecurityGroups, setHasNoSecurityGroups] = useState(false);
+
+  const [selectedSubnetIds, setSelectedSubnetIds] = useState<string[]>([]);
   const [selectedSecurityGroups, setSelectedSecurityGroups] = useState<
     string[]
   >([]);
@@ -87,8 +94,30 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     }
   }, [labels]);
 
+  function manuallyValidateRequiredFields() {
+    if (selectedSubnetIds.length === 0) {
+      setHasNoSubnets(true);
+      return false;
+    } else {
+      setHasNoSubnets(false);
+    }
+
+    if (selectedSecurityGroups.length === 0) {
+      setHasNoSecurityGroups(true);
+      return false;
+    } else {
+      setHasNoSecurityGroups(false);
+    }
+
+    return true; // valid
+  }
+
   function handleDeploy(validator) {
     if (!validator.validate()) {
+      return;
+    }
+
+    if (!manuallyValidateRequiredFields()) {
       return;
     }
 
@@ -96,10 +125,6 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
     if (wantAutoDiscover) {
       setAttempt({ status: 'processing' });
-
-      const requiredVpcsAndSubnets =
-        dbMeta.autoDiscovery.requiredVpcsAndSubnets;
-      const vpcIds = Object.keys(requiredVpcsAndSubnets);
 
       const { awsAccountId } = splitAwsIamArn(
         agentMeta.awsIntegration.spec.roleArn
@@ -109,10 +134,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
           region: dbMeta.awsRegion,
           accountId: awsAccountId,
           taskRoleArn,
-          deployments: vpcIds.map(vpcId => ({
-            vpcId,
-            subnetIds: requiredVpcsAndSubnets[vpcId],
-          })),
+          deployments: [
+            { vpcId: dbMeta.awsVpcId, subnetIds: selectedSubnetIds },
+          ],
         })
         .then(url => {
           setAttempt({ status: 'success' });
@@ -136,7 +160,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         .deployAwsOidcService(integrationName, {
           deploymentMode: 'database-service',
           region: dbMeta.awsRegion,
-          subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
+          subnetIds: selectedSubnetIds,
           taskRoleArn,
           databaseAgentMatcherLabels: labels,
           securityGroups: selectedSecurityGroups,
@@ -212,41 +236,55 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               validator={validator}
             />
 
-            {/* step two & step three
-             * for auto discover, these steps are disabled atm since
-             * user's can't supply custom label matchers and selecting
-             * security groups is out of scope.
-             */}
-            {!wantAutoDiscover && (
-              <>
-                <StyledBox mb={5}>
-                  <Text bold>Step 2 (Optional)</Text>
-                  <Labels
-                    labels={labels}
-                    setLabels={setLabels}
-                    disableBtns={attempt.status === 'processing'}
-                    showLabelMatchErr={showLabelMatchErr}
-                    dbLabels={dbLabels}
-                    autoFocus={false}
-                    region={dbMeta.selectedAwsRdsDb?.region}
-                  />
-                </StyledBox>
-                {/* step three */}
-                <StyledBox mb={5}>
-                  <Text bold>Step 3 (Optional)</Text>
-                  <SelectSecurityGroups
-                    selectedSecurityGroups={selectedSecurityGroups}
-                    setSelectedSecurityGroups={setSelectedSecurityGroups}
-                    dbMeta={dbMeta}
-                    emitErrorEvent={emitErrorEvent}
-                  />
-                </StyledBox>
-              </>
-            )}
+            <StyledBox mb={5}>
+              <header>
+                <H3>Step 2</H3>
+              </header>
+              <SelectSubnetIds
+                selectedSubnetIds={selectedSubnetIds}
+                onSelectedSubnetIds={setSelectedSubnetIds}
+                dbMeta={dbMeta}
+                emitErrorEvent={emitErrorEvent}
+                disabled={isProcessing}
+              />
+            </StyledBox>
 
             <StyledBox mb={5}>
-              <Text bold>Step {wantAutoDiscover ? 2 : 4}</Text>
-              <Text mb={2}>Deploy the Teleport Database Service.</Text>
+              <header>
+                <H3>Step 3 (Optional)</H3>
+              </header>
+              <SelectSecurityGroups
+                selectedSecurityGroups={selectedSecurityGroups}
+                setSelectedSecurityGroups={setSelectedSecurityGroups}
+                dbMeta={dbMeta}
+                disabled={isProcessing}
+                emitErrorEvent={emitErrorEvent}
+              />
+            </StyledBox>
+
+            <StyledBox mb={5}>
+              <header>
+                <H3>Step 4 (Optional)</H3>
+                <Subtitle3 mb={2}>Define Matcher Labels</Subtitle3>
+              </header>
+              <Labels
+                labels={labels}
+                setLabels={setLabels}
+                disableBtns={attempt.status === 'processing'}
+                showLabelMatchErr={showLabelMatchErr}
+                dbLabels={dbLabels}
+                autoFocus={false}
+                region={dbMeta.selectedAwsRdsDb?.region}
+              />
+            </StyledBox>
+
+            <StyledBox mb={5}>
+              <header>
+                <H3>Step 5</H3>
+                <Subtitle3 mb={2}>
+                  Deploy the Teleport Database Service
+                </Subtitle3>
+              </header>
               <ButtonSecondary
                 width="215px"
                 type="submit"
@@ -260,12 +298,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               {hasError && (
                 <Box>
                   <TextIcon mt={3}>
-                    <Icons.Warning
-                      size="medium"
-                      ml={1}
-                      mr={2}
-                      color="error.main"
-                    />
+                    <AlertIcon />
                     Encountered Error: {attempt.statusText}
                   </TextIcon>
                   <Text mt={2}>
@@ -291,6 +324,19 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               <AutoDiscoverDeploySuccess
                 svcDeployedAwsUrl={svcDeployedAwsUrl}
               />
+            )}
+
+            {hasNoSubnets && selectedSubnetIds.length === 0 && (
+              <TextIcon mt={3}>
+                <AlertIcon />
+                At least one subnet selection is required
+              </TextIcon>
+            )}
+            {hasNoSecurityGroups && selectedSecurityGroups.length === 0 && (
+              <TextIcon mt={3}>
+                <AlertIcon />
+                At least one security group selection is required
+              </TextIcon>
             )}
 
             <ActionButtons
@@ -521,3 +567,7 @@ const StyledBox = styled(Box)`
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
 `;
+
+const AlertIcon = () => (
+  <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+);

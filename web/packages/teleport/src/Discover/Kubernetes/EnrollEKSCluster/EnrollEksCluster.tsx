@@ -50,13 +50,12 @@ import { Kube } from 'teleport/services/kube';
 
 import { JoinToken } from 'teleport/services/joinToken';
 import cfg from 'teleport/config';
-
 import {
-  ActionButtons,
-  Header,
-  SelfHostedAutoDiscoverDirections,
-  AutoEnrollDialog,
-} from '../../Shared';
+  ConfigureDiscoveryServiceDirections,
+  CreatedDiscoveryConfigDialog,
+} from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+
+import { ActionButtons, Header } from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
 import ManualHelmDialog from './ManualHelmDialog';
@@ -439,7 +438,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
             />
           )}
           {!cfg.isCloud && isAutoDiscoveryEnabled && (
-            <SelfHostedAutoDiscoverDirections
+            <ConfigureDiscoveryServiceDirections
               clusterPublicUrl={ctx.storeUser.state.cluster.publicURL}
               discoveryGroupName={discoveryGroupName}
               setDiscoveryGroupName={setDiscoveryGroupName}
@@ -534,7 +533,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         />
       )}
       {autoDiscoverAttempt.status !== '' && (
-        <AutoEnrollDialog
+        <CreatedDiscoveryConfigDialog
           attempt={autoDiscoverAttempt}
           next={props.nextStep}
           close={() => setAutoDiscoverAttempt({ status: '' })}

@@ -18,43 +18,51 @@
 
 import React, { useState, useEffect } from 'react';
 
-import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
+import {
+  Text,
+  Flex,
+  Box,
+  Indicator,
+  ButtonSecondary,
+  Subtitle3,
+  P3,
+} from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
 import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { pluralize } from 'shared/utils/text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import { pluralize } from 'shared/utils/text';
-import { P, P3 } from 'design/Text/Text';
 
-import {
-  integrationService,
-  SecurityGroup,
-} from 'teleport/services/integrations';
+import { SubnetIdPicker } from 'teleport/Discover/Shared/SubnetIdPicker';
+import { integrationService, Subnet } from 'teleport/services/integrations';
 import { DbMeta } from 'teleport/Discover/useDiscover';
+import useTeleport from 'teleport/useTeleport';
 
-import { SecurityGroupPicker, ButtonBlueText } from '../../../Shared';
+import { ButtonBlueText } from '../../../Shared';
 
 type TableData = {
-  items: SecurityGroup[];
+  items: Subnet[];
   nextToken?: string;
   fetchStatus: FetchStatus;
 };
 
-export const SelectSecurityGroups = ({
-  selectedSecurityGroups,
-  setSelectedSecurityGroups,
+export function SelectSubnetIds({
+  selectedSubnetIds,
+  onSelectedSubnetIds,
   dbMeta,
   emitErrorEvent,
   disabled = false,
 }: {
-  selectedSecurityGroups: string[];
-  setSelectedSecurityGroups: React.Dispatch<React.SetStateAction<string[]>>;
+  selectedSubnetIds: string[];
+  onSelectedSubnetIds: React.Dispatch<React.SetStateAction<string[]>>;
   dbMeta: DbMeta;
   emitErrorEvent(err: string): void;
   disabled?: boolean;
-}) => {
-  const [sgTableData, setSgTableData] = useState<TableData>({
+}) {
+  const ctx = useTeleport();
+  const clusterId = ctx.storeUser.getClusterId();
+  const [tableData, setTableData] = useState<TableData>({
     items: [],
     nextToken: '',
     fetchStatus: 'disabled',
@@ -62,90 +70,77 @@ export const SelectSecurityGroups = ({
 
   const { attempt, run } = useAttempt('processing');
 
-  function onSelectSecurityGroup(
-    sg: SecurityGroup,
+  function handleSelectSubnet(
+    subnet: Subnet,
     e: React.ChangeEvent<HTMLInputElement>
   ) {
     if (e.target.checked) {
-      return setSelectedSecurityGroups(currentSelectedGroups => [
+      return onSelectedSubnetIds(currentSelectedGroups => [
         ...currentSelectedGroups,
-        sg.id,
+        subnet.id,
       ]);
     } else {
-      setSelectedSecurityGroups(
-        selectedSecurityGroups.filter(id => id !== sg.id)
-      );
+      onSelectedSubnetIds(selectedSubnetIds.filter(id => id !== subnet.id));
     }
   }
 
-  async function fetchSecurityGroups({ refresh = false } = {}) {
+  async function fetchSubnets({ refresh = false } = {}) {
     run(() =>
       integrationService
-        .fetchSecurityGroups(dbMeta.awsIntegration.name, {
+        .fetchAwsSubnets(dbMeta.awsIntegration.name, clusterId, {
           vpcId: dbMeta.awsVpcId,
           region: dbMeta.awsRegion,
-          nextToken: sgTableData.nextToken,
+          nextToken: tableData.nextToken,
         })
-        .then(({ securityGroups, nextToken }) => {
-          const combinedSgs = [...sgTableData.items, ...securityGroups];
-          setSgTableData({
+        .then(({ subnets, nextToken }) => {
+          const combinedSubnets = [...tableData.items, ...subnets];
+          setTableData({
             nextToken,
             fetchStatus: nextToken ? '' : 'disabled',
-            items: refresh ? securityGroups : combinedSgs,
+            items: refresh ? subnets : combinedSubnets,
           });
           if (refresh) {
-            // Reset so user doesn't unintentionally keep a security group
+            // Reset so user doesn't unintentionally keep a subnet
             // that no longer exists upon refresh.
-            setSelectedSecurityGroups([]);
+            onSelectedSubnetIds([]);
           }
         })
         .catch((err: Error) => {
           const errMsg = getErrMessage(err);
-          emitErrorEvent(`fetch security groups error: ${errMsg}`);
+          emitErrorEvent(`fetch subnets error: ${errMsg}`);
           throw err;
         })
     );
   }
 
   useEffect(() => {
-    fetchSecurityGroups();
+    fetchSubnets();
   }, []);
 
   return (
     <>
       <Flex alignItems="center" gap={1} mb={2}>
-        <Subtitle3>Select Security Groups</Subtitle3>
+        <Subtitle3>Select Subnets</Subtitle3>
         <ToolTipInfo>
           <Text>
-            Select security group(s) based on the following requirements:
-            <ul>
-              <li>
-                The selected security group(s) must allow all outbound traffic
-                (eg: 0.0.0.0/0)
-              </li>
-              <li>
-                A security group attached to your database(s) must allow inbound
-                traffic from a security group you select or from all IPs in the
-                subnets you selected
-              </li>
-            </ul>
+            A subnet has an outbound internet route if it has a route to an
+            internet gateway or a NAT gateway in a public subnet.
           </Text>
         </ToolTipInfo>
       </Flex>
 
-      <P mb={2}>
-        Select security groups to assign to the Fargate service that will be
-        running the Teleport Database Service. If you don't select any security
-        groups, the default one for the VPC will be used.
-      </P>
-      {/* TODO(bl-nero): Convert this to an alert box with embedded retry button */}
+      <Text mb={2}>
+        Select subnets to assign to the Fargate service that will be running the
+        Teleport Database Service. All of the subnets you select must have an
+        outbound internet route and a local route to the database subnets.
+      </Text>
       {attempt.status === 'failed' && (
         <>
           <Flex my={3}>
             <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
             <Text>{attempt.statusText}</Text>
           </Flex>
-          <ButtonBlueText ml={1} onClick={fetchSecurityGroups}>
+          <ButtonBlueText ml={1} onClick={fetchSubnets}>
             Retry
           </ButtonBlueText>
         </>
@@ -157,21 +152,22 @@ export const SelectSecurityGroups = ({
       )}
       {attempt.status === 'success' && (
         <Box mt={3}>
-          <SecurityGroupPicker
-            items={sgTableData.items}
+          <SubnetIdPicker
+            region={dbMeta.awsRegion}
+            subnets={tableData.items}
             attempt={attempt}
-            fetchNextPage={fetchSecurityGroups}
-            fetchStatus={sgTableData.fetchStatus}
-            onSelectSecurityGroup={onSelectSecurityGroup}
-            selectedSecurityGroups={selectedSecurityGroups}
+            fetchNextPage={fetchSubnets}
+            fetchStatus={tableData.fetchStatus}
+            onSelectSubnet={handleSelectSubnet}
+            selectedSubnets={selectedSubnetIds}
           />
           <Flex alignItems="center" gap={3} mt={2}>
             <HoverTooltip
-              tipContent="Refreshing security groups will reset selections"
+              tipContent="Refreshing subnets will reset selections"
               anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             >
               <ButtonSecondary
-                onClick={() => fetchSecurityGroups({ refresh: true })}
+                onClick={() => fetchSubnets({ refresh: true })}
                 px={2}
                 disabled={disabled}
               >
@@ -179,11 +175,11 @@ export const SelectSecurityGroups = ({
               </ButtonSecondary>
             </HoverTooltip>
             <P3>
-              {`${selectedSecurityGroups.length} ${pluralize(selectedSecurityGroups.length, 'security group')} selected`}
+              {`${selectedSubnetIds.length} ${pluralize(selectedSubnetIds.length, 'subnet')} selected`}
             </P3>
           </Flex>
         </Box>
       )}
     </>
   );
-};
+}
