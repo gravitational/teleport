@@ -113,7 +113,8 @@ spec:
     kubernetes_labels:
       'env': 'staging'
     kubernetes_permissions:
-      - namespaces: ["main-company-app"]
+      namespaces: ["main-company-app"]
+      rules:
       - resources: ["pod"]
         apiGroups: [""]
         verbs: ["get", "list", "watch"]
