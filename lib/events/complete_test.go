@@ -236,6 +236,63 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 	}
 }
 
+func TestCheckUploadsSkipsUploadsInProgress(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	sessionTrackers := []types.SessionTracker{}
+
+	sessionTrackerService := &mockSessionTrackerService{
+		clock:    clock,
+		trackers: sessionTrackers,
+	}
+
+	// simulate an upload that started well before the grace period,
+	// but the most recently uploaded part is still within the grace period
+	gracePeriod := 10 * time.Minute
+	uploadInitiated := clock.Now().Add(-3 * gracePeriod)
+	lastPartUploaded := clock.Now().Add(-2 * gracePeriod / 3)
+
+	var completedUploads []events.StreamUpload
+
+	uploader := &eventstest.MockUploader{
+		MockListUploads: func(ctx context.Context) ([]events.StreamUpload, error) {
+			return []events.StreamUpload{
+				{
+					ID:        "upload-1234",
+					SessionID: session.NewID(),
+					Initiated: uploadInitiated,
+				},
+			}, nil
+		},
+		MockListParts: func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+			return []events.StreamPart{
+				{
+					Number:       int64(1),
+					ETag:         "foo",
+					LastModified: lastPartUploaded,
+				},
+			}, nil
+		},
+		MockCompleteUpload: func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+			completedUploads = append(completedUploads, upload)
+			return nil
+		},
+	}
+
+	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       uploader,
+		AuditLog:       &eventstest.MockAuditLog{},
+		SessionTracker: sessionTrackerService,
+		Clock:          clock,
+		ClusterName:    "teleport-cluster",
+		GracePeriod:    gracePeriod,
+	})
+	require.NoError(t, err)
+
+	uc.CheckUploads(context.Background())
+	require.Empty(t, completedUploads)
+
+}
+
 func TestCheckUploadsContinuesOnError(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	expires := clock.Now().Add(time.Hour * 1)
