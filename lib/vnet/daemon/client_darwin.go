@@ -200,6 +200,8 @@ const (
 	ServiceStatusEnabled          ServiceStatus = 1
 	ServiceStatusRequiresApproval ServiceStatus = 2
 	ServiceStatusNotFound         ServiceStatus = 3
+	// ServiceStatusNotSupported is returned by us when macOS version is < 13.0.
+	ServiceStatusNotSupported ServiceStatus = -1
 )
 
 func (s ServiceStatus) String() string {
@@ -212,6 +214,8 @@ func (s ServiceStatus) String() string {
 		return "requires approval"
 	case ServiceStatusNotFound:
 		return "not found"
+	case ServiceStatusNotSupported:
+		return "not supported"
 	default:
 		return strconv.Itoa(int(s))
 	}

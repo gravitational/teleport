@@ -49,6 +49,8 @@ func backgroundItemStatusFromServiceStatus(status vnetdaemon.ServiceStatus) api.
 		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL
 	case vnetdaemon.ServiceStatusNotFound:
 		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_NOT_FOUND
+	case vnetdaemon.ServiceStatusNotSupported:
+		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_NOT_SUPPORTED
 	default:
 		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_UNSPECIFIED
 	}
