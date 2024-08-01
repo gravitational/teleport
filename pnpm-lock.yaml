@@ -206,8 +206,8 @@ importers:
         specifier: ^7.24.7
         version: 7.24.7(@babel/core@7.24.7)
       '@storybook/addon-toolbars':
-        specifier: ^6.5.16
-        version: 6.5.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^8.2.5
+        version: 8.2.5(storybook@8.2.5(@babel/preset-env@7.24.7(@babel/core@7.24.7)))
       '@storybook/builder-webpack5':
         specifier: ^6.5.16
         version: 6.5.16(@swc/core@1.7.0)(esbuild@0.21.5)(eslint@8.57.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.5.3)
@@ -2091,17 +2091,6 @@ packages:
 
   '@sinonjs/fake-timers@10.3.0':
     resolution: {integrity: sha512-V4BG07kuYSUkTCSBHG8G8TNhM+F19jXFWnQtzj+we8DrkpSBCee9Z3Ms8yiGer/dlmhe35/Xdgyo3/0rQKg7YA==}
-
-  '@storybook/addon-toolbars@6.5.16':
-    resolution: {integrity: sha512-y3PuUKiwOWrAvqx1YdUvArg0UaAwmboXFeR2bkrowk1xcT+xnRO3rML4npFeUl26OQ1FzwxX/cw6nknREBBLEA==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0
-      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
-    peerDependenciesMeta:
-      react:
-        optional: true
-      react-dom:
-        optional: true
 
   '@storybook/addon-toolbars@8.2.5':
     resolution: {integrity: sha512-XqjJxpXjTKurL81QF+Xa69J/8TSstXvLWVqeX+132C0//Yq3VeUir87hvI2qw/qbQT9sGeRX72vqKhoxS+kvIQ==}
@@ -9453,19 +9442,6 @@ snapshots:
   '@sinonjs/fake-timers@10.3.0':
     dependencies:
       '@sinonjs/commons': 3.0.0
-
-  '@storybook/addon-toolbars@6.5.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@storybook/addons': 6.5.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@storybook/api': 6.5.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@storybook/client-logger': 6.5.16
-      '@storybook/components': 6.5.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@storybook/theming': 6.5.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      core-js: 3.37.1
-      regenerator-runtime: 0.13.11
-    optionalDependencies:
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
 
   '@storybook/addon-toolbars@8.2.5(storybook@8.2.5(@babel/preset-env@7.24.7(@babel/core@7.24.7)))':
     dependencies:
