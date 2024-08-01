@@ -305,8 +305,8 @@ type MockUploader struct {
 
 	CreateUploadError      error
 	ReserveUploadPartError error
-	ListPartsError         error
 
+	MockListParts      func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error)
 	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
 	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
 }
@@ -326,9 +326,9 @@ func (m *MockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUploa
 	return m.ReserveUploadPartError
 }
 
-func (m *MockUploader) ListParts(_ context.Context, _ events.StreamUpload) ([]events.StreamPart, error) {
-	if m.ListPartsError != nil {
-		return nil, m.ListPartsError
+func (m *MockUploader) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	if m.MockListParts != nil {
+		return m.MockListParts(ctx, upload)
 	}
 
 	return []events.StreamPart{}, nil
