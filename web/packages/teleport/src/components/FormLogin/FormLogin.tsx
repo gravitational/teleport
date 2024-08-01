@@ -119,7 +119,7 @@ const SsoList = ({
   autoFocus = false,
   hasTransitionEnded,
 }: Props & { hasTransitionEnded?: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
+  const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   const { isProcessing } = attempt;
@@ -357,6 +357,7 @@ const LoginOptions = ({
         refCallback={refCallback}
         authType={otherProps.primaryAuthType}
         primary
+        autoFocus
       />
       {otherAuthTypes.length > 0 && <Divider />}
       {otherAuthTypes.map(authType => (
