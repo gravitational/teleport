@@ -191,16 +191,12 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
-		case targetsReadOnlyNamespace && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
+		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
 			// This means that if the user has access to pods in the "foo" namespace,
 			// they should be able to see the "foo" namespace in the list of namespaces
 			// but only if the request is read-only.
-			isDeny := cond == types.Deny
-			if isDeny && resource.Kind != types.Wildcard {
-				continue
-			}
 			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
@@ -281,19 +277,13 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok && isAllowOrFullDeny {
 				return isAllowOrFullDeny || isDeny, trace.Wrap(err)
 			}
-		case targetsReadOnlyNamespace && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
+		case targetsReadOnlyNamespace && !isDeny && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
 			// This means that if the user has access to pods in the "foo" namespace,
 			// they should be able to see the "foo" namespace in the list of namespaces
 			// but only if the request is read-only.
-			isAllowOrFullDeny := !isDeny || resource.Name == types.Wildcard && resource.Namespace == types.Wildcard && resource.Kind == types.Wildcard
-			if isAllowOrFullDeny {
-				return isAllowOrFullDeny, nil
-			}
-			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok && isAllowOrFullDeny {
-				return ok && isAllowOrFullDeny, trace.Wrap(err)
-			}
+			return true, nil
 		default:
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 				continue
