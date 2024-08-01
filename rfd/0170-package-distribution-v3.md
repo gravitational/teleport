@@ -385,7 +385,6 @@ see several other benefits with this solution:
   tools that come included with a self-hosted JFrog license. This aligns with
   our high-level objective of reducing our dependence on vendor services,
   despite adding a new vendor. This includes:
-  * Orca (SaaS service)
   * FOSSA (SaaS service)
   * Trivy (OSS tool)
   * govulncheck (OSS tool)
