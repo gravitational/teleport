@@ -333,7 +333,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-apple"
+            class="c22"
+            data-testid="res-icon-apple"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -373,7 +374,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-aws"
+            class="c22"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -413,7 +415,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-linux"
+            class="c22"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -453,7 +456,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-aws"
+            class="c22"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -493,7 +497,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-linux"
+            class="c22"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -533,7 +538,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-linux"
+            class="c22"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -573,7 +579,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-laptop"
+            class="c22"
+            data-testid="res-icon-laptop"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -606,7 +613,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-aws"
+            class="c22"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -646,7 +654,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-redshift"
+            class="c22"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -686,7 +695,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-azure"
+            class="c22"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -726,7 +736,8 @@ p+.c28 {
           width="24px"
         >
           <img
-            class="c22 res-icon-windows"
+            class="c22"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1029,7 +1040,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-apple"
+            class="c16"
+            data-testid="res-icon-apple"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1069,7 +1081,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1109,7 +1122,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-application"
+            class="c16"
+            data-testid="res-icon-application"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1143,7 +1157,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1183,7 +1198,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1223,7 +1239,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1257,7 +1274,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-linux"
+            class="c16"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1297,7 +1315,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1337,7 +1356,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1377,7 +1397,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-kube"
+            class="c16"
+            data-testid="res-icon-kube"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1417,7 +1438,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1457,7 +1479,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-postgres"
+            class="c16"
+            data-testid="res-icon-postgres"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1497,7 +1520,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1537,7 +1561,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1577,7 +1602,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-linux"
+            class="c16"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1617,7 +1643,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-linux"
+            class="c16"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1657,7 +1684,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-laptop"
+            class="c16"
+            data-testid="res-icon-laptop"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1690,7 +1718,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-windows"
+            class="c16"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1730,7 +1759,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1770,7 +1800,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1810,7 +1841,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-googlecloud"
+            class="c16"
+            data-testid="res-icon-googlecloud"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1850,7 +1882,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-googlecloud"
+            class="c16"
+            data-testid="res-icon-googlecloud"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1890,7 +1923,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-cockroach"
+            class="c16"
+            data-testid="res-icon-cockroach"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1930,7 +1964,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-database"
+            class="c16"
+            data-testid="res-icon-database"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -1970,7 +2005,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-dynamo"
+            class="c16"
+            data-testid="res-icon-dynamo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2010,7 +2046,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2050,7 +2087,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2090,7 +2128,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-database"
+            class="c16"
+            data-testid="res-icon-database"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2130,7 +2169,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2170,7 +2210,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-windows"
+            class="c16"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2210,7 +2251,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-mongo"
+            class="c16"
+            data-testid="res-icon-mongo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2250,7 +2292,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-mongo"
+            class="c16"
+            data-testid="res-icon-mongo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2284,7 +2327,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2324,7 +2368,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2364,7 +2409,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2404,7 +2450,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2444,7 +2491,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2484,7 +2532,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2524,7 +2573,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2564,7 +2614,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-redshift"
+            class="c16"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2604,7 +2655,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-redshift"
+            class="c16"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2644,7 +2696,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-snowflake"
+            class="c16"
+            data-testid="res-icon-snowflake"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2678,7 +2731,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -2718,7 +2772,8 @@ p+.c22 {
           width="24px"
         >
           <img
-            class="c16 res-icon-windows"
+            class="c16"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3028,7 +3083,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-windows"
+            class="c18"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3070,7 +3126,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3111,7 +3168,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-application"
+            class="c18"
+            data-testid="res-icon-application"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3146,7 +3204,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3187,7 +3246,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3228,7 +3288,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3266,7 +3327,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-azure"
+            class="c18"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3311,7 +3373,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-selfhosted"
+            class="c18"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3356,7 +3419,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-googlecloud"
+            class="c18"
+            data-testid="res-icon-googlecloud"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3401,7 +3465,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-googlecloud"
+            class="c18"
+            data-testid="res-icon-googlecloud"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3446,7 +3511,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-cockroach"
+            class="c18"
+            data-testid="res-icon-cockroach"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3488,7 +3554,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-laptop"
+            class="c18"
+            data-testid="res-icon-laptop"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3523,7 +3590,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-linux"
+            class="c18"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3567,7 +3635,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-database"
+            class="c18"
+            data-testid="res-icon-database"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3612,7 +3681,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-dynamo"
+            class="c18"
+            data-testid="res-icon-dynamo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3654,7 +3724,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3695,7 +3766,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3739,7 +3811,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3784,7 +3857,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-selfhosted"
+            class="c18"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3829,7 +3903,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-database"
+            class="c18"
+            data-testid="res-icon-database"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3874,7 +3949,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3916,7 +3992,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-kube"
+            class="c18"
+            data-testid="res-icon-kube"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -3960,7 +4037,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-windows"
+            class="c18"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4002,7 +4080,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-apple"
+            class="c18"
+            data-testid="res-icon-apple"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4046,7 +4125,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-mongo"
+            class="c18"
+            data-testid="res-icon-mongo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4091,7 +4171,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-mongo"
+            class="c18"
+            data-testid="res-icon-mongo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4130,7 +4211,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-azure"
+            class="c18"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4172,7 +4254,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-selfhosted"
+            class="c18"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4213,7 +4296,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-postgres"
+            class="c18"
+            data-testid="res-icon-postgres"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4257,7 +4341,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-azure"
+            class="c18"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4299,7 +4384,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4340,7 +4426,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4384,7 +4471,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4429,7 +4517,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4474,7 +4563,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-aws"
+            class="c18"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4519,7 +4609,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-selfhosted"
+            class="c18"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4564,7 +4655,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-selfhosted"
+            class="c18"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4609,7 +4701,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-redshift"
+            class="c18"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4654,7 +4747,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-redshift"
+            class="c18"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4696,7 +4790,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-linux"
+            class="c18"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4740,7 +4835,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-snowflake"
+            class="c18"
+            data-testid="res-icon-snowflake"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4779,7 +4875,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-azure"
+            class="c18"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4824,7 +4921,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-windows"
+            class="c18"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -4866,7 +4964,8 @@ p+.c23 {
           width="24px"
         >
           <img
-            class="c18 res-icon-linux"
+            class="c18"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5201,7 +5300,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-apple"
+            class="c16"
+            data-testid="res-icon-apple"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5241,7 +5341,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5281,7 +5382,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-application"
+            class="c16"
+            data-testid="res-icon-application"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5315,7 +5417,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5349,7 +5452,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-linux"
+            class="c16"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5389,7 +5493,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5429,7 +5534,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5469,7 +5575,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-kube"
+            class="c16"
+            data-testid="res-icon-kube"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5509,7 +5616,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-linux"
+            class="c16"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5549,7 +5657,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-linux"
+            class="c16"
+            data-testid="res-icon-linux"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5589,7 +5698,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-laptop"
+            class="c16"
+            data-testid="res-icon-laptop"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5622,7 +5732,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-windows"
+            class="c16"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5662,7 +5773,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-windows"
+            class="c16"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5704,7 +5816,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5745,7 +5858,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5789,7 +5903,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5834,7 +5949,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5879,7 +5995,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-googlecloud"
+            class="c16"
+            data-testid="res-icon-googlecloud"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5924,7 +6041,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-googlecloud"
+            class="c16"
+            data-testid="res-icon-googlecloud"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -5969,7 +6087,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-cockroach"
+            class="c16"
+            data-testid="res-icon-cockroach"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6014,7 +6133,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-database"
+            class="c16"
+            data-testid="res-icon-database"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6059,7 +6179,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-dynamo"
+            class="c16"
+            data-testid="res-icon-dynamo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6104,7 +6225,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6149,7 +6271,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6194,7 +6317,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-database"
+            class="c16"
+            data-testid="res-icon-database"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6239,7 +6363,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6284,7 +6409,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-mongo"
+            class="c16"
+            data-testid="res-icon-mongo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6329,7 +6455,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-mongo"
+            class="c16"
+            data-testid="res-icon-mongo"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6368,7 +6495,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6410,7 +6538,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6451,7 +6580,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-postgres"
+            class="c16"
+            data-testid="res-icon-postgres"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6495,7 +6625,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6537,7 +6668,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6578,7 +6710,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6622,7 +6755,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6667,7 +6801,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6712,7 +6847,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-aws"
+            class="c16"
+            data-testid="res-icon-aws"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6757,7 +6893,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6802,7 +6939,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-selfhosted"
+            class="c16"
+            data-testid="res-icon-selfhosted"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6847,7 +6985,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-redshift"
+            class="c16"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6892,7 +7031,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-redshift"
+            class="c16"
+            data-testid="res-icon-redshift"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6937,7 +7077,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-snowflake"
+            class="c16"
+            data-testid="res-icon-snowflake"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -6976,7 +7117,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-azure"
+            class="c16"
+            data-testid="res-icon-azure"
             height="24px"
             src="file_stub"
             width="23.9px"
@@ -7021,7 +7163,8 @@ p+.c25 {
           width="24px"
         >
           <img
-            class="c16 res-icon-windows"
+            class="c16"
+            data-testid="res-icon-windows"
             height="24px"
             src="file_stub"
             width="23.9px"

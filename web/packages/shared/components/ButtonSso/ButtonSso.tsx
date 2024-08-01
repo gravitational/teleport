@@ -54,7 +54,6 @@ function SSOIcon({ type }: { type: SSOType }) {
   const commonResourceIconProps = {
     width: '24px',
     height: '24px',
-    'data-testid': 'icon',
   };
   switch (type.toLowerCase()) {
     case 'microsoft':

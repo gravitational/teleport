@@ -24,16 +24,21 @@ import { render } from 'design/utils/testing';
 import ButtonSso from '.';
 
 test.each`
-  ssoType           | expectedIcon
-  ${'default type'} | ${'icon-key'}
-  ${'Microsoft'}    | ${'res-icon-microsoft'}
-  ${'github'}       | ${'res-icon-github'}
-  ${'bitbucket'}    | ${'res-icon-atlassianbitbucket'}
-  ${'google'}       | ${'res-icon-google'}
+  ssoType        | expectedIcon
+  ${'Microsoft'} | ${'res-icon-microsoft'}
+  ${'github'}    | ${'res-icon-github'}
+  ${'bitbucket'} | ${'res-icon-atlassianbitbucket'}
+  ${'google'}    | ${'res-icon-google'}
 `('rendering of $ssoType', ({ ssoType, expectedIcon }) => {
   render(<ButtonSso ssoType={ssoType} title="hello" />);
-  screen.debug();
 
-  expect(screen.getByTestId('icon')).toHaveClass(expectedIcon);
+  expect(screen.getByRole('img')).toHaveAttribute('data-testid', expectedIcon);
+  expect(screen.getByText(/hello/i)).toBeInTheDocument();
+});
+
+test('rendering unknown SSO type', () => {
+  render(<ButtonSso ssoType="unknown" title="hello" />);
+
+  expect(screen.getByTestId('icon')).toHaveClass('icon-key');
   expect(screen.getByText(/hello/i)).toBeInTheDocument();
 });

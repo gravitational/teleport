@@ -3202,6 +3202,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   font-size: 16px;
   line-height: 24px;
   letter-spacing: 0.2px;
+  width: 100%;
   gap: 16px;
 }
 
@@ -3342,8 +3343,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-github"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-github"
                 height="24px"
                 src="file_stub"
                 width="24px"
@@ -3355,8 +3356,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-google"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-google"
                 height="24px"
                 src="file_stub"
                 width="24px"
@@ -3435,6 +3436,7 @@ exports[`sso providers rendering 1`] = `
   font-size: 16px;
   line-height: 24px;
   letter-spacing: 0.2px;
+  width: 100%;
   gap: 16px;
 }
 
@@ -3664,8 +3666,8 @@ exports[`sso providers rendering 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-github"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-github"
                 height="24px"
                 src="file_stub"
                 width="24px"
@@ -3677,8 +3679,8 @@ exports[`sso providers rendering 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-google"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-google"
                 height="24px"
                 src="file_stub"
                 width="24px"
@@ -3690,8 +3692,8 @@ exports[`sso providers rendering 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-atlassianbitbucket"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-atlassianbitbucket"
                 height="24px"
                 src="file_stub"
                 width="24px"
@@ -3729,8 +3731,8 @@ exports[`sso providers rendering 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-okta"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-okta"
                 height="24px"
                 src="file_stub"
                 width="24px"
@@ -3742,8 +3744,8 @@ exports[`sso providers rendering 1`] = `
               fill="filled"
             >
               <img
-                class="c8 res-icon-microsoft"
-                data-testid="icon"
+                class="c8"
+                data-testid="res-icon-microsoft"
                 height="24px"
                 src="file_stub"
                 width="24px"
