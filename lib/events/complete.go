@@ -263,6 +263,16 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			}
 			return trace.Wrap(err, "listing parts")
 		}
+		var lastModified time.Time
+		for _, part := range parts {
+			if part.LastModified.After(lastModified) {
+				lastModified = part.LastModified
+			}
+		}
+		if u.cfg.Clock.Since(lastModified) <= gracePeriod {
+			log.Debug("Found incomplete upload with recently uploaded part, skipping.")
+			continue
+		}
 
 		log.Debugf("upload has %d parts", len(parts))
 
