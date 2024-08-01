@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -409,20 +410,23 @@ func TestUpdateUserGroups(t *testing.T) {
 	}
 	// Create a user with some groups.
 	closer, err := users.UpsertUser("alice", userinfo)
-	require.NoError(t, err)
-	require.Nil(t, closer)
-	require.Zero(t, backend.setUserGroupsCalls)
+	assert.NoError(t, err)
+	assert.Nil(t, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
 
 	// Update user with new groups.
 	userinfo.Groups = allGroups[2:]
 	closer, err = users.UpsertUser("alice", userinfo)
-	require.NoError(t, err)
-	require.Nil(t, closer)
-	require.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.NoError(t, err)
+	assert.Nil(t, closer)
+	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
 
 	// Upsert again with same groups should not call SetUserGroups.
 	closer, err = users.UpsertUser("alice", userinfo)
-	require.NoError(t, err)
-	require.Nil(t, closer)
-	require.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.NoError(t, err)
+	assert.Nil(t, closer)
+	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
 }
