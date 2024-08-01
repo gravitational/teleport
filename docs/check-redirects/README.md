@@ -16,7 +16,7 @@ The commands are run from `docs/check-redirects`.
 
 ```bash
 pnpm install && \
-pnpm check-redirects --in ~/Documents/blog/pages --docs ~/Documents/teleport --name ~/Documents/docs/content/16.x --config ~/Documents/docs/content/16.x/docs/config.json
+pnpm check-redirects --in ~/Documents/blog/pages --docs ~/Documents/docs/content/16.x --name "the Teleport blog" --config ~/Documents/docs/content/16.x/docs/config.json
 ```
 
 ## Command-line flags
