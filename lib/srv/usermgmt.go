@@ -260,7 +260,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 
 	if tempUser != nil {
 		// Collect actions that need to be done together under a lock on the user.
-		actionsUnderLock := []func() error{}
+		actionsUnderLock := make([]func() error, 0, 2)
 		doWithUserLock := func() error {
 			if len(actionsUnderLock) == 0 {
 				return nil
