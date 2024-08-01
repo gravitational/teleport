@@ -11,10 +11,12 @@ redirects in the `gravitational/teleport` repository.
 The following example checks for `https://goteleport.com/docs` URLs in a
 `gravitational/blog` clone. The `--in` flag points to the directory that
 contains blog pages (the clone itself is at `~/Documents/blog`). Our
-`gravitational/teleport` clone is at `~/Documents/docs/content/16.x`:
+`gravitational/teleport` clone is at `~/Documents/docs/content/16.x`.
+The commands are run from `docs/check-redirects`.
 
 ```bash
-$ node docs/check-redirects/index.js --in ~/Documents/blog/pages --docs ~/Documents/teleport --name ~/Documents/docs/content/16.x --config ~/Documents/docs/content/16.x/docs/config.json
+pnpm install && \
+pnpm check-redirects --in ~/Documents/blog/pages --docs ~/Documents/teleport --name ~/Documents/docs/content/16.x --config ~/Documents/docs/content/16.x/docs/config.json
 ```
 
 ## Command-line flags

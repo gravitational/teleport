@@ -1,0 +1,6 @@
+# Because of a bug pnpm, we need to have this "empty" pnpm-workspace.yaml file.
+# Without it, dependencies from the local package.json were not installed.
+#
+# https://github.com/pnpm/pnpm/issues/2412#issuecomment-1807573622
+packages:
+  - "**"

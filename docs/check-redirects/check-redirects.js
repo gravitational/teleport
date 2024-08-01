@@ -1,5 +1,4 @@
-const yaml = require('yaml');
-const path = require('path');
+import path from 'node:path';
 
 const teleportDocsURL = 'https://goteleport.com/docs';
 // RedirectChecker checks for Teleport docs site domains and paths within a
@@ -14,7 +13,7 @@ const teleportDocsURL = 'https://goteleport.com/docs';
 // @param {Array<object>} redirects - array of objects with keys "source",
 // "destination", and "permanent".
 // @param {Array<string>} exclude - array of file extensions not to check.
-class RedirectChecker {
+export class RedirectChecker {
   constructor(fs, otherRepoRoot, docsRoot, redirects, exclude) {
     this.fs = fs;
     this.otherRepoRoot = otherRepoRoot;
@@ -116,5 +115,3 @@ class RedirectChecker {
     return path.join(this.docsRoot, 'docs', 'pages', rest + '.mdx');
   }
 }
-
-module.exports.RedirectChecker = RedirectChecker;
