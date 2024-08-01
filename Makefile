@@ -406,13 +406,13 @@ $(BUILDDIR)/fdpass-teleport:
 
 .PHONY: $(BUILDDIR)/tsh.app
 $(BUILDDIR)/tsh.app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
-$(BUILDDIR)/tsh.app: APP_BUNDLE = $(BUILDDIR)/tsh.app
+$(BUILDDIR)/tsh.app: APP_BUNDLE_DEST = $(BUILDDIR)/tsh.app
 $(BUILDDIR)/tsh.app: APP_BUNDLE_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
 $(BUILDDIR)/tsh.app: TSH_BINARY = $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh.app:
-	cp -r $(TSH_APP_SKELETON)/ $(BUILDDIR)/tsh.app/
-	mkdir -p "$(BUILDDIR)/tsh.app/Contents/MacOS/"
-	mv "$(TSH_BINARY)" "$(BUILDDIR)/tsh.app/Contents/MacOS/."
+	cp -rf "$(TSH_APP_SKELETON)/" "$(APP_BUNDLE_DEST)/"
+	mkdir -p "$(APP_BUNDLE_DEST)/Contents/MacOS/"
+	mv "$(TSH_BINARY)" "$(APP_BUNDLE_DEST)/Contents/MacOS/."
 	$(NOTARIZE_APP_BUNDLE)
 
 #
