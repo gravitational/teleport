@@ -5914,6 +5914,8 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
+    // PluginAWSICSettings holds settings for AWSICSettings
+    PluginAWSICSettings aws_iam_ic = 15;
   }
 
   // generation contains a unique ID that should:
@@ -6157,6 +6159,57 @@ message PluginSCIMSettings {
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
   string default_role = 2;
+}
+
+// PluginAWSICSettings holds the settings for an AWS Identity Center integration.
+message PluginAWSICSettings {
+  option (gogoproto.equal) = true;
+
+  // IntegrationId is the Teleport OIDC integration used to gain access to the
+  // AWS account
+  string integration_id = 1;
+
+  // InstanceRegion is the region the target Identity Center instance is
+  // configured in
+  string instance_region = 2;
+
+  // InstanceARN is the arn of the Identity Center instance to manage
+  string instance_arn = 3;
+
+  // Provisioning holds settings for provisioing users and groups into AWS
+  PluginAWSICProvisioningSettings provisioning = 4;
+}
+
+// PluginAWSICProvisioningSettings hold settins provisioning-specific settings
+message PluginAWSICProvisioningSettings {
+  option (gogoproto.equal) = true;
+
+  // BaseURL is the SCIM base URL
+  string base_url = 1;
+
+  // IncludeUsers is a list of predicate expressions used to identify users to
+  // provision into the downstream Identity Center. An empty list implies
+  // "provision all users".
+  repeated string include_users = 2;
+
+  // ExcludeUsers is a list of predicate expressions used to identify users that
+  // must not be provisioned into the downstream Identity Center. ExcludeUsers
+  // overrides IncludeUsers
+  //
+  // An empty list implies "provision all users" (i.e. "exclude no-one")
+  repeated string exclude_users = 3;
+
+  // IncludeAccessLists is a list of predicate expressions used to identify
+  // Access Lists to provision as Groups in the downstream IdP. An empty list
+  // implies "provision all Access Lists".
+  repeated string include_access_lists = 4;
+
+  // ExcludeAccessLists is a list of predicate expressions used to identify
+  // AccessLists that must *not* be provisioned into the downstream Identity
+  // Center. ExcludeAccessLists overrides IncludeAccessLists
+  //
+  // An empty list implies "provision all access lists" (i.e. "exclude no-one")
+  repeated string exclude_access_lists = 5;
 }
 
 message PluginBootstrapCredentialsV1 {

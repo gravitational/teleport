@@ -322,6 +322,14 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_AwsIamIc:
+		if settings.AwsIamIc == nil {
+			return trace.BadParameter("Must be used with AWS Identity Center settings")
+		}
+
+		if err := settings.AwsIamIc.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return nil
 	}
@@ -657,6 +665,40 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
+
+	return nil
+}
+
+func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
+	if c.IntegrationId == "" {
+		return trace.BadParameter("AWS OIDC integration ID must be set")
+	}
+
+	if c.InstanceArn == "" {
+		return trace.BadParameter("AWS Identity Center Instance ARN must be set")
+	}
+
+	if c.InstanceRegion == "" {
+		return trace.BadParameter("AWS Identity Center region must be set")
+	}
+
+	if c.Provisioning == nil {
+		return trace.BadParameter("provisioning config must be set")
+	}
+
+	if err := c.Provisioning.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "checking provisioning config")
+	}
+
+	return nil
+}
+
+func (c *PluginAWSICProvisioningSettings) CheckAndSetDefaults() error {
+	if c.BaseUrl == "" {
+		return trace.BadParameter("base URL data must be set")
+	}
+
+	// TODO(tcsc): work out how validate predicate expressions
 
 	return nil
 }
