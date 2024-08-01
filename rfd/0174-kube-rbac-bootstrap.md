@@ -286,7 +286,7 @@ group will be used instead - it is a group we create on GKE cluster enrollment, 
 
 The introduction of this functionality does not directly impact the security of Teleport
 itself, however it introduces a new vector of attack for a malicious actor.
-Teleport user with sufficient permissions to create/edit KubeProvision resources
+Teleport user with sufficient permissions to create/edit KubeProvision or Roles resources
 will be able to amend RBAC setup on all Kubernetes clusters enrolled in Teleport.
 We will emphasize in the user documentation the need to be vigilant when giving out
 the necessary permissions. We will also add new special label `teleport.dev/kube-provision-disabled`, that can
