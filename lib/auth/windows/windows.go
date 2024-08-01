@@ -52,11 +52,12 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func createUsersExtension(groups []string) (pkix.Extension, error) {
+func createUsersExtension(groups []string, ad bool) (pkix.Extension, error) {
 	value, err := json.Marshal(struct {
 		CreateUser bool     `json:"createUser"`
 		Groups     []string `json:"groups"`
-	}{true, groups})
+		AD         bool     `json:"ad"`
+	}{true, groups, ad})
 	if err != nil {
 		return pkix.Extension{}, trace.Wrap(err)
 	}
@@ -99,7 +100,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if req.CreateUser {
-		createUser, err := createUsersExtension(req.Groups)
+		createUser, err := createUsersExtension(req.Groups, req.AD)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -181,6 +182,7 @@ type GenerateCredentialsRequest struct {
 	CreateUser bool
 	// Groups are groups that user should be member of
 	Groups []string
+	AD     bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
