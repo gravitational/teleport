@@ -23,7 +23,7 @@ test('undefined params are set to empty string', () => {
   expect(
     generateResourcePath(cfg.api.unifiedResourcesPath, { clusterId: 'cluster' })
   ).toStrictEqual(
-    '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly=&includedResourceMode='
+    '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly='
   );
 });
 
@@ -36,7 +36,6 @@ test('defined params are set', () => {
     startKey: 'startkey',
     searchAsRoles: 'yes',
     pinnedOnly: true,
-    includedResourceMode: 'all',
     kinds: ['app'],
   };
   expect(
@@ -45,7 +44,7 @@ test('defined params are set', () => {
       ...unifiedParams,
     })
   ).toStrictEqual(
-    '/v1/webapi/sites/cluster/resources?searchAsRoles=yes&limit=100&startKey=startkey&kinds=app&query=query&search=search&sort=field:desc&pinnedOnly=true&includedResourceMode=all'
+    '/v1/webapi/sites/cluster/resources?searchAsRoles=yes&limit=100&startKey=startkey&kinds=app&query=query&search=search&sort=field:desc&pinnedOnly=true'
   );
 });
 
@@ -63,6 +62,6 @@ test('defined params but set to empty values are set to empty string', () => {
       ...unifiedParams,
     })
   ).toStrictEqual(
-    '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly=&includedResourceMode='
+    '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly='
   );
 });
