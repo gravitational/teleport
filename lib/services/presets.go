@@ -178,6 +178,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindBotInstance, RW()),
 					types.NewRule(types.KindAccessGraphSettings, RW()),
+					types.NewRule(types.KindSPIFFEFederation, RW()),
 				},
 			},
 		},
