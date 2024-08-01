@@ -1017,7 +1017,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	defer cancel()
 
 	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
-		return trace.Wrap(err)
+		s.log.WithError(err).Warnf("could not track session %v", sessionCtx.ID)
 	}
 
 	rec, err := s.newSessionRecorder(sessionCtx)
