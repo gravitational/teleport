@@ -90,12 +90,6 @@ func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, e
 	return user.LookupGroupId(gid)
 }
 
-// SetUserGroups sets a user's groups, replacing their existing groups.
-func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string) error {
-	_, err := host.SetUserGroups(name, groups)
-	return trace.Wrap(err)
-}
-
 // GetAllUsers returns a full list of users present on a system
 func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	users, _, err := host.GetAllUsers()

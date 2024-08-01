@@ -92,15 +92,17 @@ func UserAdd(username string, groups []string, home, uid, gid string) (exitCode 
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
-// SetUserGroups adds a user to a list of specified groups on a host using `usermod`,
-// overriding any existing supplementary groups.
-func SetUserGroups(username string, groups []string) (exitCode int, err error) {
+// AddUserToGroups adds a user to a list of specified groups on a host using `usermod`
+func AddUserToGroups(username string, groups []string) (exitCode int, err error) {
 	usermodBin, err := exec.LookPath("usermod")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find usermod binary")
 	}
-	// usermod -G (replace groups) (username)
-	cmd := exec.Command(usermodBin, "-G", strings.Join(groups, ","), username)
+	args := []string{"-aG"}
+	args = append(args, groups...)
+	args = append(args, username)
+	// usermod -aG (append groups) (username)
+	cmd := exec.Command(usermodBin, args...)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)

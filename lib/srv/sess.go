@@ -281,7 +281,7 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	if trace.IsAccessDenied(err) && existsErr != nil {
 		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
-	userCloser, err := s.users.UpsertUser(ctx.Identity.Login, ui)
+	userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
 	}

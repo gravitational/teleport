@@ -96,8 +96,6 @@ type HostUsersBackend interface {
 	LookupGroup(group string) (*user.Group, error)
 	// LookupGroupByID retrieves a group by its ID.
 	LookupGroupByID(gid string) (*user.Group, error)
-	// SetUserGroups sets a user's groups, replacing their existing groups.
-	SetUserGroups(name string, groups []string) error
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
@@ -147,8 +145,8 @@ func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
 }
 
 type HostUsers interface {
-	// UpsertUser creates a temporary Teleport user in the TeleportServiceGroup
-	UpsertUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)
+	// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
+	CreateUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)
 	// DeleteUser deletes a temporary Teleport user only if they are
 	// in a specified group
 	DeleteUser(name string, gid string) error
@@ -223,10 +221,58 @@ func (u *HostSudoersManagement) RemoveSudoers(name string) error {
 	return nil
 }
 
-// UpsertUser creates a temporary Teleport user in the TeleportServiceGroup
-func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
+// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
+func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
+	}
+
+	tempUser, err := u.backend.Lookup(name)
+	if err != nil && !errors.Is(err, user.UnknownUserError(name)) {
+		return nil, trace.Wrap(err)
+	}
+
+	if tempUser != nil {
+		gids, err := u.backend.UserGIDs(tempUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
+		if err != nil {
+			if isUnknownGroupError(err, types.TeleportServiceGroup) {
+				return nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+			}
+			return nil, trace.Wrap(err)
+		}
+		var found bool
+		for _, gid := range gids {
+			if gid == systemGroup.Gid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, trace.AlreadyExists("User %q already exists and is not managed by teleport", name)
+		}
+
+		err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
+			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// try to delete even if the user already exists as only users
+		// in the teleport-system group will be deleted and this way
+		// if a user creates multiple sessions the account will
+		// succeed in deletion
+		return &userCloser{
+			username: name,
+			users:    u,
+			backend:  u.backend,
+		}, trace.AlreadyExists("User %q already exists", name)
 	}
 
 	groups := make([]string, 0, len(ui.Groups))
@@ -252,71 +298,6 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 		return nil, trace.WrapWithMessage(err, "error while creating groups")
 	}
 
-	tempUser, err := u.backend.Lookup(name)
-	if err != nil && !errors.Is(err, user.UnknownUserError(name)) {
-		return nil, trace.Wrap(err)
-	}
-
-	if tempUser != nil {
-		// Collect actions that need to be done together under a lock on the user.
-		actionsUnderLock := []func() error{
-			func() error {
-				// If the user exists, set user groups again as they might have changed.
-				return trace.Wrap(u.backend.SetUserGroups(name, groups))
-			},
-		}
-		doWithUserLock := func() error {
-			return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
-				for _, action := range actionsUnderLock {
-					if err := action(); err != nil {
-						return trace.Wrap(err)
-					}
-				}
-				return nil
-			}))
-		}
-
-		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
-		if err != nil {
-			if isUnknownGroupError(err, types.TeleportServiceGroup) {
-				// Teleport service group doesn't exist, so we don't need to update interaction time.
-				return nil, trace.Wrap(doWithUserLock())
-			}
-			return nil, trace.Wrap(err)
-		}
-		gids, err := u.backend.UserGIDs(tempUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var found bool
-		for _, gid := range gids {
-			if gid == systemGroup.Gid {
-				found = true
-				break
-			}
-		}
-		if !found {
-			// User isn't managed by Teleport, so we don't need to update interaction time.
-			return nil, trace.Wrap(doWithUserLock())
-		}
-
-		actionsUnderLock = append(actionsUnderLock, func() error {
-			return trace.Wrap(u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()))
-		})
-		if err := doWithUserLock(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// try to delete even if the user already exists as only users
-		// in the teleport-system group will be deleted and this way
-		// if a user creates multiple sessions the account will
-		// succeed in deletion
-		return &userCloser{
-			username: name,
-			users:    u,
-			backend:  u.backend,
-		}, nil
-	}
-
 	var home string
 	if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
 		//nolint:staticcheck // SA4023. False positive on macOS.
@@ -328,10 +309,8 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 	}
 
 	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_KEEP {
-			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
+			return trace.Wrap(err)
 		}
 		if ui.GID != "" {
 			// if gid is specified a group must already exist
@@ -364,7 +343,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 	}
 
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
-		return nil, nil
+		return nil, trace.Wrap(err)
 	}
 
 	closer := &userCloser{
