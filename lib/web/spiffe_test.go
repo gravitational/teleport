@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"crypto/x509"
-	"slices"
 	"testing"
 
 	"github.com/gravitational/roundtrip"
@@ -68,6 +67,6 @@ func TestGetSPIFFEBundle(t *testing.T) {
 
 	require.Len(t, gotBundle.X509Authorities(), len(wantCACerts))
 	for _, caCert := range wantCACerts {
-		require.True(t, gotBundle.HasX509Certificate(caCert), "certificate not found in bundle")
+		require.True(t, gotBundle.HasX509Authority(caCert), "certificate not found in bundle")
 	}
 }
