@@ -113,7 +113,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       status: 'notStarted',
     });
   const [isAppDiscoveryEnabled, setAppDiscoveryEnabled] = useState(true);
-  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(true);
+  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(false);
   const [isAgentWaitingDialogShown, setIsAgentWaitingDialogShown] =
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
