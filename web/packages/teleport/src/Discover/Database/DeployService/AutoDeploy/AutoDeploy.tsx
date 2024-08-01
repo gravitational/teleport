@@ -40,6 +40,7 @@ import {
   DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import {
   ActionButtons,
@@ -100,9 +101,13 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         dbMeta.autoDiscovery.requiredVpcsAndSubnets;
       const vpcIds = Object.keys(requiredVpcsAndSubnets);
 
+      const { awsAccountId } = splitAwsIamArn(
+        agentMeta.awsIntegration.spec.roleArn
+      );
       integrationService
         .deployDatabaseServices(integrationName, {
           region: dbMeta.awsRegion,
+          accountId: awsAccountId,
           taskRoleArn,
           deployments: vpcIds.map(vpcId => ({
             vpcId,
