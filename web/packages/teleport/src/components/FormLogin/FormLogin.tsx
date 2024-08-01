@@ -447,7 +447,6 @@ const StyledOr = styled.div`
   width: 32px;
   justify-content: center;
   position: absolute;
-  z-index: 1;
   text-transform: uppercase;
 `;
 
