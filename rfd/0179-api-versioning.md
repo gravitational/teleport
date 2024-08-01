@@ -114,7 +114,7 @@ the TODO.
 
 
 ### Adding/removing a field to a response of an existing endpoint
-Adding a new field to a response is OK as long as that field has to effect on
+Adding a new field to a response is OK as long as that field has no effect on
 the previously existing fields. Any field that was previously in a response
 should _stay populated_ in the new response, even if that creates duplicate
 data. An existing field _cannot_ have its type changed. A field should not be
