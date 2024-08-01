@@ -70,3 +70,21 @@ credentials produced by Machine ID from being used to connect to resources.
 As a work-around, configure Device Trust enforcement on a role-by-role basis
 and ensure that it is not required for roles that you will impersonate using
 Machine ID.
+
+## Can Machine ID be used to generate long-lived certificates?
+
+Machine ID cannot currently be used to generate certificates valid for longer
+than 24 hours, and requests for longer certificates using the `certificate_ttl`
+parameter will be reduced to this 24 hour limit.
+
+This limit serves multiple purposes. For one, it encourages security best
+practices by only ever issuing very short lived certificates. Additionally, as
+Machine ID allows for certificate renewal, this limit helps to prevent further
+exploitation should a Machine ID identity be compromised: an attacker could use
+a stolen renewable certificate to request very long lived certificates and
+maintain access for a much longer period.
+
+If your use case absolutely requires long-lived certificates,
+[`tctl auth sign`](../../reference/cli/tctl.mdx#tctl-auth-sign) can
+alternatively be used, however this loses the security benefits of Machine ID's
+short-lived renewable certificates.
