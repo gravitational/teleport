@@ -42,9 +42,13 @@ message CrownJewel {
 // CrownJewelSpec is the specification of a Crown Jewel.
 message CrownJewelSpec {
   // TeleportMatchers is a list of teleport matchers.
+  // DEPRECATED: Use query instead.
   repeated TeleportMatcher teleport_matchers = 1;
   // AWSMatchers is a list of AWS matchers.
+  // DEPRECATED: Use query instead.
   repeated AWSMatcher aws_matchers = 2;
+  // Query is a Access Graph query to match resources.
+  string query = 3;
 }
 
 // TeleportMatcher represents a matcher for Teleport resources.
