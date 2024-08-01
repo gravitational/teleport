@@ -142,6 +142,7 @@ define notarize_app_bundle
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
 		--wait
+	xcrun stapler staple $($@_BUNDLE)
 	rm $(notary_file)
 endef
 
@@ -149,7 +150,7 @@ define notarize_pkg
 	$(eval $@_IN_PKG = $(1))
 	$(eval $@_OUT_PKG = $(2))
 	productsign \
-		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--sign '$(DEVELOPER_ID_INSTALLER)' \
 		--timestamp \
 		$($@_IN_PKG) \
 		$($@_OUT_PKG)
@@ -158,6 +159,7 @@ define notarize_pkg
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
 		--wait
+	xcrun stapler staple $($@_OUT_PKG)
 endef
 
 echo_var = @echo $(1)=\''$($(1))'\'
