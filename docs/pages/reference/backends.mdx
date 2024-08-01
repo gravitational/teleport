@@ -573,8 +573,10 @@ teleport:
 
 ## S3
 
-S3 buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state.
+S3 buckets can be used as storage for the recorded sessions and audit log. 
+S3 cannot store the cluster state. This section covers storage of recorded sessions
+and storing audit logs including S3 is covered in the [Athena](#Athena) storage backend
+section.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
 be permanently altered or deleted. Teleport will always look at the oldest
