@@ -31,6 +31,7 @@ import {
   WidthProps,
   HeightProps,
   AlignSelfProps,
+  GapProps,
 } from 'design/system';
 import { TextAndBackgroundColors, Theme } from 'design/theme/themes/types';
 
@@ -39,7 +40,8 @@ export type ButtonProps<E extends React.ElementType> =
     SpaceProps &
     WidthProps &
     HeightProps &
-    AlignSelfProps & {
+    AlignSelfProps &
+    GapProps & {
       /**
        * Specifies if an element's display is set to block or not. Set to true
        * to set display to block.
