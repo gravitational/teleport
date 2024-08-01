@@ -158,21 +158,21 @@ const buttonStyle = <E extends React.ElementType>(
   const { fill, intent } = props;
   const palette = buttonPalette(props);
   return {
-    backgroundColor: palette.default.background ?? 'transparent',
+    backgroundColor: palette.default.background,
     color: palette.default.text,
     borderColor: palette.default.border ?? 'transparent',
     ['&:focus-visible, .teleport-button__force-focus-visible &']: {
-      backgroundColor: palette.focus.background ?? 'transparent',
+      backgroundColor: palette.focus.background,
       color: palette.focus.text,
       borderColor: palette.focus.border ?? 'transparent',
       borderRadius: intent === 'neutral' || fill === 'minimal' ? '4px' : '2px',
       outline:
         intent !== 'neutral' && fill !== 'minimal'
-          ? `2px solid ${palette.focus.background ?? 'transparent'}`
+          ? `2px solid ${palette.focus.background}`
           : 'none',
     },
     '&:hover, .teleport-button__force-hover &': {
-      backgroundColor: palette.hover.background ?? 'transparent',
+      backgroundColor: palette.hover.background,
       borderColor: palette.hover.border ?? 'transparent',
       color: palette.hover.text,
       boxShadow:
@@ -183,7 +183,7 @@ const buttonStyle = <E extends React.ElementType>(
             0px 1px 14px 0px rgba(0, 0, 0, 0.12)`,
     },
     '&:active, .teleport-button__force-active &': {
-      backgroundColor: palette.active.background ?? 'transparent',
+      backgroundColor: palette.active.background,
       borderColor: palette.active.border ?? 'transparent',
       color: palette.active.text,
     },
@@ -192,7 +192,7 @@ const buttonStyle = <E extends React.ElementType>(
 
 type ButtonPaletteEntry = {
   text: string;
-  background?: string;
+  background: string;
   border?: string;
 };
 
@@ -238,12 +238,14 @@ const buttonPalette = <E extends React.ElementType>({
             intent === 'neutral'
               ? colors.text.slightlyMuted
               : colors.interactive.solid[intent].default.background,
+          background: 'transparent',
         },
         hover: colors.interactive.tonal[intent][0],
         active: colors.interactive.tonal[intent][1],
         focus: {
           text: colors.interactive.tonal[intent][0].text,
           border: colors.interactive.tonal[intent][0].text,
+          background: 'transparent',
         },
       };
     case 'border':
@@ -252,6 +254,7 @@ const buttonPalette = <E extends React.ElementType>({
           default: {
             text: colors.text.muted,
             border: colors.interactive.tonal.neutral[0].background,
+            background: 'transparent',
           },
           hover: colors.interactive.tonal.neutral[1],
           active: colors.interactive.tonal.neutral[2],
@@ -265,6 +268,7 @@ const buttonPalette = <E extends React.ElementType>({
           default: {
             text: colors.interactive.solid[intent].default.background,
             border: colors.interactive.solid[intent].default.background,
+            background: 'transparent',
           },
           hover: colors.interactive.solid[intent].hover,
           active: colors.interactive.solid[intent].active,
