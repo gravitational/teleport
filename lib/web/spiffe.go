@@ -62,10 +62,11 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 	// MUST per the spec. To add this, we will add a sequence number to the
 	// cert authority and increment it on every update.
 
+	const loadKeysFalse = false
 	spiffeCA, err := h.GetAccessPoint().GetCertAuthority(r.Context(), types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: cn.GetClusterName(),
-	}, false)
+	}, loadKeysFalse)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching SPIFFE CA")
 	}
