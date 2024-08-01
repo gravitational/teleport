@@ -12,7 +12,7 @@ use crate::CLSID;
 pub struct Filter {}
 
 #[allow(non_snake_case)]
-impl ICredentialProviderFilter_Impl for Filter {
+impl ICredentialProviderFilter_Impl for Filter_Impl {
     fn Filter(
         &self,
         _cpus: CREDENTIAL_PROVIDER_USAGE_SCENARIO,

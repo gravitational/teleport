@@ -84,7 +84,7 @@ extern "system" fn DllCanUnloadNow() -> HRESULT {
 struct ProviderFactory;
 
 #[allow(non_snake_case)]
-impl IClassFactory_Impl for ProviderFactory {
+impl IClassFactory_Impl for ProviderFactory_Impl {
     fn CreateInstance(
         &self,
         punkouter: Option<&IUnknown>,

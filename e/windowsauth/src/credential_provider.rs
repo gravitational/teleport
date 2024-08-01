@@ -27,7 +27,7 @@ impl Default for Provider {
 }
 
 #[allow(non_snake_case)]
-impl ICredentialProvider_Impl for Provider {
+impl ICredentialProvider_Impl for Provider_Impl {
     fn SetUsageScenario(
         &self,
         cpus: CREDENTIAL_PROVIDER_USAGE_SCENARIO,
