@@ -28,20 +28,18 @@ const SSOBtnList = forwardRef<HTMLButtonElement, Props>(
       const title = displayName || name;
       const ssoType = guessProviderType(title, type);
       return (
-        <React.Fragment key={index}>
-          <ButtonSso
-            ref={index === 0 ? ref : null}
-            key={index}
-            title={title}
-            ssoType={ssoType}
-            disabled={isDisabled}
-            autoFocus={index === 0 && autoFocus}
-            onClick={e => {
-              e.preventDefault();
-              onClick(item);
-            }}
-          />
-        </React.Fragment>
+        <ButtonSso
+          ref={index === 0 ? ref : null}
+          key={index}
+          title={title}
+          ssoType={ssoType}
+          disabled={isDisabled}
+          autoFocus={index === 0 && autoFocus}
+          onClick={e => {
+            e.preventDefault();
+            onClick(item);
+          }}
+        />
       );
     });
 
