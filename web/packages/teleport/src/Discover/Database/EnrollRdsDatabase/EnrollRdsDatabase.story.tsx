@@ -58,8 +58,8 @@ export default {
   ],
 };
 
-export const InstanceList = () => <Component />;
-InstanceList.parameters = {
+export const SelfHostedFlow = () => <Component />;
+SelfHostedFlow.parameters = {
   msw: {
     handlers: [
       http.post(cfg.api.awsRdsDbListPath, () =>
@@ -76,18 +76,16 @@ InstanceList.parameters = {
         })
       ),
       http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
-      http.post(cfg.api.awsRdsDbRequiredVpcsPath, () =>
-        HttpResponse.json({ vpcMapOfSubnets: {} })
-      ),
+      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
     ],
   },
 };
 
-export const InstanceListForCloud = () => {
+export const CloudFlow = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-InstanceListForCloud.parameters = {
+CloudFlow.parameters = {
   msw: {
     handlers: [
       http.post(cfg.api.awsRdsDbListPath, () =>
@@ -105,20 +103,98 @@ InstanceListForCloud.parameters = {
         })
       ),
       http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
-      http.post(cfg.api.awsRdsDbRequiredVpcsPath, () =>
-        HttpResponse.json({ vpcMapOfSubnets: { 'vpc-1': ['subnet1'] } })
+      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
+    ],
+  },
+};
+
+export const NoVpcs = () => {
+  return <Component />;
+};
+NoVpcs.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json({ databases: [] })
+      ),
+      http.post(
+        cfg.api.awsDatabaseVpcsPath,
+        () => HttpResponse.json({ vpcs: [] }),
+        { once: true }
+      ),
+      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
+    ],
+  },
+};
+
+export const VpcError = () => {
+  return <Component />;
+};
+VpcError.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        cfg.api.awsDatabaseVpcsPath,
+        () =>
+          HttpResponse.json(
+            {
+              error: { message: 'Whoops, error fetching required vpcs.' },
+            },
+            { status: 404 }
+          ),
+        { once: true }
       ),
     ],
   },
 };
 
-export const InstanceListLoading = () => {
-  cfg.isCloud = true;
+export const SelectedVpcAlreadyExists = () => {
   return <Component />;
 };
-InstanceListLoading.parameters = {
+SelectedVpcAlreadyExists.parameters = {
   msw: {
-    handlers: [http.post(cfg.api.awsRdsDbListPath, () => delay('infinite'))],
+    handlers: [
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json({ databases: rdsInstances })
+      ),
+      http.get(databasesPathWithoutQuery, () =>
+        HttpResponse.json({ items: [rdsInstances[2]] })
+      ),
+      http.post(cfg.api.awsDatabaseVpcsPath, () =>
+        HttpResponse.json({
+          vpcs: [
+            {
+              id: 'Click me, then toggle ON auto enroll',
+              ecsServiceDashboardURL: 'http://some-dashboard-url',
+            },
+            {
+              id: 'vpc-1234',
+            },
+          ],
+        })
+      ),
+    ],
+  },
+};
+
+export const LoadingVpcs = () => {
+  return <Component />;
+};
+LoadingVpcs.parameters = {
+  msw: {
+    handlers: [http.post(cfg.api.awsDatabaseVpcsPath, () => delay('infinite'))],
+  },
+};
+
+export const LoadingDatabases = () => {
+  return <Component />;
+};
+LoadingDatabases.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.api.awsRdsDbListPath, () => delay('infinite')),
+      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
+    ],
   },
 };
 
@@ -126,10 +202,38 @@ export const WithAwsPermissionsError = () => <Component />;
 WithAwsPermissionsError.parameters = {
   msw: {
     handlers: [
+      http.post(
+        cfg.api.awsDatabaseVpcsPath,
+        () =>
+          HttpResponse.json(
+            {
+              message: 'StatusCode: 403, RequestID: operation error',
+            },
+            { status: 403 }
+          ),
+        { once: true }
+      ),
+      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
+      http.post(cfg.api.awsRdsDbListPath, () =>
+        HttpResponse.json({ databases: [] })
+      ),
+    ],
+  },
+};
+
+export const WithDbListError = () => <Component />;
+WithDbListError.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.api.awsDatabaseVpcsPath, () =>
+        HttpResponse.json({
+          vpcs,
+        })
+      ),
       http.post(cfg.api.awsRdsDbListPath, () =>
         HttpResponse.json(
           {
-            message: 'StatusCode: 403, RequestID: operation error',
+            message: 'Whoops, fetching aws databases error',
           },
           { status: 403 }
         )
@@ -138,17 +242,33 @@ WithAwsPermissionsError.parameters = {
   },
 };
 
-export const WithOtherError = () => <Component />;
-WithOtherError.parameters = {
+export const WithOneOfDbListError = () => <Component />;
+WithOneOfDbListError.parameters = {
   msw: {
     handlers: [
+      http.post(cfg.api.awsDatabaseVpcsPath, () =>
+        HttpResponse.json({
+          vpcs,
+        })
+      ),
+      http.post(
+        cfg.api.awsRdsDbListPath,
+        () => HttpResponse.json({ databases: rdsInstances }),
+        { once: true }
+      ),
+      http.post(
+        cfg.api.awsRdsDbListPath,
+        () =>
+          HttpResponse.json(
+            {
+              message: 'Whoops, fetching another aws databases error',
+            },
+            { status: 403 }
+          ),
+        { once: true }
+      ),
       http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, something went wrong.' },
-          },
-          { status: 404 }
-        )
+        HttpResponse.json({ databases: rdsInstances })
       ),
     ],
   },
@@ -295,5 +415,28 @@ const rdsInstances = [
         resource_id: 'rds-5-resource-id',
       },
     },
+  },
+];
+
+const vpcs = [
+  {
+    name: '',
+    id: 'vpc-341c69a6-1bdb-5521-aad1',
+  },
+  {
+    name: '',
+    id: 'vpc-92b8d60f-0f0e-5d31-b5b4',
+  },
+  {
+    name: 'aws-controlsomething-VPC',
+    id: 'vpc-d36151d6-8f0e-588d-87a7',
+  },
+  {
+    name: 'eksctl-bob-test-1-cluster/VPC',
+    id: 'vpc-fe7203d3-e959-57d4-8f87',
+  },
+  {
+    name: 'Default VPC (DO NOT USE)',
+    id: 'vpc-57cbdb9c-0f3e-5efb-bd84',
   },
 ];

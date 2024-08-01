@@ -62,7 +62,7 @@ export function AwsRegionSelector({
           <ButtonSecondary
             onClick={onRefresh}
             mt={1}
-            title="Refresh database table"
+            title="Refresh"
             height="40px"
             width="40px"
             p={0}

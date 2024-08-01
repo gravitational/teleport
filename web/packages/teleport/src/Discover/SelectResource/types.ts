@@ -22,6 +22,7 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import { AuthType } from 'teleport/services/user';
+import { RdsEngineIdentifier } from 'teleport/services/integrations';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -145,3 +146,18 @@ export type PrioritizedResources = {
   preferredResources: Resource[];
   hasPreferredResources: boolean;
 };
+
+export function getRdsEngineIdentifier(
+  engine: DatabaseEngine
+): RdsEngineIdentifier {
+  switch (engine) {
+    case DatabaseEngine.MySql:
+      return 'mysql';
+    case DatabaseEngine.Postgres:
+      return 'postgres';
+    case DatabaseEngine.AuroraMysql:
+      return 'aurora-mysql';
+    case DatabaseEngine.AuroraPostgres:
+      return 'aurora-postgres';
+  }
+}
