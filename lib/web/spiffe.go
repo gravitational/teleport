@@ -55,7 +55,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 	// https_web, it's not critical for a federated trust domain to catch
 	// all phases of the rotation - however, if we support https_spiffe in
 	// future, we may need to consider a lower value or enforcing a wait
-	// period during rotations equivelant to the refresh hint.
+	// period during rotations equivalent to the refresh hint.
 	bundle.SetRefreshHint(5 * time.Minute)
 	// TODO(noah):
 	// For now, we omit the SequenceNumber field. This is only a SHOULD not a
