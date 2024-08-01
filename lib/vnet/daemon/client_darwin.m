@@ -73,15 +73,11 @@ void OpenSystemSettingsLoginItems(void) {
   }
 }
 
-@interface VNEDaemonClient ()
-
-@property(nonatomic, strong, readwrite) NSXPCConnection *connection;
-@property(nonatomic, strong, readonly) NSString *bundlePath;
-@property(nonatomic, strong, readonly) NSString *codeSigningRequirement;
-
-@end
-
-@implementation VNEDaemonClient
+@implementation VNEDaemonClient {
+  NSXPCConnection *_connection;
+  NSString *_bundlePath;
+  NSString *_codeSigningRequirement;
+}
 
 - (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement {
   self = [super init];
@@ -115,7 +111,7 @@ void OpenSystemSettingsLoginItems(void) {
   return _connection;
 }
 
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *))completion {
+- (void)startVnet:(VNEConfig *)config completion:(void (^)(NSError *))completion {
   // This way of calling the XPC proxy ensures either the error handler or
   // the reply block gets called.
   // https://forums.developer.apple.com/forums/thread/713429
@@ -123,10 +119,9 @@ void OpenSystemSettingsLoginItems(void) {
     completion(error);
   }];
 
-  [(id<VNEDaemonProtocol>)proxy startVnet:vnetConfig
-                               completion:^(NSError *error) {
-                                 completion(error);
-                               }];
+  [(id<VNEDaemonProtocol>)proxy startVnet:config completion:^(NSError *error) {
+    completion(error);
+  }];
 }
 
 - (void)invalidate {
@@ -155,9 +150,15 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
     daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path) codeSigningRequirement:requirement];
   }
 
+  VNEConfig *config = [[VNEConfig alloc] init];
+  [config setSocketPath:@(request->socket_path)];
+  [config setIpv6Prefix:@(request->ipv6_prefix)];
+  [config setDnsAddr:@(request->dns_addr)];
+  [config setHomePath:@(request->home_path)];
+
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
 
-  [daemonClient startVnet:request->vnet_config
+  [daemonClient startVnet:config
                completion:^(NSError *error) {
                  if (error) {
                    outResult->ok = false;
