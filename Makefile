@@ -884,9 +884,10 @@ endif
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list)
+test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench:
-	go test -run ^$$ -bench . -benchtime 1x $(PACKAGES)
+	go test -run ^$$ -bench . -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
