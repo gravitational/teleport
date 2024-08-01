@@ -202,12 +202,11 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	limiter.WrapHandle(authMiddleware)
 
 	securityHeaderHandler := httplib.MakeSecurityHeaderHandler(limiter)
-	tracingHandler := httplib.MakeTracingHandler(securityHeaderHandler, teleport.ComponentAuth)
 
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           tracingHandler,
+			Handler:           securityHeaderHandler,
 			ReadTimeout:       apidefaults.DefaultIOTimeout,
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,
