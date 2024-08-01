@@ -66,13 +66,8 @@ func TestGetSPIFFEBundle(t *testing.T) {
 	gotBundle, err := spiffebundle.Read(td, res.Reader())
 	require.NoError(t, err)
 
-	gotCACerts := gotBundle.X509Bundle().X509Authorities()
-	require.Len(t, gotCACerts, len(wantCACerts))
-	for i := range gotCACerts {
-		match := slices.ContainsFunc(wantCACerts, func(want *x509.Certificate) bool {
-			got := gotCACerts[i]
-			return got.Equal(want)
-		})
-		require.True(t, match, "certificate not found in wantCACerts")
+	require.Len(t, gotBundle.X509Authorities(), len(wantCACerts))
+	for _, caCert := range wantCACerts {
+		require.True(t, gotBundle.HasX509Certificate(caCert), "certificate not found in bundle")
 	}
 }
