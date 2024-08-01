@@ -91,7 +91,7 @@ by the `kubernetes_permissions` in the
 first implementation, but we will be able to add it later. Not allowing pattern matching, though limiting functionality compared to the `kubernetes_resources` field,
 will allow us to translate permissions defined in Teleport 1-to-1 into Kubernetes RBAC definitions. Since this feature is targeted primarily for the new users of 
 Teleport and/or users with less complicated RBAC setups, this should not be a critical issue. If we add pattern matching later, it will need to rely on 
-additional checks at the Teleport level - the way it currently works for the `kubernetes_resources`.
+additional checks at the Teleport level - the way it currently works for the `kubernetes_resources` and it potentially may have security implications.
 
 Kubernetes RBAC will be auto-provisioned using the KubeProvisions functionality described in the next section of this RFD. For the best UX any change to
 a role that contains `kubernetes_permissions` will trigger auto-provisioning immediately to reduce latency between the moments when role was created 
