@@ -43,6 +43,7 @@ type env struct {
 
 type opts struct {
 	device            *device
+	preAssertError    error
 	preReconcileError error
 }
 
@@ -65,6 +66,12 @@ func withDevice(deviceID string, dev dttestenv.FakeDevice) option {
 func withPreReconcileError(err error) option {
 	return func(o *opts) {
 		o.preReconcileError = err
+	}
+}
+
+func withPreAssertError(err error) option {
+	return func(o *opts) {
+		o.preAssertError = err
 	}
 }
 
@@ -91,6 +98,7 @@ func setup(t *testing.T, ops ...option) env {
 
 	svc := newServiceFake(dtFakeSvc.Service)
 	svc.preReconcileError = o.preReconcileError
+	svc.preAssertError = o.preAssertError
 
 	tlsConfig, err := fixtures.LocalTLSConfig()
 	require.NoError(t, err)
@@ -130,9 +138,13 @@ type serviceFake struct {
 	privateKeysReported []*accessgraphsecretsv1pb.PrivateKey
 	deviceTrustSvc      *dttestenv.FakeDeviceService
 	preReconcileError   error
+	preAssertError      error
 }
 
 func (s *serviceFake) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
+	if s.preAssertError != nil {
+		return s.preAssertError
+	}
 	// Step 1. Assert the device.
 	if _, err := s.deviceTrustSvc.AssertDevice(in.Context(), streamAdapter{stream: in}); err != nil {
 		return trace.Wrap(err)

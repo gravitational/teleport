@@ -1,6 +1,3 @@
-//go:build vnetdaemon
-// +build vnetdaemon
-
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -17,6 +14,21 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
+//go:build !darwin
+// +build !darwin
 
-const int VNEAlreadyRunningError = 1;
+package vnet
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+)
+
+func configureOS(ctx context.Context, cfg *osConfig) error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+	return trace.Wrap(ErrVnetNotImplemented)
+}

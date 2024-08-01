@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text } from 'design';
+import { ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import { Danger } from 'design/Alert';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -35,17 +35,17 @@ export default function RemoveDialog(props: Props) {
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
       <DialogContent width="400px">
-        <H2 mb={2}>Remove Device</H2>
+        <H2 mb={4}>Remove Device</H2>
         {attempt.status == 'failed' && (
           <Danger mb={2}>{attempt.statusText}</Danger>
         )}
-        <Text typography="paragraph">
+        <P1>
           Are you sure you want to remove device{' '}
           <Text as="span" bold color="text.main">
             {name}
           </Text>{' '}
           ?
-        </Text>
+        </P1>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning

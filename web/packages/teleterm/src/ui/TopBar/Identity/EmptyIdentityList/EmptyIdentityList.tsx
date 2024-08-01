@@ -36,7 +36,7 @@ export function EmptyIdentityList(props: EmptyIdentityListProps) {
       p={3}
     >
       <Image width="60px" src={clusterPng} />
-      <Text fontSize={1} bold mb={2}>
+      <Text typography="body3" bold mb={2}>
         No cluster connected
       </Text>
       <ButtonPrimary size="small" onClick={props.onConnect}>

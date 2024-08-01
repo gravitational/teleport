@@ -37,7 +37,7 @@ export function StepHeader({
   return (
     <Box>
       {flowLength > 1 && (
-        <Text typography="body1" color="text.slightlyMuted">
+        <Text typography="body2" color="text.slightlyMuted">
           Step {stepIndex + 1} of {flowLength}
         </Text>
       )}

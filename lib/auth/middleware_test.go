@@ -789,6 +789,8 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	require.Len(t, alerts, 1)
 	require.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
 	require.Contains(t, alerts[0].Spec.Message, "agents")
+	// Assert that the version in the message does not contain any prereleases
+	require.NotContains(t, alerts[0].Spec.Message, "-aa")
 
 	for _, tool := range []string{"tsh", "tctl", "tbot"} {
 		t.Run(tool, func(t *testing.T) {
@@ -825,6 +827,8 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 			require.Len(t, alerts, 1)
 			assert.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
 			require.Contains(t, alerts[0].Spec.Message, tool)
+			// Assert that the version in the message does not contain any prereleases
+			require.NotContains(t, alerts[0].Spec.Message, "-aa")
 		})
 	}
 
