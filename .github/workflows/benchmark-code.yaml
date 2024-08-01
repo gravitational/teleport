@@ -1,5 +1,5 @@
-name: Unit Tests (Go)
-run-name: Unit Tests (Go) - ${{ github.run_id }} - @${{ github.actor }}
+name: Benchmarks (Go)
+run-name: Benchmarks (Go) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   push:
