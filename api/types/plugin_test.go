@@ -916,3 +916,64 @@ func TestPluginEntraIDValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginAWSICSettings(t *testing.T) {
+	validSettings := func() *PluginSpecV1_AwsIamIc {
+		return &PluginSpecV1_AwsIamIc{
+			AwsIamIc: &PluginAWSICSettings{
+				IntegrationId:  "some-oidc-integration",
+				InstanceRegion: "ap-southeast-2",
+				InstanceArn:    "arn:aws:sso:::instance/ssoins-1234567890",
+				Provisioning: &PluginAWSICProvisioningSettings{
+					BaseUrl: "https://example.com/scim/v2",
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginAWSICSettings)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "valid settings pass",
+			assertErr: require.NoError,
+		}, {
+			name:           "missing oidc integration",
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationId = "" },
+			assertErr:      requireNamedBadParameterError("integration ID"),
+		}, {
+			name:           "missing instance region",
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.InstanceRegion = "" },
+			assertErr:      requireNamedBadParameterError("region"),
+		}, {
+			name:           "missing instance ARN",
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.InstanceArn = "" },
+			assertErr:      requireNamedBadParameterError("ARN"),
+		}, {
+			name:           "missing provisioning block",
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Provisioning = nil },
+			assertErr:      requireNamedBadParameterError("provisioning config"),
+		}, {
+			name:           "missing provisioning base URL",
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Provisioning.BaseUrl = "" },
+			assertErr:      requireNamedBadParameterError("base URL"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings.AwsIamIc)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				nil)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
