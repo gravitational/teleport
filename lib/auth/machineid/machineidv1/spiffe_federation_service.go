@@ -29,14 +29,26 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/events"
 )
+
+type spiffeFederationReader interface {
+	ListSPIFFEFederations(ctx context.Context, limit int, token string) ([]*machineidv1.SPIFFEFederation, string, error)
+	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
+}
+
+type spiffeFederationReadWriter interface {
+	spiffeFederationReader
+	CreateSPIFFEFederation(ctx context.Context, federation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
+	DeleteSPIFFEFederation(ctx context.Context, name string) error
+}
 
 // SPIFFEFederationServiceConfig holds configuration options for
 // NewSPIFFEFederationService
 type SPIFFEFederationServiceConfig struct {
 	Authorizer authz.Authorizer
-	Backend    services.SPIFFEFederation
+	Backend    spiffeFederationReadWriter
+	Cache      spiffeFederationReader
 	Logger     *slog.Logger
 	Clock      clockwork.Clock
 	Emitter    apievents.Emitter
@@ -64,7 +76,7 @@ func NewSPIFFEFederationService(
 
 	return &SPIFFEFederationService{
 		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
+		store:      cfg.Backend,
 		logger:     cfg.Logger,
 		clock:      cfg.Clock,
 	}, nil
@@ -76,7 +88,8 @@ type SPIFFEFederationService struct {
 	machineidv1.UnimplementedSPIFFEFederationServiceServer
 
 	authorizer authz.Authorizer
-	backend    services.SPIFFEFederation
+	store      spiffeFederationReadWriter
+	cache      spiffeFederationReader
 	logger     *slog.Logger
 	clock      clockwork.Clock
 	emitter    apievents.Emitter
@@ -99,8 +112,7 @@ func (s *SPIFFEFederationService) GetSPIFFEFederation(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	// TODO(noah): Use cache...
-	federation, err := s.backend.GetSPIFFEFederation(ctx, req.Name)
+	federation, err := s.cache.GetSPIFFEFederation(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,8 +134,7 @@ func (s *SPIFFEFederationService) ListSPIFFEFederations(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Use cache...
-	federations, nextToken, err := s.backend.ListSPIFFEFederations(
+	federations, nextToken, err := s.cache.ListSPIFFEFederations(
 		ctx,
 		int(req.PageSize),
 		req.PageToken,
@@ -158,10 +169,27 @@ func (s *SPIFFEFederationService) DeleteSPIFFEFederation(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.backend.DeleteSPIFFEFederation(ctx, req.Name); err != nil {
+	if err := s.store.DeleteSPIFFEFederation(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO: audit log
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SPIFFEFederationDelete{
+		Metadata: apievents.Metadata{
+			Code: events.SPIFFEFederationDeleteCode,
+			Type: events.SPIFFEFederationDeleteEvent,
+		},
+		UserMetadata:       authz.ClientUserMetadata(ctx),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+	}); err != nil {
+		s.logger.ErrorContext(
+			ctx, "Failed to emit audit event for deletion",
+			"error", err,
+		)
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -181,10 +209,27 @@ func (s *SPIFFEFederationService) CreateSPIFFEFederation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.CreateSPIFFEFederation(ctx, req.SpiffeFederation)
+	created, err := s.store.CreateSPIFFEFederation(ctx, req.SpiffeFederation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO: audit log
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SPIFFEFederationCreate{
+		Metadata: apievents.Metadata{
+			Code: events.SPIFFEFederationCreateCode,
+			Type: events.SPIFFEFederationCreateEvent,
+		},
+		UserMetadata:       authz.ClientUserMetadata(ctx),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.SpiffeFederation.Metadata.Name,
+		},
+	}); err != nil {
+		s.logger.ErrorContext(
+			ctx, "Failed to emit audit event for creation",
+			"error", err,
+		)
+	}
+
 	return created, nil
 }
