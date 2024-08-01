@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/leader"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -43,6 +45,11 @@ type oktaSettings struct {
 	groupFilters          []string
 	oktaAppID             string
 	appGroupSyncDisabled  bool
+}
+
+func (s *oktaSettings) orgURLBase64() string {
+	orgURL := strings.TrimSuffix(s.apiEndPoint, "/")
+	return base64.RawURLEncoding.EncodeToString([]byte(orgURL))
 }
 
 // InitOkta will initialize and start the Okta service.
@@ -197,7 +204,20 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
+	oktaLeader, err := leader.New(leader.Config{
+		SemaphoreKind: okta.OktaServiceSemaphoreKind,
+		SemaphoreName: settings.orgURLBase64(),
+		HostIDHolder:  process.Config.HostUUID,
+		Clock:         process.Clock,
+		Semaphores:    accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	oktaLeader.Start(ctx)
+
 	oktaService, err := okta.New(ctx, okta.Config{
+		Leader:                     oktaLeader,
 		ConnectorService:           conn.Client,
 		Log:                        process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
 		Clock:                      process.Clock,
@@ -233,6 +253,9 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 
 	process.OnExit("okta.stop", func(payload interface{}) {
 		logger.InfoContext(process.ExitContext(), "Shutting down.")
+		if err := oktaLeader.Close(); err != nil {
+			logger.WarnContext(process.ExitContext(), "Error closing Okta leader", "error", err)
+		}
 		var ctx context.Context
 		if payload != nil {
 			payloadCtx, ok := payload.(context.Context)

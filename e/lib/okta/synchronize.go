@@ -73,7 +73,7 @@ func (s *Service) waitIfNotLeader(ctx context.Context) bool {
 	waitForLeadershipTicker := s.clock.NewTicker(syncRetryAfterLeadershipFailure)
 	defer waitForLeadershipTicker.Stop()
 	for {
-		if s.leadershipAcquired.Load() {
+		if s.leader.IsLeader() {
 			break
 		}
 
@@ -130,7 +130,7 @@ func (s *Service) getSynchronizerInterval(ctx context.Context) time.Duration {
 // successful if no errors were encountered.
 func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 	// If the parent Okta service is not the leader, skip synchronizing.
-	if !s.leadershipAcquired.Load() {
+	if !s.leader.IsLeader() {
 		return
 	}
 

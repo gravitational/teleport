@@ -179,6 +179,7 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 	require.NoError(t, err)
 
 	svc, err := newWithClientCreator(ctx, Config{
+		Leader:           &mockIsLeader{true},
 		TLSConfig:        generateTestTLSConfig(t, testHostID, nil),
 		Authorizer:       authorizer,
 		ClusterName:      testClusterName,
