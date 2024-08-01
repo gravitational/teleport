@@ -1060,6 +1060,9 @@ const (
 	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
 	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
+
+	// NotificationAutoDiscoverAWSEC2FailedSubKind is the subkind for a notification for users .
+	NotificationAutoDiscoverAWSEC2FailedSubKind = "auto-discover-aws-ec2-failed"
 )
 
 const (

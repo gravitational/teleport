@@ -43,6 +43,8 @@ const (
 	// Used for filtering instances for automatic EC2 discovery
 	AWSInstanceStateName = "instance-state-name"
 
+	awsTagForInstanceName = "Name"
+
 	awsEventPrefix = "aws/"
 )
 
@@ -76,6 +78,7 @@ type EC2Instances struct {
 type EC2Instance struct {
 	InstanceID       string
 	Tags             map[string]string
+	Name             string
 	OriginalInstance ec2.Instance
 }
 
@@ -90,6 +93,7 @@ func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
 			inst.Tags[key] = aws.StringValue(tag.Value)
 		}
 	}
+	inst.Name = inst.Tags[awsTagForInstanceName]
 	return inst
 }
 

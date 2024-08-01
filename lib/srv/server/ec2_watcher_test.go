@@ -179,6 +179,9 @@ func TestEC2Watcher(t *testing.T) {
 		Tags: []*ec2.Tag{{
 			Key:   aws.String("teleport"),
 			Value: aws.String("yes"),
+		}, {
+			Key:   aws.String("Name"),
+			Value: aws.String("my-instance-name"),
 		}},
 		State: &ec2.InstanceState{
 			Name: aws.String(ec2.InstanceStateNameRunning),
@@ -256,12 +259,15 @@ func TestEC2Watcher(t *testing.T) {
 		Instances:  []EC2Instance{toEC2Instance(&present)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, *result.EC2)
+	require.Equal(t, "my-instance-name", result.EC2.Instances[0].Name)
+
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
 		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, *result.EC2)
+
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:      "us-west-2",

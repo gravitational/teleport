@@ -713,8 +713,9 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username st
 
 // CreateGlobalNotification creates a global notification.
 func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+	return c.NotificationServiceClient().CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+		GlobalNotification: globalNotification,
+	})
 }
 
 // CreateUserNotification creates a user-specific notification.
