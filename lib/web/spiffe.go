@@ -85,8 +85,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(bundleBytes)
-	if err != nil {
+	if _, err = w.Write(bundleBytes); err != nil {
 		h.logger.DebugContext(h.cfg.Context, "Failed to write SPIFFE bundle response", "error", err)
 	}
 	return nil, nil
