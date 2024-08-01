@@ -1,5 +1,8 @@
-# Because of a bug pnpm, we need to have this "empty" pnpm-workspace.yaml file.
-# Without it, dependencies from the local package.json were not installed.
+# Because of a bug in pnpm, we need this "empty" pnpm-workspace.yaml file.
+# Without it, running `pnpm install` from `docs/check-redirects` was simply
+# installing dependencies for the root workspace
+# (ignoring this package.json as it is not a part of the workspace).
+# The workaround is to create a new workspace root.
 #
 # https://github.com/pnpm/pnpm/issues/2412#issuecomment-1807573622
 packages:
