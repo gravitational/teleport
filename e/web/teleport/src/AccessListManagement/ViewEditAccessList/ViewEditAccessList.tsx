@@ -233,10 +233,7 @@ export function ViewEditAccessList() {
                 This Access List needs review by{' '}
                 {format(accessList.audit.nextDate, 'MM/dd')}.
               </Flex>
-              <ButtonBorder
-                justifyContent="space-between"
-                onClick={() => setReviewing(true)}
-              >
+              <ButtonBorder onClick={() => setReviewing(true)}>
                 Start Review
                 <ArrowForward size={18} ml={2} />
               </ButtonBorder>

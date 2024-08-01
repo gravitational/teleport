@@ -81,7 +81,7 @@ export function ScheduleUpgrades({
 
 export type Props = {
   onCancel(): void;
-  onSave: (window: UpgradeWindowStartHour) => void;
+  onSave: () => void;
   selectedWindow: UpgradeWindowStartHour;
   onSelectedWindowChange: (string) => void;
   attempt: Attempt;
