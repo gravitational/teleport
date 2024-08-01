@@ -2398,7 +2398,7 @@ func NewKubernetesResourceMatcher(resource types.KubernetesResource) *Kubernetes
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition))
+	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition), condition)
 
 	return result, trace.Wrap(err)
 }
