@@ -304,9 +304,11 @@ func (l wrappedListener) Accept() (net.Conn, error) {
 func TestLineLabeledWriter(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name     string
-		inputs   []string
-		expected string
+		name               string
+		inputs             []string
+		lineLength         int
+		expected           string
+		expectedExtraBytes int
 	}{
 		{
 			name:     "typical input",
@@ -338,11 +340,25 @@ func TestLineLabeledWriter(t *testing.T) {
 			inputs:   []string{"this is all ", "one continuous line"},
 			expected: "[label] this is all one continuous line",
 		},
+		{
+			name:               "long lines wrapped",
+			inputs:             []string{"1234\nabcdefghijklmnopqrstuvwxyz\n1234"},
+			lineLength:         16,
+			expected:           "[label] 1234\n[label] abcdefgh\n[label] ijklmnop\n[label] qrstuvwx\n[label] yz\n[label] 1234",
+			expectedExtraBytes: 3,
+		},
+		{
+			name:       "exact length lines",
+			inputs:     []string{"abcdefgh", "\nijklmnop"},
+			lineLength: 16,
+			expected:   "[label] abcdefgh\n[label] ijklmnop",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			w := newLineLabeledWriter(&buf, "label")
+			w, err := newLineLabeledWriter(&buf, "label", tc.lineLength)
+			require.NoError(t, err)
 
 			totalBytes := 0
 			expectedBytes := 0
@@ -352,7 +368,7 @@ func TestLineLabeledWriter(t *testing.T) {
 				totalBytes += n
 				expectedBytes += len(line)
 			}
-			assert.Equal(t, expectedBytes, totalBytes)
+			assert.Equal(t, expectedBytes+tc.expectedExtraBytes, totalBytes)
 			assert.Equal(t, tc.expected, buf.String())
 		})
 	}

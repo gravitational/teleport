@@ -19,6 +19,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -26,6 +27,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -1333,4 +1335,38 @@ func TestGetTargetNodes(t *testing.T) {
 			require.EqualValues(t, test.expected, match)
 		})
 	}
+}
+
+type slowReader struct {
+	io.Reader
+}
+
+func (r *slowReader) Read(b []byte) (int, error) {
+	time.Sleep(time.Millisecond)
+	return r.Reader.Read(b[:1])
+}
+
+func TestCopyCompleteLines(t *testing.T) {
+	t.Parallel()
+	out := &bytes.Buffer{}
+	lines := []string{
+		"abcd",
+		"efgh",
+		"1234",
+		"5678",
+		"dcba",
+		"hgfe",
+		"4321",
+		"8765",
+	}
+	// Create 4 readers, each of which will gradually write 2 lines.
+	readers := make([]io.Reader, 0, 4)
+	for i := 0; i < len(lines); i += 2 {
+		buf := bytes.NewBufferString(fmt.Sprintf("%s\n%s", lines[i], lines[i+1]))
+		readers = append(readers, &slowReader{Reader: buf})
+	}
+	require.NoError(t, copyCompleteLines(out, readers))
+	// Verify that none of the lines were interleaved.
+	receivedLines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	require.ElementsMatch(t, lines, receivedLines)
 }
