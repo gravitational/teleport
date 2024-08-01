@@ -65,7 +65,7 @@ type MemoryUpload struct {
 	// id is the upload ID
 	id string
 	// parts is the upload parts
-	parts map[int64]part
+	parts map[int32]part
 	// sessionID is the session ID associated with the upload
 	sessionID session.ID
 	//completed specifies upload as completed
@@ -113,7 +113,7 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 	m.uploads[upload.ID] = &MemoryUpload{
 		id:        upload.ID,
 		sessionID: sessionID,
-		parts:     make(map[int64]part),
+		parts:     make(map[int32]part),
 		Initiated: upload.Initiated,
 	}
 	return upload, nil
@@ -132,7 +132,7 @@ func (m *MemoryUploader) CompleteUpload(ctx context.Context, upload events.Strea
 	}
 	// verify that all parts have been uploaded
 	var result []byte
-	partsSet := make(map[int64]bool, len(parts))
+	partsSet := make(map[int32]bool, len(parts))
 	for _, part := range parts {
 		partsSet[part.Number] = true
 		upPart, ok := up.parts[part.Number]
@@ -154,7 +154,7 @@ func (m *MemoryUploader) CompleteUpload(ctx context.Context, upload events.Strea
 }
 
 // UploadPart uploads part and returns the part
-func (m *MemoryUploader) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+func (m *MemoryUploader) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	data, err := io.ReadAll(partBody)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -205,7 +205,7 @@ func (m *MemoryUploader) GetParts(uploadID string) ([][]byte, error) {
 		return nil, trace.NotFound("upload %q is not found", uploadID)
 	}
 
-	partNumbers := make([]int64, 0, len(up.parts))
+	partNumbers := make([]int32, 0, len(up.parts))
 	sortedParts := make([][]byte, 0, len(up.parts))
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
@@ -237,7 +237,7 @@ func (m *MemoryUploader) ListParts(ctx context.Context, upload events.StreamUplo
 		return nil, trace.NotFound("upload %v is not found", upload.ID)
 	}
 
-	partNumbers := make([]int64, 0, len(up.parts))
+	partNumbers := make([]int32, 0, len(up.parts))
 	sortedParts := make([]events.StreamPart, 0, len(up.parts))
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
@@ -293,7 +293,7 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) events.UploadMetadata
 }
 
 // ReserveUploadPart reserves an upload part.
-func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32) error {
 	return nil
 }
 
@@ -322,7 +322,7 @@ func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (
 	}, nil
 }
 
-func (m *MockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUpload, _ int64) error {
+func (m *MockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUpload, _ int32) error {
 	return m.ReserveUploadPartError
 }
 

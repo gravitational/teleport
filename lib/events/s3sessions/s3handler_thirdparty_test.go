@@ -24,14 +24,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/trace"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/events/test"
 )
 
 // TestThirdpartyStreams tests various streaming upload scenarios
@@ -41,12 +42,37 @@ func TestThirdpartyStreams(t *testing.T) {
 	backend := s3mem.New(s3mem.WithTimeSource(timeSource))
 	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
 	server := httptest.NewServer(faker.Server())
+	defer server.Close()
+
+	bucketName := fmt.Sprintf("teleport-test-%v", uuid.New().String())
+
+	config := aws.Config{
+		Credentials: credentials.NewStaticCredentialsProvider("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
+		Region:      "us-west-1",
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				URL:               server.URL,
+				HostnameImmutable: true,
+				SigningRegion:     region,
+			}, nil
+		}),
+	}
+
+	s3Client := s3.NewFromConfig(config, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+
+	// Create the bucket.
+	_, err := s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	require.NoError(t, err)
 
 	handler, err := NewHandler(context.Background(), Config{
-		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
+		AWSConfig:                   config,
 		Region:                      "us-west-1",
 		Path:                        "/test/",
-		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New().String()),
+		Bucket:                      bucketName,
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})

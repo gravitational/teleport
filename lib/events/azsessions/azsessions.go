@@ -86,7 +86,7 @@ func partPrefix(upload events.StreamUpload) string {
 }
 
 // partName returns the name of the blob for a specific part in an upload.
-func partName(upload events.StreamUpload, partNumber int64) string {
+func partName(upload events.StreamUpload, partNumber int32) string {
 	return fmt.Sprintf("%v%v", partPrefix(upload), partNumber)
 }
 
@@ -253,7 +253,7 @@ func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) *blockblob.Client
 
 // partBlob returns a BlockBlobClient for the blob of the part of the specified
 // upload, with the given part number.
-func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) *blockblob.Client {
+func (h *Handler) partBlob(upload events.StreamUpload, partNumber int32) *blockblob.Client {
 	return h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
 }
 
@@ -441,12 +441,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 }
 
 // ReserveUploadPart implements [events.MultipartUploader].
-func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32) error {
 	return nil
 }
 
 // UploadPart implements [events.MultipartUploader].
-func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	partBlob := h.partBlob(upload, partNumber)
 
 	// our parts are just over 5 MiB (events.MinUploadPartSizeBytes) so we can
@@ -504,7 +504,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 				lastModified = *b.Properties.LastModified
 			}
 			parts = append(parts, events.StreamPart{
-				Number:       partNumber,
+				Number:       int32(partNumber),
 				LastModified: lastModified,
 			})
 		}

@@ -105,7 +105,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 }
 
 // UploadPart uploads part
-func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	if err := checkUpload(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,7 +347,7 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 }
 
 // ReserveUploadPart reserves an upload part.
-func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32) error {
 	file, partPath, err := h.openReservationPart(upload, partNumber)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -369,7 +369,7 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 }
 
 // openReservationPart opens a reservation upload part file.
-func (h *Handler) openReservationPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
+func (h *Handler) openReservationPart(upload events.StreamUpload, partNumber int32) (*os.File, string, error) {
 	partPath := h.reservationPath(upload, partNumber)
 	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
@@ -391,23 +391,23 @@ func (h *Handler) uploadPath(upload events.StreamUpload) string {
 	return filepath.Join(h.uploadRootPath(upload), string(upload.SessionID))
 }
 
-func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
+func (h *Handler) partPath(upload events.StreamUpload, partNumber int32) string {
 	return filepath.Join(h.uploadPath(upload), partFileName(partNumber))
 }
 
-func (h *Handler) reservationPath(upload events.StreamUpload, partNumber int64) string {
+func (h *Handler) reservationPath(upload events.StreamUpload, partNumber int32) string {
 	return filepath.Join(h.uploadPath(upload), reservationFileName(partNumber))
 }
 
-func partFileName(partNumber int64) string {
+func partFileName(partNumber int32) string {
 	return fmt.Sprintf("%v%v", partNumber, partExt)
 }
 
-func reservationFileName(partNumber int64) string {
+func reservationFileName(partNumber int32) string {
 	return fmt.Sprintf("%v%v", partNumber, reservationExt)
 }
 
-func partFromFileName(fileName string) (int64, error) {
+func partFromFileName(fileName string) (int32, error) {
 	base := filepath.Base(fileName)
 	if filepath.Ext(base) != partExt {
 		return -1, trace.BadParameter("expected extension %v, got %v", partExt, base)
@@ -417,7 +417,7 @@ func partFromFileName(fileName string) (int64, error) {
 	if err != nil {
 		return -1, trace.Wrap(err)
 	}
-	return partNumber, nil
+	return int32(partNumber), nil
 }
 
 // checkUpload checks that upload IDs are valid

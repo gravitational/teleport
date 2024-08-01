@@ -278,7 +278,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 	writer := &sliceWriter{
 		proto:             stream,
-		activeUploads:     make(map[int64]*activeUpload),
+		activeUploads:     make(map[int32]*activeUpload),
 		completedUploadsC: make(chan *activeUpload, cfg.ConcurrentUploads),
 		semUploads:        make(chan struct{}, cfg.ConcurrentUploads),
 		lastPartNumber:    0,
@@ -477,9 +477,9 @@ type sliceWriter struct {
 	// current is the current slice being written to
 	current *slice
 	// lastPartNumber is the last assigned part number
-	lastPartNumber int64
+	lastPartNumber int32
 	// activeUploads tracks active uploads
-	activeUploads map[int64]*activeUpload
+	activeUploads map[int32]*activeUpload
 	// completedUploadsC receives uploads that have been completed
 	completedUploadsC chan *activeUpload
 	// semUploads controls concurrent uploads that are in flight
@@ -698,7 +698,7 @@ func (w *sliceWriter) completeStream() {
 
 // startUpload acquires upload semaphore and starts upload, returns error
 // only if there is a critical error
-func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload, error) {
+func (w *sliceWriter) startUpload(partNumber int32, slice *slice) (*activeUpload, error) {
 	// acquire semaphore limiting concurrent uploads
 	select {
 	case w.semUploads <- struct{}{}:
@@ -794,7 +794,7 @@ type activeUpload struct {
 	mtx            sync.RWMutex
 	start          time.Time
 	end            time.Time
-	partNumber     int64
+	partNumber     int32
 	part           *StreamPart
 	err            error
 	lastEventIndex int64

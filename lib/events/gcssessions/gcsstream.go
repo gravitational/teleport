@@ -80,7 +80,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 }
 
 // UploadPart uploads part
-func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +293,7 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 }
 
 // ReserveUploadPart reserves an upload part.
-func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32) error {
 	return nil
 }
 
@@ -342,7 +342,7 @@ func (h *Handler) partsPrefix(upload events.StreamUpload) string {
 }
 
 // partPath is "path/parts/<upload-id>/<part-number>.part"
-func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
+func (h *Handler) partPath(upload events.StreamUpload, partNumber int32) string {
 	return path.Join(h.partsPrefix(upload), fmt.Sprintf("%v%v", partNumber, partExt))
 }
 
@@ -399,5 +399,5 @@ func partFromPath(uploadPath string) (*events.StreamPart, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &events.StreamPart{Number: partNumber}, nil
+	return &events.StreamPart{Number: int32(partNumber)}, nil
 }
