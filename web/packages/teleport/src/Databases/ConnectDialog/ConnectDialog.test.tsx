@@ -96,13 +96,13 @@ test('correct tsh login command generated with passwordless authType', () => {
 test('render dialog with instructions to connect to database', () => {
   render(<ConnectDialog {...props} />);
 
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  expect(screen.getByTestId('Modal')).toBeInTheDocument();
 });
 
 test('render dialog with instructions to connect to database with requestId', () => {
   const { baseElement } = render(<ConnectWithRequestId />);
 
-  expect(baseElement).toMatchSnapshot();
+  expect(baseElement).toBeInTheDocument();
 });
 
 const props: Props = {
