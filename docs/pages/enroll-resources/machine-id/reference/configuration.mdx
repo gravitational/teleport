@@ -21,8 +21,6 @@ artifacts include configuration files, certificates, and cryptographic key
 material. Usually, artifacts are files, but this term is explicitly avoided
 because a destination isn't required to be a filesystem.
 
-## Configuration v2
-
 From Teleport 14, `tbot` supports the v2 configuration version.
 
 ```yaml
@@ -173,7 +171,7 @@ outputs:
       path: ./tbot-user
 ```
 
-### Outputs
+## Outputs
 
 Outputs define what actions `tbot` should take when it runs. They describe
 the format of the certificates to be generated, the roles used to generate the certificates, and the
@@ -182,7 +180,7 @@ destination where they should be written.
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
 
-#### `identity`
+### `identity`
 
 The `identity` output can be used to authenticate:
 
@@ -223,7 +221,7 @@ app_name: grafana
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-#### `database`
+### `database`
 
 The `database` output is used to generate credentials that can be used to
 access databases that have been configured with Teleport.
@@ -254,7 +252,7 @@ format: tls
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-##### Supported formats
+#### Supported formats
 
 You can provide the following values to the `format` configuration field in
 the `database` output type:
@@ -266,7 +264,7 @@ the `database` output type:
 | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. This is designed to be used with CockroachDB clients. |
 | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas`. This is for generic clients that require the specific file extensions. |
 
-#### `kubernetes`
+### `kubernetes`
 
 The `kubernetes` output is used to generate credentials that can be used to
 access Kubernetes clusters that have been configured with Teleport.
@@ -289,7 +287,7 @@ kubernetes_cluster: my-cluster
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-#### `ssh_host`
+### `ssh_host`
 
 The `ssh_host` output is used to generate the artifacts required to configure
 an OpenSSH server with Teleport in order to allow Teleport users to connect to
@@ -312,7 +310,7 @@ principals:
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-#### `spiffe-svid`
+### `spiffe-svid`
 
 The `spiffe-svid` output is used to generate a SPIFFE X509 SVID and write this
 to a configured destination.
@@ -345,14 +343,14 @@ svid:
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-### Services
+## Services
 
 Services are configurable long-lived components that run within `tbot`. Unlike
 Outputs, they may not necessarily generate artifacts. Typically, services
 provide supporting functionality for machine to machine access, for example,
 opening tunnels or providing APIs.
 
-#### `spiffe-workload-api`
+### `spiffe-workload-api`
 
 The `spiffe-workload-api` service opens a listener for a service that implements
 the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
@@ -371,6 +369,47 @@ type: spiffe-workload-api
 # - TCP: `tcp://<address>:<port>`
 # - Unix socket: `unix:///<path>`
 listen: unix:///opt/machine-id/workload.sock
+# attestors allows Workload Attestation to be configured for this Workload
+# API.
+attestors:
+  # kubernetes is configuration for the Kubernetes Workload Attestor. See
+  # the Kubernetes Workload Attestor section for more information.
+  kubernetes:
+    # enabled specifies whether the Kubernetes Workload Attestor should be
+    # enabled. If unspecified, this defaults to false.
+    enabled: true
+    # kubelet holds configuration relevant to the Kubernetes Workload Attestors
+    # interaction with the Kubelet API.
+    kubelet:
+      # read_only_port is the port on which the Kubelet API is exposed for
+      # read-only operations. Since Kubernetes 1.16, the read-only port is
+      # typically disabled by default and secure_port should be used instead.
+      read_only_port: 10255
+      # secure_port is the port on which the attestor should conenct to the
+      # Kubelet secure API. If unspecified, this defaults to `10250`. This is
+      # mutually exclusive with ReadOnlyPort.
+      secure_port: 10250
+      # token_path is the path to the token file that the Kubelet API client
+      # should use to authenticate with the Kubelet API. If unspecified, this
+      # defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+      token_path: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+      # ca_path is the path to the CA file that the Kubelet API client should
+      # use to validate the Kubelet API server's certificate. If unspecified,
+      # this defaults to `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`.
+      ca_path: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+      # skip_verify is used to disable verification of the Kubelet API server's
+      # certificate. If unspecified, this defaults to false.
+      #
+      # If specified, the value specified in ca_path is ignored.
+      #
+      # This is useful in cases where the Kubelet API server has not been issued
+      # with a certificate signed by the Kubernetes cluster's CA. This is fairly
+      # common with a number of Kubernetes distributions.
+      skip_verify: true
+      # anonymous is used to disable authentication with the Kubelet API. If
+      # unspecified, this defaults to false. If set, the token_path field is
+      # ignored.
+      anonymous: false
 # svids specifies the SPIFFE SVIDs that the Workload API should provide.
 svids:
     # path specifies what the path element should be requested for the SPIFFE
@@ -420,7 +459,7 @@ svids:
           gid: 50
 ```
 
-#### `database-tunnel`
+### `database-tunnel`
 
 The `database-tunnel` service opens a listener for a service that tunnels
 connections to a database server.
@@ -452,7 +491,7 @@ database: postgres
 username: postgres
 ```
 
-#### `application-tunnel`
+### `application-tunnel`
 
 The `application-tunnel` service opens a listener that tunnels connections to
 an application in Teleport. It supports both HTTP and TCP applications. This is
@@ -480,7 +519,7 @@ listen: tcp://127.0.0.1:8084
 app_name: my-application
 ```
 
-#### `ssh-multiplexer`
+### `ssh-multiplexer`
 
 The `ssh-multiplexer` service opens a listener for a high-performance local
 SSH multiplexer. This is designed for use-cases which create a large number
@@ -545,7 +584,7 @@ destination:
 - `v1.sock`: the Unix socket that the multiplexer listens on.
 - `agent.sock`: the Unix socket that the SSH agent listens on.
 
-##### Using the SSH multiplexer programmatically
+#### Using the SSH multiplexer programmatically
 
 To use the SSH multiplexer programmatically, your SSH client library will need
 to support one of two things:
@@ -689,7 +728,7 @@ func main() {
 ```
 </Details>
 
-### Destinations
+## Destinations
 
 A destination is somewhere that `tbot` can read and write artifacts.
 
@@ -701,7 +740,7 @@ Destinations are used in two places in the `tbot` configuration:
 Destinations come in multiple types. Usually, the `directory` type is the most
 appropriate.
 
-#### `directory`
+### `directory`
 
 The `directory` destination type stores artifacts as files in a specified
 directory.
@@ -738,7 +777,7 @@ symlinks: try-secure
 acls: try
 ```
 
-#### `memory`
+### `memory`
 
 The `memory` destination type stores artifacts in the process memory. When
 the process exits, nothing is persisted. This destination type
@@ -752,7 +791,7 @@ Configuration:
 type: memory
 ```
 
-#### `kubernetes_secret`
+### `kubernetes_secret`
 
 The `kubernetes_secret` destination type stores artifacts in a Kubernetes
 secret. This allows them to be mounted into other containers deployed in

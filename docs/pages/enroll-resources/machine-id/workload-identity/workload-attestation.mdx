@@ -1,0 +1,36 @@
+---
+title: Workload Attestation
+description: An overview of the Workload Attestation functionality
+---
+
+<Admonition type="tip" title="Preview">
+Teleport Workload Identity is currently in Preview. This means that some
+features may be missing. We're actively looking for design partners to help us
+shape the future of Workload Identity and would love to
+[hear your feedback](mailto:product@goteleport.com).
+</Admonition>
+
+## Unix Workload Attestation
+
+## Kubernetes Workload Attestation
+
+The Kubernetes Workload Attestor allows you to restrict the issuance of SVIDs
+to specific Kubernetes workloads based on a range of criteria. Workloads connect
+to the Workload API using a Unix Domain Socket and the Kubernetes Workload
+Attestor is able to identify the workload by resolving the process ID to an
+individual Kubernetes Pod.
+
+To use Kubernetes Workload Attestation, `tbot` is deployed as a
+
+To function, the Kubernetes Workload Attestor depends on the ability:
+
+- The ability to view the un-namespaced process ID of the workload. This is
+typically achieved by setting `hostPID: true` in the PodSpec.
+- The ability to query the Kubelet API to determine further information about
+a Pod from its ID.
+
+### Attestation Metadata
+
+
+### Deployment Guidance
+
