@@ -21,20 +21,14 @@ package vnet
 
 import (
 	"context"
-	"os"
 
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
-	"github.com/gravitational/teleport/lib/vnet"
 	vnetdaemon "github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 func (s *Service) GetBackgroundItemStatus(ctx context.Context, req *api.GetBackgroundItemStatusRequest) (*api.GetBackgroundItemStatusResponse, error) {
-	if os.Getenv(vnet.EnvFeatureFlag) != "yes" {
-		return nil, trace.NotImplemented("tsh was built with VNet daemon support, but the feature flag is not enabled")
-	}
-
 	status, err := vnetdaemon.DaemonStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,6 +49,8 @@ func backgroundItemStatusFromServiceStatus(status vnetdaemon.ServiceStatus) api.
 		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL
 	case vnetdaemon.ServiceStatusNotFound:
 		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_NOT_FOUND
+	case vnetdaemon.ServiceStatusNotSupported:
+		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_NOT_SUPPORTED
 	default:
 		return api.BackgroundItemStatus_BACKGROUND_ITEM_STATUS_UNSPECIFIED
 	}

@@ -17,20 +17,27 @@
 //go:build vnetdaemon
 // +build vnetdaemon
 
-package vnet
+package common
 
 import (
-	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/vnet/daemon"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/vnet"
 )
 
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(daemon.RegisterAndCall(ctx, config))
+func (c *vnetDaemonCommand) run(cf *CLIConf) error {
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
+	} else {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+	}
+
+	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
 }
 
-func DaemonSubcommand(ctx context.Context) error {
-	return trace.Wrap(daemon.Start(ctx, AdminSetup))
+func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
+	return trace.NotImplemented("tsh was built with support for VNet daemon, use %s instead", vnetDaemonSubCommand)
 }
