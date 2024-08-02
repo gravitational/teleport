@@ -54,25 +54,16 @@ Whether the updater querying the endpoint is instructed to upgrade (via `agent_a
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to the `/v1/webapi/find`.
 Teleport proxies use their access to heartbeat data to drive the rollout and modulate the `/v1/webapi/find` response given the host UUID.
 
-Rollouts are specified as interdependent groups of hosts, selected by SSH resource or instance label query.
-A host is eligible to upgrade if the seleciton query returns true.
-Instance labels are a new feature introduced by this RFD that may be used when SSH service is not running or it is undesirable to reuse SSH labels:
+Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier.
+A host is eligible to upgrade if the upgrade group identifier matches, set in teleport.yaml:
 
 ```
 teleport:
-  labels:
-    environment: staging
-  commands:
-    # this command will add a label 'arch=x86_64' to an instance
-    - name: arch
-      command: ['/bin/uname', '-p']
-      period: 1h0m0s
+  upgrade_group: staging
 ```
 
-Only static and command-based and labels may be used.
-
-At the start of a group rollout, the Teleport proxy marks a desired group of hosts to update in the backend.
-An arbitrary but UUID-deterministic fixed number of hosts (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
+At the start of a group rollout, the Teleport auth server captures the desired group of hosts to update in the backend.
+An fixed number of hosts (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
 Additional hosts are instructed to update as earlier updates complete, timeout, or fail, never exceeding `max_in_flight`.
 The group rollout is halted if timeouts or failures exceed their specified thresholds.
 Group rollouts may be retried with `tctl autoupdate run`.
@@ -81,29 +72,41 @@ Group rollouts may be retried with `tctl autoupdate run`.
 
 Instance heartbeats will now be cached at both the auth server and the proxy.
 
-All rollout logic is trigger by instance heartbeat backend writes, as changes can only occur on these events.
+The rollout logic is progressed by instance heartbeat backend writes, as changes can only occur on these events.
+
 The following data related to the rollout are stored in each instance heartbeat:
 - `agent_upgrade_start_time`: timestamp of individual agent's upgrade time
-- `agent_upgrade_group_schedule`: schedule type of group (e.g., critical)
-- `agent_upgrade_group_name`: name of group (e.g., staging)
-- `agent_upgrade_group_start_time`: timestamp of current window start time
-- `agent_upgrade_group_end_time`: timestamp of current window start time
+- `agent_upgrade_group_name`: name of auto-update group
 
-At the start of the window, all queried instance heartbeats are marked with updated values for the `agent_upgrade_group_*` fields.
-Instance heartbeats are included in the current window if all three fields match the window defined in `cluster_maintenance_config`.
+At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
+This plan is protected by optimistic locking, and contains the following data:
+
+Data key: `[name of group]@[scheduled type]` (e.g., `staging@critical`)
+
+Data value JSON:
+- `group_start_time`: timestamp of current window start time
+- `group_end_time`: timestamp of current window start time
+- `host_order`: list of UUIDs in randomized order
+
+At a fixed interval, auth servers will check the plan to determine if a new plan is needed by comparing `group_start_time` to the current time and the desired window.
+If a new plan is needed, auth servers will query their cache of instance heartbeats and attempt to write the new plan.
+The first auth server to write the plan wins; others will be rejected by the optimistic lock.
+Auth servers will only write the plan if their instance heartbeat cache is initialized and recently updated.
 
 On each instance heartbeat write, the auth server looks at instance heartbeats in cache and determines if additional agents should be upgrading.
 If they should, additional instance heartbeats are marked as upgrading by setting `agent_upgrade_start_time` to the current time.
 When `agent_upgrade_start_time` is in the group's window, the proxy serves `agent_auto_upgrade: true` when queried via `/v1/webapi/find`.
 
-To avoid synchronization issues between auth servers, the rollout order is deterministically sorted by UUID.
-Two concurrent writes to different auth servers may temporarily result in fewer upgrading instances than desired, but this should be resolved on the next write.
+
+The predetermined ordering of hosts avoids cache synchronization issues between auth servers.
+Two concurrent heartbeat writes to by auth servers may temporarily result in fewer upgrading instances than desired, but this should be resolved on the next write.
 
 Upgrading all agents generates the following write load:
-- One write of `agent_upgrade_group_*` fields per agent
-- One write of `agent_upgrade_start_time` field per agent
+- One write of plan.
+- One write of `agent_upgrade_start_time` field per agent.
 
 All reads are from cache.
+Each instance heartbeat write will trigger an eventually consistent cache update on all auth servers and proxies, but not agents.
 If the cache is unhealthy, `agent_auto_update` is still served based on the last available value in cache.
 This is safe because `agent_upgrade_start_time` is only written once during the upgrade.
 However, this means that timeout thresholds should account for possible cache init time if initialization occurs right after `agent_upgrade_start_time` is written.
@@ -142,15 +145,8 @@ spec:
   agent_auto_update_groups:
     # schedule is "regular" or "critical"
     regular:
+      # name of the group
     - name: staging-group
-      # agents defines which agents are included in the group.
-      agents:
-        # node_labels_expression selects agents by SSH resource query.
-        #  default: all connected agents
-        node_labels_expression: 'labels["environment"]=="staging"'
-        # instance_labels_expression selects agents by instance query.
-        #  default: all connected agents
-        instance_labels_expression: 'labels["environment"]=="staging"'
       # days specifies the days of the week when the group may be upgraded.
       #  default: ["*"] (all days)
       days: [“Sun”, “Mon”, ... | "*"]
@@ -186,7 +182,7 @@ spec:
   # ...
 ```
 
-Note that cycles and dependency chains longer than a week will be rejected.
+Cycles and dependency chains longer than a week will be rejected.
 Otherwise, updates could take up to 7 weeks to propagate.
 
 Changing the version or schedule completely resets progress.
@@ -284,6 +280,21 @@ Automatic updates configuration has been updated.
 
 Notes:
 - These two resources are separate so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
+
+### Version Promotion
+
+Maintaining the version of different groups of agents is out-of-scope for this RFD.
+This means that groups which employ auto-scaling or ephemeral resources will slowly converge to the latest Teleport version.
+This could lead to a production outage, as the latest Teleport version may not receive any validation before it is advertised to newly provisioned resources in production.
+
+To solve this in the future, we can add an additional `--group` flag to `teleport-update`:
+```shell
+$ teleport-update enable --proxy example.teleport.sh --group staging
+```
+
+This group name could be provided as a parameter to `/v1/webapi/find`, so that newly added resources may install at the group's designated version.
+
+This will require tracking the desired version of groups in the backend, which will add additional complexity to the rollout logic.
 
 ## Details - Linux Agents
 
@@ -437,6 +448,8 @@ To ensure that SELinux permissions do not prevent the `teleport-updater` binary 
 
 To ensure that `teleport` package removal does not interfere with `teleport-updater`, package removal will run `apt purge` (or `yum` equivalent) while ensuring that `/etc/teleport.yaml` and `/var/lib/teleport` are not purged.
 Failure to do this could result in `/etc/teleport.yaml` being removed when an operator runs `apt purge` at a later date.
+
+To ensure that `teleport` package removal does not lead to a hard restart of Teleport, the updater will ensure that the package is removed without triggering needrestart or similar services.
 
 To ensure that backups are consistent, the updater will use the [SQLite backup API](https://www.sqlite.org/backup.html) to perform the backup.
 
