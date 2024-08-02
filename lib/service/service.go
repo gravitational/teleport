@@ -475,11 +475,7 @@ func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) 
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	conf := utils.TLSConfig(cipherSuites)
 	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-		tlsCert := c.serverState.Load().tlsCert
-		if tlsCert == nil {
-			return nil, trace.NotFound("no TLS credentials setup for this identity")
-		}
-		return tlsCert, nil
+		return c.serverGetCertificate()
 	}
 	return conf, nil
 }
@@ -504,19 +500,16 @@ func (c *Connector) ServerGetValidPrincipals() []string {
 	return slices.Clone(sshCert.ValidPrincipals)
 }
 
+func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
+	tlsCert := c.serverState.Load().tlsCert
+	if tlsCert == nil {
+		return nil, trace.NotFound("no TLS credentials setup for this identity")
+	}
+	return tlsCert, nil
+}
+
 func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	serverIdentity := c.serverState.Load().identity
-	signer, err := keys.ParsePrivateKey(serverIdentity.KeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "could not parse identity's private key")
-	}
-
-	jwtSigner, err := services.GetJWTSigner(signer, serverIdentity.ClusterName, clock)
-	if err != nil {
-		return nil, trace.Wrap(err, "could not create JWT signer")
-	}
-
-	proxySigner, err := multiplexer.NewPROXYSigner(serverIdentity.XCert, jwtSigner)
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
