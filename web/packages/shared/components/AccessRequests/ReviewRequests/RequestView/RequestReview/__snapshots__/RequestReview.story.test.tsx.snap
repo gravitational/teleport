@@ -1,24 +1,18 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`failed state 1`] = `
-.c6 {
+.c7 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .c4 {
-  border-radius: 8px;
   box-sizing: border-box;
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 12px 16px;
-  overflow: auto;
-  word-break: break-word;
   border: 2px solid;
-  display: flex;
-  align-items: center;
-  background: rgba(255, 98, 87, 0.1);
+  border-radius: 8px;
   border-color: #FF6257;
 }
 
@@ -27,6 +21,15 @@ exports[`failed state 1`] = `
 }
 
 .c5 {
+  padding: 12px 16px;
+  overflow: auto;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 98, 87, 0.1);
+}
+
+.c6 {
   border-radius: 50%;
   line-height: 0;
   margin-right: 16px;
@@ -57,27 +60,27 @@ exports[`failed state 1`] = `
   background-color: #344179;
 }
 
-.c7 {
+.c8 {
   box-sizing: border-box;
   flex: 1;
 }
 
-.c9 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 16px;
 }
 
-.c16 {
+.c17 {
   box-sizing: border-box;
 }
 
-.c20 {
+.c21 {
   box-sizing: border-box;
   max-width: 500px;
   margin-bottom: 24px;
 }
 
-.c24 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -107,8 +110,8 @@ exports[`failed state 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c24:focus-visible,
-.teleport-button__force-focus-visible .c24 {
+.c25:focus-visible,
+.teleport-button__force-focus-visible .c25 {
   background-color: #9F85FF;
   color: #000000;
   border-color: #000000;
@@ -116,22 +119,22 @@ exports[`failed state 1`] = `
   outline: 2px solid #9F85FF;
 }
 
-.c24:hover,
-.teleport-button__force-hover .c24 {
+.c25:hover,
+.teleport-button__force-hover .c25 {
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
   box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c24:active,
-.teleport-button__force-active .c24 {
+.c25:active,
+.teleport-button__force-active .c25 {
   background-color: #C5B6FF;
   border-color: transparent;
   color: #000000;
 }
 
-.c24:disabled {
+.c25:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -139,7 +142,7 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c21 {
+.c22 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -162,7 +165,7 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c8 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -171,28 +174,28 @@ exports[`failed state 1`] = `
   line-height: 20px;
 }
 
-.c19 {
+.c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
 }
 
-.c10 {
+.c11 {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.c17 {
+.c18 {
   display: flex;
 }
 
-.c18 {
+.c19 {
   display: flex;
   align-items: center;
 }
 
-.c22 {
+.c23 {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
@@ -209,53 +212,53 @@ exports[`failed state 1`] = `
   resize: vertical;
 }
 
-.c22::placeholder {
+.c23::placeholder {
   color: rgba(255, 255, 255, 0.54);
   opacity: 1;
 }
 
-.c22:hover,
-.c22:focus,
-.c22:active {
+.c23:hover,
+.c23:focus,
+.c23:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
-.c22:read-only {
+.c23:read-only {
   cursor: not-allowed;
 }
 
-.c22:disabled {
+.c23:disabled {
   color: rgba(255, 255, 255, 0.36);
   border-color: rgba(255, 255, 255, 0.36);
 }
 
-.c11 {
+.c12 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c14 {
+.c15 {
   display: flex;
   align-items: center;
   cursor: not-allowed;
 }
 
-.c12 {
+.c13 {
   margin: 0 8px 0 0;
   accent-color: #9F85FF;
   cursor: inherit;
 }
 
-.c13 {
+.c14 {
   opacity: 1;
 }
 
-.c15 {
+.c16 {
   opacity: 0.5;
 }
 
-.c23 {
+.c24 {
   font-size: 14px;
   min-height: 100px;
 }
@@ -286,95 +289,100 @@ exports[`failed state 1`] = `
           class="c5"
           kind="danger"
         >
-          <span
-            class="c6 icon icon-warning"
+          <div
+            class="c6"
+            kind="danger"
           >
-            <svg
-              fill="currentColor"
-              height="16"
-              viewBox="0 0 24 24"
-              width="16"
+            <span
+              class="c7 icon icon-warning"
             >
-              <path
-                d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
-              />
-              <path
-                d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
-              />
-              <path
-                clip-rule="evenodd"
-                d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
-                fill-rule="evenodd"
-              />
-            </svg>
-          </span>
-        </div>
-        <div
-          class="c7"
-        >
+              <svg
+                fill="currentColor"
+                height="16"
+                viewBox="0 0 24 24"
+                width="16"
+              >
+                <path
+                  d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                />
+                <path
+                  d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                />
+                <path
+                  clip-rule="evenodd"
+                  d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </div>
           <div
             class="c8"
           >
-            server error
+            <div
+              class="c9"
+            >
+              server error
+            </div>
           </div>
         </div>
       </div>
       <div
-        class="c9 c10"
+        class="c10 c11"
       >
         <label
-          class="c11"
+          class="c12"
         >
           <input
             checked=""
-            class="c12"
+            class="c13"
             name="DENIED"
             type="radio"
             value="DENIED"
           />
           <span
-            class="c13"
+            class="c14"
           >
             Reject request
           </span>
         </label>
         <label
-          class="c11"
+          class="c12"
         >
           <input
-            class="c12"
+            class="c13"
             name="APPROVED"
             type="radio"
             value="APPROVED"
           />
           <span
-            class="c13"
+            class="c14"
           >
             Approve short-term access
              (12 hours)
           </span>
         </label>
         <label
-          class="c14"
+          class="c15"
         >
           <input
-            class="c12"
+            class="c13"
             disabled=""
             name="PROMOTED"
             type="radio"
             value="PROMOTED"
           />
           <span
-            class="c15"
+            class="c16"
           >
             <div
-              class="c16 c17"
+              class="c17 c18"
             >
               <div
-                class="c16 c18"
+                class="c17 c19"
               >
                 <div
-                  class="c19"
+                  class="c20"
                 >
                   Approve long-term access via Access List with the requested resources
                 </div>
@@ -384,21 +392,21 @@ exports[`failed state 1`] = `
         </label>
       </div>
       <div
-        class="c20"
+        class="c21"
       >
         <label
-          class="c21"
+          class="c22"
         >
           Message
           <textarea
             autocomplete="off"
-            class="c22 c23"
+            class="c23 c24"
             placeholder="Optional message..."
           />
         </label>
       </div>
       <button
-        class="c24"
+        class="c25"
         fill="filled"
       >
         Submit Review

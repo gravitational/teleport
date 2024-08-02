@@ -364,7 +364,7 @@ exports[`render correct dialog after creating a new account 1`] = `
   class="c0 c1"
 >
   <div
-    class="c2 c3 sc-fqkwJk c2 c4 no-print"
+    class="c2 c3 sc-dcJtft c2 c4 no-print"
     overflow="hidden"
   >
     <div
@@ -846,7 +846,7 @@ exports[`render correct dialog after resetting account 1`] = `
   class="c0 c1"
 >
   <div
-    class="c2 c3 sc-fqkwJk c2 c4 no-print"
+    class="c2 c3 sc-dcJtft c2 c4 no-print"
     overflow="hidden"
   >
     <div
