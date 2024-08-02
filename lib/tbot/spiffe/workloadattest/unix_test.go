@@ -16,25 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package experiment
+package workloadattest
 
 import (
+	"context"
 	"os"
-	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-var enabled = atomic.Bool{}
+func TestUnixAttestor_Attest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
 
-func init() {
-	enabled.Store(os.Getenv("BOT_INSTANCE_EXPERIMENT") == "1")
-}
+	pid := os.Getpid()
+	uid := os.Getuid()
+	gid := os.Getgid()
 
-// Enabled returns true if the bot instance experiment is enabled.
-func Enabled() bool {
-	return enabled.Load()
-}
-
-// SetEnabled sets the bot instance experiment flag to the given value.
-func SetEnabled(value bool) {
-	enabled.Store(value)
+	attestor := NewUnixAttestor()
+	att, err := attestor.Attest(ctx, pid)
+	require.NoError(t, err)
+	require.Equal(t, UnixAttestation{
+		Attested: true,
+		PID:      pid,
+		UID:      uid,
+		GID:      gid,
+	}, att)
 }
