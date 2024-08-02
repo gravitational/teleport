@@ -406,12 +406,12 @@ $(BUILDDIR)/fdpass-teleport:
 	cd tool/fdpass-teleport && cargo build --release --locked $(CARGO_TARGET)
 	install tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
 
-.PHONY: $(BUILDDIR)/tsh.app
-$(BUILDDIR)/tsh.app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
-$(BUILDDIR)/tsh.app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
-$(BUILDDIR)/tsh.app: TSH_APP_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
-$(BUILDDIR)/tsh.app: TSH_BINARY = $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh.app:
+.PHONY: tsh-app
+tsh-app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
+tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
+tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
+tsh-app: TSH_BINARY = $(BUILDDIR)/tsh
+tsh-app:
 	cp -rf "$(TSH_APP_SKELETON)/" "$(TSH_APP_BUNDLE)"/
 	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
 	cp "$(TSH_BINARY)" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
@@ -596,7 +596,7 @@ release-darwin-unsigned: full build-archive
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) $(BUILDDIR)/tsh.app
+	$(MAKE) tsh-app
 	$(MAKE) build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
@@ -629,7 +629,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
 
 	$(NOTARIZE_BINARIES)
-	$(MAKE) $(BUILDDIR)/tsh.app
+	$(MAKE) tsh-app
 	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
@@ -1345,7 +1345,7 @@ tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
-		--ref "gus/unify-mac" \
+		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
