@@ -101,9 +101,18 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err),
 			"UploadPart(upload %v) part(%v) session(%v)", upload.ID, partNumber, upload.SessionID)
 	}
-
+	// TODO(espadolini): the AWS SDK v1 doesn't expose the Date of the response
+	// in [s3.UploadPartOutput] so we use the current time instead; AWS SDK v2
+	// might expose the returned Date as part of the metadata, so we should
+	// check if that matches the actual LastModified of the part. It doesn't
+	// make much sense to do an additional request to check the LastModified of
+	// the part we just uploaded, however.
 	log.Infof("Uploaded part %v in %v", partNumber, time.Since(start))
-	return &events.StreamPart{ETag: aws.StringValue(resp.ETag), Number: partNumber}, nil
+	return &events.StreamPart{
+		ETag:         aws.StringValue(resp.ETag),
+		Number:       partNumber,
+		LastModified: time.Now(),
+	}, nil
 }
 
 func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
@@ -203,10 +212,10 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			return nil, awsutils.ConvertS3Error(err)
 		}
 		for _, part := range re.Parts {
-
 			parts = append(parts, events.StreamPart{
-				Number: aws.Int64Value(part.PartNumber),
-				ETag:   aws.StringValue(part.ETag),
+				Number:       aws.Int64Value(part.PartNumber),
+				ETag:         aws.StringValue(part.ETag),
+				LastModified: aws.TimeValue(part.LastModified),
 			})
 		}
 		if !aws.BoolValue(re.IsTruncated) {

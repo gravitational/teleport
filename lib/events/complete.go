@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -57,6 +58,11 @@ type UploadCompleterConfig struct {
 	Component string
 	// CheckPeriod is a period for checking the upload
 	CheckPeriod time.Duration
+	// GracePeriod is the period after which an upload's session tracker will be
+	// checked to see if it's an abandoned upload. A duration of zero will
+	// result in a sensible default, any negative value will result in no grace
+	// period.
+	GracePeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
@@ -219,10 +225,20 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 	}()
 
+	gracePeriod := cmp.Or(u.cfg.GracePeriod, UploadCompleterGracePeriod)
 	incompleteSessionUploads.Set(float64(len(uploads)))
 	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
 		log := u.log.WithField("upload", upload.ID).WithField("session", upload.SessionID)
+
+		if gracePeriod > 0 && u.cfg.Clock.Since(upload.Initiated) <= gracePeriod {
+			log.Debug("Found incomplete upload within grace period, terminating check early.")
+			// not only we can skip this upload, but since uploads are sorted by
+			// Initiated oldest-to-newest, we can actually just stop checking as
+			// all further uploads will be closer in time to now and thus they
+			// will all be within the grace period
+			break
+		}
 
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
 		case err == nil: // session is still in progress, continue to other uploads
@@ -244,6 +260,16 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 				continue
 			}
 			return trace.Wrap(err, "listing parts")
+		}
+		var lastModified time.Time
+		for _, part := range parts {
+			if part.LastModified.After(lastModified) {
+				lastModified = part.LastModified
+			}
+		}
+		if u.cfg.Clock.Since(lastModified) <= gracePeriod {
+			log.Debug("Found incomplete upload with recently uploaded part, skipping.")
+			continue
 		}
 
 		log.Debugf("upload has %d parts", len(parts))
