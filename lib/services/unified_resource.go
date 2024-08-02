@@ -774,7 +774,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, Logins: logins, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, RequiresRequest: requiresRequest}
 	case types.KindNode:
 		srv, ok := resource.(*types.ServerV2)
 		if !ok {
