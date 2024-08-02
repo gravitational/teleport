@@ -69,7 +69,6 @@ test('support Enterprise', () => {
 
 test('support Enterprise with CTA', () => {
   cfg.isEnterprise = true;
-  cfg.isTeam = true;
   const { container } = render(
     <MemoryRouter>
       <SupportEnterpriseWithCTA />
