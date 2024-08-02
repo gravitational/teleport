@@ -185,23 +185,17 @@ A single Teleport resource of that type can define multiple Kubernetes RBAC reso
 can save on the backend (DynamoDB has a limit of 400kb), therefore, if some users would have an unusually large amount of Kubernetes RBAC resources they 
 want to provision, they would need to split it into two KubeProvision resources.
 
-For the ease of use we will provide `--import` flag for the tctl when creating KubeProvisions, which can be used to convert raw Kubernetes RBAC source 
+For the ease of use we will provide `import-kubeprovision` subcommand for the `tctl kube` command. It can be used to convert raw Kubernetes RBAC source 
 into Teleport KubeProvisions definition. It will be a client-side helper, that could be used like this:
 
-
 ```bash
-$ cat kube_provision_import.yaml
-
-kind: kube_provision
-version: v1
-metadata:
-  name: staging-rbac
-  labels:
-    env: staging
-# Spec is missing
 
 $ kubectl get clusterRoles -o yaml > raw_cluster_roles.yaml
-$ tctl create -f kube_provision_staging.yaml --import raw_cluster_roles.yaml
+$ tctl kube import-kubeprovision --name=staging-rbac --labels=env=staging --file=raw_cluster_roles.yaml
+kube provision "staging-rbac" had been created.
+
+OR
+$ kubectl get clusterRoles -o yaml | tctl kube import-kubeprovision --name=staging-rbac --labels=env=staging
 kube provision "staging-rbac" had been created.
 ```
 
