@@ -552,7 +552,7 @@ release-arm64:
 # make build-archive - Packages the results of a build into a release tarball
 #
 .PHONY: build-archive
-ifeq ($(OS),"darwin")
+ifeq ("$(OS)","darwin")
 build-archive: INSTALL_SCRIPT=build.assets/macos/install
 else
 build-archive: INSTALL_SCRIPT=build.assets/install

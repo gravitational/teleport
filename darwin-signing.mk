@@ -142,7 +142,6 @@ define notarize_app_bundle
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
 		--wait
-	xcrun stapler staple $($@_BUNDLE)
 	rm $(notary_file)
 endef
 
