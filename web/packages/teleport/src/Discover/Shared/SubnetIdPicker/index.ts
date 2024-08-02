@@ -15,20 +15,5 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React from 'react';
 
-import { SelfHostedAutoDiscoverDirections } from './SelfHostedAutoDiscoverDirections';
-
-export default {
-  title: 'Teleport/Discover/Shared/SelfHostedAutoDiscoveryDirections',
-};
-
-export const Directions = () => {
-  return (
-    <SelfHostedAutoDiscoverDirections
-      clusterPublicUrl="https://teleport.example.com"
-      discoveryGroupName="test-group"
-      setDiscoveryGroupName={() => {}}
-    />
-  );
-};
+export { SubnetIdPicker } from './SubnetIdPicker';

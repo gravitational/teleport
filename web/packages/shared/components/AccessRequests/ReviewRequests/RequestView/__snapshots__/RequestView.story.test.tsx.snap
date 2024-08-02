@@ -3313,6 +3313,17 @@ exports[`loaded pending search based request state 1`] = `
                       Some Friendly Name
                     </td>
                   </tr>
+                  <tr>
+                    <td>
+                      cluster-name
+                    </td>
+                    <td>
+                      saml_idp_service_provider
+                    </td>
+                    <td>
+                      app-saml
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>

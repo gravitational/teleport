@@ -119,7 +119,7 @@ const SsoList = ({
   autoFocus = false,
   hasTransitionEnded,
 }: Props & { hasTransitionEnded?: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
+  const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   const { isProcessing } = attempt;
@@ -143,21 +143,8 @@ const Passwordless = ({
   const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
-  // Firefox currently does not support passwordless and when
-  // logging in, it will return an ambiguous error.
-  // We display a soft warning because firefox may provide
-  // support in the near future: https://github.com/gravitational/webapps/pull/876
-  const isFirefox = window.navigator?.userAgent
-    ?.toLowerCase()
-    .includes('firefox');
   return (
     <Box data-testid="passwordless">
-      {isFirefox && (
-        <Alerts.Info mt={3}>
-          Firefox may not support passwordless login. Please try Chrome or
-          Safari.
-        </Alerts.Info>
-      )}
       <Flex
         flexDirection="column"
         border={1}
@@ -357,6 +344,7 @@ const LoginOptions = ({
         refCallback={refCallback}
         authType={otherProps.primaryAuthType}
         primary
+        autoFocus
       />
       {otherAuthTypes.length > 0 && <Divider />}
       {otherAuthTypes.map(authType => (
@@ -451,7 +439,6 @@ const StyledOr = styled.div`
   width: 32px;
   justify-content: center;
   position: absolute;
-  z-index: 1;
   text-transform: uppercase;
 `;
 

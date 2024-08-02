@@ -207,7 +207,11 @@ const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
     throw error;
   }
 
-  if (backgroundItemStatus === BackgroundItemStatus.ENABLED) {
+  if (
+    backgroundItemStatus === BackgroundItemStatus.ENABLED ||
+    backgroundItemStatus === BackgroundItemStatus.NOT_SUPPORTED ||
+    backgroundItemStatus === BackgroundItemStatus.UNSPECIFIED
+  ) {
     return;
   }
 

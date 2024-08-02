@@ -30,13 +30,13 @@ import {
 import cfg from 'teleport/config';
 
 import { ResourceSpec, ServerLocation } from '../SelectResource';
+import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
 
 import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
 import { CreateEc2Ice } from './CreateEc2Ice/CreateEc2Ice';
 
 import { ServerWrapper } from './ServerWrapper';
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm/DiscoveryConfigSsm';
-import { ConfigureDiscoveryService } from './ConfigureDiscoveryService/ConfigureDiscoveryService';
 
 export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Server,

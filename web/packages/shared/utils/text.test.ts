@@ -18,8 +18,9 @@
 
 import { pluralize, capitalizeFirstLetter } from './text';
 
-test('pluralize: sending in zero number', () => {
-  expect(pluralize(0, 'apple')).toBe('apple');
+test('pluralize', () => {
+  expect(pluralize(0, 'apple')).toBe('apples');
+  expect(pluralize(1, 'apple')).toBe('apple');
   expect(pluralize(2, 'apple')).toBe('apples');
 });
 
