@@ -415,8 +415,14 @@ func (a *Server) updateBotInstance(
 	authRecord.Generation = newGeneration
 	req.generation = uint64(newGeneration)
 
-	if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
-		l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
+	// Commit the generation counter to the bot user for downgrade
+	// compatibility, but only if this is a renewable identity. Previous
+	// versions only expect a nonzero generation counter for token joins, so
+	// setting this for other methods will break compatibility.
+	if req.renewable {
+		if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
+			l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
+		}
 	}
 
 	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
