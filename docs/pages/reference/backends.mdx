@@ -10,12 +10,12 @@ For self-hosted Teleport deployments, you can configure Teleport to integrate
 with other storage types based on the nature of the stored data (size,
 read/write ratio, mutability, etc.).
 
-| Data type | Description | Supported storage backends |
-| - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB |
-| audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, PostgreSQL/CockroachDB, Amazon DynamoDB, GCP Firestore |
-| session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage |
-| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory, Kubernetes Secret |
+| Data type               | Description                                                                                                                                 | Supported storage backends                                                                             |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB                |
+| audit events            | JSON-encoded events from the audit log (e.g. user logins, RBAC changes)                                                                     | Local directory, PostgreSQL, CockroachDB (as a PostgreSQL replacement), Amazon DynamoDB, GCP Firestore |
+| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
+| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                     |
 
 ## Cluster state
 
@@ -209,6 +209,13 @@ its repository. The plugin is pre-installed with no extra steps to take in
 [Azure Database for
 PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql).
 
+<Admonition type="note">
+CockroachDB can be used as a PostgreSQL drop-in replacement to store audit events (requires Teleport version >= 15.4.2).
+
+Teleport can store the cluster state in CockroachDB but this require CockroachDB-specific configuration.
+See the [CockroachDB backend section](#cockroachdb) for more details.
+</Admonition>
+
 Teleport needs separate databases for the cluster state and the
 audit log, and it will attempt to create them if given permissions to do so; it
 will also set up the database schemas as needed, so we recommend giving the user
@@ -329,13 +336,6 @@ teleport:
     audit_events_uri:
       - postgresql://user_name@database-address/teleport_audit?sslmode=verify-full#disable_cleanup=false&retention_period=2160h
 ```
-
-<Admonition type="note">
-CockroachDB can be used as a PostgreSQL drop-in replacement to store audit events (requires Teleport version >= 15.4.2).
-
-Teleport can store the cluster state in CockroachDB but this require CockroachDB-specific configuration.
-See the [CockroachDB backend section](#cockroachdb) for more details.
-</Admonition>
 
 ### Authentication
 
@@ -1459,15 +1459,6 @@ Teleport can use [CockroachDB](https://www.cockroachlabs.com/) as a storage back
 to achieve high availability and survive regional failures. You must take steps to 
 protect access to CockroachDB in this configuration because that is where Teleport
 secrets like keys and user records will be stored.
-
-<Admonition
-  type="warning"
-  title="IMPORTANT"
->
-  CockroachDB can currently only be used to store Teleport's cluster state.
-  It cannot be used for Teleport's audit log in the same way that
-  [DynamoDB](#dynamodb) or [Firestore](#firestore) can.
-</Admonition>
 
 At a minimum you must configure CockroachDB to allow Teleport to create tables.
 Teleport will create the database if given permission to do so but this is not
