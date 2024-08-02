@@ -1,0 +1,17 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "DocumentDBDiscovery",
+            "Effect": "Allow",
+            "Action": "rds:DescribeDBClusters",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `DocumentDBDiscovery` | Discover Amazon DocumentDB Clusters. |

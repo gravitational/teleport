@@ -240,6 +240,8 @@ exports[`kube connect dialogue local 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin-top: 4px;
   margin-bottom: 8px;
 }
@@ -318,11 +320,11 @@ exports[`kube connect dialogue local 1`] = `
           <div
             class="c10"
           >
-            <div
+            <h3
               class="c11"
             >
               Connect in the CLI using tsh and kubectl
-            </div>
+            </h3>
             <span
               class="c12"
             >
@@ -747,6 +749,8 @@ exports[`kube connect dialogue local with requestId 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin-top: 4px;
   margin-bottom: 8px;
 }
@@ -825,11 +829,11 @@ exports[`kube connect dialogue local with requestId 1`] = `
           <div
             class="c10"
           >
-            <div
+            <h3
               class="c11"
             >
               Connect in the CLI using tsh and kubectl
-            </div>
+            </h3>
             <span
               class="c12"
             >
@@ -1284,6 +1288,8 @@ exports[`kube connect dialogue sso 1`] = `
   text-overflow: ellipsis;
   margin: 0;
   font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin-top: 4px;
   margin-bottom: 8px;
 }
@@ -1362,11 +1368,11 @@ exports[`kube connect dialogue sso 1`] = `
           <div
             class="c10"
           >
-            <div
+            <h3
               class="c11"
             >
               Connect in the CLI using tsh and kubectl
-            </div>
+            </h3>
             <span
               class="c12"
             >

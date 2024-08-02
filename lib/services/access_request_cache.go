@@ -352,6 +352,7 @@ func (c *AccessRequestCache) GetResourcesAndUpdateCurrent(ctx context.Context) e
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.primaryCache = cache
+	close(c.initC)
 	return nil
 }
 
@@ -402,6 +403,12 @@ func (c *AccessRequestCache) InitializationChan() <-chan struct{} {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return c.initC
+}
+
+// InitializationChan is part of the resourceCollector interface and gets the channel
+// used to signal that the accessRequestCache has been initialized.
+func (c *AccessRequestCache) InitializationChan() <-chan struct{} {
+	return c.initializationChan()
 }
 
 // Close terminates the background process that keeps the access request cache up to

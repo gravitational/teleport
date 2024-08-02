@@ -1287,12 +1287,13 @@
       "min_version": "2.9.6"
     },
     "aws": {
+      "aws_account_id": "123456789012",
       "aws_access_key": "abcd1234-this-is-an-example",
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.4.9",
-      "major_version": "15",
+      "version": "16.1.0",
+      "major_version": "16",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"

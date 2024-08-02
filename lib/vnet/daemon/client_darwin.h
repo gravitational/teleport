@@ -2,7 +2,6 @@
 #define TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_
 
 #include "common_darwin.h"
-#include "protocol_darwin.h"
 
 #import <Foundation/Foundation.h>
 
@@ -39,15 +38,24 @@ void OpenSystemSettingsLoginItems(void);
 
 typedef struct StartVnetRequest {
   const char *bundle_path;
-  VnetConfig *vnet_config;
+
+  const char *socket_path;
+  const char *ipv6_prefix;
+  const char *dns_addr;
+  const char *home_path;
 } StartVnetRequest;
 
 typedef struct StartVnetResult {
   bool ok;
+  // error_domain is either VNEErrorDomain, NSOSStatusErrorDomain, or NSCocoaErrorDomain.
   const char *error_domain;
-  // error_code is code taken from an NSError instance encountered during the call to StartVnet.
-  // If ok is false, error_code is greater than zero and identifies the reason behind the error.
+  // If error_domain is set to VNEErrorDomain, error_code is one of the VNE codes from common_darwin.h.
+  // If error_domain is NSOSStatusErrorDomain, error_code comes from OSStatus of Code Signing framework.
+  // https://developer.apple.com/documentation/security/1574088-code_signing_services_result_cod?language=objc
+  // If error_domain is NSCocoaErrorDomain, it's likely to be about XPC. It's best to inspect it
+  // on https://osstatus.com in that case.
   int error_code;
+  // error_description includes the full representation of the error, including domain and code.
   const char *error_description;
 } StartVnetResult;
 
@@ -69,7 +77,7 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult);
 void InvalidateDaemonClient(void);
 
 @interface VNEDaemonClient : NSObject
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
+- (void)startVnet:(VNEConfig *)config completion:(void (^)(NSError *error))completion;
 // invalidate executes all outstanding reply blocks, error handling blocks,
 // and invalidation blocks and forbids from sending or receiving new messages.
 - (void)invalidate;

@@ -1278,6 +1278,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 
+	fetchAndApplyStart := time.Now()
+
 	confirmedKindsMap := make(map[resourceKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
 		confirmedKindsMap[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = kind
@@ -1341,7 +1343,18 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
 
-	c.Logger.Debug("Entering watch loop")
+	fetchAndApplyDuration := time.Since(fetchAndApplyStart)
+	if fetchAndApplyDuration > time.Second*20 {
+		c.Logger.WithFields(log.Fields{
+			"cache_target": c.Config.target,
+			"duration":     fetchAndApplyDuration.String(),
+		}).Warn("slow fetch and apply")
+	} else {
+		c.Logger.WithFields(log.Fields{
+			"cache_target": c.Config.target,
+			"duration":     fetchAndApplyDuration.String(),
+		}).Debug("fetch and apply")
+	}
 
 	var lastStalenessWarning time.Time
 	var staleEventCount int
@@ -1392,6 +1405,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 					}
 				}
 			}
+
 			if err := c.processEvent(ctx, event); err != nil {
 				c.Logger.WithError(err).Error("Event processing failed")
 				return trace.Wrap(err)
@@ -1430,7 +1444,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 // cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
-	gracePeriod := apidefaults.ServerAnnounceTTL
+
+	// because event streams are not necessarily ordered across keys expiring on the
+	// server announce TTL may sometimes generate false positives. Using the watcher
+	// creation grace period as our safety buffer is mostly an arbitrary choice, but
+	// since it approximates our expected worst-case staleness of the event stream its
+	// a fairly reasonable one.
+	gracePeriod := apidefaults.ServerAnnounceTTL + backend.DefaultCreationGracePeriod
 
 	// latestExp will be the value that we choose to consider the most recent "expired"
 	// timestamp.  This will either end up being the most recently seen node expiry, or

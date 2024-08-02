@@ -16,26 +16,16 @@ package main
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/semaphore"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-)
-
-const (
-	// sessionBackoffBase is an initial (minimum) backoff value.
-	sessionBackoffBase = 3 * time.Second
-	// sessionBackoffMax is a backoff threshold
-	sessionBackoffMax = 2 * time.Minute
-	// sessionBackoffNumTries is the maximum number of backoff tries
-	sessionBackoffNumTries = 5
 )
 
 // session is the utility struct used for session ingestion
@@ -44,6 +34,8 @@ type session struct {
 	ID string
 	// Index current event index
 	Index int64
+	// UploadTime is the time at which the recording was uploaded.
+	UploadTime time.Time
 }
 
 // SessionEventsJob incapsulates session events consumption logic
@@ -51,14 +43,14 @@ type SessionEventsJob struct {
 	lib.ServiceJob
 	app       *App
 	sessions  chan session
-	semaphore *semaphore.Weighted
+	semaphore chan struct{}
 }
 
 // NewSessionEventsJob creates new EventsJob structure
 func NewSessionEventsJob(app *App) *SessionEventsJob {
 	j := &SessionEventsJob{
 		app:       app,
-		semaphore: semaphore.NewWeighted(int64(app.Config.Concurrency)),
+		semaphore: make(chan struct{}, app.Config.Concurrency),
 		sessions:  make(chan session),
 	}
 
@@ -88,61 +80,153 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	for {
 		select {
 		case s := <-j.sessions:
-			if err := j.semaphore.Acquire(ctx, 1); err != nil {
-				log.WithError(err).Error("Failed to acquire semaphore")
-				continue
+			logger := log.WithField("id", s.ID).WithField("index", s.Index)
+
+			logger.Info("Starting session ingest")
+
+			select {
+			case j.semaphore <- struct{}{}:
+			case <-ctx.Done():
+				logger.WithError(ctx.Err()).Error("Failed to acquire semaphore")
+				return nil
 			}
 
-			log.WithField("id", s.ID).WithField("index", s.Index).Info("Starting session ingest")
-
-			func(s session) {
+			func(s session, log logrus.FieldLogger) {
 				j.app.SpawnCritical(func(ctx context.Context) error {
-					defer j.semaphore.Release(1)
+					defer func() { <-j.semaphore }()
 
-					backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
-					backoffCount := sessionBackoffNumTries
-					log := logger.Get(ctx).WithField("id", s.ID).WithField("index", s.Index)
-
-					for {
-						retry, err := j.consumeSession(ctx, s)
-
-						// If sessions needs to retry
-						if err != nil && retry {
-							log.WithError(err).WithField("n", backoffCount).Error("Session ingestion error, retrying")
-
-							// Sleep for required interval
-							err := backoff.Do(ctx)
-							if err != nil {
-								return trace.Wrap(err)
-							}
-
-							// Check if there are number of tries left
-							backoffCount--
-							if backoffCount < 0 {
-								log.WithField("err", err).Error("Session ingestion failed")
-								return nil
-							}
-							continue
-						}
-
-						if err != nil {
-							if !lib.IsCanceled(err) {
-								log.WithField("err", err).Error("Session ingestion failed")
-							}
-							return err
-						}
-
-						// No errors, we've finished with this session
-						return nil
+					if err := j.processSession(ctx, s, 0); err != nil {
+						return trace.Wrap(err)
 					}
+
+					return nil
 				})
-			}(s)
+			}(s, logger)
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
 				return nil
 			}
 			return ctx.Err()
 		}
+	}
+}
+
+func (j *SessionEventsJob) processSession(ctx context.Context, s session, processingAttempt int) error {
+	const (
+		// maxNumberOfProcessingAttempts is the number of times a non-existent
+		// session recording will be processed before assuming the recording
+		// is lost forever.
+		maxNumberOfProcessingAttempts = 2
+		// eventTimeCutOff is the point of time in the past at which a missing
+		// session recording is assumed to be lost forever.
+		eventTimeCutOff = -48 * time.Hour
+		// sessionBackoffBase is an initial (minimum) backoff value.
+		sessionBackoffBase = 3 * time.Second
+		// sessionBackoffMax is a backoff threshold
+		sessionBackoffMax = time.Minute
+		// sessionBackoffNumTries is the maximum number of backoff tries
+		sessionBackoffNumTries = 3
+	)
+
+	log := logger.Get(ctx).WithField("id", s.ID).WithField("index", s.Index)
+	backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
+	attempt := sessionBackoffNumTries
+
+	for {
+		retry, err := j.consumeSession(ctx, s)
+		switch {
+		case trace.IsNotFound(err):
+			// If the session was not found, and it was from more
+			// than the [eventTimeCutOff], abort processing it any further
+			// as the recording is likely never going to exist.
+			if (!s.UploadTime.IsZero() && s.UploadTime.Before(time.Now().Add(eventTimeCutOff))) ||
+				processingAttempt > maxNumberOfProcessingAttempts {
+				// Remove any trace of the session so that it is not
+				// processed again in the future and doesn't stick around
+				// on disk forever.
+				return trace.NewAggregate(j.app.State.RemoveMissingRecording(s.ID), j.app.State.RemoveSession(s.ID))
+			}
+
+			// Otherwise, mark that the session was failed to be processed
+			// so that it can be tried again in the background.
+			return trace.NewAggregate(j.app.State.SetMissingRecording(s, processingAttempt+1), j.app.State.RemoveSession(s.ID))
+		case err != nil && retry:
+			// If the number of retries has been exceeded, then
+			// abort processing the session any further.
+			attempt--
+			if attempt <= 0 {
+				log.WithField("limit", sessionBackoffNumTries).Error("Session ingestion exceeded attempt limit, aborting")
+				return trace.LimitExceeded("Session ingestion exceeded attempt limit")
+			}
+
+			log.WithError(err).WithField("n", attempt).Error("Session ingestion error, retrying")
+
+			// Perform backoff before retrying the session again.
+			if err := backoff.Do(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+		case err != nil:
+			// Abort on any errors that don't require a retry.
+			if !lib.IsCanceled(err) {
+				log.WithField("err", err).Error("Session ingestion failed")
+			}
+			return trace.Wrap(err)
+		default:
+			// No errors, we've finished processing the session.
+			return nil
+		}
+	}
+}
+
+// processMissingRecordings periodically attempts to reconcile events
+// from session recordings that were previously not found.
+func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
+	const (
+		initialProcessingDelay      = time.Minute
+		processingInterval          = 3 * time.Minute
+		maxNumberOfInflightSessions = 10
+	)
+
+	ctx, cancel := context.WithCancel(ctx)
+	j.app.Process.OnTerminate(func(_ context.Context) error {
+		cancel()
+		return nil
+	})
+
+	jitter := retryutils.NewSeventhJitter()
+	timer := time.NewTimer(jitter(initialProcessingDelay))
+	defer timer.Stop()
+
+	semaphore := make(chan struct{}, maxNumberOfInflightSessions)
+	for {
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return nil
+		}
+
+		err := j.app.State.IterateMissingRecordings(func(sess session, attempts int) error {
+			select {
+			case semaphore <- struct{}{}:
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+
+			go func() {
+				defer func() { <-semaphore }()
+
+				if err := j.processSession(ctx, sess, attempts); err != nil {
+					logger.Get(ctx).WithError(err).Debug("Failed processing session recording")
+				}
+			}()
+
+			return nil
+		})
+		if err != nil && !lib.IsCanceled(err) {
+			logger.Get(ctx).WithError(err).Warn("Unable to load previously failed sessions for processing")
+		}
+
+		timer.Reset(jitter(processingInterval))
 	}
 }
 
@@ -160,7 +244,7 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 	for id, idx := range sessions {
 		func(id string, idx int64) {
 			j.app.SpawnCritical(func(ctx context.Context) error {
-				log.WithField("id", id).WithField("index", idx).Info("Restarting session ingestion")
+				logrus.WithField("id", id).WithField("index", idx).Info("Restarting session ingestion")
 
 				s := session{ID: id, Index: idx}
 
@@ -183,11 +267,7 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 
 // consumeSession ingests session
 func (j *SessionEventsJob) consumeSession(ctx context.Context, s session) (bool, error) {
-	log := logger.Get(ctx)
-
 	url := j.app.Config.FluentdSessionURL + "." + s.ID + ".log"
-
-	log.WithField("id", s.ID).WithField("index", s.Index).Info("Started session events ingest")
 	chEvt, chErr := j.app.EventWatcher.StreamUnstructuredSessionEvents(ctx, s.ID, s.Index)
 
 Loop:
@@ -198,7 +278,7 @@ Loop:
 
 		case evt, ok := <-chEvt:
 			if !ok {
-				log.WithField("id", s.ID).Info("Finished session events ingest")
+				logrus.WithField("id", s.ID).Info("Finished session events ingest")
 				break Loop // Break the main loop
 			}
 
@@ -235,29 +315,26 @@ Loop:
 
 	// We have finished ingestion and do not need session state anymore
 	err := j.app.State.RemoveSession(s.ID)
-	// If the session had no events, the file won't exist, so we ignore the error
-	if err != nil && !os.IsNotExist(err) {
-		return false, trace.Wrap(err)
-	}
-
-	return false, nil
+	return false, trace.Wrap(err)
 }
 
-// Register starts session event ingestion
+// RegisterSession starts session event ingestion
 func (j *SessionEventsJob) RegisterSession(ctx context.Context, e *TeleportEvent) error {
 	err := j.app.State.SetSessionIndex(e.SessionID, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s := session{ID: e.SessionID, Index: 0}
+	s := session{ID: e.SessionID, Index: 0, UploadTime: e.Time}
 
 	go func() {
 		select {
 		case j.sessions <- s:
 			return
 		case <-ctx.Done():
-			log.Error(ctx.Err())
+			if !lib.IsCanceled(ctx.Err()) {
+				logrus.Error(ctx.Err())
+			}
 			return
 		}
 	}()

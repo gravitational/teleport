@@ -25,6 +25,7 @@ import {
   ResourceSpec,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import cfg from 'teleport/config';
 
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
 import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
@@ -35,6 +36,8 @@ import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 import { EnrollRdsDatabase } from 'teleport/Discover/Database/EnrollRdsDatabase';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
+
+import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
 
 export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Database,
@@ -68,6 +71,20 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
               component: EnrollRdsDatabase,
               eventName: DiscoverEvent.DatabaseRDSEnrollEvent,
             },
+            // Self hosted requires user to manually install a discovery service
+            // for auto discovery.
+            // Cloud already has a discovery service running, so this step is not required.
+            ...(!cfg.isCloud
+              ? [
+                  {
+                    title: 'Configure Discovery Service',
+                    component: () => (
+                      <ConfigureDiscoveryService withCreateConfig={true} />
+                    ),
+                    eventName: DiscoverEvent.CreateDiscoveryConfig,
+                  },
+                ]
+              : []),
             // There are two types of deploy service methods:
             //  - manual: user deploys it whereever they want OR
             //  - auto (default): we deploy for them using aws

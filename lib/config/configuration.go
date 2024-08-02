@@ -336,6 +336,12 @@ type IntegrationConfEC2SSMIAM struct {
 	// No trailing / is expected.
 	// Eg https://tenant.teleport.sh
 	ProxyPublicURL string
+	// ClusterName is the Teleport cluster name.
+	// Used for resource tagging.
+	ClusterName string
+	// IntegrationName is the Teleport AWS OIDC Integration name.
+	// Used for resource tagging.
+	IntegrationName string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -359,22 +365,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
-
-	// S3BucketURI is the S3 URI which contains the bucket name and prefix for the issuer.
-	// Format: s3://<bucket-name>/<prefix>
-	// Eg, s3://my-bucket/idp-teleport
-	// This is used in two places:
-	// - create openid configuration and jwks objects
-	// - set up the issuer
-	// The bucket must be public and will be created if it doesn't exist.
-	//
-	// If empty, the ProxyPublicAddress is used as issuer and no s3 objects are created.
-	S3BucketURI string
-
-	// S3JWKSContentsB64 must contain the public keys for the Issuer.
-	// The contents must be Base64 encoded.
-	// Eg. base64(`{"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}`)
-	S3JWKSContentsB64 string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of

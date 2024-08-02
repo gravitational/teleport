@@ -162,10 +162,18 @@ type ForwarderConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	// Tracer is used to start spans.
 	tracer oteltrace.Tracer
-	// ConnTLSConfig is the TLS client configuration to use when connecting to
-	// the upstream Teleport proxy or Kubernetes service when forwarding requests
-	// using the forward identity (i.e. proxy impersonating a user) method.
-	ConnTLSConfig *tls.Config
+	// GetConnTLSCertificate returns the TLS client certificate to use when
+	// connecting to the upstream Teleport proxy or Kubernetes service when
+	// forwarding requests using the forward identity (i.e. proxy impersonating
+	// a user) method. Paired with GetConnTLSRoots and ConnTLSCipherSuites to
+	// generate the correct [*tls.Config] on demand.
+	GetConnTLSCertificate utils.GetCertificateFunc
+	// GetConnTLSRoots returns the [*x509.CertPool] used to validate TLS
+	// connections to the upstream Teleport proxy or Kubernetes service.
+	GetConnTLSRoots utils.GetRootsFunc
+	// ConnTLSCipherSuites optionally contains a list of TLS ciphersuites to use
+	// when connecting to the upstream Teleport Proxy or Kubernetes service.
+	ConnTLSCipherSuites []uint16
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
@@ -247,12 +255,12 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	switch f.KubeServiceType {
 	case KubeService:
 	case ProxyService, LegacyProxyService:
-		if f.ConnTLSConfig == nil {
-			return trace.BadParameter("missing parameter TLSConfig")
+		if f.GetConnTLSCertificate == nil {
+			return trace.BadParameter("missing parameter GetConnTLSCertificate")
 		}
-		// Reset the ServerName to ensure that the proxy does not use the
-		// proxy's hostname as the SNI when connecting to the Kubernetes service.
-		f.ConnTLSConfig.ServerName = ""
+		if f.GetConnTLSRoots == nil {
+			return trace.BadParameter("missing parameter GetConnTLSRoots")
+		}
 	default:
 		return trace.BadParameter("unknown value for KubeServiceType")
 	}
@@ -1126,14 +1134,14 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	result, err := utils.KubeResourceMatchesRegex(resource, denied, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

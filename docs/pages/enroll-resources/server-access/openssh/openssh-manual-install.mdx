@@ -67,7 +67,7 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
 
   If you are having issues registering OpenSSH nodes or need to upgrade your
-  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can 
+  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can
   pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
   Proxy Service and set it to `yes`. This will allow connections to unregistered
   OpenSSH nodes but will be removed in Teleport v15.
@@ -102,7 +102,7 @@ The `metadata.labels` field labels the SSH Service instance so you can apply RBA
 The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
 
 To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen`
-on Linux or MacOS, or use the `New-Guid` cmdlet in Powershell on Windows.
+on Linux or macOS, or use the `New-Guid` cmdlet in Powershell on Windows.
 
 Create the node resource:
 
@@ -540,5 +540,3 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
   qualified domain name, rather than an IP address.
 
 </Admonition>
-
-

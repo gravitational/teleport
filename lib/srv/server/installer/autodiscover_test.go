@@ -160,7 +160,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 							assert.NoError(t, os.Rename(teleportHiddenPath, teleportInitialPath))
 							c.Exit(0)
 						})
-					case "amzn", "rhel", "centos":
+					case "amzn", "rhel", "centos", "almalinux", "rocky":
 						mockBins["yum"].Expect("install", "-y", "yum-utils")
 						mockBins["rpm"].Expect("--eval", bintest.MatchAny())
 						mockBins["yum-config-manager"].Expect("--add-repo", bintest.MatchAny())
@@ -201,6 +201,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 					for binName, mockBin := range mockBins {
 						require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
 					}
+					require.FileExists(t, testTempDir+"/etc/teleport.yaml")
+					require.FileExists(t, testTempDir+"/etc/teleport.yaml.discover")
 				})
 			}
 		}
@@ -277,6 +279,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 		for binName, mockBin := range mockBins {
 			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
 		}
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml.discover")
 	})
 
 	t.Run("fails when imds server is not available", func(t *testing.T) {
@@ -314,9 +318,77 @@ func TestAutoDiscoverNode(t *testing.T) {
 		for binName, mockBin := range mockBins {
 			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
 		}
+		require.NoFileExists(t, testTempDir+"/etc/teleport.yaml")
+		require.NoFileExists(t, testTempDir+"/etc/teleport.yaml.discover")
 	})
 
-	t.Run("reconfigures and restarts if target teleport.yaml is different", func(t *testing.T) {
+	t.Run("reconfigures and restarts if target teleport.yaml is different and discover file exists", func(t *testing.T) {
+		distroConfig := wellKnownOS["ubuntu"]["24.04"]
+
+		testTempDir := t.TempDir()
+
+		setupDirsForTest(t, testTempDir, distroConfig)
+
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
+			RepositoryChannel: "stable/rolling",
+			AutoUpgrades:      false,
+			ProxyPublicAddr:   "proxy.example.com",
+			TeleportPackage:   "teleport",
+			TokenName:         "my-token",
+			AzureClientID:     "azure-client-id",
+
+			fsRootPrefix:         testTempDir,
+			imdsProviders:        mockIMDSProviders,
+			binariesLocation:     binariesLocation,
+			aptPublicKeyEndpoint: mockRepoKeys.URL,
+		}
+
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
+		require.NoError(t, err)
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		// create an existing teleport.yaml configuration file
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml", []byte("has wrong config"), 0o644))
+		// create a teleport.yaml.discover to indicate that this host is controlled by the discover flow
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.discover", []byte(""), 0o644))
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		mockBins["teleport"].Expect("node",
+			"configure",
+			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--proxy=proxy.example.com",
+			"--join-method=azure",
+			"--token=my-token",
+			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--azure-client-id=azure-client-id",
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
+
+		mockBins["systemctl"].Expect("enable", "teleport")
+		mockBins["systemctl"].Expect("restart", "teleport")
+
+		require.NoError(t, teleportInstaller.Install(ctx))
+
+		for binName, mockBin := range mockBins {
+			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+		}
+
+		require.NoFileExists(t, testTempDir+"/etc/teleport.yaml.new")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml.discover")
+		bs, err := os.ReadFile(testTempDir + "/etc/teleport.yaml")
+		require.NoError(t, err)
+		require.Equal(t, "teleport.yaml configuration bytes", string(bs))
+	})
+
+	t.Run("does not reconfigure if teleport.yaml exists but discover file does not exists", func(t *testing.T) {
 		distroConfig := wellKnownOS["ubuntu"]["24.04"]
 
 		testTempDir := t.TempDir()
@@ -363,10 +435,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		mockBins["systemctl"].Expect("enable", "teleport")
-		mockBins["systemctl"].Expect("restart", "teleport")
-
-		require.NoError(t, teleportInstaller.Install(ctx))
+		require.ErrorContains(t, teleportInstaller.Install(ctx), "missing discover notice file")
 
 		for binName, mockBin := range mockBins {
 			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
@@ -376,7 +445,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
 		bs, err := os.ReadFile(testTempDir + "/etc/teleport.yaml")
 		require.NoError(t, err)
-		require.Equal(t, "teleport.yaml configuration bytes", string(bs))
+		require.Equal(t, "has wrong config", string(bs))
 	})
 
 	t.Run("does nothing if teleport is already installed and target teleport.yaml configuration already exists", func(t *testing.T) {
@@ -440,6 +509,91 @@ func TestAutoDiscoverNode(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "teleport.yaml configuration bytes", string(bs))
 	})
+
+	t.Run("does nothing if target teleport.yaml configuration exists but was manually created/edited", func(t *testing.T) {
+		distroName := "ubuntu"
+		distroVersion := "24.04"
+		distroConfig := wellKnownOS[distroName][distroVersion]
+
+		testTempDir := t.TempDir()
+
+		setupDirsForTest(t, testTempDir, distroConfig)
+
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
+			RepositoryChannel: "stable/rolling",
+			AutoUpgrades:      false,
+			ProxyPublicAddr:   "proxy.example.com",
+			TeleportPackage:   "teleport",
+			TokenName:         "my-token",
+			AzureClientID:     "azure-client-id",
+
+			fsRootPrefix:         testTempDir,
+			imdsProviders:        mockIMDSProviders,
+			binariesLocation:     binariesLocation,
+			aptPublicKeyEndpoint: mockRepoKeys.URL,
+		}
+
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
+		require.NoError(t, err)
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		// create an existing teleport.yaml configuration file
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml", []byte("teleport.yaml bytes"), 0o644))
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		mockBins["teleport"].Expect("node",
+			"configure",
+			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--proxy=proxy.example.com",
+			"--join-method=azure",
+			"--token=my-token",
+			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--azure-client-id=azure-client-id",
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
+
+		require.ErrorContains(t, teleportInstaller.Install(ctx), "missing discover notice file")
+
+		for binName, mockBin := range mockBins {
+			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+		}
+
+		t.Run("even if it runs multiple times", func(t *testing.T) {
+
+			// create an existing teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml", []byte("manual configuration already exists"), 0o644))
+
+			// package manager is not called in this scenario because teleport binary already exists in the system
+			require.FileExists(t, mockBins["teleport"].Path)
+
+			mockBins["teleport"].Expect("node",
+				"configure",
+				"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+				"--proxy=proxy.example.com",
+				"--join-method=azure",
+				"--token=my-token",
+				"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+				"--azure-client-id=azure-client-id",
+			).AndCallFunc(func(c *bintest.Call) {
+				// create a teleport.yaml configuration file
+				require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+				c.Exit(0)
+			})
+
+			require.ErrorContains(t, teleportInstaller.Install(ctx), "missing discover notice file")
+
+			for binName, mockBin := range mockBins {
+				require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+			}
+		})
+	})
 }
 
 // wellKnownOS lists the officially supported repositories for Linux Distros
@@ -476,6 +630,12 @@ var wellKnownOS = map[string]map[string]map[string]string{
 		"7": {etcOSReleaseFile: rhel7OSRelease},
 		"8": {etcOSReleaseFile: rhel8OSRelease},
 		"9": {etcOSReleaseFile: rhel9OSRelease},
+	},
+	"almalinux": {
+		"9": {etcOSReleaseFile: alma9OSRelease},
+	},
+	"rocky": {
+		"9": {etcOSReleaseFile: rocky9OSRelease},
 	},
 	"sles": {
 		"12": {etcOSReleaseFile: sles12OSRelease},
@@ -704,6 +864,44 @@ REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 9"
 REDHAT_BUGZILLA_PRODUCT_VERSION=9.4
 REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
 REDHAT_SUPPORT_PRODUCT_VERSION="9.4"`
+
+	alma9OSRelease = `NAME="AlmaLinux"
+VERSION="9.4 (Seafoam Ocelot)"
+ID="almalinux"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="9.4"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="AlmaLinux 9.4 (Seafoam Ocelot)"
+ANSI_COLOR="0;34"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:almalinux:almalinux:9::baseos"
+HOME_URL="https://almalinux.org/"
+DOCUMENTATION_URL="https://wiki.almalinux.org/"
+BUG_REPORT_URL="https://bugs.almalinux.org/"
+
+ALMALINUX_MANTISBT_PROJECT="AlmaLinux-9"
+ALMALINUX_MANTISBT_PROJECT_VERSION="9.4"
+REDHAT_SUPPORT_PRODUCT="AlmaLinux"
+REDHAT_SUPPORT_PRODUCT_VERSION="9.4"
+SUPPORT_END=2032-06-01`
+
+	rocky9OSRelease = `NAME="Rocky Linux"
+VERSION="9.3 (Blue Onyx)"
+ID="rocky"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="9.3"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="Rocky Linux 9.3 (Blue Onyx)"
+ANSI_COLOR="0;32"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:rocky:rocky:9::baseos"
+HOME_URL="https://rockylinux.org/"
+BUG_REPORT_URL="https://bugs.rockylinux.org/"
+SUPPORT_END="2032-05-31"
+ROCKY_SUPPORT_PRODUCT="Rocky-Linux-9"
+ROCKY_SUPPORT_PRODUCT_VERSION="9.3"
+REDHAT_SUPPORT_PRODUCT="Rocky Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="9.3"`
 
 	sles12OSRelease = `NAME="SLES"
 VERSION="12-SP3"
