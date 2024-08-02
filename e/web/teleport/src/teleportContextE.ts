@@ -18,8 +18,6 @@ import { deviceService } from 'e-teleport/services/devices';
 
 import { surveyService } from 'e-teleport/services/survey';
 
-import { setAndEmitFeatureRecommendationStatus } from 'e-teleport/services/featureRecommendation';
-
 import { downloadsService } from './services/downloads';
 import { pluginsService } from './services/plugins';
 
@@ -131,19 +129,8 @@ class TeleportEContext extends TeleportContext {
       storageService.clearOnboardSurvey();
     }
 
-    // fetchNonBillableSummaryInformation will do an auth check on the backend for the billing role,
-    // we should only fetch if the user has the correct permissions.
-    if (cfg.isStripeManaged && this.getFeatureFlags().billing) {
-      try {
-        await setAndEmitFeatureRecommendationStatus(this.cloudService);
-      } catch (err) {
-        // log error instead of bubbling it up and crashing the app
-        console.error(err);
-      }
-    }
-
-    // check if there's already a external audit storage configured
-    // so we don't show the feature's CTAs
+    // check if there's already an external audit storage configured
+    // so that we don't show the feature's CTAs
     const isDismissed = storageService.getExternalAuditStorageCtaDisabled();
     if (
       !isDismissed &&

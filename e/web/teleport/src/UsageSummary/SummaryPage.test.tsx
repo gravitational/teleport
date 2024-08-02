@@ -1,13 +1,7 @@
 import React from 'react';
+import { render, screen } from 'design/utils/testing';
 
-import { screen } from 'design/utils/testing';
-
-import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
-import {
-  SummaryPage,
-  SummaryProps,
-} from 'e-teleport/Billing/EubpSummary/SummaryPage';
-import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+import { SummaryPage, SummaryProps } from 'e-teleport/UsageSummary/SummaryPage';
 
 jest.mock('teleport/useStickyClusterId', () =>
   jest.fn(() => ({ clusterId: 'cluster-name', isLeafCluster: false }))
@@ -34,7 +28,7 @@ describe('summaryPage', () => {
         stripeTrialEnd: 1682989632,
         stripeMissingPaymentMethod: false,
         productName: 'some-productName',
-        stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
+        stripeSubscriptionStatus: null,
         stripeCurrentUsage: defaultUsage,
         stripeSubscriptionCancelAt: 0,
         stripeSubscriptionCanceledAt: 0,
@@ -50,14 +44,14 @@ describe('summaryPage', () => {
   });
 
   test('renders cycle if cycle usage is present', () => {
-    renderWithElementsAndContext(<SummaryPage {...props} />);
+    render(<SummaryPage {...props} />);
 
     expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
   });
 
   test('does not render cycle if cycle usage is not present', () => {
     props.data.stripeCurrentUsage = null;
-    renderWithElementsAndContext(<SummaryPage {...props} />);
+    render(<SummaryPage {...props} />);
 
     expect(screen.queryByText(/Current Cycle/i)).not.toBeInTheDocument();
     expect(

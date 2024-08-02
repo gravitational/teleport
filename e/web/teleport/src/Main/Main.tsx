@@ -1,4 +1,4 @@
-import React, { ReactNode, useMemo, useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Main } from 'teleport/Main/Main';
 
@@ -10,14 +10,11 @@ import TeleportEContext from 'e-teleport/teleportContextE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import cfg from 'e-teleport/config';
-import { StripeLoader } from 'e-teleport/Billing/StripeLoader/StripeLoader';
-import { BillingInformation } from 'e-teleport/services/cloud';
-import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
 import {
-  Notifications,
   NotificationEntry,
   NotificationItem,
+  Notifications,
 } from 'e-teleport/InviteCollaborators/Notifications';
 import {
   createErrorNotification,
@@ -59,31 +56,8 @@ export function MainE() {
   }
 
   const isStripeManaged = cfg.oss.isStripeManaged;
-
-  const teamUpgradeBanner = useMemo(() => {
-    if (!isStripeManaged) {
-      return;
-    }
-
-    return (
-      <StripeLoader
-        key={'stripe-upgrade'}
-        dataSource={(CloudService): Promise<BillingInformation> =>
-          CloudService.fetchBillingInformation()
-        }
-        render={(data: BillingInformation, reload: () => void): ReactNode => (
-          <UsageBasedUpgrade billingInfo={data} reload={reload} />
-        )}
-      />
-    );
-  }, [isStripeManaged]);
-
-  const billingBanners = [];
-  if (isStripeManaged) {
-    billingBanners.push(teamUpgradeBanner);
-  }
-
   const requiresOnboardingSurvey = surveyUnanswered();
+  // todo (michellescripts) rather than using isStripeManaged; surface Mode:Questionnaire
   const questionnaire =
     (isStripeManaged && requiresOnboardingSurvey && Questionnaire) || null;
 
@@ -109,7 +83,6 @@ export function MainE() {
       features={getEnterpriseFeatures()}
       initialAlerts={initialAlerts}
       customBanners={customBanners}
-      billingBanners={billingBanners}
       Questionnaire={questionnaire}
       inviteCollaboratorsFeedback={inviteCollaboratorsFeedback}
       topBarProps={

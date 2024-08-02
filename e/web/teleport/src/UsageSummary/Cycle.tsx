@@ -5,11 +5,11 @@ import styled, { useTheme } from 'styled-components';
 import { displayUnixShortDate } from 'shared/services/loc/loc';
 
 import { UsageQuota } from 'e-teleport/services/cloud/v1/tenants_pb';
-import { CycleUsage } from 'e-teleport/Billing/types';
+import { CycleUsage } from 'e-teleport/UsageSummary/types';
 import { StripeUsage } from 'e-teleport/services/cloud';
 
-import { UpdatedAtDisplay } from '../common/UpdatedAtDisplay';
-import { Usage } from '../common/Usage';
+import { UpdatedAtDisplay } from './UpdatedAtDisplay';
+import { UsageBar } from './UsageBar';
 
 export interface CycleProps {
   currentUsage: StripeUsage;
@@ -65,7 +65,7 @@ export const Cycle = ({
         <Text>Monthly usage will reset at the end of this cycle.</Text>
         <Flex flexWrap="wrap">
           {usage.map(u => (
-            <Usage key={u.name} usage={u} />
+            <UsageBar key={u.name} usage={u} />
           ))}
         </Flex>
         {/* TODO: show IGS CTA if IGS is not active */}

@@ -8,7 +8,7 @@ import {
 import { Alert, Box, Indicator } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { SummaryPage } from 'e-teleport/Billing/EubpSummary/SummaryPage';
+import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';
 import { BillingSummaryInformation } from 'e-teleport/services/cloud';
 import useTeleport from 'e-teleport/useTeleportE';
 

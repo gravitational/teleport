@@ -4,32 +4,26 @@ import {
   ManagementSection,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
-
 import {
   Add,
   Chart,
   Download,
   FlowArrow,
+  Graph,
   Headset,
-  Invoices,
   Laptop,
   ListAddCheck,
-  Profile,
   UserList,
-  Graph,
 } from 'design/Icon';
 
 import { NavTitle } from 'teleport/types';
 import { Users } from 'teleport/Users';
 import { PassthroughPage } from 'shared/components/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
-
 import { storageService } from 'teleport/services/storageService';
 
 import NewRequest from 'e-teleport/Workflow/NewRequest/NewRequest';
 import ReviewRequests from 'e-teleport/Workflow/ReviewRequests/ReviewRequests';
-
 import cfg from 'e-teleport/config';
-
 import { Downloads } from 'e-teleport/Downloads';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';
 import { Account as AccountE } from 'e-teleport/Account';
@@ -37,20 +31,11 @@ import Integrations from 'e-teleport/Integrations';
 import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
 import SupportE from 'e-teleport/Support';
 import { NewLock } from 'e-teleport/NewLockV2';
-
 import { DeviceTrust } from 'e-teleport/DeviceTrust';
-
-import { SummaryLoader as BillingSummaryE } from 'e-teleport/Billing/Summary';
-import EubpBillingSummaryE from 'e-teleport/Billing/EubpSummary';
-
-import { PaymentsAndInvoicesLoader as PaymentsInvoicesE } from 'e-teleport/Billing/PaymentsAndInvoices';
-
-import { InvoiceSettingsLoader as InvoiceSettingsE } from 'e-teleport/Billing/InvoiceSettings';
-
+import UsageSummary from 'e-teleport/UsageSummary';
 import { Discover as DiscoverE } from 'e-teleport/Discover';
 import { AccessListManagement as AccessListManagement } from 'e-teleport/AccessListManagement';
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
-
 import { InviteCollaboratorsDialog } from 'e-teleport/InviteCollaborators';
 import EmailPasswordResetDialog from 'e-teleport/InviteCollaborators/EmailPasswordResetDialog';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
@@ -67,6 +52,7 @@ import type {
 // ****************************
 
 const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
+
 class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
   route = {
     ...super.getRoute(),
@@ -96,6 +82,7 @@ class FeatureAccessRequests implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     return flags.accessRequests;
   }
+
   topMenuItem = this.navigationItem;
 }
 
@@ -166,37 +153,14 @@ export class FeatureDiscoverE extends OSS.FeatureDiscover {
 //  Billing Features
 // ****************************
 
-export class FeatureTeamSummary implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Billing;
-
-  route = {
-    title: 'Summary',
-    path: cfg.routes.billingSummary,
-    component: BillingSummaryE,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.billing && cfg.oss.isStripeManaged;
-  }
-
-  navigationItem = {
-    title: NavTitle.BillingSummary,
-    icon: Chart,
-    getLink(clusterId: string) {
-      return cfg.getBillingSummaryRoute(clusterId);
-    },
-  };
-}
-
-export class FeatureEubpSummary implements TeleportFeature {
+export class FeatureUsageSummary implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Billing;
 
   route = {
     title: 'Usage Tracking',
-    path: cfg.routes.eubpBillingSummary,
-    component: EubpBillingSummaryE,
+    path: cfg.routes.usageSummarySummary,
+    component: UsageSummary,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -209,53 +173,7 @@ export class FeatureEubpSummary implements TeleportFeature {
     title: NavTitle.BillingSummary,
     icon: Chart,
     getLink(clusterId: string) {
-      return cfg.getEubpBillingSummaryRoute(clusterId);
-    },
-  };
-}
-
-export class FeaturePaymentsAndInvoices implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Billing;
-
-  route = {
-    title: 'Payments and Invoices',
-    path: cfg.routes.paymentsInvoices,
-    component: PaymentsInvoicesE,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.billing && cfg.oss.isStripeManaged;
-  }
-
-  navigationItem = {
-    title: NavTitle.PaymentsAndInvoices,
-    icon: Invoices,
-    getLink(clusterId: string) {
-      return cfg.getPaymentsInvoicesRoute(clusterId);
-    },
-  };
-}
-
-export class FeatureInvoiceSettings implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Billing;
-
-  route = {
-    title: 'Invoice Settings',
-    path: cfg.routes.invoiceSettings,
-    component: InvoiceSettingsE,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.billing && cfg.oss.isStripeManaged;
-  }
-
-  navigationItem = {
-    title: NavTitle.InvoiceSettings,
-    icon: Profile,
-    getLink(clusterId: string) {
-      return cfg.getInvoiceSettingsRoute(clusterId);
+      return cfg.getUsageSummarySummaryRoute(clusterId);
     },
   };
 }
@@ -528,11 +446,8 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureRecordings(),
     new OSS.FeatureAudit(),
 
-    // - Billing
-    new FeatureTeamSummary(),
-    new FeatureEubpSummary(),
-    new FeaturePaymentsAndInvoices(),
-    new FeatureInvoiceSettings(),
+    // - Usage / Billing
+    new FeatureUsageSummary(),
 
     // - Clusters
     new OSS.FeatureClusters(),

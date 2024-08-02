@@ -4,7 +4,8 @@ import styled from 'styled-components';
 
 import Box from 'design/Box';
 
-import { Cycle } from 'e-teleport/Billing/EubpSummary/Cycle';
+import { Cycle } from 'e-teleport/UsageSummary/Cycle';
+
 import { BillingSummaryInformation } from 'e-teleport/services/cloud';
 
 export interface SummaryProps {

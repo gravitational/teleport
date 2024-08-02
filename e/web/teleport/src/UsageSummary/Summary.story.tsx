@@ -6,12 +6,8 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { MemoryRouter } from 'react-router';
 
-import {
-  SummaryPage,
-  SummaryProps,
-} from 'e-teleport/Billing/EubpSummary/SummaryPage';
-import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 import { StripeUsage } from 'e-teleport/services/cloud';
+import { SummaryPage, SummaryProps } from 'e-teleport/UsageSummary/SummaryPage';
 
 export default {
   title: 'TeleportE/Billing/Enterprise Usage-Based',
@@ -36,7 +32,7 @@ const defaultProps = (): SummaryProps => ({
     stripeTrialEnd: 1682989632,
     stripeMissingPaymentMethod: false,
     productName: 'Team',
-    stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
+    stripeSubscriptionStatus: null,
     stripeCurrentUsage: defaultUsage,
     stripeSubscriptionCancelAt: 0,
     stripeSubscriptionCanceledAt: 0,
@@ -50,7 +46,7 @@ const defaultProps = (): SummaryProps => ({
   },
 });
 
-export function EUBPSummaryPageView() {
+export function SummaryPageView() {
   const props = defaultProps();
 
   return (
@@ -62,7 +58,7 @@ export function EUBPSummaryPageView() {
   );
 }
 
-export function EmptyEUBPSummaryPageView() {
+export function EmptySummaryPageView() {
   const props = defaultProps();
   props.data.stripeCurrentUsage = null;
 

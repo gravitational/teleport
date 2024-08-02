@@ -1,13 +1,11 @@
 import React from 'react';
-
 import styled, { useTheme } from 'styled-components';
-
 import { Box, Flex, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { CycleUsage } from 'e-teleport/Billing/types';
+import { CycleUsage } from 'e-teleport/UsageSummary/types';
 
-export function Usage({ usage }: { usage: CycleUsage }) {
+export function UsageBar({ usage }: { usage: CycleUsage }) {
   const theme = useTheme();
   const getColor = (total, hasFreeTier, freeTierMax, hardMax): string => {
     // if a product has hit its hard max

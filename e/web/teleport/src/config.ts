@@ -47,10 +47,7 @@ const cfg = {
     deviceTrust: `/web/devices`,
 
     // billing
-    billingSummary: '/web/cluster/:clusterId/billing-summary',
-    eubpBillingSummary: '/web/cluster/:clusterId/eubp-billing-summary',
-    paymentsInvoices: '/web/cluster/:clusterId/payments-invoices',
-    invoiceSettings: '/web/cluster/:clusterId/invoice-settings',
+    usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
   },
 
   api: {
@@ -72,17 +69,9 @@ const cfg = {
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
-    addressPath: '/v1/enterprise/cloud/address',
 
-    billingPath: '/v1/enterprise/cloud/billing',
     billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
     nonBillableUsageSummaryPath: '/v1/enterprise/cloud/nonbillable-summary',
-    cardPath: '/v1/enterprise/cloud/card',
-    emailPath: '/v1/enterprise/cloud/billing-email',
-    invoiceSettingsPath: '/v1/enterprise/cloud/invoice-settings',
-    paymentsInvoicesPath: '/v1/enterprise/cloud/payments-invoices',
-    poPath: '/v1/enterprise/cloud/billing-po',
-    setupIntentPath: '/v1/enterprise/cloud/setupintent',
     teleportInvitePath: '/v1/enterprise/cloud/teleportinvite',
     teleportCredentialResetPath: '/v1/enterprise/cloud/teleportcredentialreset',
 
@@ -161,20 +150,8 @@ const cfg = {
     return generateResourcePath(cfg.api.devices, { ...params });
   },
 
-  getBillingSummaryRoute(clusterId: string) {
-    return generatePath(cfg.routes.billingSummary, { clusterId });
-  },
-
-  getEubpBillingSummaryRoute(clusterId: string) {
-    return generatePath(cfg.routes.eubpBillingSummary, { clusterId });
-  },
-
-  getPaymentsInvoicesRoute(clusterId: string) {
-    return generatePath(cfg.routes.paymentsInvoices, { clusterId });
-  },
-
-  getInvoiceSettingsRoute(clusterId: string) {
-    return generatePath(cfg.routes.invoiceSettings, { clusterId });
+  getUsageSummarySummaryRoute(clusterId: string) {
+    return generatePath(cfg.routes.usageSummarySummary, { clusterId });
   },
 
   getAccessListManagementRoute(accessListId?: string) {

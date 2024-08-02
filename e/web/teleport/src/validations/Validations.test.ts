@@ -1,5 +1,4 @@
 import { isValidEmail } from 'e-teleport/validations/email';
-import { isValidPurchaseOrderPrefix } from 'e-teleport/validations/purchaseOrderPrefix';
 
 describe('validations', () => {
   // eslint-disable-next-line jest/require-hook
@@ -48,26 +47,6 @@ describe('validations', () => {
   ].forEach(spec => {
     test(`email: ${spec.email}`, () => {
       const valid = isValidEmail(spec.email);
-      expect(valid).toEqual(spec.valid);
-    });
-  });
-
-  // eslint-disable-next-line jest/require-hook
-  [
-    { po: '123', valid: true },
-    { po: 'abc', valid: true },
-    { po: '123456789012', valid: true },
-    { po: '123456789abc', valid: true },
-    { po: '123435', valid: true },
-    { po: '', valid: false },
-    { po: '1', valid: false },
-    { po: '12', valid: false },
-    { po: '1234567890123', valid: false },
-    { po: '12&', valid: false },
-    { po: '12#', valid: false },
-  ].forEach(spec => {
-    test(`po: ${spec.po}`, () => {
-      const valid = isValidPurchaseOrderPrefix(spec.po);
       expect(valid).toEqual(spec.valid);
     });
   });

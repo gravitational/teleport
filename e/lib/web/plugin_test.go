@@ -62,17 +62,9 @@ func TestRegisterProxyWebHandlers(t *testing.T) {
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugins/types")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugins/callback/:type")
 
-	handlerHasPath(t, h, http.MethodDelete, "/enterprise/cloud/card")
-	handlerHasPath(t, h, http.MethodPost, "/enterprise/cloud/card")
-	handlerHasPath(t, h, http.MethodPut, "/enterprise/cloud/card")
-
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/billing")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/billing-summary")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/nonbillable-summary")
-	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/payments-invoices")
-	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/invoice-settings")
-	handlerHasPath(t, h, http.MethodPut, "/enterprise/cloud/address")
-	handlerHasPath(t, h, http.MethodPost, "/enterprise/cloud/setupintent")
 
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/upgradewindowstart")
 	handlerHasPath(t, h, http.MethodPost, "/enterprise/cloud/upgradewindowstart")

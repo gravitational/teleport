@@ -359,18 +359,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	}
 
 	if p.h.ClusterFeatures.GetCloud() {
-		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
-		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
-		h.PUT("/enterprise/cloud/card", p.withCloudAuth(p.updateCardHandle))
 		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
-		h.DELETE("/enterprise/cloud/billing", p.withCloudAuth(p.cancelSubscriptionHandle))
 		h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.getNonBillableUsageSummaryHandle))
-		h.GET("/enterprise/cloud/payments-invoices", p.withCloudAuth(p.getPaymentsInvoicesInformationHandle))
-		h.GET("/enterprise/cloud/invoice-settings", p.withCloudAuth(p.getInvoiceSettingsInformationHandle))
-		h.PUT("/enterprise/cloud/address", p.withCloudAuth(p.updateStripeAddressHandle))
-		h.POST("/enterprise/cloud/setupintent", p.withCloudAuth(p.createSetupIntentHandle))
-		h.PUT("/enterprise/cloud/billing-email", p.withCloudAuth(p.updateEmailHandle))
-		h.PUT("/enterprise/cloud/billing-po", p.withCloudAuth(p.updatePurchaseOrderHandle))
 
 		// Upgrade window related endpoints.
 		h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.getUpgradeWindowStartHourHandle))
