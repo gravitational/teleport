@@ -1439,7 +1439,8 @@
       "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.4.11",
       "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.4.11",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.4.11",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.4.11"
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.4.11",
+      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
     },
     "terraform": {
       "version": "1.0.0"
