@@ -1168,15 +1168,6 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 // startNetworkingProcess launches a new networking process. It should be closed once
 // the server connection is closed.
 func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
-	// The networking process runs with the user's local credentials.
-	// Ensure that the user has been created first.
-	if err := s.termHandlers.SessionRegistry.TryCreateHostUser(scx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(scx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create context for the networking process.
 	_, nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity)
 	if err != nil {
@@ -1253,16 +1244,39 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 }
 
 // HandleNewConn is called by sshutils.Server once for each new incoming connection,
-// prior to handling any channels or requests.  Currently this callback's only
-// function is to apply session control restrictions.
+// prior to handling any channels or requests.
 func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
 	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
+	// Apply session control restrictions.
 	ctx, err = s.sessionController.AcquireSessionContext(ctx, identityContext, ccx.ServerConn.LocalAddr().String(), ccx.ServerConn.RemoteAddr().String(), ccx)
-	return ctx, trace.Wrap(err)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+
+	// Create host user.
+	created, userCloser, err := s.termHandlers.SessionRegistry.TryCreateHostUser(identityContext)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	// Indicate that the user was created by Teleport.
+	ccx.UserCreatedByTeleport = created
+	if userCloser != nil {
+		ccx.AddCloser(userCloser)
+	}
+
+	sudoersCloser, err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(identityContext)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	if sudoersCloser != nil {
+		ccx.AddCloser(sudoersCloser)
+	}
+
+	return ctx, nil
 }
 
 // HandleNewChan is called when new channel is opened
@@ -1701,12 +1715,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
-		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case constants.InitiateFileTransfer:
 		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)

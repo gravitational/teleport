@@ -235,66 +235,65 @@ func (sc *sudoersCloser) Close() error {
 	return nil
 }
 
-func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
+// TryWriteSudoersFile tries to write the needed sudoers entry to the sudoers
+// file, if any. If the returned closer is not nil, it must be called at the
+// end of the session to cleanup the sudoers file.
+func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
 	if s.sudoers == nil {
-		return nil
+		return nil, nil
 	}
 
-	sudoers, err := ctx.Identity.AccessChecker.HostSudoers(ctx.srv.GetInfo())
+	sudoers, err := identityContext.AccessChecker.HostSudoers(s.Srv.GetInfo())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if len(sudoers) == 0 {
 		// not an error, sudoers may not be configured.
-		return nil
+		return nil, nil
 	}
-	if err := s.sudoers.WriteSudoers(ctx.Identity.Login, sudoers); err != nil {
-		return trace.Wrap(err)
+	if err := s.sudoers.WriteSudoers(identityContext.Login, sudoers); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	s.sessionsByUser.add(ctx.Identity.Login)
-	ctx.AddCloser(&sudoersCloser{
-		username:     ctx.Identity.Login,
+	s.sessionsByUser.add(identityContext.Login)
+
+	return &sudoersCloser{
+		username:     identityContext.Login,
 		userSessions: s.sessionsByUser,
 		cleanup:      s.sudoers.RemoveSudoers,
-	})
-
-	return nil
+	}, nil
 }
 
-func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
-	if !ctx.srv.GetCreateHostUser() || s.users == nil {
+// TryCreateHostUser attempts to create a local user on the host if needed.
+// If the returned closer is not nil, it must be called at the end of the
+// session to clean up the local user.
+func (s *SessionRegistry) TryCreateHostUser(identityContext IdentityContext) (created bool, closer io.Closer, err error) {
+	if !s.Srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
-		return nil // not an error to not be able to create host users
+		return false, nil, nil // not an error to not be able to create host users
 	}
 
-	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
+	ui, err := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			log.Warnf("Unable to create host users: %v", err)
-			return nil
+			return false, nil, nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)
-		return trace.Wrap(err)
+		return false, nil, trace.Wrap(err)
 	}
 
-	existsErr := s.users.UserExists(ctx.Identity.Login)
+	existsErr := s.users.UserExists(identityContext.Login)
 	if trace.IsAccessDenied(err) && existsErr != nil {
-		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+		return false, nil, trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
-	userCloser, err := s.users.UpsertUser(ctx.Identity.Login, *ui)
-	if userCloser != nil {
-		ctx.AddCloser(userCloser)
-	}
+	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
 	if err != nil && !trace.IsAlreadyExists(err) {
-		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
-		return trace.Wrap(err)
+		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
+		return false, nil, trace.Wrap(err)
 	}
 
-	// Indicate that the user was created by Teleport.
-	ctx.UserCreatedByTeleport = true
-
-	return nil
+	return true, userCloser, nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.
