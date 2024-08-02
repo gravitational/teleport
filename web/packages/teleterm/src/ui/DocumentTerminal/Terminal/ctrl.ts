@@ -89,7 +89,7 @@ export default class TtyTerminal {
         this.configService.get('terminal.copyOnSelect').value &&
         this.term.hasSelection()
       ) {
-        void this.copy();
+        void this.copySelection();
       }
     });
 
@@ -102,8 +102,8 @@ export default class TtyTerminal {
     this.term.attachCustomKeyEventHandler(e => {
       const action = this.keyboardShortcutsService.getShortcutAction(e);
       const isKeyDown = e.type === 'keydown';
-      if (action === 'terminalCopy' && isKeyDown) {
-        void this.copy();
+      if (action === 'terminalCopy' && isKeyDown && this.term.hasSelection()) {
+        void this.copySelection();
         // Do not invoke a copy action from the menu.
         e.preventDefault();
         // Event handled, do not process it in xterm.
@@ -153,7 +153,7 @@ export default class TtyTerminal {
         }
         case 'copyPaste': {
           if (this.term.hasSelection()) {
-            void this.copy();
+            void this.copySelection();
             this.term.clearSelection();
           } else {
             void this.paste();
@@ -209,11 +209,9 @@ export default class TtyTerminal {
     window.removeEventListener('resize', this.debouncedResize);
   }
 
-  private async copy(): Promise<void> {
+  private async copySelection(): Promise<void> {
     const selection = this.term.getSelection();
-    if (selection.trim()) {
-      await navigator.clipboard.writeText(selection);
-    }
+    await navigator.clipboard.writeText(selection);
   }
 
   private async paste(): Promise<void> {
