@@ -747,6 +747,7 @@ type testSvcComponents struct {
 	usageEvents      *usageEventsClient
 	usageReporter    *usageReporter
 	testEnv          *testEnvironment
+	oktaSvcCtx       context.Context
 }
 
 type testSvcOptions struct {
@@ -1006,11 +1007,18 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 		userDenyWhereCtx: genUserContext(ctx, userDenyWhere.GetName(), userDenyWhere.GetRoles(), userDenyWhere.GetTraits()),
 		userDenyAllCtx:   genUserContext(ctx, userDenyAll.GetName(), userDenyAll.GetRoles(), userDenyAll.GetTraits()),
 		ownerCtx:         genUserContext(ctx, owner.GetName(), owner.GetRoles(), owner.GetTraits()),
-		svc:              svc,
-		clock:            clock,
-		emitter:          emitter,
-		usageEvents:      usageEvents,
-		usageReporter:    usageReporter,
+		oktaSvcCtx: authz.ContextWithUser(ctx, authz.BuiltinRole{
+			Role:     types.RoleOkta,
+			Username: "okta",
+			Identity: tlsca.Identity{
+				Groups: []string{string(types.RoleOkta)},
+			},
+		}),
+		svc:           svc,
+		clock:         clock,
+		emitter:       emitter,
+		usageEvents:   usageEvents,
+		usageReporter: usageReporter,
 		testEnv: &testEnvironment{
 			identity:    userSvc,
 			accessLists: storage,
@@ -2520,6 +2528,77 @@ func TestCanUpdateMembership(t *testing.T) {
 			test.wantErr(t, c.svc.canUpdateMembership(ctx, authCtx, username, test.oldMember, test.newMember))
 		})
 	}
+}
+
+func TestPopulateMembersFields(t *testing.T) {
+	c := initSvc(t)
+
+	a1 := newAccessList(t, "1", c.clock)
+
+	a1.SetOrigin(types.OriginOkta)
+
+	_, err := c.svc.UpsertAccessListWithMembers(c.oktaSvcCtx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(a1),
+	})
+	require.NoError(t, err)
+	aclMember := newAccessListMember(t, a1.GetName(), member1, c.clock)
+	_, err = c.svc.UpsertAccessListMember(c.oktaSvcCtx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(aclMember),
+	})
+	require.NoError(t, err)
+	_, err = c.svc.UpsertAccessListMember(c.oktaSvcCtx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(aclMember),
+	})
+	require.NoError(t, err)
+
+	resp, err := c.svc.GetAccessListMember(c.oktaSvcCtx, &accesslistv1.GetAccessListMemberRequest{
+		AccessList: a1.GetName(),
+		MemberName: member1,
+	})
+	require.NoError(t, err)
+
+	got := resp.GetHeader().GetMetadata().GetLabels()
+	var want map[string]string
+	require.Equal(t, want, got)
+
+	t.Run("update labels", func(t *testing.T) {
+		if resp.GetHeader().GetMetadata().Labels == nil {
+			resp.GetHeader().GetMetadata().Labels = map[string]string{
+				types.OriginLabel: types.OriginOkta,
+			}
+		}
+		_, err = c.svc.UpsertAccessListMember(c.oktaSvcCtx, &accesslistv1.UpsertAccessListMemberRequest{
+			Member: resp,
+		})
+		require.NoError(t, err)
+		resp, err = c.svc.GetAccessListMember(c.ownerCtx, &accesslistv1.GetAccessListMemberRequest{
+			AccessList: a1.GetName(),
+			MemberName: member1,
+		})
+		require.NoError(t, err)
+		got := resp.GetHeader().GetMetadata().GetLabels()
+		want := map[string]string{
+			types.OriginLabel: types.OriginOkta,
+		}
+		require.Equal(t, want, got)
+
+		resp.Header.Metadata.Labels = nil
+		_, err = c.svc.UpsertAccessListMember(c.oktaSvcCtx, &accesslistv1.UpsertAccessListMemberRequest{
+			Member: resp,
+		})
+		require.NoError(t, err)
+		resp, err = c.svc.GetAccessListMember(c.ownerCtx, &accesslistv1.GetAccessListMemberRequest{
+			AccessList: a1.GetName(),
+			MemberName: member1,
+		})
+		require.NoError(t, err)
+		got = resp.GetHeader().GetMetadata().GetLabels()
+		want = map[string]string{
+			types.OriginLabel: types.OriginOkta,
+		}
+		require.Equal(t, want, got)
+	})
+
 }
 
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {

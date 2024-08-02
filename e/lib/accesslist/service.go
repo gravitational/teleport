@@ -2,6 +2,7 @@ package accesslist
 
 import (
 	"context"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -911,8 +912,13 @@ func populateMemberFields(clock clockwork.Clock, username string, oldMember, mem
 		return false, member
 	}
 
-	// If the user already existed, use existing values.
+	newLabelsClone := maps.Clone(member.Metadata.Labels)
 	member.Metadata = oldMember.Metadata
+	if len(newLabelsClone) > 0 {
+		member.Metadata.Labels = newLabelsClone
+	}
+
+	// If the user already existed, use existing values.
 	member.Spec.AccessList = oldMember.Spec.AccessList
 	member.Spec.Name = oldMember.Spec.Name
 	member.Spec.Joined = oldMember.Spec.Joined
