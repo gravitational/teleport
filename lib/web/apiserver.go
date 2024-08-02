@@ -2750,6 +2750,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindNode,
 			types.KindWindowsDesktop,
 			types.KindKubernetesCluster,
+			types.KindSAMLIdPServiceProvider,
 		}
 	}
 

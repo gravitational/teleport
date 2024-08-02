@@ -359,7 +359,8 @@ message DeployDatabaseServiceDeployment {
 message DeployDatabaseServiceResponse {
   // ClusterArn identifies the cluster where the deployment was made.
   string cluster_arn = 1;
-  // ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
+  // ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
+  // specific cluster service if a single deployment was requested.
   string cluster_dashboard_url = 2;
 }
 
