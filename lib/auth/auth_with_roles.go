@@ -1777,7 +1777,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 			return trace.Wrap(err)
 		case match:
 			if req.IncludeLogins {
-				logins, err := resourceChecker.GetAllowedLoginsForResource(resource)
+				var checkableResource services.AccessCheckable = resource
+				if appServer, ok := resource.(types.AppServer); ok {
+					checkableResource = appServer.GetApp()
+				}
+
+				logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
 				if err != nil {
 					log.WithError(err).WithField("resource", resource.GetName()).Warn("Unable to determine logins for resource")
 				}
@@ -2028,21 +2033,26 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		SearchKeywords: req.SearchKeywords,
 		StartKey:       req.StartKey,
 		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
-			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
-				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				logins, err := resourceChecker.GetAllowedLoginsForResource(r)
-				if err != nil {
-					log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
-				}
-
-				return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
+			if !req.IncludeLogins && (r.GetKind() != types.KindNode || r.GetKind() != types.KindWindowsDesktop || r.GetKind() != types.KindAppServer) {
+				return r, nil
 			}
 
-			return r, nil
+			resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			var checkableResource services.AccessCheckable = r
+			if appServer, ok := r.(types.AppServer); ok {
+				checkableResource = appServer.GetApp()
+			}
+
+			logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
+			if err != nil {
+				log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
+			}
+
+			return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
 		},
 	}
 
