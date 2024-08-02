@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
