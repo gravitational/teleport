@@ -35,8 +35,8 @@ exports[`loaded state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -817,6 +817,15 @@ exports[`loaded state 1`] = `
             :
              
             Some Friendly Name
+          </div>
+          <div
+            class="c19"
+            kind="secondary"
+          >
+            saml_idp_service_provider
+            :
+             
+            app-saml
           </div>
         </td>
         <td

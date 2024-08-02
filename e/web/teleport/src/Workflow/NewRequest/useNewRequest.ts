@@ -569,5 +569,6 @@ export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
     user_group: { ...resources.user_group },
     windows_desktop: { ...resources.windows_desktop },
     role: { ...resources.role },
+    saml_idp_service_provider: { ...resources.saml_idp_service_provider },
   };
 }

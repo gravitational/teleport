@@ -10,7 +10,7 @@ describe('getMemberApprovedMsg combo', () => {
         numRolesApproved: 0,
         numTraitsApproved: 0,
       },
-      output: `0 member approved`,
+      output: `0 members approved`,
     },
     {
       case: 'with members',

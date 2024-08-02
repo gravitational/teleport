@@ -112,14 +112,16 @@ export function AppRequestButton({
       ? Object.keys(addedResources.user_group)[0]
       : null;
 
-  const isAppAdded = Boolean(addedResources.app[agent.name]);
-
+  const isAppAdded =
+    Boolean(addedResources.app[agent.name]) ||
+    Boolean(addedResources.saml_idp_service_provider[agent.name]);
+  const resourceKind = agent.samlApp ? 'saml_idp_service_provider' : 'app';
   if (agent.userGroups.length === 0) {
     return (
       <RequestButton
         isAgentAdded={isAppAdded}
         onClick={() =>
-          addOrRemoveResource('app', agent.name, agent.friendlyName)
+          addOrRemoveResource(resourceKind, agent.name, agent.friendlyName)
         }
         addText={addText}
         disabled={disabled}

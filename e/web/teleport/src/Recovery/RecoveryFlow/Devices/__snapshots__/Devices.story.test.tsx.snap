@@ -101,8 +101,8 @@ exports[`render device list 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -345,7 +345,7 @@ p+.c7 {
     </div>
   </div>
   <p
-    class="c6 c7 sc-eDPFhE c8"
+    class="c6 c7 sc-eJgwjL c8"
     color="text.slightlyMuted"
   >
     Take a look at your enrolled devices below and remove any that you don't need anymore.
@@ -814,7 +814,7 @@ p+.c9 {
           Remove Device
         </h2>
         <p
-          class="c8 c9 sc-eDPFhE c10"
+          class="c8 c9 sc-eJgwjL c10"
         >
           Are you sure you want to remove device
            
@@ -1035,7 +1035,7 @@ p+.c7 {
     </div>
   </div>
   <p
-    class="c6 c7 sc-eDPFhE c8"
+    class="c6 c7 sc-eJgwjL c8"
     color="text.slightlyMuted"
   >
     Take a look at your enrolled devices below and remove any that you don't need anymore.
