@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -100,14 +99,7 @@ func renewBotCerts(
 // TestRegisterBotCertificateGenerationCheck ensures bot cert generation checks
 // work in ordinary conditions, with several rapid renewals.
 func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
-	// TODO: Enable parallel once the experiment is removed
-	//  t.Parallel()
-
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() {
-		experiment.SetEnabled(experimentBefore)
-	})
+	t.Parallel()
 
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
@@ -222,14 +214,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 // TestRegisterBotInstance tests that bot instances are created properly on join
 func TestRegisterBotInstance(t *testing.T) {
-	// TODO: Enable parallel once the experiment is removed
-	//  t.Parallel()
-
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() {
-		experiment.SetEnabled(experimentBefore)
-	})
+	t.Parallel()
 
 	srv := newTestTLSServer(t)
 	// Inject mockEmitter to capture audit events
@@ -787,13 +772,8 @@ func registerHelper(
 // TestRegisterBot_BotInstanceRejoin validates that bot instance IDs are
 // preserved when rejoining with an authenticated auth client.
 func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
-	// Note: Can not enable parallel testing for this due to use of t.Setenv()
+	// Note: we can't enable parallel testing for this due to use of t.Setenv()
 	// for AWS client configuration.
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() {
-		experiment.SetEnabled(experimentBefore)
-	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -958,11 +938,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 // IDs from untrusted sources are ignored and will be issued a new bot instance
 // ID.
 func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() {
-		experiment.SetEnabled(experimentBefore)
-	})
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1066,14 +1042,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 }
 
 func TestRegisterBotMultipleTokens(t *testing.T) {
-	// TODO: Enable parallel once the experiment is removed
-	//  t.Parallel()
-
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() {
-		experiment.SetEnabled(experimentBefore)
-	})
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1185,110 +1154,6 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	require.NoError(t, err)
 	genStr := botUser.BotGenerationLabel()
 	require.Equal(t, "7", genStr)
-}
-
-func TestRegisterBotGenerationCounterUpgradeDowngrade(t *testing.T) {
-	// Note, sadly we won't be able to keep this test without an experiment flag
-	// to toggle, so it'll be short lived.
-	experimentBefore := experiment.Enabled()
-	t.Cleanup(func() {
-		experiment.SetEnabled(experimentBefore)
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	srv := newTestTLSServer(t)
-
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
-	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
-				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
-				Roles: []string{"example"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
-		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
-	})
-	require.NoError(t, err)
-	require.NoError(t, client.CreateToken(ctx, token))
-
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	// First, with the experiment disabled, join a bot
-	experiment.SetEnabled(false)
-
-	certs, err := join.Register(ctx, join.RegisterParams{
-		Token: token.GetName(),
-		ID: state.IdentityID{
-			Role: types.RoleBot,
-		},
-		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
-	})
-	require.NoError(t, err)
-
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
-	require.NoError(t, err)
-
-	// It should have no instance ID but should have a sane generation counter.
-	instanceID, generation := instanceIDFromCerts(t, certs)
-	require.Empty(t, instanceID)
-	require.Equal(t, uint64(1), generation)
-
-	// Increment the counter once for good measure
-	_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
-	require.NoError(t, err)
-
-	instanceID, generation = instanceIDFromCerts(t, certs)
-	require.Empty(t, instanceID)
-	require.Equal(t, uint64(2), generation)
-
-	// Enable the experiment and try again. The bot should be issued a new
-	// instance ID, but the counter should be retained.
-	experiment.SetEnabled(true)
-
-	_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
-	require.NoError(t, err)
-
-	instanceID, generation = instanceIDFromCerts(t, certs)
-	require.NotEmpty(t, instanceID)
-	require.Equal(t, uint64(3), generation)
-
-	_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
-	require.NoError(t, err)
-
-	instanceID, generation = instanceIDFromCerts(t, certs)
-	require.NotEmpty(t, instanceID)
-	require.Equal(t, uint64(4), generation)
-
-	// Toggle the experiment off again and
-	experiment.SetEnabled(false)
-
-	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
-	require.NoError(t, err)
-
-	instanceID, generation = instanceIDFromCerts(t, certs)
-	require.Empty(t, instanceID)
-	require.Equal(t, uint64(5), generation)
 }
 
 func checkCertLoginIP(t *testing.T, certBytes []byte, loginIP string) {

@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
-	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -3287,19 +3286,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
-	}
 
-	if experiment.Enabled() {
 		// Always pass through a bot instance ID if available. Legacy bots
 		// joining without an instance ID may have one generated when
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
-		// Note that this copy needs to be tied to the experiment for downgrade
-		// compatibility. If a cluster is downgraded the ID needs to be dropped
-		// from certs so a new one can be generated, otherwise the generation
-		// counter in the stored identity will mismatch when auth is upgraded
-		// again.
-		certReq.botInstanceID = a.context.Identity.GetIdentity().BotInstanceID
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
 
 	if user.GetName() != a.context.User.GetName() {
@@ -3347,28 +3339,25 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.renewable = true
 	}
 
-	// If the cert is renewable, process any certificate generation counter.
+	// If the cert is renewable, process any bot instance updates (generation
+	// counter, auth records, etc). `updateBotInstance()` may modify certain
+	// `certReq` attributes (generation, botInstanceID).
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-		if experiment.Enabled() {
-			// If we're handling a renewal for a bot, we want to return the
-			// Host CAs as well as the User CAs.
-			if certReq.botName != "" {
-				certReq.includeHostCA = true
-			}
 
-			// Update the bot instance based on this authentication. This may create
-			// a new bot instance record if the identity is missing an instance ID.
-			if err := a.authServer.updateBotInstance(
-				ctx, &certReq, user.GetName(), certReq.botName,
-				certReq.botInstanceID, nil, int32(currentIdentityGeneration),
-			); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		// If we're handling a renewal for a bot, we want to return the
+		// Host CAs as well as the User CAs.
+		if certReq.botName != "" {
+			certReq.includeHostCA = true
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.authServer.updateBotInstance(
+			ctx, &certReq, user.GetName(), certReq.botName,
+			certReq.botInstanceID, nil, int32(currentIdentityGeneration),
+		); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
