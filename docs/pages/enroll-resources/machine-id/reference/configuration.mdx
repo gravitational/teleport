@@ -451,6 +451,34 @@ database: postgres
 username: postgres
 ```
 
+#### `application-tunnel`
+
+The `application-tunnel` service opens a listener that tunnels connections to
+an application in Teleport. It supports both HTTP and TCP applications. This is
+useful for applications which cannot be configured to use client certificates,
+when using TCP application or where using a L7 load-balancer in front of your
+Teleport proxies.
+
+The tunnel authenticates connections for the client, meaning that any
+client that connects to the listener will be able to access the application.
+For this reason, ensure that the listener is only accessible by the intended
+clients by using the Unix socket listener or binding to `127.0.0.1`.
+
+```yaml
+# type specifies the type of the service. For the application tunnel service,
+# this will always be `application-tunnel`.
+type: application-tunnel
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: tcp://127.0.0.1:8084
+# app_name is the name of the application, as configured in Teleport, that
+# the service should open a tunnel to.
+app_name: my-application
+```
+
 #### `ssh-multiplexer`
 
 The `ssh-multiplexer` service opens a listener for a high-performance local
