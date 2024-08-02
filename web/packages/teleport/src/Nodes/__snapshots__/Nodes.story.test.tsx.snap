@@ -115,7 +115,7 @@ exports[`empty state 1`] = `
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -384,7 +384,7 @@ exports[`failed 1`] = `
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1654,7 +1654,7 @@ exports[`loaded 1`] = `
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;

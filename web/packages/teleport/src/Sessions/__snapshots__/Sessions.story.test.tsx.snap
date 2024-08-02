@@ -115,7 +115,7 @@ exports[`active sessions CTA 1`] = `
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1357,7 +1357,7 @@ exports[`loaded 1`] = `
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -2555,7 +2555,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
