@@ -35,10 +35,7 @@ echo "Starting Teleport installation..."
 cd $(dirname $0)
 mkdir -p $VARDIR $BINDIR
 cp -f teleport tctl tbot fdpass-teleport $BINDIR/ || exit 1
-
-if [[ machine == "Darwin" ]];then
-    cp -rf tsh.app/ "$APPS_DIR"/tsh.app/
-fi
+cp -rf tsh.app/ "$APPS_DIR"/tsh.app/ || exit 1
 
 echo "Teleport binaries have been copied to $BINDIR"
 echo ""
