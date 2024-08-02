@@ -253,7 +253,7 @@ const buttonPalette = <E extends React.ElementType>({
         return {
           default: {
             text: colors.text.slightlyMuted,
-            border: colors.interactive.tonal.neutral[0].background,
+            border: colors.interactive.tonal.neutral[2].background,
             background: 'transparent',
           },
           hover: colors.interactive.tonal.neutral[1],
