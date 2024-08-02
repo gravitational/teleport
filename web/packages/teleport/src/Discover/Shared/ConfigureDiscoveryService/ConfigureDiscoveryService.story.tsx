@@ -17,7 +17,9 @@
  */
 
 import React from 'react';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
+import { Info } from 'design/Alert';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -40,14 +42,57 @@ import { ServerLocation } from 'teleport/Discover/SelectResource';
 import { ConfigureDiscoveryService as Comp } from './ConfigureDiscoveryService';
 
 export default {
-  title: 'Teleport/Discover/Server/EC2',
+  title: 'Teleport/Discover/Shared/ConfigureDiscoveryService',
 };
 
-export const ConfigureDiscoveryService = () => {
-  return <Component />;
+export const Server = () => {
+  return <Component kind={ResourceKind.Server} />;
 };
 
-const Component = () => {
+export const Database = () => {
+  return <Component kind={ResourceKind.Database} />;
+};
+
+export const WithCreateConfig = () => {
+  return <Component kind={ResourceKind.Database} withCreateConfig={true} />;
+};
+WithCreateConfig.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+    ],
+  },
+};
+
+export const WithCreateConfigFailed = () => {
+  return <Component kind={ResourceKind.Database} withCreateConfig={true} />;
+};
+WithCreateConfigFailed.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        cfg.api.discoveryConfigPath,
+        () =>
+          HttpResponse.json(
+            {
+              message: 'Whoops, creating config error',
+            },
+            { status: 403 }
+          ),
+        { once: true }
+      ),
+      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+    ],
+  },
+};
+
+const Component = ({
+  kind,
+  withCreateConfig = false,
+}: {
+  kind: ResourceKind;
+  withCreateConfig?: boolean;
+}) => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -79,7 +124,7 @@ const Component = () => {
     onSelectResource: () => null,
     resourceSpec: {
       name: '',
-      kind: ResourceKind.Application,
+      kind,
       icon: null,
       keywords: '',
       event: DiscoverEventResource.Ec2Instance,
@@ -102,12 +147,15 @@ const Component = () => {
   return (
     <MemoryRouter
       initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'application' } },
+        { pathname: cfg.routes.discover, state: { entity: '' } },
       ]}
     >
       <ContextProvider ctx={ctx}>
         <DiscoverProvider mockCtx={discoverCtx}>
-          <Comp />
+          {withCreateConfig && (
+            <Info>Devs: Click next to see create config dialog</Info>
+          )}
+          <Comp withCreateConfig={withCreateConfig} />
         </DiscoverProvider>
       </ContextProvider>
     </MemoryRouter>

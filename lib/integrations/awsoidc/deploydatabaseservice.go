@@ -147,7 +147,8 @@ type DeployDatabaseServiceResponse struct {
 	// ClusterARN is the Amazon ECS Cluster ARN where the task was started.
 	ClusterARN string
 
-	// ClusterDashboardURL is a link to the Cluster's Dashboard URL in Amazon Console.
+	// ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or
+	// a specific cluster service if a single deployment was requested.
 	ClusterDashboardURL string
 }
 
@@ -214,7 +215,7 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 	)
 
 	log.DebugContext(ctx, "Upsert ECS Cluster")
-	cluster, err := upsertCluster(ctx, clt, req.ecsClusterName, req.ResourceCreationTags)
+	ecsCluster, err := upsertCluster(ctx, clt, req.ecsClusterName, req.ResourceCreationTags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,9 +261,20 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 	}
 
 	return &DeployDatabaseServiceResponse{
-		ClusterARN:          aws.ToString(cluster.ClusterArn),
-		ClusterDashboardURL: ecsClusterDashboardURL(req.Region, aws.ToString(cluster.ClusterName)),
+		ClusterARN:          aws.ToString(ecsCluster.ClusterArn),
+		ClusterDashboardURL: deploymentURL(req.Region, aws.ToString(ecsCluster.ClusterName), req.Deployments),
 	}, nil
+}
+
+// deploymentURL returns a link to the service in the ECS cluster for a single
+// deployment, which is the nominal case since we updated the enrollment flow
+// to deploy a single VPC at a time, or a link to the ECS cluster overview
+// if multiple deployments are requested.
+func deploymentURL(region, ecsClusterName string, deps []DeployDatabaseServiceRequestDeployment) string {
+	if len(deps) == 1 {
+		return ecsServiceDashboardURL(region, ecsClusterName, deps[0].VPCID)
+	}
+	return ecsClusterDashboardURL(region, ecsClusterName)
 }
 
 // ecsTaskName returns the normalized ECS TaskDefinition Family
@@ -294,7 +306,11 @@ func ECSDatabaseServiceDashboardURL(region, teleportClusterName, vpcID string) (
 		return "", trace.BadParameter("empty VPC ID")
 	}
 	ecsClusterName := normalizeECSClusterName(teleportClusterName)
+	return ecsServiceDashboardURL(region, ecsClusterName, vpcID), nil
+}
+
+func ecsServiceDashboardURL(region, ecsClusterName, vpcID string) string {
 	ecsClusterDashboard := ecsClusterDashboardURL(region, ecsClusterName)
 	serviceName := ecsServiceName(DatabaseServiceDeploymentMode, vpcID)
-	return fmt.Sprintf("%s/%s", ecsClusterDashboard, serviceName), nil
+	return fmt.Sprintf("%s/%s", ecsClusterDashboard, serviceName)
 }
