@@ -26,7 +26,11 @@ import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
 
-const testCases: { name: string; path: string; expectedPath: string }[] = [
+const launcherPathTestCases: {
+  name: string;
+  path: string;
+  expectedPath: string;
+}[] = [
   {
     name: 'no state and no path',
     path: '?path=',
@@ -95,54 +99,214 @@ describe('app launcher path is properly formed', () => {
     assignMock.mockClear();
   });
 
-  test.each(testCases)('$name', async ({ path: query, expectedPath }) => {
-    const launcherPath = `/web/launch/grafana.localhost${query}`;
-    const mockHistory = createMemoryHistory({
-      initialEntries: [launcherPath],
-    });
-
-    render(
-      <Router history={mockHistory}>
-        <Route path={cfg.routes.appLauncher}>
-          <AppLauncher />
-        </Route>
-      </Router>
-    );
-
-    await waitFor(() =>
-      expect(window.location.replace).toHaveBeenCalledWith(
-        `https://grafana.localhost/${expectedPath}`
-      )
-    );
-  });
-
-  test('arn is url decoded', async () => {
-    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
-      fqdn: 'test-app.test.teleport',
-    });
-    jest.spyOn(service, 'createAppSession');
-
-    const launcherPath =
-      '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess?state=ABC';
-    const mockHistory = createMemoryHistory({
-      initialEntries: [launcherPath],
-    });
-
-    render(
-      <Router history={mockHistory}>
-        <Route path={cfg.routes.appLauncher}>
-          <AppLauncher />
-        </Route>
-      </Router>
-    );
-
-    await waitFor(() => {
-      expect(service.createAppSession).toHaveBeenCalledWith({
-        fqdn: 'test-app.test.teleport',
-        clusterId: 'test.teleport',
-        publicAddr: 'test-app.test.teleport',
-        arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+  test.each(launcherPathTestCases)(
+    '$name',
+    async ({ path: query, expectedPath }) => {
+      const launcherPath = `/web/launch/grafana.localhost${query}`;
+      const mockHistory = createMemoryHistory({
+        initialEntries: [launcherPath],
       });
-    });
+
+      render(
+        <Router history={mockHistory}>
+          <Route path={cfg.routes.appLauncher}>
+            <AppLauncher />
+          </Route>
+        </Router>
+      );
+
+      await waitFor(() =>
+        expect(window.location.replace).toHaveBeenCalledWith(
+          `https://grafana.localhost/${expectedPath}`
+        )
+      );
+    }
+  );
+});
+
+const appSessionTestCases: {
+  name: string;
+  path: string;
+  returnedFqdn: string;
+  expectedFqdn: string;
+  expectedPublicAddr: string;
+  expectedArn: string;
+}[] = [
+  {
+    name: 'ARN URL',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+  },
+  {
+    name: 'uppercase resolved FQDN',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase public addr',
+    path: 'test-app.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase FQDN',
+    path: 'TEST-APP.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase resolved FQDN, public addr',
+    path: 'test-app.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase resolved FQDN,FQDN',
+    path: 'TEST-APP.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase public addr, FQDN',
+    path: 'TEST-APP.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase FQDN, resolved FQDN, public addr',
+    path: 'TEST-APP.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'public addr with port',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'resolved FQDN with port',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN, public addr with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN, resolved FQDN with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'public addr, resolved FQDN with port',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN, public addr, resolved FQDN with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+];
+
+describe('app session request is properly formed', () => {
+  const realLocation = window.location;
+  const assignMock = jest.fn();
+
+  beforeEach(() => {
+    global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
+    jest.spyOn(api, 'get').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
+
+    delete window.location;
+    window.location = { ...realLocation, replace: assignMock };
   });
+
+  afterEach(() => {
+    window.location = realLocation;
+    assignMock.mockClear();
+  });
+
+  test.each(appSessionTestCases)(
+    '$name',
+    async ({
+      path,
+      returnedFqdn,
+      expectedFqdn,
+      expectedPublicAddr,
+      expectedArn,
+    }) => {
+      jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+        fqdn: returnedFqdn,
+      });
+      jest.spyOn(service, 'createAppSession');
+
+      const launcherPath = `/web/launch/${path}`;
+      const mockHistory = createMemoryHistory({
+        initialEntries: [launcherPath],
+      });
+
+      render(
+        <Router history={mockHistory}>
+          <Route path={cfg.routes.appLauncher}>
+            <AppLauncher />
+          </Route>
+        </Router>
+      );
+
+      await waitFor(() => {
+        expect(service.createAppSession).toHaveBeenCalledWith({
+          fqdn: expectedFqdn,
+          clusterId: 'test.teleport',
+          publicAddr: expectedPublicAddr,
+          arn: expectedArn,
+        });
+      });
+    }
+  );
 });
