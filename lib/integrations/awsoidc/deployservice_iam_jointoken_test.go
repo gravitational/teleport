@@ -33,7 +33,7 @@ type mockGetUpsertToken struct {
 }
 
 // GetToken returns a provision token by name.
-func (m *mockGetUpsertToken) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+func (m *mockGetUpsertToken) GetToken(ctx context.Context, name string, withSecrets bool) (types.ProvisionToken, error) {
 	if m.token != nil && name == m.token.GetName() {
 		return m.token, nil
 	}

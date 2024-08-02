@@ -92,7 +92,7 @@ func (s *ProvisioningService) DeleteAllTokens() error {
 }
 
 // GetToken finds and returns token by ID
-func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
+func (s *ProvisioningService) GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error) {
 	if token == "" {
 		return nil, trace.BadParameter("missing parameter token")
 	}
@@ -119,7 +119,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+func (s *ProvisioningService) GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error) {
 	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {

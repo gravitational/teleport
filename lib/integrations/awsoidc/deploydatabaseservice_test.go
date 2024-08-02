@@ -386,7 +386,7 @@ func (m *mockDeployServiceClient) GetCallerIdentity(ctx context.Context, params 
 }
 
 // GetToken returns a provision token by name.
-func (m *mockDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+func (m *mockDeployServiceClient) GetToken(ctx context.Context, name string, withSecrets bool) (types.ProvisionToken, error) {
 	return nil, trace.NotFound("token not found")
 }
 

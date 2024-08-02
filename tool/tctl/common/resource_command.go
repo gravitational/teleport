@@ -2346,13 +2346,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &windowsDesktopCollection{desktops: out}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
-			tokens, err := client.GetTokens(ctx)
+			tokens, err := client.GetTokens(ctx, rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &tokenCollection{tokens: tokens}, nil
 		}
-		token, err := client.GetToken(ctx, rc.ref.Name)
+		token, err := client.GetToken(ctx, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -62,6 +62,9 @@ Use this token to add an MDM service to Teleport.
 type TokensCommand struct {
 	config *servicecfg.Config
 
+	// withSecrets is a flag to enable or disable output of secret tokens
+	withSecrets bool
+
 	// format is the output format, e.g. text or json
 	format string
 
@@ -135,6 +138,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
+	c.tokenList.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&c.withSecrets)
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 
 	if c.stdout == nil {
@@ -372,7 +376,7 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	tokens, err := client.GetTokens(ctx)
+	tokens, err := client.GetTokens(ctx, c.withSecrets)
 	if err != nil {
 		return trace.Wrap(err)
 	}

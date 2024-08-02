@@ -55,6 +55,7 @@ import (
 const (
 	stableCloudChannelRepo = "stable/cloud"
 	HeaderTokenName        = "X-Teleport-TokenName"
+	HeaderWithSecrets      = "X-Teleport-WithSecrets"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -105,12 +106,13 @@ type GetTokensResponse struct {
 }
 
 func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	withSecrets, _ := strconv.ParseBool(r.Header.Get(HeaderWithSecrets))
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := clt.GetTokens(r.Context())
+	tokens, err := clt.GetTokens(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,7 +278,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 		}
 		// if a token with this name is found and it has indeed the same rule set,
 		// return it. Otherwise, go ahead and create it
-		t, err := clt.GetToken(r.Context(), tokenName)
+		t, err := clt.GetToken(r.Context(), tokenName, true)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
@@ -302,7 +304,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 			return nil, trace.Wrap(err)
 		}
 
-		t, err := clt.GetToken(r.Context(), tokenName)
+		t, err := clt.GetToken(r.Context(), tokenName, true)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
@@ -563,7 +565,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// The provided token can be attacker controlled, so we must validate
 	// it with the backend before using it to generate the script.
-	token, err := m.GetToken(ctx, settings.token)
+	token, err := m.GetToken(ctx, settings.token, true)
 	if err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
@@ -780,7 +782,7 @@ func isSameAzureRuleSet(r1, r2 []*types.ProvisionTokenSpecV2Azure_Rule) bool {
 
 type nodeAPIGetter interface {
 	// GetToken looks up a provisioning token.
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error)
 
 	// GetClusterCACert returns the CAs for the local cluster without signing keys.
 	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)

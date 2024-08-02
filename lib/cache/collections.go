@@ -1184,7 +1184,7 @@ var _ executor[types.StaticTokens, staticTokensGetter] = staticTokensExecutor{}
 type provisionTokenExecutor struct{}
 
 func (provisionTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ProvisionToken, error) {
-	return cache.Provisioner.GetTokens(ctx)
+	return cache.Provisioner.GetTokens(ctx, loadSecrets)
 }
 
 func (provisionTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.ProvisionToken) error {
@@ -1209,8 +1209,8 @@ func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter 
 }
 
 type tokenGetter interface {
-	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error)
+	GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error)
 }
 
 var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}

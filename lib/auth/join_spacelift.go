@@ -40,7 +40,7 @@ func (a *Server) checkSpaceliftJoinRequest(ctx context.Context, req *types.Regis
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("id_token not provided for spacelift join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
+	pt, err := a.GetToken(ctx, req.Token, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

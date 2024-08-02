@@ -37,7 +37,7 @@ type Provisioner interface {
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 
 	// GetToken finds and returns token by id
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error)
 
 	// DeleteToken deletes provisioning token
 	// Imlementations must guarantee that this returns trace.NotFound error if the token doesn't exist
@@ -47,7 +47,7 @@ type Provisioner interface {
 	DeleteAllTokens() error
 
 	// GetTokens returns all non-expired tokens
-	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
+	GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token

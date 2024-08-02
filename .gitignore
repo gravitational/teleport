@@ -106,3 +106,5 @@ web/certs/
 
 # We have switched to pnpm, ignore Yarn lockfile
 yarn.lock
+
+.pnpm-store

@@ -316,7 +316,7 @@ func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup
 func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *proto.RegisterUsingAzureMethodRequest, cfg *azureRegisterConfig) error {
 	requestStart := a.clock.Now()
 	tokenName := req.RegisterUsingTokenRequest.Token
-	provisionToken, err := a.GetToken(ctx, tokenName)
+	provisionToken, err := a.GetToken(ctx, tokenName, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -32,7 +32,7 @@ func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.Regist
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
 	}
-	pt, err := a.GetToken(ctx, req.Token)
+	pt, err := a.GetToken(ctx, req.Token, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

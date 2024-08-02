@@ -334,8 +334,8 @@ type defaultDeployServiceClient struct {
 }
 
 // GetToken returns a provision token by name.
-func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	return d.tokenServiceClient.GetToken(ctx, name)
+func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string, withSecrets bool) (types.ProvisionToken, error) {
+	return d.tokenServiceClient.GetToken(ctx, name, withSecrets)
 }
 
 // UpsertToken creates or updates a provision token.

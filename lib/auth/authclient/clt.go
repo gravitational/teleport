@@ -1138,10 +1138,10 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
-	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
+	GetTokens(ctx context.Context, withSecrets bool) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error)
 
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
 	// could be a reset password token or a machine token

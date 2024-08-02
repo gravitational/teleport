@@ -310,7 +310,7 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	}
 
 	// verify that the token exists
-	if _, err := h.GetProxyClient().GetToken(r.Context(), tokenStr); err != nil {
+	if _, err := h.GetProxyClient().GetToken(r.Context(), tokenStr, true); err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
 

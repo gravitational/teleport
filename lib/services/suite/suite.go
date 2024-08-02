@@ -705,7 +705,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	ctx := context.Background()
-	_, err := s.ProvisioningS.GetToken(ctx, "token")
+	_, err := s.ProvisioningS.GetToken(ctx, "token", false)
 	require.True(t, trace.IsNotFound(err))
 
 	tok, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
@@ -713,7 +713,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-	token, err := s.ProvisioningS.GetToken(ctx, "token")
+	token, err := s.ProvisioningS.GetToken(ctx, "token", false)
 	require.NoError(t, err)
 	require.True(t, token.GetRoles().Include(types.RoleAuth))
 	require.True(t, token.GetRoles().Include(types.RoleNode))
@@ -722,7 +722,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 
 	require.NoError(t, s.ProvisioningS.DeleteToken(ctx, "token"))
 
-	_, err = s.ProvisioningS.GetToken(ctx, "token")
+	_, err = s.ProvisioningS.GetToken(ctx, "token", false)
 	require.True(t, trace.IsNotFound(err))
 
 	// check tokens backwards compatibility and marshal/unmarshal
@@ -757,14 +757,14 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-	tokens, err := s.ProvisioningS.GetTokens(ctx)
+	tokens, err := s.ProvisioningS.GetTokens(ctx, false)
 	require.NoError(t, err)
 	require.Len(t, tokens, 2)
 
 	err = s.ProvisioningS.DeleteAllTokens()
 	require.NoError(t, err)
 
-	tokens, err = s.ProvisioningS.GetTokens(ctx)
+	tokens, err = s.ProvisioningS.GetTokens(ctx, false)
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 }
@@ -1701,7 +1701,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 
 				require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-				token, err := s.ProvisioningS.GetToken(ctx, "token")
+				token, err := s.ProvisioningS.GetToken(ctx, "token", false)
 				require.NoError(t, err)
 
 				require.NoError(t, s.ProvisioningS.DeleteToken(ctx, "token"))

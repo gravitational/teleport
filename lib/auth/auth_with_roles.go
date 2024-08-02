@@ -2163,7 +2163,7 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	return a.authServer.DeleteToken(ctx, token)
 }
 
-func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+func (a *ServerWithRoles) GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2172,10 +2172,10 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetTokens(ctx)
+	return a.authServer.GetTokens(ctx, withSecrets)
 }
 
-func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
+func (a *ServerWithRoles) GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error) {
 	// The Proxy has permission to look up tokens by name in order to validate
 	// attempts to use the node join script.
 	if isProxy := a.hasBuiltinRole(types.RoleProxy); !isProxy {
@@ -2188,7 +2188,7 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetToken(ctx, token)
+	return a.authServer.GetToken(ctx, token, withSecrets)
 }
 
 func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {

@@ -129,7 +129,7 @@ type AWSOIDCService struct {
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
 type CacheAWSOIDC interface {
 	// GetToken returns a provision token by name.
-	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, name string, withSecret bool) (types.ProvisionToken, error)
 
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error

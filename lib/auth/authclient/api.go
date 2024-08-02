@@ -1073,10 +1073,10 @@ type Cache interface {
 	GetStaticTokens() (types.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
+	GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error)
 
 	// GetLock gets a lock by name.
 	// NOTE: This method is intentionally available only for the auth server

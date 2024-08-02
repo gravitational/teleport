@@ -45,7 +45,7 @@ import (
 
 // tokenJoinMethod returns the join method of the token with the given tokenName
 func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.JoinMethod {
-	provisionToken, err := a.GetToken(ctx, tokenName)
+	provisionToken, err := a.GetToken(ctx, tokenName, true)
 	if err != nil {
 		// could not find dynamic token, assume static token. If it does not
 		// exist this will be caught later.

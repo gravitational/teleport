@@ -3079,12 +3079,12 @@ func (g *GRPCServer) DeleteTrustedCluster(ctx context.Context, req *types.Resour
 }
 
 // GetToken retrieves a token by name.
-func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV2, error) {
+func (g *GRPCServer) GetToken(ctx context.Context, req *authpb.GetTokenV2Request) (*types.ProvisionTokenV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	t, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
+	t, err := auth.ServerWithRoles.GetToken(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3096,12 +3096,12 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 }
 
 // GetTokens retrieves all tokens.
-func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
+func (g *GRPCServer) GetTokens(ctx context.Context, req *authpb.GetTokensV2Request) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ts, err := auth.ServerWithRoles.GetTokens(ctx)
+	ts, err := auth.ServerWithRoles.GetTokens(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
