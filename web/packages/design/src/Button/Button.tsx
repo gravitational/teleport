@@ -252,7 +252,7 @@ const buttonPalette = <E extends React.ElementType>({
       if (intent === 'neutral') {
         return {
           default: {
-            text: colors.text.muted,
+            text: colors.text.slightlyMuted,
             border: colors.interactive.tonal.neutral[0].background,
             background: 'transparent',
           },
