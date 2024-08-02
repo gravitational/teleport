@@ -134,8 +134,12 @@ func TestNewStreamErrors(t *testing.T) {
 			expectedErr error
 		}{
 			{
-				desc:     "ListPartsError",
-				uploader: &eventstest.MockUploader{ListPartsError: expectedErr},
+				desc: "ListPartsError",
+				uploader: &eventstest.MockUploader{
+					MockListParts: func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+						return nil, expectedErr
+					},
+				},
 			},
 			{
 				desc:     "ReserveUploadPartError",

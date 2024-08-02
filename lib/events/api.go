@@ -848,6 +848,9 @@ type StreamPart struct {
 	Number int64
 	// ETag is a part e-tag
 	ETag string
+	// LastModified is the time of last modification of this part (if
+	// available).
+	LastModified time.Time
 }
 
 // StreamUpload represents stream multipart upload
