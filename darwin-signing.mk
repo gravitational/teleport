@@ -114,22 +114,52 @@ define notarize_binaries_cmd
 	rm -rf $(notary_dir) $(notary_file)
 endef
 
+NOTARIZE_TSH_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tsh_app),$(not_notarizing_cmd))
+define notarize_tsh_app
+	$(call notarize_app_bundle,$(TSH_APP_BUNDLE),$(TSH_APP_ENTITLEMENTS))
+endef
 
-NOTARIZE_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_pkg),$(not_notarizing_cmd))
+NOTARIZE_TELEPORT_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_teleport_pkg),$(not_notarizing_cmd))
+define notarize_teleport_pkg
+	$(call notarize_pkg,$(TELEPORT_PKG_UNSIGNED),$(TELEPORT_PKG_SIGNED))
+endef
+
+define notarize_app_bundle
+	$(eval $@_BUNDLE = $(1))
+	$(eval $@_ENTITLEMENTS = $(2))
+	codesign \
+		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--force \
+		--verbose \
+		--timestamp \
+		--options kill,hard,runtime \
+		--entitlements $($@_ENTITLEMENTS) \
+		$($@_BUNDLE)
+
+	ditto -c -k --keepParent $($@_BUNDLE) $(notary_file)
+	xcrun notarytool submit $(notary_file) \
+		--team-id="$(TEAMID)" \
+		--apple-id="$(APPLE_USERNAME)" \
+		--password="$(APPLE_PASSWORD)" \
+		--wait
+	xcrun stapler staple $($@_BUNDLE)
+	rm $(notary_file)
+endef
 
 define notarize_pkg
 	$(eval $@_IN_PKG = $(1))
 	$(eval $@_OUT_PKG = $(2))
 	productsign \
-		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--sign '$(DEVELOPER_ID_INSTALLER)' \
 		--timestamp \
 		$($@_IN_PKG) \
 		$($@_OUT_PKG)
-	xcrun notarytool submit $(@_OUT_PKG) \
+	xcrun notarytool submit $($@_OUT_PKG) \
 		--team-id="$(TEAMID)" \
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
 		--wait
+	xcrun stapler staple $($@_OUT_PKG)
 endef
 
 echo_var = @echo $(1)=\''$($(1))'\'

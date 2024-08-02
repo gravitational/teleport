@@ -230,7 +230,6 @@ endif
 # and tsh.
 BINS_default = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
-BINS_darwin = $(subst tsh,tsh.app,$(BINS_default))
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
@@ -409,10 +408,14 @@ $(BUILDDIR)/fdpass-teleport:
 
 .PHONY: $(BUILDDIR)/tsh.app
 $(BUILDDIR)/tsh.app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
-$(BUILDDIR)/tsh.app: $(BUILDDIR)/tsh
-	cp -r $(TSH_APP_SKELETON)/ $(BUILDDIR)/tsh.app/
-	mkdir -p "$(BUILDDIR)/tsh.app/Contents/MacOS/"
-	mv "$(BUILDDIR)/tsh" "$(BUILDDIR)/tsh.app/Contents/MacOS/."
+$(BUILDDIR)/tsh.app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
+$(BUILDDIR)/tsh.app: TSH_APP_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
+$(BUILDDIR)/tsh.app: TSH_BINARY = $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh.app:
+	cp -rf "$(TSH_APP_SKELETON)/" "$(TSH_APP_BUNDLE)"/
+	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
+	cp "$(TSH_BINARY)" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
+	$(NOTARIZE_TSH_APP)
 
 #
 # BPF support (IF ENABLED)
@@ -593,8 +596,9 @@ release-darwin-unsigned: full build-archive
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release BINARIES=$(BINARIES_default); fi
+	$(MAKE) $(BUILDDIR)/tsh.app
+	$(MAKE) build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
 # release-darwin for ARCH == universal does not build binaries, but instead
@@ -610,18 +614,23 @@ else
 # Ensure you have the rust toolchains for these installed by running
 #   make ARCH=arm64 rustup-install-target-toolchain
 #   make ARCH=amd64 rustup-install-target-toolchain
+release-darwin: TARBINS := $(subst tsh,tsh.app,$(TARBINS))
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
-	tsh_relpath=tsh.app/Contents/MacOS/tsh
 
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
-	lipo -create -output $(BUILDDIR)/$$tsh_relpath $(BUILDDIR_arm64)/$$tsh_relpath $(BUILDDIR_amd64)/$$tsh_relpath
-	$(MAKE) ARCH=universal build-archive
+	lipo -create -output $(BUILDDIR)/tsh \
+		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
+		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+
+	$(NOTARIZE_BINARIES)
+	$(MAKE) $(BUILDDIR)/tsh.app
+	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
@@ -1336,7 +1345,7 @@ tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
-		--ref "v$(VERSION)" \
+		--ref "gus/unify-mac" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
@@ -1600,9 +1609,11 @@ endif
 # builds two package files: tsh-$VERSION.pkg and teleport-bin-$VERSION.pkg
 # combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
+pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
+pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
-	
+
 	@echo Building tsh-$(VERSION).pkg
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tsh*.pkg* $(BUILDDIR)/
@@ -1615,8 +1626,8 @@ pkg: | $(RELEASE_DIR)
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 
 	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
-	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
-	$(call $(NOTARIZE_PKG),$(BUILDDIR)/teleport-$(VERSION).unsigned.pkg,$(RELEASE_DIR)/teleport-$(VERSION.pkg))
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_PKG)
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 

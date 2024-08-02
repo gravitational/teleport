@@ -10,11 +10,12 @@ BINDIR=/usr/local/bin
 #
 VARDIR=/var/lib/teleport
 
+#
+# (mac only) the directory where Teleport .app bundles will be installed
+#
+APPS_DIR=/Applications
+
 [ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
-echo "Starting Teleport installation..."
-cd $(dirname $0)
-mkdir -p $VARDIR $BINDIR
-cp -f teleport tctl tsh tbot $BINDIR/ || exit 1
 
 #
 # What operating system is the user running?
@@ -27,6 +28,15 @@ case "${unameOut}" in
     MINGW*)     machine=minGw;;
     *)          machine="UNKNOWN:${unameOut}"
 esac
+
+echo "Starting Teleport installation..."
+cd $(dirname $0)
+mkdir -p $VARDIR $BINDIR
+cp -f teleport tctl tsh tbot $BINDIR/ || exit 1
+
+if [[ machine == "Darwin" ]];then
+    cp -rf tsh.app/ "$APPS_DIR"/tsh.app/
+fi
 
 echo "Teleport binaries have been copied to $BINDIR"
 echo ""
