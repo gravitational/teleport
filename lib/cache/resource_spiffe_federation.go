@@ -27,13 +27,19 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-type spiffeFederationGetter interface {
+// spiffeFederationReader is an interface that defines the methods for getting
+// SPIFFE federations. This is returned as the reader for the SPIFFEFederations
+// collection but is also used by the executor to read the full list of
+// SPIFFE Federations on initialization.
+type spiffeFederationReader interface {
 	ListSPIFFEFederations(ctx context.Context, pageSize int, nextToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 }
 
+// spiffeFederationCacher is used for storing and retrieving SPIFFE federations
+// from the cache's local backend.
 type spiffeFederationCacher interface {
-	spiffeFederationGetter
+	spiffeFederationReader
 	UpsertSPIFFEFederation(ctx context.Context, federation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
 	DeleteAllSPIFFEFederations(ctx context.Context) error
@@ -41,7 +47,7 @@ type spiffeFederationCacher interface {
 
 type spiffeFederationExecutor struct{}
 
-var _ executor[*machineidv1.SPIFFEFederation, spiffeFederationGetter] = spiffeFederationExecutor{}
+var _ executor[*machineidv1.SPIFFEFederation, spiffeFederationReader] = spiffeFederationExecutor{}
 
 func (spiffeFederationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*machineidv1.SPIFFEFederation, error) {
 	var out []*machineidv1.SPIFFEFederation
@@ -68,16 +74,16 @@ func (spiffeFederationExecutor) upsert(ctx context.Context, cache *Cache, resour
 }
 
 func (spiffeFederationExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.secReportsCache.DeleteAllSecurityReports(ctx))
+	return trace.Wrap(cache.spiffeFederationCache.DeleteAllSPIFFEFederations(ctx))
 }
 
 func (spiffeFederationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.secReportsCache.DeleteSecurityReport(ctx, resource.GetName()))
+	return trace.Wrap(cache.spiffeFederationCache.DeleteSPIFFEFederation(ctx, resource.GetName()))
 }
 
 func (spiffeFederationExecutor) isSingleton() bool { return false }
 
-func (spiffeFederationExecutor) getReader(cache *Cache, cacheOK bool) spiffeFederationGetter {
+func (spiffeFederationExecutor) getReader(cache *Cache, cacheOK bool) spiffeFederationReader {
 	if cacheOK {
 		return cache.spiffeFederationCache
 	}

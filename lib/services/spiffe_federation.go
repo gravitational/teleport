@@ -29,35 +29,32 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// SPIFFEFederation is an interface for the SPIFFEFederation service.
-type SPIFFEFederation interface {
-	// CreateSPIFFEFederation creates a new SPIFFE Federation.
-	CreateSPIFFEFederation(ctx context.Context, spiffeFederation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
-
+// SPIFFEFederations is an interface for the SPIFFEFederations service.
+type SPIFFEFederations interface {
 	// GetSPIFFEFederation gets a SPIFFE Federation by name.
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
-
 	// ListSPIFFEFederations lists all SPIFFE Federations using Google style
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
-
+	// CreateSPIFFEFederation creates a new SPIFFE Federation.
+	CreateSPIFFEFederation(ctx context.Context, spiffeFederation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
 	// DeleteSPIFFEFederation deletes a SPIFFE Federation by name.
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
 }
 
-// MarshalSPIFFEFederation marshals the SPIFFEFederation object into a JSON byte array.
+// MarshalSPIFFEFederation marshals the SPIFFEFederations object into a JSON byte array.
 func MarshalSPIFFEFederation(object *machineidv1.SPIFFEFederation, opts ...MarshalOption) ([]byte, error) {
 	object.Version = types.V1
 	object.Kind = types.KindSPIFFEFederation
 	return MarshalProtoResource(object, opts...)
 }
 
-// UnmarshalSPIFFEFederation unmarshals the SPIFFEFederation object from a JSON byte array.
+// UnmarshalSPIFFEFederation unmarshals the SPIFFEFederations object from a JSON byte array.
 func UnmarshalSPIFFEFederation(data []byte, opts ...MarshalOption) (*machineidv1.SPIFFEFederation, error) {
 	return UnmarshalProtoResource[*machineidv1.SPIFFEFederation](data, opts...)
 }
 
-// ValidateSPIFFEFederation validates the SPIFFEFederation object.
+// ValidateSPIFFEFederation validates the SPIFFEFederations object.
 func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 	switch {
 	case s == nil:

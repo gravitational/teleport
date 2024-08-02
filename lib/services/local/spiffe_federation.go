@@ -33,7 +33,7 @@ const (
 )
 
 // SPIFFEFederationService exposes backend functionality for storing
-// SPIFFEFederation
+// SPIFFEFederations
 type SPIFFEFederationService struct {
 	service *generic.ServiceWrapper[*machineidv1.SPIFFEFederation]
 }
@@ -56,7 +56,7 @@ func NewSPIFFEFederationService(
 	}, nil
 }
 
-// CreateSPIFFEFederation inserts a new SPIFFEFederation into the backend.
+// CreateSPIFFEFederation inserts a new SPIFFEFederations into the backend.
 func (b *SPIFFEFederationService) CreateSPIFFEFederation(
 	ctx context.Context, federation *machineidv1.SPIFFEFederation,
 ) (*machineidv1.SPIFFEFederation, error) {
@@ -67,7 +67,7 @@ func (b *SPIFFEFederationService) CreateSPIFFEFederation(
 	return created, trace.Wrap(err)
 }
 
-// GetSPIFFEFederation retrieves a specific SPIFFEFederation given a name
+// GetSPIFFEFederation retrieves a specific SPIFFEFederations given a name
 func (b *SPIFFEFederationService) GetSPIFFEFederation(
 	ctx context.Context, name string,
 ) (*machineidv1.SPIFFEFederation, error) {
@@ -84,9 +84,29 @@ func (b *SPIFFEFederationService) ListSPIFFEFederations(
 	return r, nextToken, trace.Wrap(err)
 }
 
-// DeleteSPIFFEFederation deletes a specific SPIFFEFederation.
+// DeleteSPIFFEFederation deletes a specific SPIFFEFederations.
 func (b *SPIFFEFederationService) DeleteSPIFFEFederation(
 	ctx context.Context, name string,
 ) error {
 	return trace.Wrap(b.service.DeleteResource(ctx, name))
+}
+
+// DeleteAllSPIFFEFederations deletes all SPIFFE federations, this is typically
+// only meant to be used by the cache.
+func (b *SPIFFEFederationService) DeleteAllSPIFFEFederations(
+	ctx context.Context,
+) error {
+	return trace.Wrap(b.service.DeleteAllResources(ctx))
+}
+
+// UpsertSPIFFEFederation upserts a SPIFFEFederations. Prefer using
+// CreateSPIFFEFederation. This is only designed for usage by the cache.
+func (b *SPIFFEFederationService) UpsertSPIFFEFederation(
+	ctx context.Context, federation *machineidv1.SPIFFEFederation,
+) (*machineidv1.SPIFFEFederation, error) {
+	if err := services.ValidateSPIFFEFederation(federation); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	upserted, err := b.service.UpsertResource(ctx, federation)
+	return upserted, trace.Wrap(err)
 }

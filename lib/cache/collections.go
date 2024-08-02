@@ -251,7 +251,7 @@ type cacheCollections struct {
 	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
-	spiffeFederations        collectionReader[spiffeFederationGetter]
+	spiffeFederations        collectionReader[spiffeFederationReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -745,10 +745,10 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.byKind[resourceKind] = collections.accessGraphSettings
 		case types.KindSPIFFEFederation:
-			if c.spiffeFederationCache == nil {
-				return nil, trace.BadParameter("missing parameter spiffeFederationCache")
+			if c.Config.SPIFFEFederations == nil {
+				return nil, trace.BadParameter("missing parameter SPIFFEFederations")
 			}
-			collections.spiffeFederations = &genericCollection[*machineidv1.SPIFFEFederation, spiffeFederationGetter, spiffeFederationExecutor]{
+			collections.spiffeFederations = &genericCollection[*machineidv1.SPIFFEFederation, spiffeFederationReader, spiffeFederationExecutor]{
 				cache: c,
 				watch: watch,
 			}

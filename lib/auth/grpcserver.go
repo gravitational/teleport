@@ -5194,7 +5194,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	spiffeFederationService, err := machineidv1.NewSPIFFEFederationService(machineidv1.SPIFFEFederationServiceConfig{
 		Authorizer: cfg.Authorizer,
-		Backend:    nil, // TODO
+		Backend:    cfg.AuthServer.Services.SPIFFEFederations,
+		Cache:      cfg.AuthServer.Cache,
 		Clock:      cfg.AuthServer.GetClock(),
 		Emitter:    cfg.Emitter,
 	})
