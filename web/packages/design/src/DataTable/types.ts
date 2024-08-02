@@ -54,6 +54,16 @@ export type TableProps<T> = {
   // any client table filtering supplied by default.
   // Use case: filtering is done on the caller side e.g. server side.
   disableFilter?: boolean;
+  /**
+   * row configuration
+   */
+  row?: {
+    onClick?(row: T): void;
+    /**
+     * conditionally style a row (eg: cursor: pointer, disabled)
+     */
+    onStyle?(row: T): React.CSSProperties;
+  };
 };
 
 type TableColumnBase<T> = {

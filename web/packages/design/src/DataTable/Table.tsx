@@ -56,6 +56,7 @@ export function Table<T>({
   style,
   serversideProps,
   customSort,
+  row,
 }: State<T>) {
   const renderHeaders = () => {
     const headers = columns.flatMap(column => {
@@ -126,7 +127,15 @@ export function Table<T>({
           </React.Fragment>
         );
       });
-      rows.push(<tr key={rowIdx}>{cells}</tr>);
+      rows.push(
+        <tr
+          key={rowIdx}
+          onClick={row?.onClick ? () => row.onClick(item) : undefined}
+          style={row?.onStyle ? row.onStyle(item) : undefined}
+        >
+          {cells}
+        </tr>
+      );
     });
 
     if (rows.length) {

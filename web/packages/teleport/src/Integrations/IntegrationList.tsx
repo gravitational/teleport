@@ -18,6 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
@@ -65,11 +66,27 @@ type Props<IntegrationLike> = {
 type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
+  const history = useHistory();
+
+  function handleOnRowClick(row: IntegrationLike) {
+    if (row.kind !== 'okta') return;
+    history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
+  }
+
+  function handleOnRowStyle(row: IntegrationLike): React.CSSProperties {
+    if (row.kind !== 'okta') return;
+    return { cursor: 'pointer' };
+  }
+
   return (
     <Table
       pagination={{ pageSize: 20 }}
       isSearchable
       data={props.list}
+      row={{
+        onClick: handleOnRowClick,
+        onStyle: handleOnRowStyle,
+      }}
       columns={[
         {
           key: 'resourceType',
@@ -98,18 +115,18 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
-                      Delete...
-                    </MenuItem>
                     {/* Currently, only okta supports status pages */}
                     {item.kind === 'okta' && (
                       <MenuItem
                         as={InternalRouteLink}
                         to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
                       >
-                        View Status...
+                        View Status
                       </MenuItem>
                     )}
+                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
+                      Delete...
+                    </MenuItem>
                   </MenuButton>
                 </Cell>
               );

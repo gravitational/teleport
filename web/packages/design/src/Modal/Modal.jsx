@@ -200,6 +200,7 @@ export default class Modal extends React.Component {
           data-testid="Modal"
           ref={this.handleModalRef}
           className={className}
+          onClick={e => e.stopPropagation()}
         >
           {!hideBackdrop && (
             <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
