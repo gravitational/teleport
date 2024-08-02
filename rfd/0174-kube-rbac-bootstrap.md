@@ -312,6 +312,15 @@ in management, since the user can't easily change targeting just by creating/edi
 Kube service. This also looses granularity of control when doing discovery and proxying dynamic clusters, since all cluster will have same
 `kubeProvisionLabels` setup and user might need to run multiple Kube service to get the granularity back.
 
+## Backward Compatibility
+
+The introduced features will be available on all auth servers/agents updated to the sufficient version. Older agents, even if they are
+connected to an auth server that is on a sufficient version, will not support provisioning. Autoupgraded agents will be able to support it 
+immediately, no changes in the helm chart or permissions are required. The features are opt-in - there's no any changes after the upgrade and
+users need to make explicit actions to start using the features (create KubeProvision resource or a role with `kubernetes_permissions`). 
+No migration on the backend is required. In case of rollback Kubernetes clusters might have leftover roles/bindings that were created by the
+provisioning, although it won't affect functionality of the rolled back Teleport cluster.
+
 ## Future work
 
 As mentioned above adding pattern matching to the `kubernetes_permissions` field is probably something we will need to add in the future, improving
