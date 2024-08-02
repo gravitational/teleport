@@ -278,9 +278,14 @@ const (
 	// in a graceful way.
 	TeleportReloadEvent = "TeleportReload"
 
-	// TeleportPhaseChangeEvent is generated to indidate that teleport
-	// CA rotation phase has been updated, used in tests
+	// TeleportPhaseChangeEvent is generated to indicate that the CA rotation
+	// phase has been updated, used in tests.
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
+
+	// TeleportCredentialsUpdatedEvent is generated to indicate that credentials
+	// have been reissued due to a CA rotation or a principals or DNS names
+	// change, used in tests.
+	TeleportCredentialsUpdatedEvent = "TeleportCredentialsUpdated"
 
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
@@ -303,9 +308,13 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverState, err := newConnectorState(serverIdentity)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	serverState := clientState
+	if serverIdentity != clientIdentity {
+		s, err := newConnectorState(serverIdentity)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverState = s
 	}
 	c := &Connector{
 		clusterName: clientIdentity.ClusterName,

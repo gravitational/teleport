@@ -735,12 +735,8 @@ func (process *TeleportProcess) syncRotationStateCycle(retry retryutils.Retry) e
 	// and no internal services is left behind.
 	conn := connectors[0]
 
-	status, err := process.syncRotationStateAndBroadcast(conn)
-	if err != nil {
+	if err := process.syncRotationStateAndBroadcast(conn); err != nil {
 		return trace.Wrap(err)
-	}
-	if status.needsReload {
-		return nil
 	}
 
 	watcher, err := process.newWatcher(conn, types.Watch{Kinds: []types.WatchKind{{
@@ -777,22 +773,14 @@ func (process *TeleportProcess) syncRotationStateCycle(retry retryutils.Retry) e
 			if ca.GetType() != types.HostCA || ca.GetClusterName() != conn.ClusterName() {
 				continue
 			}
-			status, err := process.syncRotationStateAndBroadcast(conn)
-			if err != nil {
+			if err := process.syncRotationStateAndBroadcast(conn); err != nil {
 				return trace.Wrap(err)
-			}
-			if status.needsReload {
-				return nil
 			}
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher has disconnected")
 		case <-periodic.Next():
-			status, err := process.syncRotationStateAndBroadcast(conn)
-			if err != nil {
+			if err := process.syncRotationStateAndBroadcast(conn); err != nil {
 				return trace.Wrap(err)
-			}
-			if status.needsReload {
-				return nil
 			}
 		case <-process.GracefulExitContext().Done():
 			return nil
@@ -802,7 +790,7 @@ func (process *TeleportProcess) syncRotationStateCycle(retry retryutils.Retry) e
 
 // syncRotationStateAndBroadcast syncs rotation state and broadcasts events
 // when phase has been changed or reload happened
-func (process *TeleportProcess) syncRotationStateAndBroadcast(conn *Connector) (*rotationStatus, error) {
+func (process *TeleportProcess) syncRotationStateAndBroadcast(conn *Connector) error {
 	status, err := process.syncRotationState(conn)
 	if err != nil {
 		if trace.IsConnectionProblem(err) {
@@ -810,48 +798,45 @@ func (process *TeleportProcess) syncRotationStateAndBroadcast(conn *Connector) (
 		} else {
 			process.logger.WarnContext(process.ExitContext(), "Failed to sync rotation state.", "error", err)
 		}
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	if status.phaseChanged || status.needsReload {
-		process.logger.DebugContext(process.ExitContext(), "Sync rotation state detected cert authority reload phase update.")
-	}
 	if status.phaseChanged {
+		process.logger.DebugContext(process.ExitContext(), "Sync rotation state detected CA rotation phase update.")
 		process.BroadcastEvent(Event{Name: TeleportPhaseChangeEvent})
 	}
-	if status.needsReload {
-		process.logger.DebugContext(process.ExitContext(), "Triggering reload process.")
-		process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+	if status.credentialsUpdated {
+		process.logger.InfoContext(process.ExitContext(), "Credentials reissued.")
+		process.BroadcastEvent(Event{Name: TeleportCredentialsUpdatedEvent})
 	}
-	return status, nil
+	return nil
 }
 
 // syncRotationState compares cluster rotation state with the state of
 // internal services and performs the rotation if necessary.
-func (process *TeleportProcess) syncRotationState(conn *Connector) (*rotationStatus, error) {
+func (process *TeleportProcess) syncRotationState(conn *Connector) (rotationStatus, error) {
 	connectors := process.getConnectors()
 	ca, err := process.getCertAuthority(conn, types.CertAuthID{
 		DomainName: conn.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return rotationStatus{}, trace.Wrap(err)
 	}
 	var status rotationStatus
-	status.ca = ca
 	for _, conn := range connectors {
 		serviceStatus, err := process.syncServiceRotationState(ca, conn)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return rotationStatus{}, trace.Wrap(err)
 		}
-		if serviceStatus.needsReload {
-			status.needsReload = true
+		if serviceStatus.credentialsUpdated {
+			status.credentialsUpdated = true
 		}
 		if serviceStatus.phaseChanged {
 			status.phaseChanged = true
 		}
 	}
-	return &status, nil
+	return status, nil
 }
 
 // syncServiceRotationState syncs up rotation state for internal services (Auth, Proxy, Node) and
@@ -865,15 +850,12 @@ func (process *TeleportProcess) syncServiceRotationState(ca types.CertAuthority,
 }
 
 type rotationStatus struct {
-	// needsReload means that phase has been updated
-	// and teleport process has to reload
-	needsReload bool
-	// phaseChanged means that teleport phase has been updated,
-	// but teleport does not need reload
+	// credentialsUpdated means that credentials were updated in the
+	// [Connector].
+	credentialsUpdated bool
+	// phaseChanged means that a CA rotation phase has been updated, but
+	// credentials were not reissued.
 	phaseChanged bool
-	// ca is the certificate authority
-	// fetched during status check
-	ca types.CertAuthority
 }
 
 // checkServerIdentity returns a boolean that indicates the host certificate
@@ -997,11 +979,17 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
+				connState, err := newConnectorState(identity)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 				err = storage.WriteIdentity(state.IdentityCurrent, *identity)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				return &rotationStatus{needsReload: true}, nil
+				conn.clientState.Store(connState)
+				conn.serverState.Store(connState)
+				return &rotationStatus{credentialsUpdated: true}, nil
 			}
 			return &rotationStatus{}, nil
 		case types.RotationStateInProgress:
@@ -1014,11 +1002,17 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			connState, err := newConnectorState(identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			err = writeStateAndIdentity(state.IdentityCurrent, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &rotationStatus{needsReload: true}, nil
+			conn.clientState.Store(connState)
+			conn.serverState.Store(connState)
+			return &rotationStatus{credentialsUpdated: true}, nil
 		default:
 			return nil, trace.BadParameter("unsupported state: %q", localState)
 		}
@@ -1050,13 +1044,17 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			connState, err := newConnectorState(identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			process.logger.DebugContext(process.ExitContext(), "Re-registered, received new identity.", "identity", logutils.StringerAttr(identity))
 			err = writeStateAndIdentity(state.IdentityReplacement, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// Require reload of teleport process to update client and servers.
-			return &rotationStatus{needsReload: true}, nil
+			conn.clientState.Store(connState)
+			return &rotationStatus{credentialsUpdated: true}, nil
 		case types.RotationPhaseUpdateServers:
 			// Allow transition to this phase only if the previous
 			// phase was "Update clients".
@@ -1068,12 +1066,16 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			connState, err := newConnectorState(replacement)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			err = writeStateAndIdentity(state.IdentityCurrent, replacement)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// Require reload of teleport process to update servers.
-			return &rotationStatus{needsReload: true}, nil
+			conn.serverState.Store(connState)
+			return &rotationStatus{credentialsUpdated: true}, nil
 		case types.RotationPhaseRollback:
 			// Allow transition to this phase from any other local phase
 			// because it will be widely used to recover cluster state to
@@ -1083,12 +1085,17 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			connState, err := newConnectorState(identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			err = writeStateAndIdentity(state.IdentityCurrent, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// Require reload of teleport process to update servers.
-			return &rotationStatus{needsReload: true}, nil
+			conn.clientState.Store(connState)
+			conn.serverState.Store(connState)
+			return &rotationStatus{credentialsUpdated: true}, nil
 		default:
 			return nil, trace.BadParameter("unsupported phase: %q", remote.Phase)
 		}
