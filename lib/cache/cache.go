@@ -1746,7 +1746,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
 
@@ -1755,11 +1755,11 @@ func (c *Cache) GetTokens(ctx context.Context, withSecrets bool) ([]types.Provis
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetTokens(ctx, withSecrets)
+	return rg.reader.GetTokens(ctx)
 }
 
 // GetToken finds and returns token by ID
-func (c *Cache) GetToken(ctx context.Context, name string, withSecret bool) (types.ProvisionToken, error) {
+func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
 	defer span.End()
 
@@ -1769,13 +1769,13 @@ func (c *Cache) GetToken(ctx context.Context, name string, withSecret bool) (typ
 	}
 	defer rg.Release()
 
-	token, err := rg.reader.GetToken(ctx, name, withSecret)
+	token, err := rg.reader.GetToken(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if token, err := c.Config.Provisioner.GetToken(ctx, name, withSecret); err == nil {
+		if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
 			return token, nil
 		}
 	}

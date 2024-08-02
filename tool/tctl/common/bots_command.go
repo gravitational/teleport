@@ -241,7 +241,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 		}
 	} else {
 		// If there is, check the token matches the potential bot
-		token, err = client.GetToken(ctx, c.tokenID, true)
+		token, err = client.GetToken(ctx, c.tokenID)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",

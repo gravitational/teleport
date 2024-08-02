@@ -38,7 +38,7 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for GCP join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token, true)
+	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

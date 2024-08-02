@@ -262,7 +262,7 @@ func checkIAMAllowRules(identity *awsIdentity, token string, allowRules []*types
 // included the required challenge.
 func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) error {
 	tokenName := req.RegisterUsingTokenRequest.Token
-	provisionToken, err := a.GetToken(ctx, tokenName, true)
+	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -97,7 +97,7 @@ type Backend interface {
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// GetToken returns a token by name.
-	GetToken(ctx context.Context, name string, withSecrets bool) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 }
 
 // BotServiceConfig holds configuration options for

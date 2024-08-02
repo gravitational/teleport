@@ -4814,7 +4814,7 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := a.GetToken(ctx, token, true)
+	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
@@ -4878,9 +4878,9 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (a *Server) GetTokens(ctx context.Context, withSecrets bool, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
+func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = a.Services.GetTokens(ctx, withSecrets)
+	tokens, err = a.Services.GetTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4907,19 +4907,7 @@ func (a *Server) GetTokens(ctx context.Context, withSecrets bool, opts ...servic
 		tokens = append(tokens, tok)
 	}
 
-	if withSecrets {
-		return tokens, nil
-	}
-
-	// filter out cloud specific tokens
-	filteredTokens := tokens[:0]
-	for _, tkn := range tokens {
-		if _, ok := tkn.GetMetadata().Labels[types.TeleportCloudSpecificTokenLabel]; !ok {
-			filteredTokens = append(filteredTokens, tkn)
-		}
-	}
-
-	return filteredTokens, nil
+	return tokens, nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.

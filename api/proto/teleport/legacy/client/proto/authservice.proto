@@ -2589,20 +2589,6 @@ message ListReleasesRequest {
   // ListReleases currently takes no params
 }
 
-// GetTokenV2Request is used with GetToken to get token from backend
-message GetTokenV2Request {
-  // Name is the name of the desired token.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // WithSecrets specifies whether to load associated secrets.
-  bool WithSecrets = 2 [(gogoproto.jsontag) = "with_secrets,omitempty"];
-}
-
-// GetTokensV2Request is used with GetTokens to get tokens from backend
-message GetTokensV2Request {
-  // WithSecrets specifies whether to load associated secrets.
-  bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets"];
-}
-
 // CreateTokenV2Request is used with CreateTokenV2 to create tokens in the
 // backend.
 message CreateTokenV2Request {
@@ -3184,9 +3170,9 @@ service AuthService {
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
   // GetToken retrieves a token described by the given request.
-  rpc GetToken(GetTokenV2Request) returns (types.ProvisionTokenV2);
+  rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
-  rpc GetTokens(GetTokensV2Request) returns (types.ProvisionTokenV2List);
+  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.

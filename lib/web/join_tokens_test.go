@@ -1430,7 +1430,7 @@ func (m *mockedNodeAPIGetter) GetClusterCACert(ctx context.Context) (*proto.GetC
 	return nil, trace.NotImplemented("mockGetClusterCACert not implemented")
 }
 
-func (m *mockedNodeAPIGetter) GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error) {
+func (m *mockedNodeAPIGetter) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	if m.mockGetToken != nil {
 		return m.mockGetToken(ctx, token)
 	}

@@ -479,7 +479,7 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
-func (m *mockCache) GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error) {
+func (m *mockCache) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	return nil, nil
 }
 

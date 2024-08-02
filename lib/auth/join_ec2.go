@@ -352,7 +352,7 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 // normal token checking logic resumes.
 func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	tokenName := req.Token
-	provisionToken, err := a.GetToken(ctx, tokenName, true)
+	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

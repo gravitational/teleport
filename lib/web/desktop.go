@@ -675,7 +675,7 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	ctx := r.Context()
 
 	// verify that the token exists
-	token, err := h.GetProxyClient().GetToken(ctx, tokenStr, true)
+	token, err := h.GetProxyClient().GetToken(ctx, tokenStr)
 	if err != nil {
 		return "", trace.BadParameter("invalid token")
 	}

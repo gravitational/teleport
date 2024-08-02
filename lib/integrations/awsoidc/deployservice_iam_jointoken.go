@@ -40,7 +40,7 @@ const (
 // TokenService defines the required methods to upsert the Provision Token used by the Deploy Service.
 type TokenService interface {
 	// GetToken returns a provision token by name.
-	GetToken(ctx context.Context, name string, withSecrets bool) (types.ProvisionToken, error)
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
@@ -119,7 +119,7 @@ func upsertIAMJoinToken(ctx context.Context, req upsertIAMJoinTokenRequest, clt 
 		AWSARN:     req.awsARN,
 	}
 
-	token, err := clt.GetToken(ctx, req.tokenName, true)
+	token, err := clt.GetToken(ctx, req.tokenName)
 	switch {
 	case err != nil && !trace.IsNotFound(err):
 		return trace.Wrap(err)

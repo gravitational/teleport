@@ -40,7 +40,7 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for Kubernetes join request")
 	}
-	unversionedToken, err := a.GetToken(ctx, req.Token, true)
+	unversionedToken, err := a.GetToken(ctx, req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

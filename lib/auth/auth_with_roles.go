@@ -2151,7 +2151,7 @@ func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
 	return a.authServer.DeleteReverseTunnel(domainName)
 }
 
-func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
+func (a *ServerWithRoles) DeleteToken(ctx context.Context, tokenName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2160,10 +2160,17 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.DeleteToken(ctx, token)
+	if token, err := a.authServer.GetToken(ctx, tokenName); err == nil {
+		if modules.GetModules().Features().Cloud && isTokenCloudJoin(token) {
+			return trace.AccessDenied("token %v is a cloud join token", token.GetName())
+		}
+
+	}
+
+	return a.authServer.DeleteToken(ctx, tokenName)
 }
 
-func (a *ServerWithRoles) GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error) {
+func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2172,10 +2179,31 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context, withSecrets bool) ([]ty
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetTokens(ctx, withSecrets)
+	tokens, err := a.authServer.GetTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !modules.GetModules().Features().Cloud {
+		return tokens, nil
+	}
+
+	var output []types.ProvisionToken
+	for _, token := range tokens {
+		if !isTokenCloudJoin(token) {
+			output = append(output, token)
+
+		}
+	}
+	return output, nil
 }
 
-func (a *ServerWithRoles) GetToken(ctx context.Context, token string, withSecrets bool) (types.ProvisionToken, error) {
+func isTokenCloudJoin(token types.ProvisionToken) bool {
+	_, ok := token.GetMetadata().Labels[types.TeleportCloudSpecificTokenLabel]
+	return ok
+}
+
+func (a *ServerWithRoles) GetToken(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
 	// The Proxy has permission to look up tokens by name in order to validate
 	// attempts to use the node join script.
 	if isProxy := a.hasBuiltinRole(types.RoleProxy); !isProxy {
@@ -2188,7 +2216,15 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string, withSecret
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetToken(ctx, token, withSecrets)
+	token, err := a.authServer.GetToken(ctx, tokenName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if modules.GetModules().Features().Cloud && isTokenCloudJoin(token) {
+		return nil, trace.AccessDenied("token %v is a cloud join token", token.GetName())
+	}
+	return token, nil
 }
 
 func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
@@ -2260,6 +2296,17 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
+	if oldToken, err := a.authServer.GetToken(ctx, token.GetName()); err == nil {
+		if modules.GetModules().Features().Cloud && isTokenCloudJoin(oldToken) {
+			return trace.AccessDenied("token %v is a cloud join token", token.GetName())
+		}
+
+	}
+
+	if modules.GetModules().Features().Cloud && isTokenCloudJoin(token) {
+		return trace.AccessDenied("token %v is a cloud join token", token.GetName())
+	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2280,6 +2327,10 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if modules.GetModules().Features().Cloud && isTokenCloudJoin(token) {
+		return trace.AccessDenied("token %v is a cloud join token", token.GetName())
 	}
 
 	if err := a.authServer.CreateToken(ctx, token); err != nil {

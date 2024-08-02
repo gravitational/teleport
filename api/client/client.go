@@ -2284,12 +2284,12 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 }
 
 // GetToken returns a provision token by name.
-func (c *Client) GetToken(ctx context.Context, name string, withSercrets bool) (types.ProvisionToken, error) {
+func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
 	if name == "" {
 		return nil, trace.BadParameter("cannot get token, missing name")
 	}
 
-	resp, err := c.grpc.GetToken(ctx, &proto.GetTokenV2Request{Name: name, WithSecrets: withSercrets})
+	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2297,8 +2297,8 @@ func (c *Client) GetToken(ctx context.Context, name string, withSercrets bool) (
 }
 
 // GetTokens returns a list of active provision tokens for nodes and users.
-func (c *Client) GetTokens(ctx context.Context, withSecrets bool) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &proto.GetTokensV2Request{WithSecrets: withSecrets})
+func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

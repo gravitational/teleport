@@ -40,7 +40,7 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for gitlab join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token, true)
+	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
