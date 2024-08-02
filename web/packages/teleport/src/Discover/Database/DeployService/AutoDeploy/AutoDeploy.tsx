@@ -18,7 +18,17 @@
 
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
+import {
+  Box,
+  ButtonSecondary,
+  Link,
+  Text,
+  Mark,
+  H3,
+  Subtitle3,
+  Link as ExternalLink,
+  Flex,
+} from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -34,7 +44,7 @@ import {
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
-import { integrationService } from 'teleport/services/integrations';
+import { integrationService, Regions } from 'teleport/services/integrations';
 import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
 import {
   DiscoverEventStatus,
@@ -127,6 +137,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
     if (wantAutoDiscover) {
       setAttempt({ status: 'processing' });
+      setSvcDeployedAwsUrl('');
+      setDeployFinished(false);
 
       const { awsAccountId } = splitAwsIamArn(
         agentMeta.awsIntegration.spec.roleArn
@@ -158,6 +170,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
       setShowLabelMatchErr(false);
       setAttempt({ status: 'processing' });
+      setSvcDeployedAwsUrl('');
+      setDeployFinished(false);
       integrationService
         .deployAwsOidcService(integrationName, {
           deploymentMode: 'database-service',
@@ -215,8 +229,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   }
 
   const wantAutoDiscover = !!dbMeta.autoDiscovery;
-  const isProcessing = attempt.status === 'processing' && !!svcDeployedAwsUrl;
-  const isDeploying = isProcessing && !!svcDeployedAwsUrl;
+  const isProcessing = attempt.status === 'processing' && !svcDeployedAwsUrl;
+  const isDeploying = attempt.status === 'processing' && !!svcDeployedAwsUrl;
   const hasError = attempt.status === 'failed';
 
   return (
@@ -290,14 +304,16 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                 </Subtitle3>
               </header>
               <ButtonSecondary
-                width="215px"
+                width="230px"
                 type="submit"
                 onClick={() => handleDeploy(validator)}
-                disabled={attempt.status === 'processing'}
+                disabled={isProcessing}
                 mt={2}
                 mb={2}
               >
-                Deploy Teleport Service
+                {isDeploying
+                  ? 'Redeploy Teleport Service'
+                  : 'Deploy Teleport Service'}
               </ButtonSecondary>
               {hasError && (
                 <Box>
@@ -321,6 +337,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                 resourceName={agentMeta.resourceName}
                 abortDeploying={abortDeploying}
                 svcDeployedAwsUrl={svcDeployedAwsUrl}
+                region={dbMeta.awsRegion}
               />
             )}
 
@@ -479,11 +496,13 @@ const DeployHints = ({
   deployFinished,
   abortDeploying,
   svcDeployedAwsUrl,
+  region,
 }: {
   resourceName: string;
   deployFinished(dbResult: Database): void;
   abortDeploying(): void;
   svcDeployedAwsUrl: string;
+  region: Regions;
 }) => {
   // Starts resource querying interval.
   const { result, active } = usePingTeleport<Database>(resourceName);
@@ -499,18 +518,57 @@ const DeployHints = ({
   if (showHint && !result) {
     return (
       <HintBox header="We're still in the process of creating your Database Service">
-        <Text mb={3}>
-          The network may be slow. Try continuing to wait for a few more minutes
-          or{' '}
-          <AlternateInstructionButton onClick={abortDeploying}>
-            try manually deploying your own service.
-          </AlternateInstructionButton>{' '}
-          You can visit your AWS{' '}
-          <Link target="_blank" href={svcDeployedAwsUrl}>
-            dashboard
-          </Link>{' '}
-          to see progress details.
-        </Text>
+        <Flex flexDirection="column" gap={3}>
+          <Text>
+            Visit your AWS{' '}
+            <Link target="_blank" href={svcDeployedAwsUrl}>
+              dashboard
+            </Link>{' '}
+            to see progress details.
+          </Text>
+          <Text>
+            There are a couple of possible reasons for why we haven't been able
+            to detect your database service:
+          </Text>
+          <ul
+            css={`
+              margin: 0;
+              padding-left: ${p => p.theme.space[3]}px;
+            `}
+          >
+            <li>
+              The subnets you selected does not route to an internet gateway
+              (igw) or a NAT gateway in a public subnet.
+            </li>
+            <li>
+              The security groups you selected does not allow outbound traffic
+              (eg: <Mark>0.0.0.0/0</Mark>) to reach Teleport cluster.
+            </li>
+            <li>
+              The security group attached to your database(s) does not allow
+              inbound traffic from the security group you selected or does not
+              allow inbound traffic from all IPs in the subnets you selected.
+            </li>
+            <li>
+              There may be issues in the region you selected ({region}). Check
+              the{' '}
+              <ExternalLink
+                target="_blank"
+                href="https://health.aws.amazon.com/health/status"
+              >
+                AWS Health Dashboard
+              </ExternalLink>{' '}
+              for any problems.
+            </li>
+            <li>
+              The network may be slow. Try continuing to wait for a few more
+              minutes or{' '}
+              <AlternateInstructionButton onClick={abortDeploying}>
+                try manually deploying your own service.
+              </AlternateInstructionButton>
+            </li>
+          </ul>
+        </Flex>
       </HintBox>
     );
   }
