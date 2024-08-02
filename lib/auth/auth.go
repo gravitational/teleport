@@ -4906,7 +4906,20 @@ func (a *Server) GetTokens(ctx context.Context, withSecrets bool, opts ...servic
 		}
 		tokens = append(tokens, tok)
 	}
-	return tokens, nil
+
+	if withSecrets {
+		return tokens, nil
+	}
+
+	// filter out cloud specific tokens
+	filteredTokens := tokens[:0]
+	for _, tkn := range tokens {
+		if _, ok := tkn.GetMetadata().Labels[types.TeleportCloudSpecificTokenLabel]; !ok {
+			filteredTokens = append(filteredTokens, tkn)
+		}
+	}
+
+	return filteredTokens, nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.

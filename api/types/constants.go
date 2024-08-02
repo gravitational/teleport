@@ -1032,6 +1032,8 @@ const (
 
 	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
 	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
+
+	TeleportCloudSpecificTokenLabel = TeleportInternalLabelPrefix + "cloud/token"
 )
 
 const (
