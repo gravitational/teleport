@@ -173,7 +173,7 @@ flags for this command:
 $ tctl sso configure saml --preset=okta \
 --entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
 --attributes-to-roles=groups,okta-admin,editor \
---attributes-to-roles=groups,okta-dev,access > okta.yaml
+--attributes-to-roles=groups,okta-dev,access,dev > okta.yaml
 ```
 
 The contents of `okta.yaml` should resemble the following:
@@ -192,6 +192,7 @@ spec:
   - name: groups
     roles:
     - access
+    - dev
     value: okta-dev
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
@@ -204,8 +205,12 @@ spec:
 version: v2
 ```
 
-The `attributes_to_roles` field in the connector resource maps key/value-like attributes of
-the assertion from Okta into a list of Teleport roles to apply to the session.
+The `attributes_to_roles` field in the connector resource maps key/value-like
+attributes of the assertion from Okta into a list of Teleport roles to apply to
+the session. When a user authenticates to Teleport through Okta, if the user has
+a `groups` attribute assigned to `okta-admin`, the user will receive the
+`editor` role. If the user has a `groups` value of `okta-dev`, the user will
+receive the `access` and `dev` roles.
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
@@ -222,6 +227,7 @@ Authentication details:
    roles:
    - editor
    - access
+   - dev
    traits:
      groups:
      - Everyone
@@ -239,6 +245,7 @@ Authentication details:
 - name: groups
   roles:
   - access
+  - dev
   value: okta-dev
 
 --------------------------------------------------------------------------------
