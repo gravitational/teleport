@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
@@ -224,7 +225,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		ClientConfig:          clientConfig.SSH,
 		Log:                   clientConfig.Log,
 		InsecureSkipTLSVerify: clientConfig.Insecure,
-		ClusterCAs:            clientConfig.TLS.RootCAs,
+		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
 	})
 	if err != nil {
 		return trace.Wrap(err)

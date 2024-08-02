@@ -28,10 +28,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/x509"
+	"crypto"
 	"errors"
-	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -45,8 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/loglimit"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -835,37 +835,61 @@ type PROXYHeaderSigner interface {
 
 // PROXYSigner implements PROXYHeaderSigner to sign PROXY headers
 type PROXYSigner struct {
-	signingCertDER []byte
+	getCertificate utils.GetCertificateFunc
+	clock          clockwork.Clock
 	clusterName    string
-	jwtSigner      JWTPROXYSigner
 }
 
 // NewPROXYSigner returns a new instance of PROXYSigner
-func NewPROXYSigner(signingCert *x509.Certificate, jwtSigner JWTPROXYSigner) (*PROXYSigner, error) {
-	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if ok := checkForSystemRole(identity, types.RoleProxy); !ok {
-		return nil, trace.Wrap(ErrIncorrectRole)
-	}
-
+func NewPROXYSigner(clusterName string, getCertificate utils.GetCertificateFunc, clock clockwork.Clock) (*PROXYSigner, error) {
 	return &PROXYSigner{
-		signingCertDER: signingCert.Raw,
-		clusterName:    identity.TeleportCluster,
-		jwtSigner:      jwtSigner,
+		getCertificate: getCertificate,
+		clock:          clock,
+		clusterName:    clusterName,
 	}, nil
 }
 
 // SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
 func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
-	header, err := signPROXYHeader(source, destination, p.clusterName, p.signingCertDER, p.jwtSigner)
-	if err == nil {
-		log.WithFields(log.Fields{
-			"src_addr":     fmt.Sprintf("%v", source),
-			"dst_addr":     fmt.Sprintf("%v", destination),
-			"cluster_name": p.clusterName}).Trace("Successfully generated signed PROXY header")
+	cert, err := p.getCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return header, trace.Wrap(err)
+	if len(cert.Certificate) < 1 {
+		return nil, trace.Errorf("missing certificate for PROXY header signature")
+	}
+	if len(cert.Certificate) > 1 {
+		return nil, trace.Errorf("PROXY header signatures only support one certificate, got a chain of %v", len(cert.Certificate))
+	}
+	signingCert := cert.Certificate[0]
+
+	signer, ok := cert.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.Errorf("expected certificate private key to be a crypto.Signer, got %T", cert.PrivateKey)
+	}
+
+	jwtKey, err := jwt.New(&jwt.Config{
+		Clock:       p.clock,
+		PrivateKey:  signer,
+		ClusterName: p.clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	header, err := signPROXYHeader(source, destination, p.clusterName, signingCert, jwtKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if slog.Default().Enabled(context.Background(), logutils.TraceLevel) {
+		slog.LogAttrs(context.Background(), logutils.TraceLevel,
+			"Successfully signed PROXY header.",
+			slog.Any("src_addr", logutils.StringerAttr(source)),
+			slog.Any("dst_addr", logutils.StringerAttr(destination)),
+			slog.String("src_addr", p.clusterName),
+		)
+	}
+
+	return header, nil
 }

@@ -260,7 +260,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		ClientConfig:          clientConfig.SSH,
 		Log:                   clientConfig.Log,
 		InsecureSkipTLSVerify: clientConfig.Insecure,
-		ClusterCAs:            clientConfig.TLS.RootCAs,
+		GetClusterCAs:         client.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
 	})
 	require.NoError(t, err)
 

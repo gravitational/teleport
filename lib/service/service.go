@@ -278,9 +278,14 @@ const (
 	// in a graceful way.
 	TeleportReloadEvent = "TeleportReload"
 
-	// TeleportPhaseChangeEvent is generated to indidate that teleport
-	// CA rotation phase has been updated, used in tests
+	// TeleportPhaseChangeEvent is generated to indicate that the CA rotation
+	// phase has been updated, used in tests.
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
+
+	// TeleportCredentialsUpdatedEvent is generated to indicate that credentials
+	// have been reissued due to a CA rotation or a principals or DNS names
+	// change, used in tests.
+	TeleportCredentialsUpdatedEvent = "TeleportCredentialsUpdated"
 
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
@@ -303,9 +308,13 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverState, err := newConnectorState(serverIdentity)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	serverState := clientState
+	if serverIdentity != clientIdentity {
+		s, err := newConnectorState(serverIdentity)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverState = s
 	}
 	c := &Connector{
 		clusterName: clientIdentity.ClusterName,
@@ -447,6 +456,27 @@ func (c *Connector) clientIdentityString() string {
 	return c.clientState.Load().identity.String()
 }
 
+func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	hostKeyCallback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: func() ([]ssh.PublicKey, error) {
+				return c.clientState.Load().hostCheckers, nil
+			},
+			FIPS: fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ssh.ClientConfig{
+		User: c.hostID,
+		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
+			return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
+		})},
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         apidefaults.DefaultIOTimeout,
+	}, nil
+}
+
 // ServerTLSConfig returns a new server-side [*tls.Config] that presents the
 // connector's credentials as its certificate. The returned tls.Config doesn't
 // request or trust any client certificates, so the caller is responsible for
@@ -454,11 +484,7 @@ func (c *Connector) clientIdentityString() string {
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	conf := utils.TLSConfig(cipherSuites)
 	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-		tlsCert := c.serverState.Load().tlsCert
-		if tlsCert == nil {
-			return nil, trace.NotFound("no TLS credentials setup for this identity")
-		}
-		return tlsCert, nil
+		return c.serverGetCertificate()
 	}
 	return conf, nil
 }
@@ -483,19 +509,16 @@ func (c *Connector) ServerGetValidPrincipals() []string {
 	return slices.Clone(sshCert.ValidPrincipals)
 }
 
+func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
+	tlsCert := c.serverState.Load().tlsCert
+	if tlsCert == nil {
+		return nil, trace.NotFound("no TLS credentials setup for this identity")
+	}
+	return tlsCert, nil
+}
+
 func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	serverIdentity := c.serverState.Load().identity
-	signer, err := keys.ParsePrivateKey(serverIdentity.KeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "could not parse identity's private key")
-	}
-
-	jwtSigner, err := services.GetJWTSigner(signer, serverIdentity.ClusterName, clock)
-	if err != nil {
-		return nil, trace.Wrap(err, "could not create JWT signer")
-	}
-
-	proxySigner, err := multiplexer.NewPROXYSigner(serverIdentity.XCert, jwtSigner)
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
