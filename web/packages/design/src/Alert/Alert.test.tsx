@@ -32,7 +32,7 @@ test.each`
   ${'success'} | ${theme.colors.interactive.tonal.success[0].background}
 `('Renders appropriate background for kind $kind', ({ kind, background }) => {
   const { container } = render(<Alert kind={kind} />);
-  expect(container.firstChild).toHaveStyle({ background });
+  expect(container.firstChild.firstChild).toHaveStyle({ background });
 });
 
 test('action buttons', async () => {

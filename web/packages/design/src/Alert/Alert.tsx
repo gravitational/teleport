@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { style } from 'styled-system';
+import { style, color, ColorProps } from 'styled-system';
 
 import { space, SpaceProps, width, WidthProps } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
@@ -43,35 +43,30 @@ type Kind =
   | 'outline-info'
   | 'outline-warn';
 
-const kind = (props: ThemedAlertProps) => {
+const border = (props: ThemedAlertProps) => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
       return {
-        background: theme.colors.interactive.tonal.success[0].background,
         borderColor: theme.colors.interactive.solid.success.default.background,
       };
     case 'danger':
     case 'outline-danger':
       return {
-        background: theme.colors.interactive.tonal.danger[0].background,
         borderColor: theme.colors.interactive.solid.danger.default.background,
       };
     case 'info':
     case 'outline-info':
       return {
-        background: theme.colors.interactive.tonal.informational[0].background,
         borderColor: theme.colors.interactive.solid.accent.default.background,
       };
     case 'warning':
     case 'outline-warn':
       return {
-        background: theme.colors.interactive.tonal.alert[0].background,
         borderColor: theme.colors.interactive.solid.alert.default.background,
       };
     case 'neutral':
       return {
-        background: theme.colors.interactive.tonal.neutral[0].background,
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
       };
@@ -80,10 +75,38 @@ const kind = (props: ThemedAlertProps) => {
   }
 };
 
-export interface AlertProps
-  extends React.ComponentPropsWithoutRef<'div'>,
-    SpaceProps,
-    WidthProps {
+const backgroundColor = (props: ThemedAlertProps) => {
+  const { kind, theme } = props;
+  switch (kind) {
+    case 'success':
+      return {
+        background: theme.colors.interactive.tonal.success[0].background,
+      };
+    case 'danger':
+    case 'outline-danger':
+      return {
+        background: theme.colors.interactive.tonal.danger[0].background,
+      };
+    case 'info':
+    case 'outline-info':
+      return {
+        background: theme.colors.interactive.tonal.informational[0].background,
+      };
+    case 'warning':
+    case 'outline-warn':
+      return {
+        background: theme.colors.interactive.tonal.alert[0].background,
+      };
+    case 'neutral':
+      return {
+        background: theme.colors.interactive.tonal.neutral[0].background,
+      };
+    default:
+      kind satisfies never;
+  }
+};
+
+export interface AlertProps extends SpaceProps, WidthProps, ColorProps {
   kind?: Kind;
   linkColor?: string;
   /** Additional description to be displayed below the main content. */
@@ -96,6 +119,8 @@ export interface AlertProps
   secondaryAction?: Action;
   /** If `true`, the component displays a dismiss button that hides the alert. */
   dismissible?: boolean;
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
 /** Specifies parameters of an action button. */
@@ -112,6 +137,13 @@ interface ThemedAlertProps extends AlertProps {
  * Displays an in-page alert. Component's children are displayed as the alert
  * title. Use the `details` attribute to display additional information. The
  * alert may optionally contain up to 2 action buttons and a dismiss button.
+ *
+ * The in-page alert, by default, is semi-transparent. To display it as a
+ * floating element (i.e. as an error indicator above the infinite scroll), you
+ * need to set the `bg` attribute to a solid color; the element's
+ * semi-transparent background will then be overlaid on top of it. Note that
+ * it's not enough to just display it on a background because of the round
+ * corers.
  */
 export const Alert = ({
   kind = 'danger',
@@ -121,6 +153,7 @@ export const Alert = ({
   primaryAction,
   secondaryAction,
   dismissible,
+  bg,
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
@@ -134,62 +167,74 @@ export const Alert = ({
   }
 
   return (
-    <AlertContainer kind={kind} {...otherProps}>
-      <IconContainer kind={kind}>
-        <AlertIcon size={alertIconSize} />
-      </IconContainer>
-      <Box flex="1">
-        <Text typography="h3">{children}</Text>
-        {details}
-      </Box>
-      {showActions && (
-        <Flex ml={5} gap={2}>
-          {primaryAction && (
-            <Button
-              {...primaryButtonProps(kind)}
-              onClick={primaryAction.onClick}
-            >
-              {primaryAction.content}
-            </Button>
-          )}
-          {secondaryAction && (
-            <ButtonText onClick={secondaryAction.onClick}>
-              {secondaryAction.content}
-            </ButtonText>
-          )}
-          {dismissible && !dismissed && (
-            <ButtonIcon aria-label="Dismiss" onClick={() => setDismissed(true)}>
-              <Icon.Cross size="small" color="text.slightlyMuted" />
-            </ButtonIcon>
-          )}
-        </Flex>
-      )}
-    </AlertContainer>
+    <OuterContainer bg={bg} kind={kind} {...otherProps}>
+      <InnerContainer kind={kind}>
+        <IconContainer kind={kind}>
+          <AlertIcon size={alertIconSize} />
+        </IconContainer>
+        <Box flex="1">
+          <Text typography="h3">{children}</Text>
+          {details}
+        </Box>
+        {showActions && (
+          <Flex ml={5} gap={2}>
+            {primaryAction && (
+              <Button
+                {...primaryButtonProps(kind)}
+                onClick={primaryAction.onClick}
+              >
+                {primaryAction.content}
+              </Button>
+            )}
+            {secondaryAction && (
+              <ButtonText onClick={secondaryAction.onClick}>
+                {secondaryAction.content}
+              </ButtonText>
+            )}
+            {dismissible && !dismissed && (
+              <ButtonIcon
+                aria-label="Dismiss"
+                onClick={() => setDismissed(true)}
+              >
+                <Icon.Cross size="small" color="text.slightlyMuted" />
+              </ButtonIcon>
+            )}
+          </Flex>
+        )}
+      </InnerContainer>
+    </OuterContainer>
   );
 };
 
-Alert.displayName = 'Alert';
-
-const AlertContainer = styled.div<AlertProps>`
-  border-radius: ${p => p.theme.radii[3]}px;
+/** Renders a round border and allows background color customization. */
+const OuterContainer = styled.div<AlertProps>`
   box-sizing: border-box;
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 12px 16px;
-  overflow: auto;
-  word-break: break-word;
+
   border: ${p => p.theme.borders[2]};
-  display: flex;
-  align-items: center;
+  border-radius: ${p => p.theme.radii[3]}px;
 
   ${space}
-  ${kind}
   ${width}
+  ${border}
+  ${color}
 
   a {
     color: ${({ theme }) => theme.colors.light};
     ${linkColor}
   }
+`;
+
+/** Renders a transparent color overlay. */
+const InnerContainer = styled.div<AlertProps>`
+  padding: 12px 16px;
+  overflow: auto;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+
+  ${backgroundColor}
 `;
 
 const getAlertIcon = (kind: Kind) => {
@@ -262,23 +307,9 @@ const IconContainer = styled.div<{ kind: Kind }>`
 const primaryButtonProps = (
   kind: Kind
 ): { fill: ButtonFill; intent: ButtonIntent } => {
-  switch (kind) {
-    case 'neutral':
-      return { fill: 'filled', intent: 'primary' };
-    case 'danger':
-    case 'outline-danger':
-      return { fill: 'border', intent: 'neutral' };
-    case 'info':
-    case 'outline-info':
-      return { fill: 'border', intent: 'neutral' };
-    case 'warning':
-    case 'outline-warn':
-      return { fill: 'border', intent: 'neutral' };
-    case 'success':
-      return { fill: 'filled', intent: 'neutral' };
-    default:
-      kind satisfies never;
-  }
+  return kind === 'neutral'
+    ? { fill: 'filled', intent: 'primary' }
+    : { fill: 'border', intent: 'neutral' };
 };
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
