@@ -445,6 +445,15 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		)
 	}
 
+	if conf.CertificateTTL > defaults.MaxRenewableCertTTL {
+		log.WarnContext(
+			context.TODO(),
+			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			"requested_ttl", conf.CertificateTTL,
+			"maximum_ttl", defaults.MaxRenewableCertTTL,
+		)
+	}
+
 	return nil
 }
 
