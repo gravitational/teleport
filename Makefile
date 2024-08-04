@@ -407,14 +407,12 @@ $(BUILDDIR)/fdpass-teleport:
 	install tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
 
 .PHONY: tsh-app
-tsh-app: TSH_APP_SKELETON = build.assets/macos/tsh/tsh.app
 tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
 tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
-tsh-app: TSH_BINARY = $(BUILDDIR)/tsh
 tsh-app:
-	cp -rf "$(TSH_APP_SKELETON)/" "$(TSH_APP_BUNDLE)"/
+	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
 	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
-	cp "$(TSH_BINARY)" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
+	cp "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
 	$(NOTARIZE_TSH_APP)
 
 #
