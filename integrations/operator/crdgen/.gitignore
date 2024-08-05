@@ -1,2 +1,2 @@
-cmd/protoc-gen-crd/protoc-gen-crd
-cmd/protoc-gen-crd-docs/protoc-gen-crd-docs
+protoc-gen-crd
+protoc-gen-crd-docs

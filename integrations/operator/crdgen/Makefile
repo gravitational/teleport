@@ -1,14 +1,15 @@
-build:
-	cd cmd/protoc-gen-crd; go build -o protoc-gen-crd
-
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
-.PHONY: build-docs
-build-docs:
-	cd cmd/protoc-gen-crd-docs; go build -o protoc-gen-crd-docs
+libfiles := $(wildcard lib/*.go)
+
+build: cmd/protoc-gen-crd/main.go $(libfiles)
+	go build github.com/gravitational/teleport/integrations/operator/crdgen/cmd/protoc-gen-crd
+
+build-docs: cmd/protoc-gen-crd-docs/main.go $(libfiles)
+	go build github.com/gravitational/teleport/integrations/operator/crdgen/cmd/protoc-gen-crd-docs
 
 .PHONY: test
 test: build
