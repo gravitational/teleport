@@ -67,24 +67,10 @@ that a user intends to access.
 On your local workstation, create a join token so you can add the server to your
 Teleport cluster:
 
-<Tabs>
-<TabItem label="Linux">
-
 ```code
 Let's save the token to a file
 $ tctl tokens add --type=node --format=text > token.file
 ```
-
-</TabItem>
-<TabItem label="macOS">
-
-```code
-Let's save the token to a file
-$ tctl tokens add --type=node --format=text > token.file
-```
-
-</TabItem>
-</Tabs>
 
 `--type=node` specifies that the Teleport process will act and join as an SSH
 server.
