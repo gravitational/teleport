@@ -39,9 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
-// AccessCacheConfig holds parameters used to configure a cache to
+// Config holds parameters used to configure a cache to
 // serve as an auth access point for a teleport service.
-type AccessCacheConfig struct {
+type Config struct {
 	// Context is the base context used to propagate closure to
 	// cache components.
 	Context context.Context
@@ -65,7 +65,7 @@ type AccessCacheConfig struct {
 	TracingProvider *tracing.Provider
 }
 
-func (c *AccessCacheConfig) CheckAndSetDefaults() error {
+func (c *Config) CheckAndSetDefaults() error {
 	if c.Setup == nil {
 		return trace.BadParameter("missing parameter Setup")
 	}
@@ -78,10 +78,10 @@ func (c *AccessCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewAccessCacheForServices creates a new cache for a Teleport service that
+// NewCacheForServices creates a new cache for a Teleport service that
 // uses the provided services to populate its resource collections.
-func NewAccessCacheForServices(
-	cfg AccessCacheConfig, services *authservices.Services,
+func NewCacheForServices(
+	cfg Config, services *authservices.Services,
 ) (*cache.Cache, error) {
 	cacheCfg, err := baseConfig(cfg)
 	if err != nil {
@@ -124,9 +124,9 @@ func NewAccessCacheForServices(
 	return cache.New(cfg.Setup(*cacheCfg))
 }
 
-// NewAccessCacheForClient creates a new cache for a teleport service that
+// NewCacheForClient creates a new cache for a teleport service that
 // uses an authclient.ClientI to populate its resource collections.
-func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
+func NewCacheForClient(cfg Config, client authclient.ClientI) (*cache.Cache, error) {
 	cacheCfg, err := baseConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -168,7 +168,7 @@ func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (
 	return cache.New(cfg.Setup(*cacheCfg))
 }
 
-func baseConfig(cfg AccessCacheConfig) (*cache.Config, error) {
+func baseConfig(cfg Config) (*cache.Config, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

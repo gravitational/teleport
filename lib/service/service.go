@@ -2179,7 +2179,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 
-			cache, err := process.newAccessCacheForServices(accesspoint.AccessCacheConfig{
+			cache, err := process.newAccessCacheForServices(accesspoint.Config{
 				Setup:     cache.ForAuth,
 				CacheName: []string{teleport.ComponentAuth},
 				Events:    true,
@@ -2566,22 +2566,22 @@ func (process *TeleportProcess) OnExit(serviceName string, callback func(interfa
 }
 
 // newAccessCache returns new local cache access point
-func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.AccessCacheConfig, services *auth.Services) (*cache.Cache, error) {
+func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config, services *auth.Services) (*cache.Cache, error) {
 	cfg.Context = process.ExitContext()
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewAccessCacheForServices(cfg, services)
+	return accesspoint.NewCacheForServices(cfg, services)
 }
 
-func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
+func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, client authclient.ClientI) (*cache.Cache, error) {
 	cfg.Context = process.ExitContext()
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewAccessCacheForClient(cfg, client)
+	return accesspoint.NewCacheForClient(cfg, client)
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
@@ -2726,7 +2726,7 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.Cl
 
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt authclient.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
-	return process.newAccessCacheForClient(accesspoint.AccessCacheConfig{
+	return process.newAccessCacheForClient(accesspoint.Config{
 		Setup:     setupConfig,
 		CacheName: cacheName,
 	}, clt)
