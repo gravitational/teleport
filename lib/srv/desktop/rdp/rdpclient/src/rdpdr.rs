@@ -85,7 +85,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         // safeguard in case of a server bug or some other anomalous behavior.
         if self.allow_directory_sharing {
             self.fs.handle_rdp_drive_io_request(req)?;
-            return Ok(vec![])
+            Ok(vec![])
         } else {
             Err(custom_err!(TeleportRdpdrBackendError(
                 "Received a directory sharing PDU but directory sharing is not enabled".to_string()
