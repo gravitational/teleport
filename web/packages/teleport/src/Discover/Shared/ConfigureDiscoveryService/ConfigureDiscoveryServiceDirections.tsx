@@ -35,7 +35,7 @@ const discoveryServiceToolTip = `The Discovery Service is responsible for watchi
 cloud provider and checking if there are any new resources or if there have been any \
 modifications to previously discovered resources.`;
 
-export const SelfHostedAutoDiscoverDirections = ({
+export const ConfigureDiscoveryServiceDirections = ({
   clusterPublicUrl,
   discoveryGroupName,
   setDiscoveryGroupName,

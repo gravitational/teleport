@@ -114,8 +114,8 @@ exports[`empty state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -254,7 +254,7 @@ exports[`empty state 1`] = `
       </h1>
     </div>
     <div
-      class="c7 c8 sc-dcJtft c7"
+      class="c7 c8 sc-dsLQwm c7"
       width="100%"
     >
       <div
@@ -412,8 +412,8 @@ exports[`failed 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1731,8 +1731,8 @@ exports[`loaded 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;

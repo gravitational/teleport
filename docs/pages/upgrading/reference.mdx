@@ -327,7 +327,7 @@ Service, then on each of your agents:
 1. Install the new Teleport version on your Linux server:
 
    ```code
-   $ curl https://goteleport.com/static/install.sh | bash -s <Var name="version" /> <Var name="edition" />
+   $ curl (=teleport.teleport_install_script_url=) | bash -s <Var name="version" /> <Var name="edition" />
    ```
 
    The installation script detects the package manager on your Linux server and

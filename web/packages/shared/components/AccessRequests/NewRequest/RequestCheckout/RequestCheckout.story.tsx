@@ -203,6 +203,11 @@ const baseProps: RequestCheckoutWithSliderProps = {
       name: 'desktop-name',
       id: 'app-name',
     },
+    {
+      kind: 'saml_idp_service_provider',
+      name: 'app-saml',
+      id: 'app-name',
+    },
   ],
   clearAttempt: () => null,
   onClose: () => null,

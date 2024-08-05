@@ -1,4 +1,6 @@
-/**
+//go:build windows
+
+/*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
  *
@@ -15,20 +17,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React from 'react';
 
-import { SelfHostedAutoDiscoverDirections } from './SelfHostedAutoDiscoverDirections';
+package workloadattest
 
-export default {
-  title: 'Teleport/Discover/Shared/SelfHostedAutoDiscoveryDirections',
-};
+import (
+	"context"
+	"log/slog"
 
-export const Directions = () => {
-  return (
-    <SelfHostedAutoDiscoverDirections
-      clusterPublicUrl="https://teleport.example.com"
-      discoveryGroupName="test-group"
-      setDiscoveryGroupName={() => {}}
-    />
-  );
-};
+	"github.com/gravitational/trace"
+)
+
+// WindowsKubernetesAttestor is the windows stub for KubernetesAttestor.
+type WindowsKubernetesAttestor struct {
+}
+
+func (a WindowsKubernetesAttestor) Attest(_ context.Context, _ int) (KubernetesAttestation, error) {
+	return KubernetesAttestation{}, trace.NotImplemented("kubernetes attestation is not supported on windows")
+}
+
+// NewKubernetesAttestor creates a new KubernetesAttestor.
+func NewKubernetesAttestor(_ KubernetesAttestorConfig, _ *slog.Logger) *WindowsKubernetesAttestor {
+	return &WindowsKubernetesAttestor{}
+}
