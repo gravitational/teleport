@@ -21,6 +21,7 @@ jobs:
         pkg:cargo/ring,
         pkg:cargo/sspi,
         pkg:cargo/tokio-boring,
+        pkg:cargo/tokio-rustls,
         pkg:cargo/asn1-rs,
         pkg:cargo/asn1-rs-derive,
         pkg:cargo/asn1-rs-impl,
