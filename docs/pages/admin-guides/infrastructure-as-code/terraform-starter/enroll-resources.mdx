@@ -35,11 +35,9 @@ resources:
 - Compute instances to run Teleport services
 - A join token for each compute instance in the Agent pool
 
-![A Teleport Agent pool](../../../../img/tf-agent-diagram.png)
-
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.2.0"!)
 
 <Admonition type="tip">
 
@@ -66,24 +64,18 @@ a demo cluster using:
 
 - Terraform v(=terraform.version=) or higher.
 
-- An identity file for the Teleport Terraform provider. Make sure you have
-  completed [Set up the Teleport Terraform Provider
-  ](../../infrastructure-as-code/terraform-provider.mdx) before following this
-  guide. 
-
-  If you followed the guide, you should have the following files in your
-  Terraform project directory:
-
-  |Path|Description|
-  |---|---|
-  |`terraform-identity/identity`|Identity file used by the Terraform provider (renewed by a Machine ID Bot).|
-  |`create_and_run_terraform_bot.sh`|Script to start a Machine ID bot.|
-  |`provider.tf`|Configuration for the Teleport Terraform provider.|
-  |`remove_terraform_bot.sh`|Script to clean up the Machine ID Bot.|
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Import the Terraform module
+
+In this step, you will download Terraform modules that show you how to get
+started enrolling Teleport resources. These modules are minimal examples of how
+Teleport Terraform resources work together to enable you to manage Teleport
+Agents. 
+
+After finishing this guide and becoming familiar with the setup, you should
+modify your Terraform configuration to accommodate your infrastructure in
+production.
 
 1. Navigate to your Terraform project directory.
 
@@ -134,7 +126,7 @@ a demo cluster using:
    </TabItem>
    </Tabs>
 
-1. Create a file called `main.tf` with the following content, which imports the
+1. Create a file called `agent.tf` with the following content, which imports the
    `terraform-starter` module for your cloud provider:
 
    <Tabs>
@@ -209,7 +201,7 @@ a demo cluster using:
    </TabItem>
    </Tabs>
 
-Edit the ` module "agent_installation"` block in `main.tf` as follows:
+Edit the ` module "agent_installation"` block in `agent.tf` as follows:
 
 1. Assign `agent_count` to `2` for high availability. As you scale your Teleport
    usage, you can increase this count to ease the load on each Agent. 
@@ -257,7 +249,7 @@ Edit the ` module "agent_installation"` block in `main.tf` as follows:
    you want to run on your Agents. It must be either the same major version as
    your Teleport cluster or one major version behind.
 
-Edit the `module "agent_deployment"` block in `main.tf` as follows:
+Edit the `module "agent_deployment"` block in `agent.tf` as follows:
 
 1. If you are deploying your instance in a minimum-security demo environment and
    do not have a NAT gateway, NAT instance, or other method for connecting your
@@ -591,28 +583,47 @@ To declare a dynamic resource with Terraform:
 
 ## Step 4/4. Verify the deployment
 
-Make sure your cloud provider credentials are available to Terraform using the
-standard approach for your organization.
+In this step, you will create a Teleport bot to apply your Terraform
+configuration. The bot will exist for one hour and will be granted the default
+`terraform-provider` role that can edit every resource the TF provider supports.
 
-Apply the Terraform configuration:
+1. Navigate to your Terraform project directory and run the following command.
+   The `eval`command assigns environment variables in your shell to credentials
+   for the Teleport Terraform provider:
 
-```code
-$ terraform init
-$ terraform apply
-```
+   ```code
+   $ eval "$(tctl terraform env)"
+   🔑 Detecting if MFA is required
+   This is an admin-level action and requires MFA to complete
+   Tap any security key
+   Detected security key tap
+   ⚙️ Creating temporary bot "tctl-terraform-env-82ab1a2e" and its token
+   🤖 Using the temporary bot to obtain certificates
+   🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
+   ```
 
-Once the `apply` command completes, run the following command to verify that
-your Agents have deployed successfully. This command, which assumes that the
-Agents have the `Node` role, lists all Teleport SSH Service instances with the
-`role=agent-pool` label:
+1. Make sure your cloud provider credentials are available to Terraform using
+   the standard approach for your organization.
 
-```code
-$ tsh ls role=agent-pool
-Node Name                  Address    Labels
--------------------------- ---------- ---------------
-ip-10-1-1-187.ec2.internal ⟵ Tunnel   role=agent-pool
-ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
-```
+1. Apply the Terraform configuration:
+
+   ```code
+   $ terraform init
+   $ terraform apply
+   ```
+
+1. Once the `apply` command completes, run the following command to verify that
+   your Agents have deployed successfully. This command, which assumes that the
+   Agents have the `Node` role, lists all Teleport SSH Service instances with
+   the `role=agent-pool` label:
+
+   ```code
+   $ tsh ls role=agent-pool
+   Node Name                  Address    Labels
+   -------------------------- ---------- ---------------
+   ip-10-1-1-187.ec2.internal ⟵ Tunnel   role=agent-pool
+   ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
+   ```
 
 ## Further reading: How the module works
 

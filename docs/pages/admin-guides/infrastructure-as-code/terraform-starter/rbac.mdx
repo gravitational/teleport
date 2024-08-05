@@ -36,6 +36,8 @@ resources that an attacker can compromise.
 This guide assumes that you have completed [Part 1: Enroll Infrastructure with
 Terraform](./enroll-resources.mdx).
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.2.0"!)
+
 - Resources enrolled with Teleport that include the `dev` and `prod` labels. We
   show you how to enroll these resources using Terraform in Part One.
 - An identity provider that supports OIDC or SAML. You should have either:
@@ -53,10 +55,6 @@ this guide to manage RBAC with Terraform.
 </Admonition>
 
 - Terraform v(=terraform.version=) or higher.
-- An identity file for the Teleport Terraform provider. Make sure you are
-  familiar with [how to set up the Teleport Terraform
-  provider](../../infrastructure-as-code/terraform-provider.mdx) before
-  following this guide.
 - (!docs/pages/includes/tctl.mdx!)
 - To help with troubleshooting, we recommend completing the setup steps in this
   guide with a local user that has the preset `editor` and `auditor` roles. In
@@ -64,6 +62,15 @@ this guide to manage RBAC with Terraform.
   user.
 
 ## Step 1/4. Import Terraform modules
+
+In this step, you will download Terraform modules that show you how to get
+started managing Teleport RBAC. These modules are minimal examples of how
+Teleport Terraform resources work together to enable you to manage Teleport
+roles and authentication connectors. 
+
+After finishing this guide and becoming familiar with the setup, you should
+modify your Terraform configuration to accommodate your infrastructure in
+production.
 
 1. Navigate to the directory where you organized files for your root Terraform
    module.
@@ -118,8 +125,7 @@ this guide to manage RBAC with Terraform.
    </TabItem>
    </Tabs>
 
-1. Edit the `main.tf` you created in Part One to include the following `module`
-   blocks: 
+1. Create a file called `rbac.tf` that includes the following `module` blocks: 
 
    <Tabs>
    <TabItem label="OIDC">
@@ -198,7 +204,7 @@ principal, such as an operating system login or Kubernetes user, in order to
 interact with those resources. In this step, you will configure the `prod_role`
 and `dev_role` modules to grant access to principals in your infrastructre.
 
-In `main.tf`, edit the `prod_role` and `dev_role` blocks so that the
+In `rbac.tf`, edit the `prod_role` and `dev_role` blocks so that the
 `principals` field contains a mapping, similar to the example below. Use the
 list of keys below the example to configure the principals.
 
@@ -382,22 +388,29 @@ declared in Step 1 by following the instructions.
 
 ## Step 4/4. Apply and verify changes
 
-1. Ensure there is an identity file available to the Teleport Terraform
-   provider. 
+In this step, you will create a Teleport bot to apply your Terraform
+configuration. The bot will exist for one hour and will be granted the default
+`terraform-provider` role that can edit every resource the TF provider supports.
 
-   If you followed [Set up the Teleport Terraform
-   Provider](../terraform-provider.mdx), run the script that you copied to start
-   a Machine ID Bot and generate identity files:
+1. Navigate to your Terraform project directory and run the following command.
+   The `eval`command assigns environment variables in your shell to credentials
+   for the Teleport Terraform provider:
 
    ```code
-   $ create_and_run_terraform_bot.sh
+   $ eval "$(tctl terraform env)"
+   🔑 Detecting if MFA is required
+   This is an admin-level action and requires MFA to complete
+   Tap any security key
+   Detected security key tap
+   ⚙️ Creating temporary bot "tctl-terraform-env-82ab1a2e" and its token
+   🤖 Using the temporary bot to obtain certificates
+   🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
    ```
 
-   Otherwise, use the method you used when following Part One to obtain an
-   identity file.
- 
+1. Make sure your cloud provider credentials are available to Terraform using
+   the standard approach for your organization.
 
-1. Apply your changes:
+1. Apply the Terraform configuration:
 
    ```code
    $ terraform init
