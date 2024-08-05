@@ -33,7 +33,7 @@ import Card from 'design/Card';
 import ButtonIcon from 'design/ButtonIcon';
 import FieldInput from 'shared/components/FieldInput';
 
-import Alert from 'design/Alert';
+import { Alert } from 'design/Alert';
 
 import Link from 'design/Link';
 

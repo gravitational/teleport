@@ -1,6 +1,14 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`renders 1`] = `
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA6;
+  margin-bottom: 16px;
+}
+
 .c1 {
   box-sizing: border-box;
   padding: 48px;
@@ -10,14 +18,6 @@ exports[`renders 1`] = `
   margin-right: auto;
   width: 540px;
   text-align: center;
-}
-
-.c3 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #00BFA6;
-  margin-bottom: 16px;
 }
 
 .c2 {

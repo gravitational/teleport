@@ -39,7 +39,8 @@ type Event struct {
 //   - Suffix code with one of these letters: I (info), W (warn), E (error).
 //
 // After defining an event code, make sure to keep
-// `web/packages/teleport/src/services/audit/types.ts` in sync.
+// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
+// entry in the `eventsMap` in `lib/events/events_test.go`.
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -609,6 +610,10 @@ const (
 	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
 	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
 	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
+	// SPIFFEFederationCreateCode is the SPIFFE Federation created code.
+	SPIFFEFederationCreateCode = "TSPIFFE001I"
+	// SPIFFEFederationDeleteCode is the SPIFFE Federation deleted code.
+	SPIFFEFederationDeleteCode = "TSPIFFE002I"
 
 	// AuthPreferenceUpdateCode is the auth preference updated event code.
 	AuthPreferenceUpdateCode = "TCAUTH001I"

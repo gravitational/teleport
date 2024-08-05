@@ -926,6 +926,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
 
+	// SPIFFE Federation Trust Bundle
+	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
+
 	// DiscoveryConfig CRUD
 	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
 	h.POST("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigCreate))
@@ -1015,12 +1018,14 @@ func (h *Handler) Close() error {
 }
 
 type userStatusResponse struct {
-	HasDeviceExtensions bool   `json:"hasDeviceExtensions,omitempty"`
-	Message             string `json:"message"` // Always set to "ok"
+	RequiresDeviceTrust types.TrustedDeviceRequirement `json:"requiresDeviceTrust,omitempty"`
+	HasDeviceExtensions bool                           `json:"hasDeviceExtensions,omitempty"`
+	Message             string                         `json:"message"` // Always set to "ok"
 }
 
 func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return userStatusResponse{
+		RequiresDeviceTrust: c.cfg.Session.GetTrustedDeviceRequirement(),
 		HasDeviceExtensions: c.cfg.Session.GetHasDeviceExtensions(),
 		Message:             "ok",
 	}, nil
@@ -1950,6 +1955,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
 			logger.Debug("GitHub WebSession created with device web token")
+			// if a device web token is present, we must send the user to the device authorize page
+			// to upgrade the session.
+			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
+			// session with device trust. Once it does, append a redirect_url here as a query parameter
+			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
 		}
 		return res.ClientRedirectURL
 	}
@@ -2147,7 +2157,7 @@ type CreateSessionResponse struct {
 	DeviceWebToken *types.DeviceWebToken `json:"deviceWebToken,omitempty"`
 	// TrustedDeviceRequirement calculated for the web session.
 	// Follows [types.TrustedDeviceRequirement].
-	TrustedDeviceRequirement int32 `json:"trusted_device_requirement,omitempty"`
+	TrustedDeviceRequirement int32 `json:"trustedDeviceRequirement,omitempty"`
 }
 
 func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
@@ -2742,6 +2752,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindNode,
 			types.KindWindowsDesktop,
 			types.KindKubernetesCluster,
+			types.KindSAMLIdPServiceProvider,
 		}
 	}
 

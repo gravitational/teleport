@@ -1,6 +1,12 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render Apps 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -25,8 +31,8 @@ exports[`render Apps 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -67,12 +73,6 @@ exports[`render Apps 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -319,6 +319,12 @@ exports[`render Apps 1`] = `
 `;
 
 exports[`render Databases 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -343,8 +349,8 @@ exports[`render Databases 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -385,12 +391,6 @@ exports[`render Databases 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -657,6 +657,12 @@ exports[`render Databases 1`] = `
 `;
 
 exports[`render Desktops 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -681,8 +687,8 @@ exports[`render Desktops 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -723,12 +729,6 @@ exports[`render Desktops 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -947,6 +947,12 @@ exports[`render Desktops 1`] = `
 `;
 
 exports[`render Kubes 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -971,8 +977,8 @@ exports[`render Kubes 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1013,12 +1019,6 @@ exports[`render Kubes 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -1229,6 +1229,12 @@ exports[`render Kubes 1`] = `
 `;
 
 exports[`render Nodes 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1253,8 +1259,8 @@ exports[`render Nodes 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1295,12 +1301,6 @@ exports[`render Nodes 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -1519,6 +1519,12 @@ exports[`render Nodes 1`] = `
 `;
 
 exports[`render Roles 1`] = `
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1554,8 +1560,8 @@ exports[`render Roles 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1667,12 +1673,6 @@ exports[`render Roles 1`] = `
 
 .c16:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c12 {
@@ -2046,6 +2046,12 @@ exports[`render Roles 1`] = `
 `;
 
 exports[`render UserGroups 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2070,8 +2076,8 @@ exports[`render UserGroups 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -2112,12 +2118,6 @@ exports[`render UserGroups 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {

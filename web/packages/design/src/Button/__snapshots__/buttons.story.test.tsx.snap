@@ -1,6 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`buttons 1`] = `
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c33 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -521,8 +534,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -1329,8 +1342,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -1393,8 +1406,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 40px;
@@ -1455,8 +1468,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 40px;
@@ -1519,8 +1532,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1581,8 +1594,8 @@ exports[`buttons 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1822,19 +1835,6 @@ exports[`buttons 1`] = `
 .c40:focus,
 .c40:active {
   background: #222C59;
-}
-
-.c28 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c33 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.72);
 }
 
 .c30 {

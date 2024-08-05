@@ -1,6 +1,13 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render multi bash texts 1`] = `
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-left: 16px;
@@ -99,13 +106,6 @@ exports[`render multi bash texts 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c6 {
@@ -418,6 +418,13 @@ exports[`render multi bash texts 1`] = `
 `;
 
 exports[`render multi bash texts with comment 1`] = `
+.c14 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-left: 16px;
@@ -516,13 +523,6 @@ exports[`render multi bash texts with comment 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c14 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c7 {
@@ -856,6 +856,13 @@ https://apt.releases.teleport.dev/stable/v10" \\
 `;
 
 exports[`render non bash single text 1`] = `
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-left: 16px;
@@ -948,13 +955,6 @@ exports[`render non bash single text 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c6 {
@@ -1106,6 +1106,13 @@ exports[`render non bash single text 1`] = `
 `;
 
 exports[`render single bash text 1`] = `
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-left: 16px;
@@ -1198,13 +1205,6 @@ exports[`render single bash text 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c6 {
@@ -1361,6 +1361,13 @@ exports[`render single bash text 1`] = `
 `;
 
 exports[`render single bash text with comment 1`] = `
+.c14 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-left: 16px;
@@ -1453,13 +1460,6 @@ exports[`render single bash text with comment 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c14 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c7 {

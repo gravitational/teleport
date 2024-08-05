@@ -15,12 +15,28 @@ extern const int VNEAlreadyRunningError;
 // https://developer.apple.com/documentation/security/1395809-seccodecopysigninginformation?language=objc
 extern const int VNEMissingCodeSigningIdentifiersError;
 
-typedef struct VnetConfig {
-  const char *socket_path;
-  const char *ipv6_prefix;
-  const char *dns_addr;
-  const char *home_path;
-} VnetConfig;
+// VNEConfig is used to send a config necessary to start VNet between the client and the daemon
+// service. When adding or removing properties, remember to adjust the implementation of VNEConfig
+// as well.
+//
+// Although it's not the primary use case, it's possible for the client to connect to a service
+// of a different version of tsh where VNEConfig does not have the same properties.
+// Thanks to the conformance to NSSecureCoding, adding and removing properties does not cause either
+// end of the connection to blow up:
+//
+// * If the client sends a property that the daemon doesn't know about, the property will be ignored
+//   on the daemon side.
+// * If the client does not send a property that the daemon expects, the property will not be set on
+//   the daemon side.
+//
+// In either case, the expectation is that the Obj-C side pushes the config to the Go side which
+// actually validates the config.
+@interface VNEConfig : NSObject <NSSecureCoding>
+@property(copy) NSString *socketPath;
+@property(copy) NSString *ipv6Prefix;
+@property(copy) NSString *dnsAddr;
+@property(copy) NSString *homePath;
+@end
 
 @protocol VNEDaemonProtocol
 // startVnet passes the config back to Go code (which then starts VNet in a separate thread)
@@ -29,7 +45,7 @@ typedef struct VnetConfig {
 // Only the first call to this method starts VNet. Subsequent calls return VNEAlreadyRunningError.
 // The daemon process exits after VNet is stopped, after which it can be spawned again by calling
 // this method.
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
+- (void)startVnet:(VNEConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
 @end
 
 // Returns the label for the daemon by getting the identifier of the bundle

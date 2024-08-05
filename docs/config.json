@@ -1352,7 +1352,8 @@
       "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.3.7",
       "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7"
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7",
+      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
     },
     "terraform": {
       "version": "1.0.0"
@@ -2536,6 +2537,11 @@
     },
     {
     	"source": "/get-started/",
+    	"destination": "/deploy-a-cluster/linux-demo/",
+    	"permanent": true
+    },
+    {
+    	"source": "/getting-started/",
     	"destination": "/deploy-a-cluster/linux-demo/",
     	"permanent": true
     },

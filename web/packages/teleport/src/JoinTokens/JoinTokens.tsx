@@ -368,7 +368,7 @@ function TokenDelete({
   attempt,
 }: {
   token: JoinToken;
-  onDelete: (token: string) => Promise<any>;
+  onDelete: () => void;
   onClose: () => void;
   attempt: Attempt<void>;
 }) {

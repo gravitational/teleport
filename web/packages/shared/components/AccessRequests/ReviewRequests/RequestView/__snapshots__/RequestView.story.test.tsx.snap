@@ -1,6 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded approved role based request state 1`] = `
+.c21 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -122,8 +136,8 @@ exports[`loaded approved role based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -226,20 +240,6 @@ exports[`loaded approved role based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c21 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c12 {
@@ -803,6 +803,20 @@ exports[`loaded approved role based request state 1`] = `
 `;
 
 exports[`loaded denied role based request state 1`] = `
+.c21 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.c29 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -924,8 +938,8 @@ exports[`loaded denied role based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -965,20 +979,6 @@ exports[`loaded denied role based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c21 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
-}
-
-.c29 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c12 {
@@ -1494,6 +1494,13 @@ exports[`loaded denied role based request state 1`] = `
 `;
 
 exports[`loaded pending role based request state 1`] = `
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1624,8 +1631,8 @@ exports[`loaded pending role based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1727,13 +1734,6 @@ exports[`loaded pending role based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
 }
 
 .c12 {
@@ -2381,6 +2381,13 @@ exports[`loaded pending role based request state 1`] = `
 `;
 
 exports[`loaded pending search based request state 1`] = `
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.54);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -2520,8 +2527,8 @@ exports[`loaded pending search based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -2623,13 +2630,6 @@ exports[`loaded pending search based request state 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.54);
 }
 
 .c12 {
@@ -3311,6 +3311,17 @@ exports[`loaded pending search based request state 1`] = `
                     </td>
                     <td>
                       Some Friendly Name
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      cluster-name
+                    </td>
+                    <td>
+                      saml_idp_service_provider
+                    </td>
+                    <td>
+                      app-saml
                     </td>
                   </tr>
                 </tbody>
