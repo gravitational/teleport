@@ -21,6 +21,8 @@ type CrownJewelSpec struct {
 	TeleportMatchers []TeleportMatcher `json:"teleport_matchers"`
 	// AwsMatchers is the list of AWS matchers.
 	AwsMatchers []AWSMatcher `json:"aws_matchers"`
+	// Query is Access Graph query to match resources.
+	Query string `json:"query"`
 }
 
 // TeleportMatcher is a Teleport matcher.
@@ -48,6 +50,7 @@ func ToCrownJewel(cj *crownjewelv1.CrownJewel) *CrownJewel {
 	return &CrownJewel{
 		Name: cj.Metadata.Name,
 		Spec: CrownJewelSpec{
+			Query:            cj.Spec.Query,
 			TeleportMatchers: ToTeleportMatchers(cj.Spec.TeleportMatchers),
 			AwsMatchers:      ToAWSMatchers(cj.Spec.AwsMatchers),
 		},

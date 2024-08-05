@@ -17,11 +17,12 @@ import (
 type createCrownJewelRequest struct {
 	TeleportMatcher *crownjewelv1.TeleportMatcher `json:"teleport_matcher"`
 	AwsMatcher      *crownjewelv1.AWSMatcher      `json:"aws_matcher"`
+	Query           string                        `json:"query"`
 }
 
 func (c *createCrownJewelRequest) CheckAndSetDefaults() error {
-	if c.TeleportMatcher == nil && c.AwsMatcher == nil {
-		return trace.BadParameter("either teleport_matcher or aws_matcher must be set")
+	if c.TeleportMatcher == nil && c.AwsMatcher == nil && c.Query == "" {
+		return trace.BadParameter("at least one matcher must be set")
 	}
 	return nil
 }
@@ -43,7 +44,9 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 
 	resourceID := uuid.New().String()
 
-	spec := &crownjewelv1.CrownJewelSpec{}
+	spec := &crownjewelv1.CrownJewelSpec{
+		Query: req.Query,
+	}
 
 	if req.TeleportMatcher != nil {
 		spec.TeleportMatchers = append(spec.TeleportMatchers, req.TeleportMatcher)
