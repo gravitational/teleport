@@ -78,11 +78,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewCacheForServices creates a new cache for a Teleport service that
+// NewCacheFromServices creates a new cache for a Teleport service that
 // uses the provided services to populate its resource collections.
-func NewCacheForServices(
-	cfg Config, services *authservices.Services,
-) (*cache.Cache, error) {
+func NewCacheFromServices(services *authservices.Services, cfg Config) (*cache.Cache, error) {
 	cacheCfg, err := baseConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -124,9 +122,9 @@ func NewCacheForServices(
 	return cache.New(cfg.Setup(*cacheCfg))
 }
 
-// NewCacheForClient creates a new cache for a teleport service that
+// NewCacheFromClient creates a new cache for a teleport service that
 // uses an authclient.ClientI to populate its resource collections.
-func NewCacheForClient(cfg Config, client authclient.ClientI) (*cache.Cache, error) {
+func NewCacheFromClient(client authclient.ClientI, cfg Config) (*cache.Cache, error) {
 	cacheCfg, err := baseConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)

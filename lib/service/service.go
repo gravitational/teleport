@@ -2572,7 +2572,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewCacheForServices(cfg, services)
+	return accesspoint.NewCacheFromServices(services, cfg)
 }
 
 func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, client authclient.ClientI) (*cache.Cache, error) {
@@ -2581,7 +2581,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewCacheForClient(cfg, client)
+	return accesspoint.NewCacheFromClient(client, cfg)
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
