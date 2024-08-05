@@ -1,6 +1,14 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render DocumentBlank 1`] = `
+.c4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 72px;
+  margin-bottom: 40px;
+}
+
 .c0 {
   box-sizing: border-box;
   margin: -16px;
@@ -73,14 +81,6 @@ exports[`render DocumentBlank 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c4 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 72px;
-  margin-bottom: 40px;
 }
 
 .c1 {

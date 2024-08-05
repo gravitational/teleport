@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Alert from './Alert';
+import { Alert } from './Alert';
 import Box from './Box';
 import {
   Button,

@@ -1,25 +1,63 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`failed state 1`] = `
-.c8 {
-  display: flex;
+.c6 {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+  margin-right: 16px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c37 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.c8 {
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  border: 2px solid;
+  border-radius: 8px;
+  border-color: #FF6257;
 }
 
 .c8 a {
   color: #FFFFFF;
+}
+
+.c9 {
+  padding: 12px 16px;
+  overflow: auto;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 98, 87, 0.1);
+}
+
+.c10 {
+  border-radius: 50%;
+  line-height: 0;
+  margin-right: 16px;
+  color: #000000;
+  background: #FF6257;
+  padding: 8px;
 }
 
 .c1 {
@@ -31,13 +69,18 @@ exports[`failed state 1`] = `
   margin-bottom: 16px;
 }
 
-.c13 {
+.c12 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.c18 {
   box-sizing: border-box;
   margin-top: 40px;
   margin-bottom: 4px;
 }
 
-.c16 {
+.c21 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding-bottom: 8px;
@@ -45,28 +88,28 @@ exports[`failed state 1`] = `
   border-bottom: 1px solid;
 }
 
-.c22 {
+.c27 {
   box-sizing: border-box;
   margin-top: 40px;
 }
 
-.c24 {
+.c29 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c25 {
+.c30 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
 
-.c29 {
+.c34 {
   box-sizing: border-box;
   max-width: 270px;
   min-width: 200px;
 }
 
-.c38 {
+.c42 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -77,7 +120,7 @@ exports[`failed state 1`] = `
   border-color: rgba(255, 255, 255, 0.54);
 }
 
-.c40 {
+.c44 {
   box-sizing: border-box;
   margin-top: 4px;
   margin-bottom: 8px;
@@ -85,13 +128,13 @@ exports[`failed state 1`] = `
   height: 34px;
 }
 
-.c43 {
+.c47 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
 }
 
-.c21 {
+.c26 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -122,8 +165,8 @@ exports[`failed state 1`] = `
   width: 50px;
 }
 
-.c21:focus-visible,
-.teleport-button__force-focus-visible .c21 {
+.c26:focus-visible,
+.teleport-button__force-focus-visible .c26 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -131,22 +174,150 @@ exports[`failed state 1`] = `
   outline: none;
 }
 
-.c21:hover,
-.teleport-button__force-hover .c21 {
+.c26:hover,
+.teleport-button__force-hover .c26 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c21:active,
-.teleport-button__force-active .c21 {
+.c26:active,
+.teleport-button__force-active .c26 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c21:disabled {
+.c26:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c50 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
+  width: 100%;
+  text-transform: none;
+}
+
+.c50:focus-visible,
+.teleport-button__force-focus-visible .c50 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
+}
+
+.c50:hover,
+.teleport-button__force-hover .c50 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c50:active,
+.teleport-button__force-active .c50 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c50:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c51 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
+  width: 100%;
+  text-transform: none;
+}
+
+.c51:focus-visible,
+.teleport-button__force-focus-visible .c51 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c51:hover,
+.teleport-button__force-hover .c51 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c51:active,
+.teleport-button__force-active .c51 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c51:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -155,134 +326,6 @@ exports[`failed state 1`] = `
 }
 
 .c46 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
-  -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
-  border-width: 1.5px;
-  padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
-  width: 100%;
-  text-transform: none;
-}
-
-.c46:focus-visible,
-.teleport-button__force-focus-visible .c46 {
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: #000000;
-  border-radius: 2px;
-  outline: 2px solid #9F85FF;
-}
-
-.c46:hover,
-.teleport-button__force-hover .c46 {
-  background-color: #B29DFF;
-  border-color: transparent;
-  color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
-}
-
-.c46:active,
-.teleport-button__force-active .c46 {
-  background-color: #C5B6FF;
-  border-color: transparent;
-  color: #000000;
-}
-
-.c46:disabled {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.3);
-  border-color: transparent;
-  box-shadow: none;
-  cursor: auto;
-}
-
-.c47 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
-  -webkit-font-smoothing: antialiased;
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.72);
-  border-color: transparent;
-  border-width: 1.5px;
-  padding: 0 30.5px;
-  min-height: 40px;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.175px;
-  width: 100%;
-  text-transform: none;
-}
-
-.c47:focus-visible,
-.teleport-button__force-focus-visible .c47 {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255, 255, 255, 0.72);
-  border-radius: 4px;
-  outline: none;
-}
-
-.c47:hover,
-.teleport-button__force-hover .c47 {
-  background-color: rgba(255,255,255,0.13);
-  border-color: transparent;
-  color: #FFFFFF;
-  box-shadow: none;
-}
-
-.c47:active,
-.teleport-button__force-active .c47 {
-  background-color: rgba(255,255,255,0.18);
-  border-color: transparent;
-  color: #FFFFFF;
-}
-
-.c47:disabled {
-  background-color: rgba(255,255,255,0.07);
-  color: rgba(255, 255, 255, 0.3);
-  border-color: transparent;
-  box-shadow: none;
-  cursor: auto;
-}
-
-.c42 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -302,49 +345,21 @@ exports[`failed state 1`] = `
   width: 32px;
 }
 
-.c42:disabled {
+.c46:disabled {
   color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
-.c42:not(:disabled):hover,
-.c42:not(:disabled):focus {
+.c46:not(:disabled):hover,
+.c46:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c42:not(:disabled):active {
+.c46:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c6 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-}
-
-.c32 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 16px;
-}
-
-.c35 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c11 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 4px;
-}
-
-.c28 {
+.c33 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -365,7 +380,16 @@ exports[`failed state 1`] = `
   line-height: 24px;
 }
 
-.c20 {
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -376,7 +400,7 @@ exports[`failed state 1`] = `
   margin-right: 8px;
 }
 
-.c33 {
+.c38 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
@@ -388,39 +412,39 @@ exports[`failed state 1`] = `
   align-items: center;
 }
 
-.c17 {
+.c22 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c19 {
+.c24 {
   display: flex;
   align-items: baseline;
 }
 
-.c23 {
+.c28 {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.c26 {
+.c31 {
   display: flex;
   align-items: end;
   gap: 8px;
 }
 
-.c30 {
+.c35 {
   display: flex;
 }
 
-.c44 {
+.c48 {
   display: flex;
   gap: 8px;
 }
 
-.c9 {
+.c14 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -428,39 +452,39 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
-.c9>thead>tr>th,
-.c9>tbody>tr>th,
-.c9>tfoot>tr>th,
-.c9>thead>tr>td,
-.c9>tbody>tr>td,
-.c9>tfoot>tr>td {
+.c14>thead>tr>th,
+.c14>tbody>tr>th,
+.c14>tfoot>tr>th,
+.c14>thead>tr>td,
+.c14>tbody>tr>td,
+.c14>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c9>thead>tr>th:first-child,
-.c9>tbody>tr>th:first-child,
-.c9>tfoot>tr>th:first-child,
-.c9>thead>tr>td:first-child,
-.c9>tbody>tr>td:first-child,
-.c9>tfoot>tr>td:first-child {
+.c14>thead>tr>th:first-child,
+.c14>tbody>tr>th:first-child,
+.c14>tfoot>tr>th:first-child,
+.c14>thead>tr>td:first-child,
+.c14>tbody>tr>td:first-child,
+.c14>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c9>thead>tr>th:last-child,
-.c9>tbody>tr>th:last-child,
-.c9>tfoot>tr>th:last-child,
-.c9>thead>tr>td:last-child,
-.c9>tbody>tr>td:last-child,
-.c9>tfoot>tr>td:last-child {
+.c14>thead>tr>th:last-child,
+.c14>tbody>tr>th:last-child,
+.c14>tfoot>tr>th:last-child,
+.c14>thead>tr>td:last-child,
+.c14>tbody>tr>td:last-child,
+.c14>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c9>tbody>tr>td {
+.c14>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c9>thead>tr>th {
+.c14>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -473,11 +497,11 @@ exports[`failed state 1`] = `
   white-space: nowrap;
 }
 
-.c9>thead>tr>th svg {
+.c14>thead>tr>th svg {
   height: 12px;
 }
 
-.c9>tbody>tr>td {
+.c14>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -485,18 +509,18 @@ exports[`failed state 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c9 tbody tr {
+.c14 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
 }
 
-.c9 tbody tr:hover {
+.c14 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c9 tbody tr:hover:after {
+.c14 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
@@ -507,11 +531,11 @@ exports[`failed state 1`] = `
   height: 100%;
 }
 
-.c9 tbody tr:hover +tr {
+.c14 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c37 .react-select-container {
+.c41 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -523,7 +547,7 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c37 .react-select__control {
+.c41 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -533,161 +557,161 @@ exports[`failed state 1`] = `
   box-shadow: none;
 }
 
-.c37 .react-select__control .react-select__dropdown-indicator {
+.c41 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c37 .react-select__control:hover,
-.c37 .react-select__control:focus,
-.c37 .react-select__control:active {
+.c41 .react-select__control:hover,
+.c41 .react-select__control:focus,
+.c41 .react-select__control:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c37 .react-select__control:hover .react-select__dropdown-indicator,
-.c37 .react-select__control:focus .react-select__dropdown-indicator,
-.c37 .react-select__control:active .react-select__dropdown-indicator {
+.c41 .react-select__control:hover .react-select__dropdown-indicator,
+.c41 .react-select__control:focus .react-select__dropdown-indicator,
+.c41 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c37 .react-select__control .react-select__indicator:hover,
-.c37 .react-select__control .react-select__dropdown-indicator:hover,
-.c37 .react-select__control .react-select__indicator:focus,
-.c37 .react-select__control .react-select__dropdown-indicator:focus,
-.c37 .react-select__control .react-select__indicator:active,
-.c37 .react-select__control .react-select__dropdown-indicator:active {
+.c41 .react-select__control .react-select__indicator:hover,
+.c41 .react-select__control .react-select__dropdown-indicator:hover,
+.c41 .react-select__control .react-select__indicator:focus,
+.c41 .react-select__control .react-select__dropdown-indicator:focus,
+.c41 .react-select__control .react-select__indicator:active,
+.c41 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c37 .react-select__control--is-focused {
+.c41 .react-select__control--is-focused {
   border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c37 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c41 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c37 .react-select__single-value {
+.c41 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c37 .react-select__placeholder {
+.c41 .react-select__placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c37 .react-select__multi-value {
+.c41 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 .react-select__multi-value .react-select__multi-value__label {
+.c41 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c37 .react-select__multi-value .react-select__multi-value__remove {
+.c41 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c37 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c41 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c37 .react-select__option:hover {
+.c41 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__option--is-focused {
+.c41 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__option--is-focused:hover {
+.c41 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__option--is-selected {
+.c41 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c37 .react-select__option--is-selected:hover {
+.c41 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 .react-select__clear-indicator {
+.c41 .react-select__clear-indicator {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.c37 .react-select__clear-indicator:hover,
-.c37 .react-select__clear-indicator:focus {
+.c41 .react-select__clear-indicator:hover,
+.c41 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__clear-indicator:hover svg,
-.c37 .react-select__clear-indicator:focus svg {
+.c41 .react-select__clear-indicator:hover svg,
+.c41 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c37 .react-select__menu {
+.c41 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
-.c37 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c41 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c37 .react-select__indicator-separator {
+.c41 .react-select__indicator-separator {
   display: none;
 }
 
-.c37 .react-select__loading-indicator {
+.c41 .react-select__loading-indicator {
   display: none;
 }
 
-.c37 .react-select__control--is-disabled {
+.c41 .react-select__control--is-disabled {
   color: rgba(255, 255, 255, 0.36);
   border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.c37 .react-select__control--is-disabled .react-select__single-value,
-.c37 .react-select__control--is-disabled .react-select__placeholder {
+.c41 .react-select__control--is-disabled .react-select__single-value,
+.c41 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c37 .react-select__control--is-disabled .react-select__indicator {
+.c41 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255, 255, 255, 0.36);
 }
 
-.c37 .react-select__input {
+.c41 .react-select__input {
   color: #FFFFFF;
 }
 
-.c36 {
+.c40 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c34 {
+.c39 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c34:hover {
+.c39:hover {
   cursor: pointer;
 }
 
-.c31 {
+.c36 {
   height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
@@ -697,16 +721,16 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c31:hover {
+.c36:hover {
   background-color: rgba(255,255,255,0.07);
   border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
-.c27 {
+.c32 {
   position: relative;
 }
 
-.c14 {
+.c19 {
   width: 260px;
   height: 150px;
   background-color: #ffffff;
@@ -717,26 +741,26 @@ exports[`failed state 1`] = `
   top: 40px;
 }
 
-.c14 .react-select__group,
-.c14 .react-select__group-heading,
-.c14 .react-select__menu-list {
+.c19 .react-select__group,
+.c19 .react-select__group-heading,
+.c19 .react-select__menu-list {
   padding: 0;
   margin: 0;
 }
 
-.c14 .react-select__menu-list {
+.c19 .react-select__menu-list {
   margin-top: 10px;
 }
 
-.c14 .react-select__option--is-focused {
+.c19 .react-select__option--is-focused {
   background-color: inherit;
 }
 
-.c14 .react-select__option--is-focused:hover {
+.c19 .react-select__option--is-focused:hover {
   background-color: #deebff;
 }
 
-.c14 .react-select-container {
+.c19 .react-select-container {
   width: 300px;
   box-sizing: border-box;
   border: none;
@@ -749,30 +773,30 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c14 .react-select__menu {
+.c19 .react-select__menu {
   box-shadow: none;
 }
 
-.c14 .react-select__control {
+.c19 .react-select__control {
   border-radius: 30px;
   background-color: #f0f2f4;
   margin: 0px 16px 10px 16px;
 }
 
-.c14 .react-select__control:hover {
+.c19 .react-select__control:hover {
   cursor: pointer;
 }
 
-.c14 .react-select__control--is-focused {
+.c19 .react-select__control--is-focused {
   border-color: transparent;
   box-shadow: none;
 }
 
-.c14 .react-select__placeholder {
+.c19 .react-select__placeholder {
   font-size: 14px;
 }
 
-.c14 .react-select__option {
+.c19 .react-select__option {
   white-space: nowrap;
   padding: 9px 16px;
   border-top: 1px solid #eaeaea;
@@ -780,43 +804,43 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c14 .react-select__option:hover {
+.c19 .react-select__option:hover {
   cursor: pointer;
 }
 
-.c14 .react-select__option:hover:last-child {
+.c19 .react-select__option:hover:last-child {
   border-bottom-right-radius: 3px;
   border-bottom-left-radius: 3px;
 }
 
-.c14 .react-select__option .icon-circlecheck {
+.c19 .react-select__option .icon-circlecheck {
   color: transparent;
   margin-right: 10px;
 }
 
-.c14 .react-select__option--is-selected {
+.c19 .react-select__option--is-selected {
   background-color: inherit;
   color: inherit;
 }
 
-.c14 .react-select__indicators {
+.c19 .react-select__indicators {
   display: none;
 }
 
-.c14 .react-select__selected .icon-circlecheck {
+.c19 .react-select__selected .icon-circlecheck {
   color: #00BFA6;
 }
 
-.c14 .react-select__selected .icon-cross {
+.c19 .react-select__selected .icon-cross {
   color: #010B1C;
   display: none;
 }
 
-.c14 .react-select__selected:hover .icon-cross {
+.c19 .react-select__selected:hover .icon-cross {
   display: block;
 }
 
-.c15 {
+.c20 {
   width: 100%;
   background-color: #efefef;
   color: #324148;
@@ -824,11 +848,11 @@ exports[`failed state 1`] = `
   padding: 3px 15px;
 }
 
-.c18 {
+.c23 {
   border-color: rgba(255,255,255,0.13);
 }
 
-.c41 {
+.c45 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -872,17 +896,17 @@ exports[`failed state 1`] = `
   z-index: 10;
 }
 
-.c10 {
+.c15 {
   border-radius: 8px;
   box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.c10>tbody>tr>td {
+.c15>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c10>thead>tr>th {
+.c15>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -895,35 +919,35 @@ exports[`failed state 1`] = `
   overflow: hidden;
 }
 
-.c12 {
+.c17 {
   cursor: pointer;
   background-color: rgba(255, 255, 255, 0.07);
   border-radius: 2px;
 }
 
-.c12:hover {
+.c17:hover {
   background-color: rgba(255, 255, 255, 0.13);
 }
 
-.c45 {
+.c49 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c39 {
+.c43 {
   outline: none;
   background: transparent;
 }
 
-.c39::placeholder {
+.c43::placeholder {
   color: rgba(255, 255, 255, 0.54);
 }
 
-.c39:hover,
-.c39:focus,
-.c39:active {
+.c43:hover,
+.c43:focus,
+.c43:active {
   border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
@@ -976,10 +1000,50 @@ exports[`failed state 1`] = `
           class="c8"
           kind="danger"
         >
-          some error message
+          <div
+            class="c9"
+            kind="danger"
+          >
+            <div
+              class="c10"
+              kind="danger"
+            >
+              <span
+                class="c11 icon icon-warning"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                  />
+                  <path
+                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </div>
+            <div
+              class="c12"
+            >
+              <div
+                class="c13"
+              >
+                some error message
+              </div>
+            </div>
+          </div>
         </div>
         <table
-          class="c9 c10"
+          class="c14 c15"
         >
           <thead>
             <tr>
@@ -1010,7 +1074,7 @@ exports[`failed state 1`] = `
                 align="right"
               >
                 <span
-                  class="c11 c12"
+                  class="c16 c17"
                 >
                   <svg
                     fill="currentColor"
@@ -1036,7 +1100,7 @@ exports[`failed state 1`] = `
                 align="right"
               >
                 <span
-                  class="c11 c12"
+                  class="c16 c17"
                 >
                   <svg
                     fill="currentColor"
@@ -1062,7 +1126,7 @@ exports[`failed state 1`] = `
                 align="right"
               >
                 <span
-                  class="c11 c12"
+                  class="c16 c17"
                 >
                   <svg
                     fill="currentColor"
@@ -1088,7 +1152,7 @@ exports[`failed state 1`] = `
                 align="right"
               >
                 <span
-                  class="c11 c12"
+                  class="c16 c17"
                 >
                   <svg
                     fill="currentColor"
@@ -1114,7 +1178,7 @@ exports[`failed state 1`] = `
                 align="right"
               >
                 <span
-                  class="c11 c12"
+                  class="c16 c17"
                 >
                   <svg
                     fill="currentColor"
@@ -1140,7 +1204,7 @@ exports[`failed state 1`] = `
                 align="right"
               >
                 <span
-                  class="c11 c12"
+                  class="c16 c17"
                 >
                   <svg
                     fill="currentColor"
@@ -1158,14 +1222,14 @@ exports[`failed state 1`] = `
           </tbody>
         </table>
         <div
-          class="c13"
+          class="c18"
         >
           <div
             class="c1"
             style="position: relative;"
           >
             <div
-              class="c1 c14"
+              class="c1 c19"
               style="display: none;"
             >
               <div
@@ -1247,7 +1311,7 @@ exports[`failed state 1`] = `
                         id="react-select-4-group-1-heading"
                       >
                         <div
-                          class="c1 c15"
+                          class="c1 c20"
                         >
                           Suggested Reviewers
                         </div>
@@ -1259,19 +1323,19 @@ exports[`failed state 1`] = `
               </div>
             </div>
             <div
-              class="c16 c17 c18"
+              class="c21 c22 c23"
               height="34px"
             >
               <div
-                class="c1 c19"
+                class="c1 c24"
               >
                 <div
-                  class="c20"
+                  class="c25"
                 >
                   Reviewers (optional)
                 </div>
                 <button
-                  class="c21"
+                  class="c26"
                   fill="border"
                   width="50px"
                 >
@@ -1286,28 +1350,28 @@ exports[`failed state 1`] = `
           </div>
         </div>
         <div
-          class="c22 c23"
+          class="c27 c28"
         >
           <div
-            class="c24"
+            class="c29"
           >
             <div
-              class="c25 c26"
+              class="c30 c31"
             >
               <div
-                class="c1 c27"
+                class="c1 c32"
               >
                 <label
-                  class="c28"
+                  class="c33"
                 >
                   Start Date
                 </label>
                 <div
-                  class="c29 c30 c31"
+                  class="c34 c35 c36"
                 >
                   Immediately
                   <span
-                    class="c32 icon icon-calendar"
+                    class="c37 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -1332,23 +1396,23 @@ exports[`failed state 1`] = `
               </div>
             </div>
             <label
-              class="c28"
+              class="c33"
               color="text.slightlyMuted"
             >
               <div
                 class="c1 c5"
               >
                 <div
-                  class="c33"
+                  class="c38"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c34"
+                  class="c39"
                   role="icon"
                 >
                   <span
-                    class="c35 c36"
+                    class="c11 c40"
                   >
                     <svg
                       fill="currentColor"
@@ -1372,7 +1436,7 @@ exports[`failed state 1`] = `
                 </span>
               </div>
               <div
-                class="c37"
+                class="c41"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -1443,11 +1507,11 @@ exports[`failed state 1`] = `
             </label>
           </div>
           <label
-            class="c28"
+            class="c33"
           >
             Request Reason
             <textarea
-              class="c38 c39"
+              class="c42 c43"
               color="text.main"
               height="80px"
               placeholder="Describe your request... (optional)"
@@ -1455,20 +1519,20 @@ exports[`failed state 1`] = `
             />
           </label>
           <div
-            class="c40 c17 c41"
+            class="c44 c22 c45"
             height="34px"
           >
             <div
-              class="c20"
+              class="c25"
             >
               Additional Options
             </div>
             <button
-              class="c42"
+              class="c46"
               data-testid="additional-info-btn"
             >
               <span
-                class="c35 icon icon-chevronright"
+                class="c11 icon icon-chevronright"
               >
                 <svg
                   fill="currentColor"
@@ -1486,17 +1550,17 @@ exports[`failed state 1`] = `
             </button>
           </div>
           <div
-            class="c43 c44 c45"
+            class="c47 c48 c49"
           >
             <button
-              class="c46"
+              class="c50"
               fill="filled"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c47"
+              class="c51"
               fill="filled"
               width="100%"
             >
@@ -1511,6 +1575,42 @@ exports[`failed state 1`] = `
 `;
 
 exports[`loaded state 1`] = `
+.c6 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA6;
+  margin-right: 8px;
+}
+
+.c18 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c40 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+}
+
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 4px;
+}
+
 .c1 {
   box-sizing: border-box;
 }
@@ -1853,42 +1953,6 @@ exports[`loaded state 1`] = `
 
 .c29:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c6 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-}
-
-.c16 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #00BFA6;
-  margin-right: 8px;
-}
-
-.c18 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c40 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 16px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 4px;
 }
 
 .c36 {

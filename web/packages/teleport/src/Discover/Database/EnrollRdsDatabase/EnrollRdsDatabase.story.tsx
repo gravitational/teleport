@@ -246,30 +246,25 @@ export const WithOneOfDbListError = () => <Component />;
 WithOneOfDbListError.parameters = {
   msw: {
     handlers: [
+      http.get(databasesPathWithoutQuery, () =>
+        HttpResponse.json({ items: [rdsInstances[2]] })
+      ),
+      http.post(databasesPathWithoutQuery, () => HttpResponse.json({})),
       http.post(cfg.api.awsDatabaseVpcsPath, () =>
         HttpResponse.json({
           vpcs,
         })
       ),
-      http.post(
-        cfg.api.awsRdsDbListPath,
-        () => HttpResponse.json({ databases: rdsInstances }),
-        { once: true }
-      ),
-      http.post(
-        cfg.api.awsRdsDbListPath,
-        () =>
-          HttpResponse.json(
-            {
-              message: 'Whoops, fetching another aws databases error',
-            },
-            { status: 403 }
-          ),
-        { once: true }
-      ),
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json({ databases: rdsInstances })
-      ),
+      http.post(cfg.api.awsRdsDbListPath, async req => {
+        return (await req.request.json())['rdsType'] === 'instance'
+          ? HttpResponse.json({ databases: rdsInstances })
+          : HttpResponse.json(
+              {
+                message: 'Whoops, fetching another aws databases error',
+              },
+              { status: 403 }
+            );
+      }),
     ],
   },
 };
