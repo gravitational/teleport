@@ -35,8 +35,8 @@ message ListSPIFFEFederationsRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
   int32 page_size = 1;
-  // The page_token value returned from a previous ListBotInstances request, if
-  // any.
+  // The page_token value returned from a previous ListSPIFFEFederations
+  // request, if any.
   string page_token = 2;
 }
 

@@ -96,8 +96,8 @@ type ListSPIFFEFederationsRequest struct {
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// The page_token value returned from a previous ListBotInstances request, if
-	// any.
+	// The page_token value returned from a previous ListSPIFFEFederations
+	// request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 }
 
