@@ -116,7 +116,7 @@ endef
 
 NOTARIZE_TSH_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tsh_app),$(not_notarizing_cmd))
 define notarize_tsh_app
-	$(call notarize_app_bundle,$(TSH_APP_BUNDLE),$(TSH_APP_ENTITLEMENTS))
+	$(call notarize_app_bundle,$(TSH_APP_BUNDLE),$(TSH_BUNDLEID),$(TSH_APP_ENTITLEMENTS))
 endef
 
 NOTARIZE_TELEPORT_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_teleport_pkg),$(not_notarizing_cmd))
@@ -126,15 +126,17 @@ endef
 
 define notarize_app_bundle
 	$(eval $@_BUNDLE = $(1))
-	$(eval $@_ENTITLEMENTS = $(2))
+	$(eval $@_BUNDLE_ID = $(2))
+	$(eval $@_ENTITLEMENTS = $(3))
 	codesign \
 		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--identifier "$($@_BUNDLE_ID)" \
 		--force \
 		--verbose \
 		--timestamp \
 		--options kill,hard,runtime \
-		--entitlements $($@_ENTITLEMENTS) \
-		$($@_BUNDLE)
+		--entitlements "$($@_ENTITLEMENTS)" \
+		"$($@_BUNDLE)"
 
 	ditto -c -k --keepParent $($@_BUNDLE) $(notary_file)
 	xcrun notarytool submit $(notary_file) \
