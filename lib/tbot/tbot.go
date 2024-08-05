@@ -499,7 +499,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	switch _, addrKind := b.cfg.Address(); addrKind {
 	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
+			"either a proxy set with --proxy-server (or configuration) or auth address set with --auth-server (or configuration) can be used but not both.",
 		)
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
