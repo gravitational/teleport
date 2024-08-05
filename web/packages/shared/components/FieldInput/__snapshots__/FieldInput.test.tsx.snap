@@ -1,15 +1,15 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`snapshot tests 1`] = `
-.c0 {
-  box-sizing: border-box;
-  margin-bottom: 40px;
-}
-
 .c6 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
 }
 
 .c3 {

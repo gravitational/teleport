@@ -794,6 +794,9 @@ const (
 	IntegrationDeleteEvent = "integration.delete"
 )
 
+// Add an entry to eventsMap in lib/events/events_test.go when you add
+// a new event name here.
+
 const (
 	// MaxChunkBytes defines the maximum size of a session stream chunk that
 	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB

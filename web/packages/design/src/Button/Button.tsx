@@ -393,21 +393,21 @@ const StyledButton = styled.button`
   ${themedStyles}
 `;
 
-export const ButtonPrimary = <E extends React.ElementType>(
+export const ButtonPrimary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="primary" {...props} />;
-export const ButtonSecondary = <E extends React.ElementType>(
+export const ButtonSecondary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="neutral" {...props} />;
-export const ButtonBorder = <E extends React.ElementType>(
+export const ButtonBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="neutral" {...props} />;
-export const ButtonWarning = <E extends React.ElementType>(
+export const ButtonWarning = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="danger" {...props} />;
-export const ButtonWarningBorder = <E extends React.ElementType>(
+export const ButtonWarningBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="danger" {...props} />;
-export const ButtonText = <E extends React.ElementType>(
+export const ButtonText = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="minimal" intent="neutral" {...props} />;

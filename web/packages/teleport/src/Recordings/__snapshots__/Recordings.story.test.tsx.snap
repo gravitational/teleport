@@ -1,6 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of Session Recordings 1`] = `
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c17 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -72,20 +86,6 @@ exports[`rendering of Session Recordings 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c16 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c17 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  margin-right: 16px;
 }
 
 .c5 {
