@@ -161,7 +161,7 @@ an address for the TUN device from a range offered by one of those clusters.
 
 ### Configuring leaf cluster apps
 
-To make a [leaf cluster](../../../management/admin/trustedclusters.mdx) app accessible over a custom
+To make a [leaf cluster](../../../admin-guides/management/admin/trustedclusters.mdx) app accessible over a custom
 `public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
 
 ```code
@@ -187,7 +187,7 @@ app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. Yo
 - [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
   [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
-  chunks](../../../architecture/session-recording.mdx#app-sessions) are not captured.
+  chunks](../../../reference/architecture/session-recording.mdx) are not captured.
 
 When accessing an HTTP API through VNet, the same caveats apply as above, with one main exception.
 Since API clients don't need to respect HSTS, the API itself does not need to be served over HTTPS.
