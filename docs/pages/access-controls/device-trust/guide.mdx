@@ -15,7 +15,7 @@ In this guide, you will update an existing user profile to assign the preset `re
 role and then enroll a trusted device into Teleport to access a resource (a test linux server)
 protected with Teleport.
 
-### Prerequisites
+## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
@@ -45,6 +45,46 @@ protected with Teleport.
   root@(=clusterDefaults.nodeIP=):~#
   ```
 
+<Details type="warning" title="Teleport v13.3.5 and Below">
+  The preset `require-trusted-device` role, as referenced in this guide, is only available
+  from Teleport version 13.3.6 and above. For older Teleport cluster, you will need to update
+  a role with `device_trust_mode: required`.
+
+  For simplicity, the example below updates the preset `access` role but you can update
+  any existing access granting role which the user is assigned with to enforce Device Trust.
+
+  First, fetch a role so you can update it locally:
+  ```code
+  $ tctl edit role/access
+  ```
+
+  Edit the role with device trust mode:
+  ```diff
+  kind: role
+  metadata:
+    labels:
+      teleport.internal/resource-type: preset
+    name: access
+  spec:
+    allow:
+      logins:
+      - '{{internal.logins}}'
+      ...
+    options:
+      # require authenticated device check for this role
+  +   device_trust_mode: "required" # add this line
+      ...
+    deny:
+      ...
+
+  ```
+
+  Save your edits.
+
+  Now that the `access` role is configured with device mode "required", users with
+  this role will be enforced with Device Trust.
+</Details>
+
 Once the above prerequisites are met, begin with the following step.
 
 ## Step 1/2. Update user profile to enforce Device Trust
@@ -52,47 +92,6 @@ Once the above prerequisites are met, begin with the following step.
 To enforce Device Trust, a user must be assigned with a role with Device Trust mode "required".
 
 For this guide, we will use the preset `require-trusted-device` role to update current user profile.
-<Admonition type="warning" title="v13.3.5 and Below">
-  The preset `require-trusted-device` role, as referenced in this guide, is only available
-  from Teleport version 13.3.6 and above. For older Teleport cluster, you will need to update
-  a role with `device_trust_mode: required`.
-
-  <Details title="Update a role to enforce Device Trust" closed>
-    For simplicity, the example below updates the preset `access` role but you can update
-    any existing access granting role which the user is assigned with to enforce Device Trust.
-
-    First, fetch a role so you can update it locally:
-    ```code
-    $ tctl edit role/access
-    ```
-
-    Edit the role with Device Trust mode:
-    ```diff
-    kind: role
-    metadata:
-      labels:
-        teleport.internal/resource-type: preset
-      name: access
-    spec:
-      allow:
-        logins:
-        - '{{internal.logins}}'
-        ...
-      options:
-        # require authenticated device check for this role
-    +   device_trust_mode: "required" # add this line
-        ...
-      deny:
-        ...
-
-    ```
-
-    Save your edits.
-
-    Now that the `access` role is configured with device mode "required", users with
-    this role will be enforced with Device Trust.
-  </Details>
-</Admonition>
 
 First, let's fetch the user profile locally so we can update it with the preset `require-trusted-device` role.
 
