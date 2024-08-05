@@ -2180,11 +2180,12 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 
 			cache, err := process.newAccessCache(accesspoint.AccessCacheConfig{
-				Services:  as.Services,
-				Setup:     cache.ForAuth,
-				CacheName: []string{teleport.ComponentAuth},
-				Events:    true,
-				Unstarted: true,
+				Services:                 as.Services,
+				SPIFFEFederationsService: as.Services.SPIFFEFederations,
+				Setup:                    cache.ForAuth,
+				CacheName:                []string{teleport.ComponentAuth},
+				Events:                   true,
+				Unstarted:                true,
 			})
 			if err != nil {
 				return trace.Wrap(err)

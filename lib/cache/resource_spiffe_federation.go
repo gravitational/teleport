@@ -94,7 +94,6 @@ func (c *Cache) ListSPIFFEFederations(ctx context.Context, pageSize int, nextTok
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.spiffeFederations)
-
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -109,7 +108,6 @@ func (c *Cache) GetSPIFFEFederation(ctx context.Context, name string) (*machinei
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.spiffeFederations)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

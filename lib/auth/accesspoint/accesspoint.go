@@ -47,6 +47,10 @@ type AccessCacheConfig struct {
 	// Services is a collection of upstream services from which
 	// the access cache will derive its state.
 	Services services.Services
+	// SPIFFEFederationsService is the service used to manage SPIFFE
+	// federations. This will be used by the cache to derive the state for the
+	// SPIFFEFederations collection.
+	SPIFFEFederationsService services.SPIFFEFederations
 	// Setup is a function that takes cache configuration and
 	// modifies it to support a specific teleport service.
 	Setup cache.SetupConfigFn
@@ -154,6 +158,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		WebSession:              cfg.Services.WebSessions(),
 		WebToken:                cfg.Services.WebTokens(),
 		KubeWaitingContainers:   cfg.Services,
+		SPIFFEFederations:       cfg.SPIFFEFederationsService,
 		Component:               teleport.Component(component...),
 		MetricComponent:         teleport.Component(metricComponent...),
 		Tracer:                  tracer,
