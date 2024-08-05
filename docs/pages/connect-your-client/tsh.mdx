@@ -248,6 +248,12 @@ a browser of your choice to continue the login flow.
 
 [CLI Docs - tsh login](../reference/cli/tsh.mdx#tsh-login)
 
+Multi-factor Authentication can be configured, however, a Hardware Key cannot be your primary 
+authentication method. For web accounts configured to use hardware key as the primary 
+authentication method, this will become your secondary factor when using `tsh login`. 
+If you do not have a password configured on your web account you will need to set one 
+to use `tsh login`. 
+
 ### Inspecting an SSH certificate
 
 To inspect the SSH certificates in `~/.tsh`, a user may execute the following
