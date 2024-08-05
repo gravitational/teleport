@@ -142,6 +142,12 @@ For auto-enrollment to work, the following conditions must be met:
 [manual](#register-a-trusted-device) or performed using an
 integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
+- User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
+
+<Admonition type="tip">
+  Since Teleport v16.1.1 users don't need the device/enroll permission to
+  benefit from auto-enrollment.
+</Admonition>
 
 Enable auto-enrollment in your cluster settings:
 
