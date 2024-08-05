@@ -1,0 +1,138 @@
+---
+title: Run Teleport Policy on Self-Hosted Clusters
+description: Describes how to deploy Access Graph on self-hosted clusters.
+---
+
+Teleport Policy's Access Graph with a self-hosted Teleport cluster requires setting up 
+Access Graph, a dedicated service which uses PostgreSQL as its backing storage and communicates 
+with Auth Service and Proxy Service to collect information about resources and access.
+
+This guide will help you set up the service and enable Access Graph in your Teleport cluster.
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v14.3.6 or later.
+- An updated `license.pem` with Teleport Policy enabled.
+- Docker version v(=docker.version=) or later.
+- A PostgreSQL database server v14 or later.
+  - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
+    The user that Access Graph connects to the database with needs to be the owner of this database, or have similar broad permissions:
+    at least the `CREATE TABLE` privilege on the `public` schema, and the `CREATE SCHEMA` privilege.
+  - Amazon RDS for PostgreSQL is supported.
+- A TLS certificate for the Access Graph service
+  - The TLS certificate must be issued for "server authentication" key usage,
+    and must list the IP or DNS name of the Access Graph service in an X.509 v3 `subjectAltName` extension.
+  - Starting from version 1.20.4 of the Access Graph service, the container runs as a non-root user by default.
+    Make sure the certificate files are readable by the user running the container. You can set correct permissions with the following command:
+    ```code
+    $ sudo chown 65532 /etc/access_graph/tls.key
+    ```
+- The node running the Access Graph service must be reachable from Teleport Auth Service and Proxy Service.
+
+<Notice type="warning">
+    The deployment with Docker is suitable for testing and development purposes. For production deployments,
+    consider using the Access Graph Helm chart to deploy this service on Kubernetes.
+    Refer to [Helm chart for Access Graph](self-hosted-helm.mdx) for instructions.
+</Notice>
+
+## Step 1/3. Set up Access Graph
+
+You will need a copy of your Teleport cluster's host certificate authority (CA) on the machine that hosts the Access Graph service.
+The service requires incoming connections to be authenticated via host certificates that the host CA issues to the Auth Service and Proxy Service.
+
+The host CA can be retrieved and saved into a file in one of the following ways:
+
+<Tabs>
+<TabItem label="Via curl">
+```code
+$ sudo mkdir /etc/access_graph
+$ curl -s 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' | sudo tee /etc/access_graph/teleport_host_ca.pem
+```
+</TabItem>
+
+<TabItem label="Via tctl">
+```code
+$ sudo mkdir /etc/access_graph
+$ tsh login --proxy=<Var name="teleport.example.com" />
+$ tctl get cert_authorities --format=json \
+    | jq -r '.[] | select(.spec.type == "host") | .spec.active_keys.tls[].cert' \
+    | base64 -d | sudo tee /etc/access_graph/teleport_host_ca.pem
+```
+</TabItem>
+</Tabs>
+
+Then, on the same machine, create a configuration file for the Access Graph service, similar to this:
+
+```yaml
+backend:
+  postgres:
+    # This uses the PostgreSQL connection URI format, see https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING-URIS
+    # A stricter `sslmode` value is strongly recommended,
+    # e.g. `sslmode=verify-full&sslrootcert=/etc/access_graph/my_postgres_ca.crt`.
+    # For a full reference on possible parameters see https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    connection: postgres://access_graph_user:my_password@db.example.com:5432/access_graph_db?sslmode=require
+
+    # When running on Amazon RDS, IAM auth via credentials set in the environment can be used as follows:
+    # iam:
+    #   aws_region: us-west-2
+
+# IP address (optional) and port for the Access Graph service to listen to.
+# This is the default value. This key can be omitted to listen on port 50051 on all interfaces.
+address: ":50051"
+
+tls:
+  # File paths of PEM-encoded TLS certificate and private key for the Access Graph server.
+  cert: /etc/access_graph/tls.crt
+  key: /etc/access_graph/tls.key
+
+# This lists the file paths for host CAs of Teleport clusters that are allowed to register with this Access Graph service.
+# Several paths can be included to allow several Teleport clusters to connect to the Access Graph service.
+registration_cas:
+  - /etc/access_graph/teleport_host_ca.pem # A full path to the file containing the Teleport cluster's host CA certificate.
+```
+
+Finally, start the Access Graph service using Docker as follows:
+
+```console
+$ docker run -p 50051:50051 -v <path-to-config>:/app/config.yaml -v /etc/access_graph:/etc/access_graph public.ecr.aws/gravitational/access-graph:(=access_graph.version=)
+```
+
+## Step 2/3. Update the Teleport Auth Service configuration
+
+In the YAML config for the Auth Service, add a new top-level section for Access Graph configuration.
+
+```yaml
+access_graph:
+  enabled: true
+  # host:port where the Access Graph service is listening
+  endpoint: access-graph.example.com:50051
+  # Specify a trusted CA we expect the Access Graph server certificate to be signed by.
+  # If not specified, the system trust store will be used.
+  ca: /etc/access_graph_ca.pem
+```
+
+Then, restart Auth Service instances, followed by Proxy Service instances.
+
+## Step 3/3. View the Access Graph in the Web UI
+
+You can find Access Graph in the "Access Management" tab in the Web UI.
+![Access Management menu item](../../../../img/access-graph/menu-item.png)
+
+To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: my-role
+spec:
+  allow:
+    rules:
+    - resources:
+      - access_graph
+      verbs:
+      - list
+      - read
+```
+
+The preset `editor` role has the required permissions by default.

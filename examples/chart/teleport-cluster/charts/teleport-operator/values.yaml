@@ -41,7 +41,7 @@ joinMethod: "kubernetes"
 
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
-# [Kubernetes JWKS](../../join-methods.mdx#kubernetes-jwks) join method.
+# [Kubernetes JWKS](../../reference/join-methods.mdx#kubernetes-jwks) join method.
 teleportClusterName: ""
 
 # token(string) -- is the name of the token used by the operator to join the Teleport cluster.

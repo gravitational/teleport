@@ -30,7 +30,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Microsoft Teams](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) guide
+  # Microsoft Teams](../../admin-guides/access-controls/access-request-plugins/ssh-approval-msteams.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -46,17 +46,17 @@ teleport:
 # - via an existing Kubernetes Secret by setting `msTeams.appSecretFromSecret`
 msTeams:
   # msTeams.appID(string) -- is the Azure app ID used by the plugin.
-  # See [the MsTeams guide](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+  # See [the MsTeams guide](../../admin-guides/access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
   #
   # This value is mandatory.
   appID: ""
   # msTeams.tenantID(string) -- is the Azure tenant ID used by the plugin and Microsoft Teams.
-  # See [the MsTeams guide](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+  # See [the MsTeams guide](../../admin-guides/access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
   #
   # This value is mandatory.
   tenantID: ""
   # msTeams.teamsAppID(string) -- is the MsTeams app ID used by the plugin.
-  # See [the MsTeams guide](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+  # See [the MsTeams guide](../../admin-guides/access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
   #
   # This value is mandatory.
   teamsAppID: ""

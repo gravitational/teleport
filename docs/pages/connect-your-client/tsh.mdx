@@ -190,7 +190,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   It is recommended to always use [`tsh login`](../reference/cli/tsh.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
-A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
+A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../admin-guides/access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -683,7 +683,7 @@ $ tsh join <session_ID>
   title="Lacking permission?"
 >
   Joining sessions requires special permissions that need to be set up by your cluster administrator.
-  Refer them to the [Moderated Sessions guide](../access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
+  Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
 
 <Notice type="note" scope={["oss", "enterprise"]}>
@@ -697,7 +697,7 @@ Teleport supports creating clusters of servers located behind firewalls
 tunnels from behind-firewall environments into a Teleport Proxy Service you have access to.
 
 To learn more about setting up a trust relationship between clusters behind firewalls, see
-[Configure Trusted Clusters](../management/admin/trustedclusters.mdx).
+[Configure Trusted Clusters](../admin-guides/management/admin/trustedclusters.mdx).
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -940,7 +940,7 @@ $ tsh play ./my-recording.tar
 To retrieve a TAR file containing a session recording, you must have access to
 the session recording backend. This requires either a self-hosted Teleport
 cluster or [external audit
-storage](../choose-an-edition/teleport-cloud/external-audit-storage.mdx).
+storage](../admin-guides/management/external-audit-storage.mdx).
 
 The `tsh play` command can print recordings in three formats, depending on the
 kind of resource the recorded session interacts with. To choose a format, use
@@ -1165,7 +1165,7 @@ $ ssh node1.leaf1
 ## Uninstalling tsh
 
 To remove `tsh` and associated user data see
-[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+[Uninstalling Teleport](../admin-guides/management/admin/uninstall-teleport.mdx).
 
 ## Further reading
 
