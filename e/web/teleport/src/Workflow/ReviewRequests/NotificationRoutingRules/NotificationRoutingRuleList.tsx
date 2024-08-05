@@ -1,14 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import {
-  Alert,
-  ButtonBorder,
-  Flex,
-  Text,
-  ButtonText,
-  Box,
-  Label,
-} from 'design';
+import { Alert, ButtonBorder, Flex, Text, Box, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { useInfiniteScroll } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -77,14 +69,16 @@ export function NotificationRoutingRuleList({
   return (
     <>
       {attempt.status === 'failed' && (
-        <Alert kind="danger">
+        <Alert
+          kind="danger"
+          primaryAction={
+            !badRequest
+              ? { content: 'Retry', onClick: retryAttempt }
+              : undefined
+          }
+        >
           <Flex alignItems="center">
             <Text>{attempt.statusText}</Text>
-            {!badRequest && (
-              <ButtonText onClick={retryAttempt} width="100px">
-                Retry
-              </ButtonText>
-            )}
           </Flex>
         </Alert>
       )}

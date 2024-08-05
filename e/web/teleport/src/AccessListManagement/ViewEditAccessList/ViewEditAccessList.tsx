@@ -1,19 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import styled from 'styled-components';
 import { useParams, useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import {
-  Box,
-  Indicator,
-  Alert,
-  Flex,
-  Text,
-  ButtonSecondary,
-  ButtonBorder,
-  H1,
-} from 'design';
+import { Box, Indicator, Alert, Flex, Text, ButtonSecondary, H1 } from 'design';
 import { ArrowBack, ListMagnifyingGlass, ArrowForward } from 'design/Icon';
 import {
   FeatureBox,
@@ -227,16 +217,20 @@ export function ViewEditAccessList() {
       <>
         {accessList.requiresReview &&
           (perms.isOwner || perms.adminWhoCanEdit) && (
-            <OutlineInfo css={{ justifyContent: 'space-between' }}>
-              <Flex alignItems="center">
-                <ReviewBannerIcon size={18} />
-                This Access List needs review by{' '}
-                {format(accessList.audit.nextDate, 'MM/dd')}.
-              </Flex>
-              <ButtonBorder onClick={() => setReviewing(true)}>
-                Start Review
-                <ArrowForward size={18} ml={2} />
-              </ButtonBorder>
+            <OutlineInfo
+              icon={ListMagnifyingGlass}
+              primaryAction={{
+                content: (
+                  <>
+                    Start Review
+                    <ArrowForward size={18} ml={2} />
+                  </>
+                ),
+                onClick: () => setReviewing(true),
+              }}
+            >
+              This Access List needs review by{' '}
+              {format(accessList.audit.nextDate, 'MM/dd')}.
             </OutlineInfo>
           )}
         <Box mb={6}>
@@ -347,12 +341,3 @@ function getPerms({
     adminWhoCanDelete: accessListAccess?.remove,
   };
 }
-
-const ReviewBannerIcon = styled(ListMagnifyingGlass)`
-  background-color: ${p => p.theme.colors.link};
-  border-radius: 100px;
-  height: 32px;
-  width: 32px;
-  color: ${p => p.theme.colors.text.primaryInverse};
-  margin-right: ${p => p.theme.space[2]}px;
-`;

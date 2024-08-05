@@ -1,6 +1,21 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded state 1`] = `
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA6;
+  margin-right: 4px;
+  margin-left: -3px;
+}
+
 .c0 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -235,21 +250,6 @@ exports[`loaded state 1`] = `
 
 .c28:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #00BFA6;
-  margin-right: 4px;
-  margin-left: -3px;
 }
 
 .c19 {

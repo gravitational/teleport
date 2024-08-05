@@ -20,7 +20,7 @@ import {
   Integration,
 } from 'teleport/services/integrations';
 
-import Alert from 'design/Alert';
+import { Alert } from 'design/Alert';
 
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';

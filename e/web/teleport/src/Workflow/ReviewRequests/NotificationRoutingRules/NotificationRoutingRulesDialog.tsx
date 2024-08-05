@@ -1,16 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useTheme } from 'styled-components';
-import {
-  Text,
-  Flex,
-  Box,
-  ButtonIcon,
-  Alert,
-  ButtonText,
-  Indicator,
-  Button,
-} from 'design';
+import { Text, Flex, Box, ButtonIcon, Alert, Indicator, Button } from 'design';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import Dialog from 'design/Dialog';
 import { HoverTooltip } from 'shared/components/ToolTip';
@@ -204,12 +195,12 @@ export const NotificationRoutingRulesDialog = ({
             )}
           </Flex>
           {fetchPluginsAttempt.status === 'failed' && (
-            <Alert mt={3}>
+            <Alert
+              mt={3}
+              primaryAction={{ content: 'Retry', onClick: fetchPlugins }}
+            >
               <Flex alignItems="center">
                 <Text>{fetchPluginsAttempt.statusText}</Text>
-                <ButtonText onClick={fetchPlugins} width="100px">
-                  Retry
-                </ButtonText>
               </Flex>
             </Alert>
           )}

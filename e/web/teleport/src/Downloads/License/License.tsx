@@ -8,10 +8,10 @@ import {
   ButtonSecondary,
   Flex,
   H2,
+  Alert,
 } from 'design';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import Alert from 'design/Alert';
 
 import DialogConfirmation, {
   DialogContent,

@@ -123,6 +123,39 @@ ImportInitLoading.parameters = {
   },
 };
 
+export const ImportInitError = () => {
+  cfg.isIgsEnabled = true;
+  const ctx = createTeleportContext();
+
+  return (
+    <ContextProvider ctx={ctx}>
+      <PluginProvider selectedPlugin={oktaPlugin}>
+        <MockInstalledPlugin>
+          <ImportComponent />
+        </MockInstalledPlugin>
+      </PluginProvider>
+    </ContextProvider>
+  );
+};
+ImportInitError.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        ecfg.api.okta.groups,
+        async () => new HttpResponse(null, { status: 500 })
+      ),
+      http.post(
+        ecfg.api.okta.apps,
+        async () => new HttpResponse(null, { status: 500 })
+      ),
+      http.get(
+        cfg.api.usersPath,
+        async () => new HttpResponse(null, { status: 500 })
+      ),
+    ],
+  },
+};
+
 export const Import = () => {
   const ctx = createTeleportContext();
 

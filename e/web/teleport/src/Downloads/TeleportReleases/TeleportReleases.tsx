@@ -5,7 +5,7 @@ import Select, { Option } from 'shared/components/Select';
 
 import Indicator from 'design/Indicator';
 
-import Alert from 'design/Alert';
+import { Alert } from 'design/Alert';
 
 import Text, { H2 } from 'design/Text';
 

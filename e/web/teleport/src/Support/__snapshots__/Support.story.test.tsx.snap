@@ -1,6 +1,12 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render support cloud section 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
   padding-top: 24px;
@@ -39,12 +45,6 @@ exports[`render support cloud section 1`] = `
 .c16 {
   box-sizing: border-box;
   margin-bottom: 16px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c4 {

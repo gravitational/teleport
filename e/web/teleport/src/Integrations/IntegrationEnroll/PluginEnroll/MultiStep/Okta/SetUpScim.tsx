@@ -6,7 +6,6 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { PluginOktaSpec } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
-import { OutlineInfoIcon } from '../../OutlineInfoIcon';
 import { Header } from '../Shared';
 import { usePlugin } from '../usePlugin';
 
@@ -140,16 +139,11 @@ export function SetUpScim() {
             Click <Mark>Save</Mark>
           </Text>
         </StyledBox>
-        <OutlineInfo css={{ justifyContent: 'normal' }}>
-          <Box>
-            <OutlineInfoIcon size={18} />
-          </Box>
-          <Box>
-            <Text bold>
-              Please set up SCIM before proceeding—you will not be able to view
-              the <Mark>Bearer Token</Mark> again!
-            </Text>
-          </Box>
+        <OutlineInfo>
+          <Text bold>
+            Please set up SCIM before proceeding—you will not be able to view
+            the <Mark>Bearer Token</Mark> again!
+          </Text>
         </OutlineInfo>
       </Flex>
       <Flex>

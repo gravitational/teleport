@@ -426,43 +426,41 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             css={{ justifyContent: 'normal', maxWidth: '620px' }}
             linkColor="buttons.link.default"
           >
-            <Box>
-              <Box>
-                Enabling Okta integration will make Teleport take ownership over
-                app and group assignments in Okta and can make changes within
-                Okta based on Teleport's RBAC configuration.
-                <br />
-                <br />
-                Specifically, access to Okta apps is governed by Teleport roles{' '}
-                <Link
-                  target="_blank"
-                  href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
-                >
-                  app_labels
-                </Link>
-                {'. '}
-                Ensure that your users do not have roles with wildcard{' '}
-                <Link
-                  target="_blank"
-                  href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
-                >
-                  app_labels
-                </Link>
-                , which otherwise will result into those users being assigned to
-                all Okta applications.
-                <br />
-                <br />
-                To limit the scope of this integration, you can constrain Okta
-                access token to a subset of apps and groups by using{' '}
-                <Link
-                  target="_blank"
-                  href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm"
-                >
-                  Okta resource set
-                </Link>
-                .
-              </Box>
-            </Box>
+            <P>
+              Enabling Okta integration will make Teleport take ownership over
+              app and group assignments in Okta and can make changes within Okta
+              based on Teleport's RBAC configuration.
+            </P>
+            <P>
+              Specifically, access to Okta apps is governed by Teleport roles{' '}
+              <Link
+                target="_blank"
+                href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
+              >
+                app_labels
+              </Link>
+              {'. '}
+              Ensure that your users do not have roles with wildcard{' '}
+              <Link
+                target="_blank"
+                href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
+              >
+                app_labels
+              </Link>
+              , which otherwise will result into those users being assigned to
+              all Okta applications.
+            </P>
+            <P>
+              To limit the scope of this integration, you can constrain Okta
+              access token to a subset of apps and groups by using{' '}
+              <Link
+                target="_blank"
+                href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm"
+              >
+                Okta resource set
+              </Link>
+              .
+            </P>
           </OutlineWarn>
         </>
       );

@@ -1,6 +1,13 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`test DeviceTrust.tsx empty list with cta 1`] = `
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.18);
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -90,13 +97,6 @@ exports[`test DeviceTrust.tsx empty list with cta 1`] = `
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
-}
-
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.18);
 }
 
 .c11 {
@@ -262,7 +262,7 @@ p+.c23 {
       width="100%"
     >
       <div
-        class="c9 c10 sc-gJhJTp c9 c11"
+        class="c9 c10 sc-dsLQwm c9 c11"
       >
         <div
           class="c12"
@@ -353,7 +353,7 @@ p+.c23 {
         class="c18 c19"
       >
         <p
-          class="c20 c16 sc-eJgwjL c21"
+          class="c20 c16 sc-fpSrms c21"
           color="text.slightlyMuted"
         >
           <i>
@@ -361,7 +361,7 @@ p+.c23 {
           </i>
         </p>
         <p
-          class="c22 c23 sc-eJgwjL c24"
+          class="c22 c23 sc-fpSrms c24"
         >
           Want additional devices?
         </p>
@@ -387,6 +387,19 @@ p+.c23 {
 `;
 
 exports[`test DeviceTrust.tsx enabled no limit - no CTA 1`] = `
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
+.c20 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -485,19 +498,6 @@ exports[`test DeviceTrust.tsx enabled no limit - no CTA 1`] = `
 
 .c21:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
-}
-
-.c20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c28 {
@@ -979,6 +979,19 @@ p+.c27 {
 `;
 
 exports[`test DeviceTrust.tsx enabled with limit - renders CTA 1`] = `
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
+.c20 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c0 {
   box-sizing: border-box;
 }
@@ -1147,19 +1160,6 @@ exports[`test DeviceTrust.tsx enabled with limit - renders CTA 1`] = `
 
 .c21:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
-}
-
-.c20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c37 {
@@ -1655,7 +1655,7 @@ p+.c30 {
         class="c24 c25"
       >
         <p
-          class="c26 c27 sc-eJgwjL c28"
+          class="c26 c27 sc-fpSrms c28"
           color="text.slightlyMuted"
         >
           <i>
@@ -1663,7 +1663,7 @@ p+.c30 {
           </i>
         </p>
         <p
-          class="c29 c30 sc-eJgwjL c31"
+          class="c29 c30 sc-fpSrms c31"
         >
           Want additional devices?
         </p>

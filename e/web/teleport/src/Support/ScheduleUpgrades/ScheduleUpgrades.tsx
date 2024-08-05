@@ -7,7 +7,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import Text from 'design/Text';
-import Alert from 'design/Alert';
+import { Alert } from 'design/Alert';
 import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
