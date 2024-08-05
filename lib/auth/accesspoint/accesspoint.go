@@ -77,6 +77,8 @@ func (c *AccessCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// NewAccessCacheForClient creates a new cache for a teleport service that
+// uses an authclient.ClientI to populate its resource collections.
 func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
 	cacheCfg, err := BaseCacheConfig(cfg)
 	if err != nil {
@@ -119,8 +121,9 @@ func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (
 	return cache.New(cfg.Setup(*cacheCfg))
 }
 
-// NewAccessCache builds a cache.Cache instance for a teleport service. This logic has been
-// broken out of lib/service in order to support easier unit testing of process components.
+// BaseCacheConfig builds a *cache.Config instance for a teleport service.
+// The returned config needs to be completed with the service-specific readers
+// that the cache needs to fill resource collections.
 func BaseCacheConfig(cfg AccessCacheConfig) (*cache.Config, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

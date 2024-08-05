@@ -621,6 +621,8 @@ type Services struct {
 	services.DevicesGetter
 }
 
+// NewAccessCacheForServices creates a new cache for a Teleport service that
+// uses the provided services to populate its resource collections.
 func NewAccessCacheForServices(cfg accesspoint.AccessCacheConfig, services *Services) (*cache.Cache, error) {
 	cacheCfg, err := accesspoint.BaseCacheConfig(cfg)
 	if err != nil {
