@@ -122,8 +122,8 @@ exports[`loaded approved role based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -924,8 +924,8 @@ exports[`loaded denied role based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1624,8 +1624,8 @@ exports[`loaded pending role based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -2520,8 +2520,8 @@ exports[`loaded pending search based request state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255, 255, 255, 0.54);
-  border-color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;

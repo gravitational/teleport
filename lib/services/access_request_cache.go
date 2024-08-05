@@ -405,12 +405,6 @@ func (c *AccessRequestCache) InitializationChan() <-chan struct{} {
 	return c.initC
 }
 
-// InitializationChan is part of the resourceCollector interface and gets the channel
-// used to signal that the accessRequestCache has been initialized.
-func (c *AccessRequestCache) InitializationChan() <-chan struct{} {
-	return c.initializationChan()
-}
-
 // Close terminates the background process that keeps the access request cache up to
 // date, and terminates any inflight load operations.
 func (c *AccessRequestCache) Close() error {
