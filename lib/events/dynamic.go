@@ -403,9 +403,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case DiscoveryConfigDeleteAllEvent:
 		e = &events.DiscoveryConfigDeleteAll{}
 
-	case SPIFFEFederationCreateCode:
+	case SPIFFEFederationCreateEvent:
 		e = &events.SPIFFEFederationCreate{}
-	case SPIFFEFederationDeleteCode:
+	case SPIFFEFederationDeleteEvent:
 		e = &events.SPIFFEFederationDelete{}
 	case IntegrationCreateEvent:
 		e = &events.IntegrationCreate{}
