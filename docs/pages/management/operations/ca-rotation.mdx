@@ -20,10 +20,15 @@ change after each `host` CA rotation. Make sure you use the *new* CA pin when ad
 Teleport services after `host` CA rotation.
 
 <Admonition type="warning" title="Exported CAs">
+Joined OpenSSH servers will require reissuing and updating the HostKey
+and HostCertificates installed.
+
 Teleport signs Windows Desktop client certificates with the `user` certificate
 authority.
 If the `user` CA is rotated, the new CA certificate must be exported and
-configured in group policy.
+configured in group policy for Active Directory integrations. For local Windows
+user access the Teleport Windows Auth Setup must be run to update the trusted CA
+certificate.
 
 Teleport signs self-hosted database host certificates with the `db` certificate
 authority and signs database client certificates with the `db_client` CA.
