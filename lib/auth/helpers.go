@@ -311,12 +311,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	if cfg.CacheEnabled {
 		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
-			Context:   srv.AuthServer.CloseContext(),
-			Services:  srv.AuthServer.Services,
-			Setup:     cache.ForAuth,
-			CacheName: []string{teleport.ComponentAuth},
-			Events:    true,
-			Unstarted: true,
+			Context:                  srv.AuthServer.CloseContext(),
+			Services:                 srv.AuthServer.Services,
+			SPIFFEFederationsService: srv.AuthServer.Services.SPIFFEFederations,
+			Setup:                    cache.ForAuth,
+			CacheName:                []string{teleport.ComponentAuth},
+			Events:                   true,
+			Unstarted:                true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
