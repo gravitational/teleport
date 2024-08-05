@@ -85,7 +85,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -244,9 +244,9 @@ the lifecycle of the agent.
 {/* The permission to read and update users is needed during setup but not for regular usage,
 that's why it's not listed in the partial. */}
 - Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
-  `user` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
+  `user` resource](../reference/access-controls/roles.mdx)).
 - Permissions to read, update, and create roles in the backend (verbs `read`, `update`, and `create`
-  for [the `role` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
+  for [the `role` resource](../reference/access-controls/roles.mdx)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
 as logging in as other system users or [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
@@ -380,7 +380,7 @@ the agent was successfully configured.
 If you wish to prevent cluster users from using Connect My Computer, make sure they don't have
 permissions to create new join tokens. This is controlled by the `create` verb for the `token`
 resource. Either deny this permission explicitly or do not grant it in the first place. See [Access
-Controls Reference Documentation](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources) for more
+Controls Reference Documentation](../reference/access-controls/roles.mdx) for more
 details. Denying this permission will hide the icon in the top bar.
 
 Users who already set up agents will still be able to manage those agents, even after the denying
@@ -389,7 +389,7 @@ a user set up an agent and then lock the user out of removing the agent.
 
 To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
 with the `teleport.dev/connect-my-computer/owner` label and then [place
-locks](../access-controls/guides/locking.mdx) on those nodes.
+locks](../admin-guides/access-controls/guides/locking.mdx) on those nodes.
 
 ```code
 $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
@@ -592,7 +592,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../admin-guides/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>
