@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	authservices "github.com/gravitational/teleport/lib/auth/services"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
@@ -77,10 +78,56 @@ func (c *AccessCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// NewAccessCacheForServices creates a new cache for a Teleport service that
+// uses the provided services to populate its resource collections.
+func NewAccessCacheForServices(
+	cfg AccessCacheConfig, services *authservices.Services,
+) (*cache.Cache, error) {
+	cacheCfg, err := baseConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cacheCfg.Events = services.Events
+	cacheCfg.ClusterConfig = services.ClusterConfiguration
+	cacheCfg.Provisioner = services.Provisioner
+	cacheCfg.Trust = services.TrustInternal
+	cacheCfg.Users = services.Identity
+	cacheCfg.Access = services.Access
+	cacheCfg.DynamicAccess = services.DynamicAccessExt
+	cacheCfg.Presence = services.PresenceInternal
+	cacheCfg.Restrictions = services.Restrictions
+	cacheCfg.Apps = services.Apps
+	cacheCfg.Kubernetes = services.Kubernetes
+	cacheCfg.CrownJewels = services.CrownJewels
+	cacheCfg.DatabaseServices = services.DatabaseServices
+	cacheCfg.Databases = services.Databases
+	cacheCfg.DatabaseObjects = services.DatabaseObjects
+	cacheCfg.AppSession = services.Identity
+	cacheCfg.SnowflakeSession = services.Identity
+	cacheCfg.SAMLIdPSession = services.Identity
+	cacheCfg.WindowsDesktops = services.WindowsDesktops
+	cacheCfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
+	cacheCfg.UserGroups = services.UserGroups
+	cacheCfg.Notifications = services.Notifications
+	cacheCfg.Okta = services.Okta
+	cacheCfg.AccessLists = services.AccessLists
+	cacheCfg.AccessMonitoringRules = services.AccessMonitoringRules
+	cacheCfg.SecReports = services.SecReports
+	cacheCfg.UserLoginStates = services.UserLoginStates
+	cacheCfg.Integrations = services.Integrations
+	cacheCfg.DiscoveryConfigs = services.DiscoveryConfigs
+	cacheCfg.WebSession = services.Identity.WebSessions()
+	cacheCfg.WebToken = services.Identity.WebTokens()
+	cacheCfg.KubeWaitingContainers = services.KubeWaitingContainer
+
+	return cache.New(cfg.Setup(*cacheCfg))
+}
+
 // NewAccessCacheForClient creates a new cache for a teleport service that
 // uses an authclient.ClientI to populate its resource collections.
 func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
-	cacheCfg, err := BaseCacheConfig(cfg)
+	cacheCfg, err := baseConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,10 +168,7 @@ func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (
 	return cache.New(cfg.Setup(*cacheCfg))
 }
 
-// BaseCacheConfig builds a *cache.Config instance for a teleport service.
-// The returned config needs to be completed with the service-specific readers
-// that the cache needs to fill resource collections.
-func BaseCacheConfig(cfg AccessCacheConfig) (*cache.Config, error) {
+func baseConfig(cfg AccessCacheConfig) (*cache.Config, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

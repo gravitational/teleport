@@ -80,10 +80,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
+	authservices "github.com/gravitational/teleport/lib/auth/services"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -578,116 +578,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
-type Services struct {
-	services.TrustInternal
-	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
-	services.DynamicAccessExt
-	services.ClusterConfiguration
-	services.Restrictions
-	services.Apps
-	services.Kubernetes
-	services.Databases
-	services.DatabaseServices
-	services.WindowsDesktops
-	services.SAMLIdPServiceProviders
-	services.UserGroups
-	services.SessionTrackerService
-	services.ConnectionsDiagnostic
-	services.StatusInternal
-	services.Integrations
-	services.IntegrationsTokenGenerator
-	services.DiscoveryConfigs
-	services.Okta
-	services.AccessLists
-	services.DatabaseObjectImportRules
-	services.DatabaseObjects
-	services.UserLoginStates
-	services.UserPreferences
-	services.PluginData
-	services.SCIM
-	services.Notifications
-	usagereporter.UsageReporter
-	types.Events
-	events.AuditLogSessionStreamer
-	services.SecReports
-	services.KubeWaitingContainer
-	services.AccessMonitoringRules
-	services.CrownJewels
-	services.BotInstance
-	services.AccessGraphSecretsGetter
-	services.DevicesGetter
-}
-
-// NewAccessCacheForServices creates a new cache for a Teleport service that
-// uses the provided services to populate its resource collections.
-func NewAccessCacheForServices(cfg accesspoint.AccessCacheConfig, services *Services) (*cache.Cache, error) {
-	cacheCfg, err := accesspoint.BaseCacheConfig(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cacheCfg.Events = services.Events
-	cacheCfg.ClusterConfig = services.ClusterConfiguration
-	cacheCfg.Provisioner = services.Provisioner
-	cacheCfg.Trust = services.TrustInternal
-	cacheCfg.Users = services.Identity
-	cacheCfg.Access = services.Access
-	cacheCfg.DynamicAccess = services.DynamicAccessExt
-	cacheCfg.Presence = services.PresenceInternal
-	cacheCfg.Restrictions = services.Restrictions
-	cacheCfg.Apps = services.Apps
-	cacheCfg.Kubernetes = services.Kubernetes
-	cacheCfg.CrownJewels = services.CrownJewels
-	cacheCfg.DatabaseServices = services.DatabaseServices
-	cacheCfg.Databases = services.Databases
-	cacheCfg.DatabaseObjects = services.DatabaseObjects
-	cacheCfg.AppSession = services.Identity
-	cacheCfg.SnowflakeSession = services.Identity
-	cacheCfg.SAMLIdPSession = services.Identity
-	cacheCfg.WindowsDesktops = services.WindowsDesktops
-	cacheCfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
-	cacheCfg.UserGroups = services.UserGroups
-	cacheCfg.Notifications = services.Notifications
-	cacheCfg.Okta = services.Okta
-	cacheCfg.AccessLists = services.AccessLists
-	cacheCfg.AccessMonitoringRules = services.AccessMonitoringRules
-	cacheCfg.SecReports = services.SecReports
-	cacheCfg.UserLoginStates = services.UserLoginStates
-	cacheCfg.Integrations = services.Integrations
-	cacheCfg.DiscoveryConfigs = services.DiscoveryConfigs
-	cacheCfg.WebSession = services.Identity.WebSessions()
-	cacheCfg.WebToken = services.Identity.WebTokens()
-	cacheCfg.KubeWaitingContainers = services.KubeWaitingContainer
-
-	return cache.New(cfg.Setup(*cacheCfg))
-}
-
-// GetWebSession returns existing web session described by req.
-// Implements ReadAccessPoint
-func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.Identity.WebSessions().Get(ctx, req)
-}
-
-// GetWebToken returns existing web token described by req.
-// Implements ReadAccessPoint
-func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return r.Identity.WebTokens().Get(ctx, req)
-}
-
-// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
-}
-
-// OktaClient returns the okta client.
-// TODO(noah): Used in teleport-e - could be removed once e is updated to just
-// access Services.OktaClient directly.
-func (r *Services) OktaClient() services.Okta {
-	return r
-}
+type Services = authservices.Services
 
 var (
 	generateRequestsCount = prometheus.NewCounter(
