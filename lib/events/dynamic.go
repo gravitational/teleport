@@ -403,6 +403,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case DiscoveryConfigDeleteAllCode:
 		e = &events.DiscoveryConfigDeleteAll{}
 
+	case SPIFFEFederationCreateCode:
+		e = &events.SPIFFEFederationCreate{}
+	case SPIFFEFederationDeleteCode:
+		e = &events.SPIFFEFederationDelete{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
