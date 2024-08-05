@@ -2572,7 +2572,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Access
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewAccessCacheForServices(cfg, services)
+	return auth.NewAccessCacheForServices(cfg, services)
 }
 
 func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {

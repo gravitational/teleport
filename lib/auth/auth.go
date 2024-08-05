@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -81,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -621,9 +621,46 @@ type Services struct {
 	services.DevicesGetter
 }
 
-// SecReportsClient returns the security reports client.
-func (r *Services) SecReportsClient() *secreport.Client {
-	return nil
+func NewAccessCacheForServices(cfg accesspoint.AccessCacheConfig, services *Services) (*cache.Cache, error) {
+	cacheCfg, err := accesspoint.BaseCacheConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cacheCfg.Events = services.Events
+	cacheCfg.ClusterConfig = services.ClusterConfiguration
+	cacheCfg.Provisioner = services.Provisioner
+	cacheCfg.Trust = services.TrustInternal
+	cacheCfg.Users = services.Identity
+	cacheCfg.Access = services.Access
+	cacheCfg.DynamicAccess = services.DynamicAccessExt
+	cacheCfg.Presence = services.PresenceInternal
+	cacheCfg.Restrictions = services.Restrictions
+	cacheCfg.Apps = services.Apps
+	cacheCfg.Kubernetes = services.Kubernetes
+	cacheCfg.CrownJewels = services.CrownJewels
+	cacheCfg.DatabaseServices = services.DatabaseServices
+	cacheCfg.Databases = services.Databases
+	cacheCfg.DatabaseObjects = services.DatabaseObjects
+	cacheCfg.AppSession = services.Identity
+	cacheCfg.SnowflakeSession = services.Identity
+	cacheCfg.SAMLIdPSession = services.Identity
+	cacheCfg.WindowsDesktops = services.WindowsDesktops
+	cacheCfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
+	cacheCfg.UserGroups = services.UserGroups
+	cacheCfg.Notifications = services.Notifications
+	cacheCfg.Okta = services.Okta
+	cacheCfg.AccessLists = services.AccessLists
+	cacheCfg.AccessMonitoringRules = services.AccessMonitoringRules
+	cacheCfg.SecReports = services.SecReports
+	cacheCfg.UserLoginStates = services.UserLoginStates
+	cacheCfg.Integrations = services.Integrations
+	cacheCfg.DiscoveryConfigs = services.DiscoveryConfigs
+	cacheCfg.WebSession = services.Identity.WebSessions()
+	cacheCfg.WebToken = services.Identity.WebTokens()
+	cacheCfg.KubeWaitingContainers = services.KubeWaitingContainer
+
+	return cache.New(cfg.Setup(*cacheCfg))
 }
 
 // GetWebSession returns existing web session described by req.
@@ -644,61 +681,10 @@ func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string)
 }
 
 // OktaClient returns the okta client.
+// TODO(noah): Used in teleport-e - could be removed once e is updated to just
+// access Services.OktaClient directly.
 func (r *Services) OktaClient() services.Okta {
 	return r
-}
-
-// SCIMClient returns a client for the SCIM service. Note that in an OSS
-// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
-// service on the other end will return "NotImplemented" for every call.
-func (r *Services) SCIMClient() services.SCIM {
-	return r.SCIM
-}
-
-// AccessListClient returns the access list client.
-func (r *Services) AccessListClient() services.AccessLists {
-	return r
-}
-
-// AccessMonitoringRuleClient returns the access monitoring rules client.
-func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
-	return r
-}
-
-// DiscoveryConfigClient returns the DiscoveryConfig client.
-func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return r
-}
-
-// CrownJewelClient returns the CrownJewels client.
-func (r *Services) CrownJewelClient() services.CrownJewels {
-	return r
-}
-
-// UserLoginStateClient returns the user login state client.
-func (r *Services) UserLoginStateClient() services.UserLoginStates {
-	return r
-}
-
-// KubernetesWaitingContainerClient returns the Kubernetes waiting
-// container client.
-func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
-	return r
-}
-
-// DatabaseObjectsClient returns the database objects client.
-func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
-	return r
-}
-
-// GetAccessGraphSecretsGetter returns the AccessGraph secrets service.
-func (r *Services) GetAccessGraphSecretsGetter() services.AccessGraphSecretsGetter {
-	return r.AccessGraphSecretsGetter
-}
-
-// GetDevicesGetter returns the trusted devices service.
-func (r *Services) GetDevicesGetter() services.DevicesGetter {
-	return r.DevicesGetter
 }
 
 var (
@@ -5074,7 +5060,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil

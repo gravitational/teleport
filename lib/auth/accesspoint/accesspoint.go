@@ -31,7 +31,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -76,48 +75,6 @@ func (c *AccessCacheConfig) CheckAndSetDefaults() error {
 		c.Context = context.Background()
 	}
 	return nil
-}
-
-func NewAccessCacheForServices(cfg AccessCacheConfig, services *auth.Services) (*cache.Cache, error) {
-	cacheCfg, err := BaseCacheConfig(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cacheCfg.Events = services.Events
-	cacheCfg.ClusterConfig = services.ClusterConfiguration
-	cacheCfg.Provisioner = services.Provisioner
-	cacheCfg.Trust = services.TrustInternal
-	cacheCfg.Users = services.Identity
-	cacheCfg.Access = services.Access
-	cacheCfg.DynamicAccess = services.DynamicAccessExt
-	cacheCfg.Presence = services.PresenceInternal
-	cacheCfg.Restrictions = services.Restrictions
-	cacheCfg.Apps = services.Apps
-	cacheCfg.Kubernetes = services.Kubernetes
-	cacheCfg.CrownJewels = services.CrownJewels
-	cacheCfg.DatabaseServices = services.DatabaseServices
-	cacheCfg.Databases = services.Databases
-	cacheCfg.DatabaseObjects = services.DatabaseObjects
-	cacheCfg.AppSession = services.Identity
-	cacheCfg.SnowflakeSession = services.Identity
-	cacheCfg.SAMLIdPSession = services.Identity
-	cacheCfg.WindowsDesktops = services.WindowsDesktops
-	cacheCfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
-	cacheCfg.UserGroups = services.UserGroups
-	cacheCfg.Notifications = services.Notifications
-	cacheCfg.Okta = services.Okta
-	cacheCfg.AccessLists = services.AccessLists
-	cacheCfg.AccessMonitoringRules = services.AccessMonitoringRules
-	cacheCfg.SecReports = services.SecReports
-	cacheCfg.UserLoginStates = services.UserLoginStates
-	cacheCfg.Integrations = services.Integrations
-	cacheCfg.DiscoveryConfigs = services.DiscoveryConfigs
-	cacheCfg.WebSession = services.Identity.WebSessions()
-	cacheCfg.WebToken = services.Identity.WebTokens()
-	cacheCfg.KubeWaitingContainers = services.KubeWaitingContainer
-
-	return cache.New(cfg.Setup(*cacheCfg))
 }
 
 func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
