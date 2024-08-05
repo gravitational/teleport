@@ -1409,7 +1409,10 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             height: params.screen_height,
         },
         enable_tls: true,
+        #[cfg(not(feature = "fips"))]
         enable_credssp: params.ad,
+        #[cfg(feature = "fips")]
+        enable_credssp: false,
         credentials: Credentials::SmartCard {
             config: params.ad.then(|| {
                 SmartCardIdentity {
