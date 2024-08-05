@@ -224,6 +224,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
+		case types.KindSPIFFEFederation:
+			parser = newSPIFFEFederationParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2169,6 +2171,34 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(botInstance), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSPIFFEFederationParser() *spiffeFederationParser {
+	return &spiffeFederationParser{
+		baseParser: newBaseParser(backend.Key(spiffeFederationPrefix)),
+	}
+}
+
+type spiffeFederationParser struct {
+	baseParser
+}
+
+func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
+	case types.OpPut:
+		spiffeFed, err := services.UnmarshalSPIFFEFederation(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(spiffeFed), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
