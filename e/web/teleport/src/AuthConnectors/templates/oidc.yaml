@@ -9,9 +9,8 @@ metadata:
 spec:
   redirect_url: "https://<cluster-url>/v1/webapi/oidc/callback"
   client_id: <client id>
-  # Connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with Google".
-  # Teleport will provide custom CSS for 'Google'.
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
   display: Google
   client_secret: <client secret>
   issuer_url: https://<issuer-url>
