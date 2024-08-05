@@ -46,6 +46,10 @@ type WindowsDesktopConfig struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string
+	// KCDAddr optionally configures address of Key Distribution Center used during Kerberos NLA negotiation.
+	// If empty LDAP address will be used.
+	// Used for NLA support when AD is true.
+	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig

@@ -2316,6 +2316,10 @@ type WindowsDesktopService struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string `yaml:"pki_domain"`
+	// KCDAddr optionally configures address of Key Distribution Center used during Kerberos NLA negotiation.
+	// If empty LDAP address will be used.
+	// Used for NLA support when AD is true.
+	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
