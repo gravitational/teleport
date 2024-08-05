@@ -2179,13 +2179,12 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 
-			cache, err := process.newAccessCache(accesspoint.AccessCacheConfig{
-				Services:  as.Services,
+			cache, err := process.newAccessCacheForServices(accesspoint.AccessCacheConfig{
 				Setup:     cache.ForAuth,
 				CacheName: []string{teleport.ComponentAuth},
 				Events:    true,
 				Unstarted: true,
-			})
+			}, as.Services)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2567,13 +2566,22 @@ func (process *TeleportProcess) OnExit(serviceName string, callback func(interfa
 }
 
 // newAccessCache returns new local cache access point
-func (process *TeleportProcess) newAccessCache(cfg accesspoint.AccessCacheConfig) (*cache.Cache, error) {
+func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.AccessCacheConfig, services *auth.Services) (*cache.Cache, error) {
 	cfg.Context = process.ExitContext()
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewAccessCache(cfg)
+	return accesspoint.NewAccessCacheForServices(cfg, services)
+}
+
+func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
+	cfg.Context = process.ExitContext()
+	cfg.ProcessID = process.id
+	cfg.TracingProvider = process.TracingProvider
+	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+
+	return accesspoint.NewAccessCacheForClient(cfg, client)
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
@@ -2716,33 +2724,12 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.Cl
 	return authclient.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
-// accessPointWrapper is a wrapper around [authclient.ClientI]  that reduces the surface area of the
-// auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
-// Cache doesn't implement the full [authclient.ClientI]  interface, so we need to wrap [authclient.ClientI]
-// to make it compatible with the services.DiscoveryConfigs interface.
-type accessPointWrapper struct {
-	authclient.ClientI
-}
-
-func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
-	return a.ClientI.CrownJewelServiceClient()
-}
-
-func (a accessPointWrapper) DatabaseObjectsClient() services.DatabaseObjects {
-	return a.ClientI.DatabaseObjectsClient()
-}
-
-func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return a.ClientI.DiscoveryConfigClient()
-}
-
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt authclient.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
-	return process.newAccessCache(accesspoint.AccessCacheConfig{
-		Services:  &accessPointWrapper{ClientI: clt},
+	return process.newAccessCacheForClient(accesspoint.AccessCacheConfig{
 		Setup:     setupConfig,
 		CacheName: cacheName,
-	})
+	}, clt)
 }
 
 // GetRotation returns the process rotation.

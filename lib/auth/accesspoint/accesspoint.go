@@ -31,22 +31,20 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/services"
 )
 
-// AccessCacheConfig holds parameters used to confiure a cache to
+// AccessCacheConfig holds parameters used to configure a cache to
 // serve as an auth access point for a teleport service.
 type AccessCacheConfig struct {
 	// Context is the base context used to propagate closure to
 	// cache components.
 	Context context.Context
-	// Services is a collection of upstream services from which
-	// the access cache will derive its state.
-	Services services.Services
 	// Setup is a function that takes cache configuration and
 	// modifies it to support a specific teleport service.
 	Setup cache.SetupConfigFn
@@ -68,9 +66,6 @@ type AccessCacheConfig struct {
 }
 
 func (c *AccessCacheConfig) CheckAndSetDefaults() error {
-	if c.Services == nil {
-		return trace.BadParameter("missing parameter Services")
-	}
 	if c.Setup == nil {
 		return trace.BadParameter("missing parameter Setup")
 	}
@@ -83,9 +78,93 @@ func (c *AccessCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+func NewAccessCacheForServices(cfg AccessCacheConfig, services *auth.Services) (*cache.Cache, error) {
+	cacheCfg, err := BaseCacheConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cacheCfg.Events = services.Events
+	cacheCfg.ClusterConfig = services.ClusterConfiguration
+	cacheCfg.Provisioner = services.Provisioner
+	cacheCfg.Trust = services.TrustInternal
+	cacheCfg.Users = services.Identity
+	cacheCfg.Access = services.Access
+	cacheCfg.DynamicAccess = services.DynamicAccessExt
+	cacheCfg.Presence = services.PresenceInternal
+	cacheCfg.Restrictions = services.Restrictions
+	cacheCfg.Apps = services.Apps
+	cacheCfg.Kubernetes = services.Kubernetes
+	cacheCfg.CrownJewels = services.CrownJewels
+	cacheCfg.DatabaseServices = services.DatabaseServices
+	cacheCfg.Databases = services.Databases
+	cacheCfg.DatabaseObjects = services.DatabaseObjects
+	cacheCfg.AppSession = services.Identity
+	cacheCfg.SnowflakeSession = services.Identity
+	cacheCfg.SAMLIdPSession = services.Identity
+	cacheCfg.WindowsDesktops = services.WindowsDesktops
+	cacheCfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
+	cacheCfg.UserGroups = services.UserGroups
+	cacheCfg.Notifications = services.Notifications
+	cacheCfg.Okta = services.Okta
+	cacheCfg.AccessLists = services.AccessLists
+	cacheCfg.AccessMonitoringRules = services.AccessMonitoringRules
+	cacheCfg.SecReports = services.SecReports
+	cacheCfg.UserLoginStates = services.UserLoginStates
+	cacheCfg.Integrations = services.Integrations
+	cacheCfg.DiscoveryConfigs = services.DiscoveryConfigs
+	cacheCfg.WebSession = services.Identity.WebSessions()
+	cacheCfg.WebToken = services.Identity.WebTokens()
+	cacheCfg.KubeWaitingContainers = services.KubeWaitingContainer
+
+	return cache.New(cfg.Setup(*cacheCfg))
+}
+
+func NewAccessCacheForClient(cfg AccessCacheConfig, client authclient.ClientI) (*cache.Cache, error) {
+	cacheCfg, err := BaseCacheConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cacheCfg.Events = client
+	cacheCfg.ClusterConfig = client
+	cacheCfg.Provisioner = client
+	cacheCfg.Trust = client
+	cacheCfg.Users = client
+	cacheCfg.Access = client
+	cacheCfg.DynamicAccess = client
+	cacheCfg.Presence = client
+	cacheCfg.Restrictions = client
+	cacheCfg.Apps = client
+	cacheCfg.Kubernetes = client
+	cacheCfg.CrownJewels = client.CrownJewelServiceClient()
+	cacheCfg.DatabaseServices = client
+	cacheCfg.Databases = client
+	cacheCfg.DatabaseObjects = client.DatabaseObjectsClient()
+	cacheCfg.AppSession = client
+	cacheCfg.SnowflakeSession = client
+	cacheCfg.SAMLIdPSession = client
+	cacheCfg.WindowsDesktops = client
+	cacheCfg.SAMLIdPServiceProviders = client
+	cacheCfg.UserGroups = client
+	cacheCfg.Notifications = client
+	cacheCfg.Okta = client.OktaClient()
+	cacheCfg.AccessLists = client.AccessListClient()
+	cacheCfg.AccessMonitoringRules = client.AccessMonitoringRuleClient()
+	cacheCfg.SecReports = client.SecReportsClient()
+	cacheCfg.UserLoginStates = client.UserLoginStateClient()
+	cacheCfg.Integrations = client
+	cacheCfg.DiscoveryConfigs = client.DiscoveryConfigClient()
+	cacheCfg.WebSession = client.WebSessions()
+	cacheCfg.WebToken = client.WebTokens()
+	cacheCfg.KubeWaitingContainers = client
+
+	return cache.New(cfg.Setup(*cacheCfg))
+}
+
 // NewAccessCache builds a cache.Cache instance for a teleport service. This logic has been
 // broken out of lib/service in order to support easier unit testing of process components.
-func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
+func BaseCacheConfig(cfg AccessCacheConfig) (*cache.Config, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,45 +198,13 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 	component = append(component, teleport.ComponentCache)
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
-	return cache.New(cfg.Setup(cache.Config{
-		Context:                 cfg.Context,
-		Backend:                 reporter,
-		Events:                  cfg.Services,
-		ClusterConfig:           cfg.Services,
-		Provisioner:             cfg.Services,
-		Trust:                   cfg.Services,
-		Users:                   cfg.Services,
-		Access:                  cfg.Services,
-		DynamicAccess:           cfg.Services,
-		Presence:                cfg.Services,
-		Restrictions:            cfg.Services,
-		Apps:                    cfg.Services,
-		Kubernetes:              cfg.Services,
-		CrownJewels:             cfg.Services.CrownJewelClient(),
-		DatabaseServices:        cfg.Services,
-		Databases:               cfg.Services,
-		DatabaseObjects:         cfg.Services.DatabaseObjectsClient(),
-		AppSession:              cfg.Services,
-		SnowflakeSession:        cfg.Services,
-		SAMLIdPSession:          cfg.Services,
-		WindowsDesktops:         cfg.Services,
-		SAMLIdPServiceProviders: cfg.Services,
-		UserGroups:              cfg.Services,
-		Notifications:           cfg.Services,
-		Okta:                    cfg.Services.OktaClient(),
-		AccessLists:             cfg.Services.AccessListClient(),
-		AccessMonitoringRules:   cfg.Services.AccessMonitoringRuleClient(),
-		SecReports:              cfg.Services.SecReportsClient(),
-		UserLoginStates:         cfg.Services.UserLoginStateClient(),
-		Integrations:            cfg.Services,
-		DiscoveryConfigs:        cfg.Services.DiscoveryConfigClient(),
-		WebSession:              cfg.Services.WebSessions(),
-		WebToken:                cfg.Services.WebTokens(),
-		KubeWaitingContainers:   cfg.Services,
-		Component:               teleport.Component(component...),
-		MetricComponent:         teleport.Component(metricComponent...),
-		Tracer:                  tracer,
-		MaxRetryPeriod:          cfg.MaxRetryPeriod,
-		Unstarted:               cfg.Unstarted,
-	}))
+	return &cache.Config{
+		Context:         cfg.Context,
+		Backend:         reporter,
+		Component:       teleport.Component(component...),
+		MetricComponent: teleport.Component(metricComponent...),
+		Tracer:          tracer,
+		MaxRetryPeriod:  cfg.MaxRetryPeriod,
+		Unstarted:       cfg.Unstarted,
+	}, nil
 }

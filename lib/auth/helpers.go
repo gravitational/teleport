@@ -310,14 +310,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.bcryptCostOverride = &minCost
 
 	if cfg.CacheEnabled {
-		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
+		srv.AuthServer.Cache, err = accesspoint.NewAccessCacheForServices(accesspoint.AccessCacheConfig{
 			Context:   srv.AuthServer.CloseContext(),
-			Services:  srv.AuthServer.Services,
 			Setup:     cache.ForAuth,
 			CacheName: []string{teleport.ComponentAuth},
 			Events:    true,
 			Unstarted: true,
-		})
+		}, srv.AuthServer.Services)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
