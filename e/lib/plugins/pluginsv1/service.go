@@ -16,6 +16,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -188,6 +189,9 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	if err := s.pluginService.CreatePlugin(ctx, req.Plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.logger.InfoContext(ctx, "Plugin created.", logPluginAttr(req.Plugin)...)
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -227,6 +231,10 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.logger.InfoContext(ctx, "Plugin updated.",
+		append(logPluginAttr(req.Plugin), slog.Bool("using_existing_credentials", inPlugin.Credentials == nil))...)
+
 	resource := updatedPlugin.WithoutSecrets()
 	out, ok := resource.(*types.PluginV1)
 	if !ok {
@@ -461,6 +469,9 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 	if err := s.pluginService.DeletePlugin(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.logger.InfoContext(ctx, "Plugin deleted", "name", req.Name)
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -668,4 +679,21 @@ func (s *Service) isPluginOfTypeActive(ctx context.Context, pluginType types.Plu
 	}
 
 	return false, nil
+}
+
+func logPluginAttr(plugin *types.PluginV1) (attrs []any) {
+	attrs = append(attrs, slog.String("plugin_type", string(plugin.GetType())))
+	attrs = append(attrs, slog.String("plugin_name", plugin.GetName()))
+
+	spec := utils.CloneProtoMsg(&(plugin.Spec))
+	switch t := spec.GetSettings().(type) {
+	case *types.PluginSpecV1_Jamf:
+		if t.Jamf != nil && t.Jamf.JamfSpec != nil {
+			t.Jamf.JamfSpec.Username, t.Jamf.JamfSpec.Password = "", ""
+			t.Jamf.JamfSpec.ClientId, t.Jamf.JamfSpec.ClientSecret = "", ""
+		}
+	}
+
+	attrs = append(attrs, slog.Any("spec", spec))
+	return attrs
 }
