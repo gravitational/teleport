@@ -1,5 +1,3 @@
-//go:build !windows
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -28,16 +26,22 @@ import "C"
 
 import (
 	"os/user"
-	"strconv"
 )
 
-// passwdC2Go converts `passwd` struct from C to golang native struct
-func passwdC2Go(passwdC *C.struct_passwd) user.User {
-	return user.User{
-		Name:     C.GoString(passwdC.pw_name),
-		Username: C.GoString(passwdC.pw_name),
-		Uid:      strconv.FormatUint(uint64(passwdC.pw_uid), 10),
-		Gid:      strconv.FormatUint(uint64(passwdC.pw_gid), 10),
-		HomeDir:  C.GoString(passwdC.pw_dir),
+// getHostUsers returns a list of all users on the host
+// from local /etc/passwd file, LDAP, or other user databases.
+func getHostUsers() (results []user.User, _ error) {
+	C.setpwent()
+	var result *C.struct_passwd
+	for {
+		result = C.getpwent()
+		if result == nil {
+			break
+		}
+		results = append(results, passwdC2Go(result))
 	}
+
+	C.endpwent()
+
+	return results, nil
 }
