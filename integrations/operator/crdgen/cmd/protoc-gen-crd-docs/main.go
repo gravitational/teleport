@@ -26,7 +26,7 @@ import (
 	"github.com/gogo/protobuf/vanity/command"
 	log "github.com/sirupsen/logrus"
 
-	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen/lib"
+	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
 )
 
 func main() {
