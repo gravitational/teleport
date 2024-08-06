@@ -60,12 +60,10 @@ import {
   TextIcon,
   useShowHint,
   Header,
-  DiscoverLabel,
   AlternateInstructionButton,
 } from '../../../Shared';
 
 import { DeployServiceProp } from '../DeployService';
-import { hasMatchingLabels, Labels } from '../../common';
 
 import { SelectSecurityGroups } from './SelectSecurityGroups';
 import { SelectSubnetIds } from './SelectSubnetIds';
@@ -76,7 +74,6 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const { emitErrorEvent, nextStep, emitEvent, agentMeta, updateAgentMeta } =
     useDiscover();
   const { attempt, setAttempt } = useAttempt('');
-  const [showLabelMatchErr, setShowLabelMatchErr] = useState(true);
 
   const [taskRoleArn, setTaskRoleArn] = useState('TeleportDatabaseAccess');
   const [svcDeployedAwsUrl, setSvcDeployedAwsUrl] = useState('');
@@ -92,19 +89,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     string[]
   >([]);
 
-  const hasDbLabels = agentMeta?.agentMatcherLabels?.length;
-  const dbLabels = hasDbLabels ? agentMeta.agentMatcherLabels : [];
-  const [labels, setLabels] = useState<DiscoverLabel[]>([
-    { name: '*', value: '*', isFixed: dbLabels.length === 0 },
-  ]);
   const dbMeta = agentMeta as DbMeta;
-
-  useEffect(() => {
-    // Turn off error once user changes labels.
-    if (showLabelMatchErr) {
-      setShowLabelMatchErr(false);
-    }
-  }, [labels]);
 
   function manuallyValidateRequiredFields() {
     if (selectedSubnetIds.length === 0) {
@@ -134,22 +119,26 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     }
 
     const integrationName = dbMeta.awsIntegration.name;
+    const { awsAccountId } = splitAwsIamArn(
+      agentMeta.awsIntegration.spec.roleArn
+    );
 
     if (wantAutoDiscover) {
       setAttempt({ status: 'processing' });
       setSvcDeployedAwsUrl('');
       setDeployFinished(false);
 
-      const { awsAccountId } = splitAwsIamArn(
-        agentMeta.awsIntegration.spec.roleArn
-      );
       integrationService
         .deployDatabaseServices(integrationName, {
           region: dbMeta.awsRegion,
           accountId: awsAccountId,
           taskRoleArn,
           deployments: [
-            { vpcId: dbMeta.awsVpcId, subnetIds: selectedSubnetIds },
+            {
+              vpcId: dbMeta.awsVpcId,
+              subnetIds: selectedSubnetIds,
+              securityGroups: selectedSecurityGroups,
+            },
           ],
         })
         .then(url => {
@@ -163,12 +152,6 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
           emitErrorEvent(`auto discover deploy request failed: ${err.message}`);
         });
     } else {
-      if (!hasMatchingLabels(dbLabels, labels)) {
-        setShowLabelMatchErr(true);
-        return;
-      }
-
-      setShowLabelMatchErr(false);
       setAttempt({ status: 'processing' });
       setSvcDeployedAwsUrl('');
       setDeployFinished(false);
@@ -178,8 +161,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
           region: dbMeta.awsRegion,
           subnetIds: selectedSubnetIds,
           taskRoleArn,
-          databaseAgentMatcherLabels: labels,
           securityGroups: selectedSecurityGroups,
+          vpcId: dbMeta.awsVpcId,
+          accountId: awsAccountId,
         })
         // The user is still technically in the "processing"
         // state, because after this call succeeds, we will
@@ -282,23 +266,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <header>
-                <H3>Step 4 (Optional)</H3>
-                <Subtitle3 mb={2}>Define Matcher Labels</Subtitle3>
-              </header>
-              <Labels
-                labels={labels}
-                setLabels={setLabels}
-                disableBtns={attempt.status === 'processing'}
-                showLabelMatchErr={showLabelMatchErr}
-                dbLabels={dbLabels}
-                autoFocus={false}
-                region={dbMeta.selectedAwsRdsDb?.region}
-              />
-            </StyledBox>
-
-            <StyledBox mb={5}>
-              <header>
-                <H3>Step 5</H3>
+                <H3>Step 4</H3>
                 <Subtitle3 mb={2}>
                   Deploy the Teleport Database Service
                 </Subtitle3>
