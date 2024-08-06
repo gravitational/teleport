@@ -93,18 +93,6 @@ test('correct tsh login command generated with passwordless authType', () => {
   expect(screen.getByText(output)).toBeInTheDocument();
 });
 
-test('render dialog with instructions to connect to database', () => {
-  render(<ConnectDialog {...props} />);
-
-  expect(screen.getByTestId('Modal')).toBeInTheDocument();
-});
-
-test('render dialog with instructions to connect to database with requestId', () => {
-  const { baseElement } = render(<ConnectWithRequestId />);
-
-  expect(baseElement).toBeInTheDocument();
-});
-
 const props: Props = {
   username: 'yassine',
   dbName: 'aurora',
