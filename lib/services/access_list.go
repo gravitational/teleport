@@ -357,44 +357,41 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 	}
 
 	for len(queue) > 0 {
-		size := len(queue)
-		for i := 0; i < size; i++ {
-			pal := queue[0]
-			queue = queue[1:]
+		pal := queue[0]
+		queue = queue[1:]
 
-			member, err := members.GetAccessListMember(ctx, pal, identity.Username)
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-			if trace.IsNotFound(err) {
-				subAccessListMembers, err := getAccessListDynamicMembers(ctx, members, pal)
-				if err != nil {
-					return trace.NotFound("error finding access list %s", pal)
-				}
-				for _, next := range subAccessListMembers {
-					if _, ok := seen[next]; ok {
-						continue
-					}
-					seen[next] = struct{}{}
-					queue = append(queue, next)
-				}
-				continue
-			}
-
-			expires := member.Spec.Expires
-			if !expires.IsZero() && !time.Now().Before(expires) {
-				return trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
-			}
-
-			subAccessList, err := members.GetAccessList(ctx, pal)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if UserMeetsRequirements(identity, subAccessList.Spec.OwnershipRequires) {
-				return nil
-			}
-
+		member, err := members.GetAccessListMember(ctx, pal, identity.Username)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
 		}
+		if trace.IsNotFound(err) {
+			subAccessListMembers, err := getAccessListDynamicMembers(ctx, members, pal)
+			if err != nil {
+				return trace.NotFound("error finding access list %s", pal)
+			}
+			for _, next := range subAccessListMembers {
+				if _, ok := seen[next]; ok {
+					continue
+				}
+				seen[next] = struct{}{}
+				queue = append(queue, next)
+			}
+			continue
+		}
+
+		expires := member.Spec.Expires
+		if !expires.IsZero() && !time.Now().Before(expires) {
+			return trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
+		}
+
+		subAccessList, err := members.GetAccessList(ctx, pal)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if UserMeetsRequirements(identity, subAccessList.Spec.OwnershipRequires) {
+			return nil
+		}
+
 	}
 	return trace.NotFound("user %s is not an owner of the access list or its parents", identity.Username)
 }
@@ -429,12 +426,9 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 			return trace.NotFound("user %s is not a member of the access list", username)
 		}
 		if err != nil {
-			// Some other error has occurred
 			return trace.Wrap(err)
 		}
-		return nil
 	} else if err != nil {
-		// Some other error has occurred
 		return trace.Wrap(err)
 	}
 
