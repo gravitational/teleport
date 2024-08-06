@@ -1259,42 +1259,32 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 type fakeResourceClient struct {
 	apiclient.GetResourcesClient
 
-	nodes []*types.ServerV2
-	// listResources represents the pages returned by the ListUnifiedResources
-	listResources    [][]*proto.PaginatedResource
-	listResourcesErr error
+	// resources represents the pages returned by GetResources.
+	resources    [][]*proto.PaginatedResource
+	resourcesErr error
 }
 
 func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
-	for _, n := range f.nodes {
-		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	if f.resourcesErr != nil {
+		return nil, f.resourcesErr
 	}
 
-	return &proto.ListResourcesResponse{Resources: out}, nil
-}
-
-func (f fakeResourceClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	if f.listResourcesErr != nil {
-		return nil, f.listResourcesErr
-	}
-
-	if len(f.listResources) == 0 {
-		return &proto.ListUnifiedResourcesResponse{}, nil
+	if len(f.resources) == 0 {
+		return &proto.ListResourcesResponse{}, nil
 	}
 
 	pageIdx, err := strconv.Atoi(req.StartKey)
-	if req.StartKey != "" && (err != nil || pageIdx >= len(f.listResources)) {
-		return &proto.ListUnifiedResourcesResponse{}, nil
+	if req.StartKey != "" && (err != nil || pageIdx >= len(f.resources)) {
+		return &proto.ListResourcesResponse{}, nil
 	}
 
-	currPage := f.listResources[pageIdx]
+	currPage := f.resources[pageIdx]
 	var nextKey string
-	if pageIdx+1 < len(f.listResources) {
+	if pageIdx+1 < len(f.resources) {
 		nextKey = strconv.Itoa(pageIdx + 1)
 	}
 
-	return &proto.ListUnifiedResourcesResponse{
+	return &proto.ListResourcesResponse{
 		Resources: currPage,
 		NextKey:   nextKey,
 	}, nil
@@ -1329,19 +1319,25 @@ func TestGetTargetNodes(t *testing.T) {
 			name:     "labels",
 			labels:   map[string]string{"foo": "bar"},
 			expected: []targetNode{{hostname: "labels", addr: "abcd:0"}},
-			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}}},
+			clt: fakeResourceClient{resources: [][]*proto.PaginatedResource{{
+				paginatedNode(&types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}),
+			}}},
 		},
 		{
 			name:     "search",
 			search:   []string{"foo", "bar"},
 			expected: []targetNode{{hostname: "search", addr: "abcd:0"}},
-			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}}},
+			clt: fakeResourceClient{resources: [][]*proto.PaginatedResource{{
+				paginatedNode(&types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}),
+			}}},
 		},
 		{
 			name:      "predicate",
 			predicate: `resource.spec.hostname == "test"`,
 			expected:  []targetNode{{hostname: "predicate", addr: "abcd:0"}},
-			clt:       fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}}},
+			clt: fakeResourceClient{resources: [][]*proto.PaginatedResource{{
+				paginatedNode(&types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}),
+			}}},
 		},
 	}
 
@@ -1374,7 +1370,7 @@ func TestGetAppsWithLogin(t *testing.T) {
 		expectedErr  string
 	}{
 		"single app": {
-			clt: fakeResourceClient{listResources: [][]*proto.PaginatedResource{
+			clt: fakeResourceClient{resources: [][]*proto.PaginatedResource{
 				{paginatedAppServer("sample", []string{"llama", "bird"})},
 			}},
 			expectedApps: []appWithLogins{
@@ -1382,7 +1378,7 @@ func TestGetAppsWithLogin(t *testing.T) {
 			},
 		},
 		"multiple pages": {
-			clt: fakeResourceClient{listResources: [][]*proto.PaginatedResource{
+			clt: fakeResourceClient{resources: [][]*proto.PaginatedResource{
 				{paginatedAppServer("first", []string{"llama", "bird"}),
 					paginatedAppServer("second", []string{"bob", "alice"})},
 				{paginatedAppServer("third", []string{}),
@@ -1396,10 +1392,10 @@ func TestGetAppsWithLogin(t *testing.T) {
 			},
 		},
 		"no apps": {
-			clt: fakeResourceClient{listResources: [][]*proto.PaginatedResource{}},
+			clt: fakeResourceClient{resources: [][]*proto.PaginatedResource{}},
 		},
 		"list error": {
-			clt:         fakeResourceClient{listResourcesErr: errors.New("failure")},
+			clt:         fakeResourceClient{resourcesErr: errors.New("failure")},
 			expectedErr: "failure",
 		},
 	} {
@@ -1417,6 +1413,10 @@ func TestGetAppsWithLogin(t *testing.T) {
 			require.EqualValues(t, tc.expectedApps, res)
 		})
 	}
+}
+
+func paginatedNode(node *types.ServerV2) *proto.PaginatedResource {
+	return &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: node}}
 }
 
 func appWithNameURI(name string) *types.AppV3 {

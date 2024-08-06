@@ -2585,7 +2585,7 @@ type appWithLogins struct {
 }
 
 // getAppWithLogins returns a list of apps with their available logins.
-func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.ListUnifiedResourcesClient, predicateExpression string) ([]appWithLogins, error) {
+func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.GetResourcesClient, predicateExpression string) ([]appWithLogins, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getAppsWithLogins",
@@ -2593,8 +2593,8 @@ func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.ListU
 	)
 	defer span.End()
 
-	req := proto.ListUnifiedResourcesRequest{
-		Kinds:               []string{types.KindApp},
+	req := proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
 		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
 		PredicateExpression: predicateExpression,
 		IncludeLogins:       true,
@@ -2602,12 +2602,12 @@ func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.ListU
 
 	var apps []appWithLogins
 	for {
-		page, next, err := client.GetUnifiedResourcePage(ctx, clt, &req)
+		res, err := client.GetEnrichedResourcePage(ctx, clt, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, r := range page {
+		for _, r := range res.Resources {
 			appServer, ok := r.ResourceWithLabels.(types.AppServer)
 			if !ok {
 				log.Warnf("expected types.AppServer but received unexpected type %T", r.ResourceWithLabels)
@@ -2617,7 +2617,7 @@ func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.ListU
 			apps = append(apps, appWithLogins{app: appServer.GetApp(), logins: r.Logins})
 		}
 
-		req.StartKey = next
+		req.StartKey = res.NextKey
 		if req.StartKey == "" {
 			break
 		}
