@@ -115,11 +115,22 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
 	}
 
+	var labels types.Labels
+	if len(databaseAgentMatcherLabels) > 0 {
+		labels = databaseAgentMatcherLabels
+	} else {
+		labels = types.Labels{
+			types.DiscoveryLabelVPCID:     []string{req.VPCID},
+			types.DiscoveryLabelRegion:    []string{req.Region},
+			types.DiscoveryLabelAccountID: []string{req.AccountID},
+		}
+	}
+
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
 	teleportConfigString, err := deployserviceconfig.GenerateTeleportConfigString(
 		h.PublicProxyAddr(),
 		iamTokenName,
-		databaseAgentMatcherLabels,
+		labels,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
