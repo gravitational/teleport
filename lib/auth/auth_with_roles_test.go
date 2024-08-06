@@ -8399,13 +8399,8 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 	}
 }
 
-func TestShouldSetConnectorNameToPasswordless(t *testing.T) {
-	// Test only with enterprise build, since
-	// this is only used in Cloud clusters
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-	testCases := []struct {
+func TestHasOneNonPresetUser(t *testing.T) {
+	tt := []struct {
 		name            string
 		users           []types.User
 		existingPresets []types.User
@@ -8436,7 +8431,7 @@ func TestShouldSetConnectorNameToPasswordless(t *testing.T) {
 			expected:        false,
 		},
 		{
-			name: "Manually removed presets, returns false with two users",
+			name: "Manually removed presets, returns false with three users",
 			users: []types.User{&types.UserV2{
 				Metadata: types.Metadata{
 					Name: "user1",
@@ -8444,6 +8439,10 @@ func TestShouldSetConnectorNameToPasswordless(t *testing.T) {
 			}, &types.UserV2{
 				Metadata: types.Metadata{
 					Name: "user2",
+				},
+			}, &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user3",
 				},
 			}},
 			// no existing presets to simulate them being removed after the cluster started.
@@ -8463,7 +8462,7 @@ func TestShouldSetConnectorNameToPasswordless(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			// append preset to users list
 			users := append(tc.users, tc.existingPresets...)
