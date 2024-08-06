@@ -4284,6 +4284,132 @@ message AzureOIDCIntegrationMetadata {
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
+// PluginCreate is emitted when a plugin resource is created.
+message PluginCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  PluginMetadata Plugin = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// PluginUpdate is emitted when a plugin resource is updated.
+message PluginUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  PluginMetadata Plugin = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// PluginDelete is emitted when a plugin is deleted.
+message PluginDelete {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  PluginMetadata Plugin = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// PluginMetadata contains information about plugin resources.
+message PluginMetadata {
+  // PluginType is the plugin type of the plugin resource.
+  string PluginType = 1 [(gogoproto.jsontag) = "plugin_type"];
+
+  // Plugin is the resource without secrets.
+  types.PluginV1 Plugin = 2 [(gogoproto.jsontag) = "plugin,omitempty"];
+
+  // HasCredentials indicates whether the plugin has credentials.
+  bool HasCredentials = 3 [(gogoproto.jsontag) = "has_credentials"];
+
+  // ReusesCredentials indicates whether the plugin reuses credentials.
+  bool ReusesCredentials = 4 [(gogoproto.jsontag) = "reuses_credentials"];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
@@ -4456,6 +4582,9 @@ message OneOf {
     events.IntegrationDelete IntegrationDelete = 167;
     events.SPIFFEFederationCreate SPIFFEFederationCreate = 168;
     events.SPIFFEFederationDelete SPIFFEFederationDelete = 169;
+    events.PluginCreate PluginCreate = 170;
+    events.PluginUpdate PluginUpdate = 171;
+    events.PluginDelete PluginDelete = 172;
   }
 }
 
