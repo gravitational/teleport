@@ -523,7 +523,7 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 		return nil, trace.Wrap(err)
 	}
 
-	if len(logins) == 0 {
+	if len(logins) == 0 && app.IsAWSConsole() {
 		logins = getARNFromRoles(cf, tc, profile, app)
 	}
 
