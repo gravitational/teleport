@@ -68,8 +68,8 @@ type KeyStore interface {
 	// DeleteKey deletes the user's key with all its certs.
 	DeleteKey(idx KeyIndex) error
 
-	// DeleteUserCerts deletes only the specified certs of the user's key,
-	// keeping the private key intact.
+	// DeleteUserCerts deletes only the specified parts of the user's keyring,
+	// keeping the rest intact.
 	DeleteUserCerts(idx KeyIndex, opts ...CertOption) error
 
 	// DeleteKeys removes all session keys.
@@ -270,8 +270,8 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 	return fs.DeleteUserCerts(idx, WithAllCerts...)
 }
 
-// DeleteUserCerts deletes only the specified certs of the user's key,
-// keeping the private key intact.
+// DeleteUserCerts deletes only the specified parts of the user's keyring,
+// keeping the rest intact.
 // Empty clusterName indicates to delete the certs for all clusters.
 //
 // Useful when needing to log out of a specific service, like a particular
@@ -671,8 +671,8 @@ func (ms *MemKeyStore) DeleteKeys() error {
 	return nil
 }
 
-// DeleteUserCerts deletes only the specified certs of the user's key,
-// keeping the private key intact.
+// DeleteUserCerts deletes only the specified parts of the user's keyring,
+// keeping the rest intact.
 // Empty clusterName indicates to delete the certs for all clusters.
 //
 // Useful when needing to log out of a specific service, like a particular

@@ -84,6 +84,7 @@ func (idx KeyIndex) Match(matchKey KeyIndex) bool {
 		(matchKey.Username == "" || matchKey.Username == idx.Username)
 }
 
+// TLSCredential holds a signed TLS certificate and matching private key.
 type TLSCredential struct {
 	PrivateKey *keys.PrivateKey
 	Cert       []byte
