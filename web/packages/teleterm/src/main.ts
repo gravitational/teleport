@@ -76,7 +76,7 @@ async function initializeApp(): Promise<void> {
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
-    platform: settings.platform,
+    settings,
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
