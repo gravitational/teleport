@@ -539,7 +539,8 @@ func onDatabaseConfig(cf *CLIConf) error {
 		cmd, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithLogger(log),
-		).GetConnectCommand()
+			dbcmd.WithGetDatabaseFunc(getDatabase),
+		).GetConnectCommand(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -651,6 +652,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	host := "localhost"
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
+		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -784,7 +786,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
-	cmd, err := bb.GetConnectCommand()
+	cmd, err := bb.GetConnectCommand(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1029,6 +1031,14 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 	}
 	d.database = database
 	return d.database.Copy(), nil
+}
+
+// getDatabaseForDBCmd is a callback for dbcmd connect option.
+func (d *databaseInfo) getDatabaseForDBCmd(ctx context.Context, tc *client.TeleportClient, serviceName string) (types.Database, error) {
+	if serviceName != d.ServiceName {
+		return nil, trace.BadParameter("expect database service %s but got %s", d.ServiceName, serviceName)
+	}
+	return d.GetDatabase(ctx, tc)
 }
 
 // chooseOneDatabase is a helper func that returns either the only database in a
