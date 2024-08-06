@@ -1,5 +1,22 @@
 # Changelog
 
+## 16.1.2 (08/06/24)
+
+* Fixed regression that denied access to launch some Apps. [#45149](https://github.com/gravitational/teleport/pull/45149)
+* Bot resources now honor their `metadata.expires` field. [#45130](https://github.com/gravitational/teleport/pull/45130)
+* Teleport Connect now sets `TERM_PROGRAM: Teleport_Connect` and `TERM_PROGRAM_VERSION: <app_version>` environment variables in the integrated terminal. [#45063](https://github.com/gravitational/teleport/pull/45063)
+* Fixed a panic in the Microsoft Teams plugin when it receives an error. [#45011](https://github.com/gravitational/teleport/pull/45011)
+* Added a background item for VNet in Teleport Connect; VNet now prompts for a password only during the first launch. [#44994](https://github.com/gravitational/teleport/pull/44994)
+* Added warning on `tbot` startup when the requested certificate TTL exceeds the maximum allowed value. [#44989](https://github.com/gravitational/teleport/pull/44989)
+* Fixed a race condition between session recording uploads and session recording upload cleanup. [#44978](https://github.com/gravitational/teleport/pull/44978)
+* Prevented Kubernetes per-Resource RBAC from blocking access to namespaces when denying access to a single resource kind in every namespace. [#44974](https://github.com/gravitational/teleport/pull/44974)
+* SSO login flows can now authorize web sessions with Device Trust. [#44906](https://github.com/gravitational/teleport/pull/44906)
+* Added support for Kubernetes Workload Attestation into Teleport Workload Identity to allow the authentication of pods running within Kubernetes without secrets. [#44883](https://github.com/gravitational/teleport/pull/44883)
+
+Enterprise:
+* Fixed a redirection issue with the SAML IdP authentication middleware which prevented users from signing into the service provider when an SAML authentication request was made with an HTTP-POST binding protocol, and user's didn't already have an active session with Teleport. [#4806](https://github.com/gravitational/teleport.e/pull/4806)
+* SAML applications can now be deleted from the Web UI. [#4778](https://github.com/gravitational/teleport.e/pull/4778)
+
 ## 16.1.1 (07/31/24)
 
 * Added option to allow client redirects from IPs in specified CIDR ranges in SSO client logins. [#44846](https://github.com/gravitational/teleport/pull/44846)
