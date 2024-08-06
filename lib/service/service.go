@@ -2180,10 +2180,10 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 
 			cache, err := process.newAccessCacheForServices(accesspoint.Config{
-				Setup:     cache.ForAuth,
-				CacheName: []string{teleport.ComponentAuth},
-				Events:    true,
-				Unstarted: true,
+				Setup:        cache.ForAuth,
+				CacheName:    []string{teleport.ComponentAuth},
+				EventsSystem: true,
+				Unstarted:    true,
 			}, as.Services)
 			if err != nil {
 				return trace.Wrap(err)
@@ -2572,7 +2572,40 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewCacheFromServices(services, cfg)
+	cfg.Access = services.Access
+	cfg.AccessLists = services.AccessLists
+	cfg.AccessMonitoringRules = services.AccessMonitoringRules
+	cfg.AppSession = services.Identity
+	cfg.Apps = services.Apps
+	cfg.ClusterConfig = services.ClusterConfiguration
+	cfg.CrownJewels = services.CrownJewels
+	cfg.DatabaseObjects = services.DatabaseObjects
+	cfg.DatabaseServices = services.DatabaseServices
+	cfg.Databases = services.Databases
+	cfg.DiscoveryConfigs = services.DiscoveryConfigs
+	cfg.DynamicAccess = services.DynamicAccessExt
+	cfg.Events = services.Events
+	cfg.Integrations = services.Integrations
+	cfg.KubeWaitingContainers = services.KubeWaitingContainer
+	cfg.Kubernetes = services.Kubernetes
+	cfg.Notifications = services.Notifications
+	cfg.Okta = services.Okta
+	cfg.Presence = services.PresenceInternal
+	cfg.Provisioner = services.Provisioner
+	cfg.Restrictions = services.Restrictions
+	cfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
+	cfg.SAMLIdPSession = services.Identity
+	cfg.SecReports = services.SecReports
+	cfg.SnowflakeSession = services.Identity
+	cfg.Trust = services.TrustInternal
+	cfg.UserGroups = services.UserGroups
+	cfg.UserLoginStates = services.UserLoginStates
+	cfg.Users = services.Identity
+	cfg.WebSession = services.Identity.WebSessions()
+	cfg.WebToken = services.Identity.WebTokens()
+	cfg.WindowsDesktops = services.WindowsDesktops
+
+	return accesspoint.NewCache(cfg)
 }
 
 func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, client authclient.ClientI) (*cache.Cache, error) {
@@ -2581,7 +2614,40 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return accesspoint.NewCacheFromClient(client, cfg)
+	cfg.Access = client
+	cfg.AccessLists = client.AccessListClient()
+	cfg.AccessMonitoringRules = client.AccessMonitoringRuleClient()
+	cfg.AppSession = client
+	cfg.Apps = client
+	cfg.ClusterConfig = client
+	cfg.CrownJewels = client.CrownJewelServiceClient()
+	cfg.DatabaseObjects = client.DatabaseObjectsClient()
+	cfg.DatabaseServices = client
+	cfg.Databases = client
+	cfg.DiscoveryConfigs = client.DiscoveryConfigClient()
+	cfg.DynamicAccess = client
+	cfg.Events = client
+	cfg.Integrations = client
+	cfg.KubeWaitingContainers = client
+	cfg.Kubernetes = client
+	cfg.Notifications = client
+	cfg.Okta = client.OktaClient()
+	cfg.Presence = client
+	cfg.Provisioner = client
+	cfg.Restrictions = client
+	cfg.SAMLIdPServiceProviders = client
+	cfg.SAMLIdPSession = client
+	cfg.SecReports = client.SecReportsClient()
+	cfg.SnowflakeSession = client
+	cfg.Trust = client
+	cfg.UserGroups = client
+	cfg.UserLoginStates = client.UserLoginStateClient()
+	cfg.Users = client
+	cfg.WebSession = client.WebSessions()
+	cfg.WebToken = client.WebTokens()
+	cfg.WindowsDesktops = client
+
+	return accesspoint.NewCache(cfg)
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
