@@ -174,7 +174,11 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(user, webID, true /* credentialIDOnly */, nil /* devices */)
+	u := newWebUser(webUserOpts{
+		name:             user,
+		webID:            webID,
+		credentialIDOnly: true,
+	})
 
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
@@ -282,7 +286,11 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(req.User, wla.UserID, true /* credentialIDOnly */, nil /* devices */)
+	u := newWebUser(webUserOpts{
+		name:             req.User,
+		webID:            wla.UserID,
+		credentialIDOnly: true,
+	})
 
 	sd, err := f.Identity.GetWebauthnSessionData(ctx, req.User, scopeSession)
 	if err != nil {

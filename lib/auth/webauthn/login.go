@@ -130,7 +130,12 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 			return !resident1 && resident2
 		})
 
-		u = newWebUser(user, webID, true /* credentialIDOnly */, devices)
+		u = newWebUser(webUserOpts{
+			name:             user,
+			webID:            webID,
+			devices:          devices,
+			credentialIDOnly: true,
+		})
 
 		// Let's make sure we have at least one registered credential here, since we
 		// have to allow zero credentials for passwordless below.
@@ -285,7 +290,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	case dev.GetU2F() != nil:
 		rpID = f.U2F.AppID
 	}
-	u := newWebUser(user, webID, false /* credentialIDOnly */, []*types.MFADevice{dev})
+	u := newWebUser(webUserOpts{
+		name:    user,
+		webID:   webID,
+		devices: []*types.MFADevice{dev},
+	})
 
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.
