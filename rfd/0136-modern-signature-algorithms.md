@@ -155,7 +155,8 @@ The following key types will be used when the configured algorithm suite is
   * OIDC IdP CA
     * JWT: ECDSA with NIST P-256
   * SAML IdP CA
-    * TLS: ECDSA with NIST P-256
+    * TLS: 2048-bit RSA
+      * much of the SAML ecosystem still only supports RSA
 * Subject key types
   * users via `tsh login`
     * SSH: Ed25519 (SSH cert signed by user CA)
@@ -398,12 +399,11 @@ keys: tls
 uses: signing SAML assertions as a SAML provider.
 
 * current/`legacy` TLS key type: 2048-bit RSA
-* proposed `balanced-v1` key type: ECDSA with NIST P-256
-* proposed `fips-v1` key type: ECDSA with NIST P-256
-* proposed `hsm-v1` key type: ECDSA with NIST P-256
+* proposed `balanced-v1` key type: 2048-bit RSA
+* proposed `fips-v1` key type: 2048-bit RSA
+* proposed `hsm-v1` key type: 2048-bit RSA
 * reasoning:
-  * external software needs to trust certs signed by this CA, and support for
-    Ed25519 X.509 certs is generally spotty
+  * much of the SAML ecosystem still only supports RSA
 
 ### Splitting user SSH and TLS private keys
 
