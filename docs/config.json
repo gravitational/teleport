@@ -243,12 +243,12 @@
     },
     {
       "source": "/machine-id/access-guides/terraform/",
-      "destination": "/management/dynamic-resources/terraform-provider/dedicated-server/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/terraform/",
-      "destination": "/management/dynamic-resources/terraform-provider/dedicated-server/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
@@ -1023,7 +1023,7 @@
     },
     {
       "source": "/machine-id/access-guides/terraform/",
-      "destination": "/management/dynamic-resources/terraform-provider/dedicated-server/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
