@@ -290,10 +290,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		a.Spec.Audit.Notifications.Start = twoWeeks
 	}
 
-	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
-		return trace.BadParameter("grants must specify at least one role or trait")
-	}
-
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
 	// were created with duplicated owners before the backend checked for duplicate owners. In order to
 	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
