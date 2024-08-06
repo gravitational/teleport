@@ -495,7 +495,7 @@ func generateSignedManifest(scenario string, signer digestedRefSigner, keys ...*
 		return
 	}
 
-	// Singing the manifest
+	// Signing the manifest
 	sigLayers, sigManifest, err := makeSignature(manifestRef, signer, keys...)
 	if err != nil {
 		return nil, nil, v1.Hash{}, trace.Wrap(err)
