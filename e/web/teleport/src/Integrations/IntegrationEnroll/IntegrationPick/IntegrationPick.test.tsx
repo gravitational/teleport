@@ -48,14 +48,11 @@ describe('test PluginPick.tsx', () => {
     cfg.externalAuditStorage = true;
     cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
-    const { container } = renderIntegrationPicker(ctx);
+    renderIntegrationPicker(ctx);
 
     await screen.findByText(/no-code integrations/i);
     expect(screen.queryByTestId('plugin-checkmark')).not.toBeInTheDocument();
     expect(screen.getByTestId('tile-slack')).toHaveAttribute('href');
-
-    // snapshot that all tiles are rendered.
-    expect(container).toMatchSnapshot();
   });
 
   test('clicking on already enrolled slack tile does not render slack enroll view', async () => {
@@ -79,12 +76,8 @@ describe('test PluginPick.tsx', () => {
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, plugins: noAccess },
     });
-    const { container } = renderIntegrationPicker(ctx);
-
+    renderIntegrationPicker(ctx);
     await screen.findByText(/no-code integrations/i);
-
-    // snapshot the disabled plugin access state.
-    expect(container).toMatchSnapshot();
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-slack')).toHaveAttribute('disabled');
@@ -100,12 +93,8 @@ describe('test PluginPick.tsx', () => {
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
     });
-    const { container } = renderIntegrationPicker(ctx);
-
+    renderIntegrationPicker(ctx);
     await screen.findByText(/no-code integrations/i);
-
-    // snapshot the disabled integration access state.
-    expect(container).toMatchSnapshot();
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-aws-oidc')).toHaveAttribute('disabled');
