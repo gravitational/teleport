@@ -170,6 +170,7 @@ export { Scan } from './Icons/Scan';
 export { Server } from './Icons/Server';
 export { Share } from './Icons/Share';
 export { ShieldCheck } from './Icons/ShieldCheck';
+export { ShieldWarning } from './Icons/ShieldWarning';
 export { Sliders } from './Icons/Sliders';
 export { SlidersVertical } from './Icons/SlidersVertical';
 export { Speed } from './Icons/Speed';

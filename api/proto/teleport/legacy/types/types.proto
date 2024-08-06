@@ -3910,9 +3910,6 @@ message WebSessionSpecV2 {
   //
   // If during login a device is required and DeviceWebToken is nil, then it's
   // likely the user needs to enroll their device to avoid impacting access.
-  //
-  // Transient, only set in certain situations (such as the initial session
-  // returned during login).
   TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
 }
 

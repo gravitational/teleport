@@ -9832,9 +9832,6 @@ type WebSessionSpecV2 struct {
 	//
 	// If during login a device is required and DeviceWebToken is nil, then it's
 	// likely the user needs to enroll their device to avoid impacting access.
-	//
-	// Transient, only set in certain situations (such as the initial session
-	// returned during login).
 	TrustedDeviceRequirement TrustedDeviceRequirement `protobuf:"varint,14,opt,name=TrustedDeviceRequirement,proto3,enum=types.TrustedDeviceRequirement" json:"trusted_device_requirement,omitempty"`
 	XXX_NoUnkeyedLiteral     struct{}                 `json:"-"`
 	XXX_unrecognized         []byte                   `json:"-"`
