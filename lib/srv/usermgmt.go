@@ -35,11 +35,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // NewHostUsers initialize a new HostUsers object
-func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
+func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string) HostUsers {
 	//nolint:staticcheck // SA4023. False positive on macOS.
 	backend, err := newHostUsersBackend()
 	switch {
@@ -176,7 +175,7 @@ type HostUserManagement struct {
 	backend HostUsersBackend
 	ctx     context.Context
 	cancel  context.CancelFunc
-	storage *local.PresenceService
+	storage services.PresenceInternal
 
 	userGrace time.Duration
 }
