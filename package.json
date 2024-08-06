@@ -87,5 +87,5 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@9.5.0"
+  "packageManager": "pnpm@9.6.0"
 }
