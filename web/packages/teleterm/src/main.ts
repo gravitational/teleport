@@ -60,10 +60,10 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
   updateSessionDataPath();
   let devRelaunchScheduled = false;
-  const settings = getRuntimeSettings();
+  const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const {

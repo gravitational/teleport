@@ -25,6 +25,8 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 
 import { ConfigService } from '../services/config';
 
+import { Shell } from './shell';
+
 export type RuntimeSettings = {
   /**
    * dev controls whether the app runs in development mode. This mostly controls what kind of URL
@@ -60,7 +62,9 @@ export type RuntimeSettings = {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   logsDir: string;
-  defaultShell: string;
+  /** Identifier of default OS shell. */
+  defaultOsShellId: string;
+  availableShells: Shell[];
   platform: Platform;
   agentBinaryPath: string;
   tshd: {

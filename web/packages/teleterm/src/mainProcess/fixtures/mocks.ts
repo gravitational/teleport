@@ -31,7 +31,7 @@ export class MockMainProcessClient implements MainProcessClient {
     this.configService = createConfigService({
       configFile: createMockFileStorage(),
       jsonSchemaFile: createMockFileStorage(),
-      platform: this.getRuntimeSettings().platform,
+      settings: this.getRuntimeSettings(),
     });
   }
 
@@ -150,7 +150,8 @@ export const makeRuntimeSettings = (
   certsDir: '',
   kubeConfigsDir: '',
   logsDir: '',
-  defaultShell: '',
+  defaultOsShellId: 'zsh',
+  availableShells: [{ id: 'zsh', friendlyName: 'zsh', binPath: '/bin/zsh' }],
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
