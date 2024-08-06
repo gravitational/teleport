@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-	"github.com/gravitational/teleport/lib/utils"
+	apputils "github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -225,7 +225,7 @@ func (c *Cluster) AssembleAppFQDN(app types.Application) string {
 		appClusterName = leafClusterName
 	}
 
-	return utils.AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, app)
+	return apputils.AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, app)
 }
 
 // GetAWSRoles returns a list of allowed AWS role ARNs user can assume,

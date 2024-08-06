@@ -40,9 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -316,14 +316,14 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
 		},
 		ModifyResponse: func(response *http.Response) error {
-			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
+			errHeader := response.Header.Get(app.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
 				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
 				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
 				l.cfg.Log.Warn(errHeader)
 			}
-			for _, infoHeader := range response.Header.Values(commonApp.TeleportAPIInfoHeader) {
+			for _, infoHeader := range response.Header.Values(app.TeleportAPIInfoHeader) {
 				l.cfg.Log.Infof("Server response info: %v.", infoHeader)
 			}
 

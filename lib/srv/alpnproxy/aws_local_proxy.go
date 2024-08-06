@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
-	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -157,11 +157,11 @@ func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter,
 	m.Log.Debugf("Rewriting headers for AWS request by assumed role %q.", aws.StringValue(assumedRole.AssumedRoleUser.Arn))
 
 	// Add a custom header for marking the special request.
-	req.Header.Add(appcommon.TeleportAWSAssumedRole, aws.StringValue(assumedRole.AssumedRoleUser.Arn))
+	req.Header.Add(app.TeleportAWSAssumedRole, aws.StringValue(assumedRole.AssumedRoleUser.Arn))
 
 	// Rename the original authorization header to ensure older app agents
 	// (that don't support the requests by assumed roles) will fail.
-	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, appcommon.TeleportAWSAssumedRoleAuthorization)
+	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, app.TeleportAWSAssumedRoleAuthorization)
 	return false
 }
 
@@ -172,7 +172,7 @@ func (m *AWSAccessMiddleware) HandleResponse(response *http.Response) error {
 
 	authHeader := utils.GetAnyHeader(response.Request.Header,
 		awsutils.AuthorizationHeader,
-		appcommon.TeleportAWSAssumedRoleAuthorization,
+		app.TeleportAWSAssumedRoleAuthorization,
 	)
 
 	sigV4, err := awsutils.ParseSigV4(authHeader)

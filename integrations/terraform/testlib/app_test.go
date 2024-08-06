@@ -79,7 +79,7 @@ func (s *TerraformSuiteOSS) TestImportApp() {
 	s.T().Cleanup(cancel)
 
 	r := "teleport_app"
-	id := "test_import"
+	id := "test-import"
 	name := r + "." + id
 
 	app := &types.AppV3{

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -149,7 +150,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
+		return app.DefaultAppPublicAddr(appName, addr.Host()), nil
 	}
 
 	// Fall back to cluster name.

@@ -55,6 +55,7 @@ import (
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	apputils "github.com/gravitational/teleport/lib/utils/app"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -442,7 +443,7 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		//
 		// Also check header common.TeleportAWSAssumedRole which is added by
 		// the local proxy for AWS requests signed by assumed roles.
-		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
+		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(apputils.TeleportAWSAssumedRole) != "" {
 			return c.serveSession(w, r, &identity, app, c.withAWSSigner)
 		}
 

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
+	apputils "github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -329,7 +330,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 		return nil, trace.Wrap(err)
 	}
 
-	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
+	fqdn := apputils.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
 
 	return &resolveAppResult{
 		ServerID:    server.GetName(),

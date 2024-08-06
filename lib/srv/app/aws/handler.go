@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -142,7 +143,7 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 	// Handle requests signed with real credentials of assumed roles by the AWS
 	// client. Headers will be restored and the request will be forwarded to
 	// AWS without re-signing.
-	if req.Header.Get(common.TeleportAWSAssumedRole) != "" {
+	if req.Header.Get(app.TeleportAWSAssumedRole) != "" {
 		return trace.Wrap(s.serveRequestByAssumedRole(sessCtx, w, req))
 	}
 
@@ -187,7 +188,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 // serveRequestByAssumedRole forwards the requests signed with real credentials
 // of an assumed role to AWS.
 func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
-	re, err := resolveEndpointByXForwardedHost(req, common.TeleportAWSAssumedRoleAuthorization)
+	re, err := resolveEndpointByXForwardedHost(req, app.TeleportAWSAssumedRoleAuthorization)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,11 +276,11 @@ func (s *signerHandler) rewriteRequestByAssumedRole(r *http.Request, re *endpoin
 	}
 
 	// Remove the special header before sending the request to AWS.
-	assumedRole := req.Header.Get(common.TeleportAWSAssumedRole)
-	req.Header.Del(common.TeleportAWSAssumedRole)
+	assumedRole := req.Header.Get(app.TeleportAWSAssumedRole)
+	req.Header.Del(app.TeleportAWSAssumedRole)
 
 	// Put back the original authorization header.
-	utils.RenameHeader(req.Header, common.TeleportAWSAssumedRoleAuthorization, awsutils.AuthorizationHeader)
+	utils.RenameHeader(req.Header, app.TeleportAWSAssumedRoleAuthorization, awsutils.AuthorizationHeader)
 	return common.WithAWSAssumedRole(req, assumedRole), nil
 }
 

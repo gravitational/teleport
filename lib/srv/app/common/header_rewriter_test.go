@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 func mustParseURL(urlString string) *url.URL {
@@ -73,7 +74,7 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOff},
+				app.XForwardedSSL:           []string{sslOff},
 				reverseproxy.XForwardedPort: []string{"80"},
 			},
 		},
@@ -85,7 +86,7 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOff},
+				app.XForwardedSSL:           []string{sslOff},
 				reverseproxy.XForwardedPort: []string{"12345"},
 			},
 		},
@@ -98,7 +99,7 @@ func TestHeaderRewriter(t *testing.T) {
 				TLS:    &tls.ConnectionState{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOn},
+				app.XForwardedSSL:           []string{sslOn},
 				reverseproxy.XForwardedPort: []string{"443"},
 			},
 		},
@@ -115,7 +116,7 @@ func TestHeaderRewriter(t *testing.T) {
 				newTestDelegate("test-2", "value-2"),
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOn},
+				app.XForwardedSSL:           []string{sslOn},
 				reverseproxy.XForwardedPort: []string{"12345"},
 				"test-1":                    []string{"value-1"},
 				"test-2":                    []string{"value-2"},

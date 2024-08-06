@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -930,7 +930,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
-	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
+	publicAddr := app.DefaultAppPublicAddr(integrationName, h.proxyDNSName())
 
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr)
 	if err != nil {

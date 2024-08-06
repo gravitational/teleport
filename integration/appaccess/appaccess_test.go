@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv/app/common"
+	apputils "github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -399,12 +399,12 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 
 	// verify these headers were not rewritten.
 	require.NotEqual(t, "rewritten-app-jwt-header", req.Header.Get(teleport.AppJWTHeader))
-	require.NotEqual(t, "rewritten-x-teleport-api-error", req.Header.Get(common.TeleportAPIErrorHeader))
+	require.NotEqual(t, "rewritten-x-teleport-api-error", req.Header.Get(apputils.TeleportAPIErrorHeader))
 	require.NotEqual(t, "rewritten-x-forwarded-for-header", req.Header.Get(reverseproxy.XForwardedFor))
 	require.NotEqual(t, "rewritten-x-forwarded-host-header", req.Header.Get(reverseproxy.XForwardedHost))
 	require.NotEqual(t, "rewritten-x-forwarded-proto-header", req.Header.Get(reverseproxy.XForwardedProto))
 	require.NotEqual(t, "rewritten-x-forwarded-server-header", req.Header.Get(reverseproxy.XForwardedServer))
-	require.NotEqual(t, "rewritten-x-forwarded-ssl", req.Header.Get(common.XForwardedSSL))
+	require.NotEqual(t, "rewritten-x-forwarded-ssl", req.Header.Get(apputils.XForwardedSSL))
 
 	// Verify JWT tokens.
 	for _, header := range []string{teleport.AppJWTHeader, "X-JWT"} {
@@ -436,8 +436,8 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 
 	// verify these headers were not rewritten.
 	require.NotEqual(t, "rewritten-app-jwt-header", req.Header.Get(teleport.AppJWTHeader))
-	require.NotEqual(t, "rewritten-x-teleport-api-error", req.Header.Get(common.TeleportAPIErrorHeader))
-	require.NotEqual(t, "rewritten-x-forwarded-ssl", req.Header.Get(common.XForwardedSSL))
+	require.NotEqual(t, "rewritten-x-teleport-api-error", req.Header.Get(apputils.TeleportAPIErrorHeader))
+	require.NotEqual(t, "rewritten-x-forwarded-ssl", req.Header.Get(apputils.XForwardedSSL))
 	require.NotEqual(t, "rewritten-x-forwarded-for-header", req.Header.Get(reverseproxy.XForwardedFor))
 	require.NotEqual(t, "rewritten-x-forwarded-host-header", req.Header.Get(reverseproxy.XForwardedHost))
 	require.NotEqual(t, "rewritten-x-forwarded-proto-header", req.Header.Get(reverseproxy.XForwardedProto))
