@@ -49,6 +49,11 @@ export const SSH = () => {
   );
 };
 
+// SSH player attempts to write to a web socket, and currently, there's no
+// official support for web sockets in MSW (see
+// https://github.com/mswjs/msw/issues/156).
+SSH.tags = ['skip-test'];
+
 export const Desktop = () => {
   const history = createMemoryHistory({
     initialEntries: [

@@ -21,10 +21,18 @@ import React from 'react';
 import Box from '../Box';
 
 import Flex from './Flex';
+import styled from 'styled-components';
 
 export default {
   title: 'Design/Flex',
 };
+
+const BoxWithBreakpoints = styled(Box)`
+  width: 100%;
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+    width: 50%;
+  }
+`;
 
 export const Basic = () => (
   <Flex gap={5}>
@@ -39,12 +47,12 @@ export const Basic = () => (
 
 export const Wrapped = () => (
   <Flex flexWrap="wrap" gap={2}>
-    <Box width={[1, 1 / 2]} bg="pink" p={5}>
+    <BoxWithBreakpoints bg="pink" p={5}>
       Box one
-    </Box>
-    <Box width={[1, 1 / 2]} bg="orange" p={5}>
+    </BoxWithBreakpoints>
+    <BoxWithBreakpoints bg="orange" p={5}>
       Box two
-    </Box>
+    </BoxWithBreakpoints>
   </Flex>
 );
 
