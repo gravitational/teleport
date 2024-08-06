@@ -43,7 +43,10 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
+  DocumentPtySession,
 } from './types';
+
+import type { Shell } from 'teleterm/mainProcess/shell';
 
 export class DocumentsService {
   constructor(
@@ -380,6 +383,15 @@ export class DocumentsService {
     }
     this.add(document, documentToClose ? documentToCloseIndex : undefined);
     this.open(document.uri);
+  }
+
+  reopenPtyInShell<T extends DocumentPtySession | DocumentGatewayKube>(
+    document: T,
+    shell: Shell
+  ): void {
+    // We assign a new URI to render a new document.
+    const newDocument: T = { ...document, shellId: shell.id, uri: unique() };
+    this.replace(document.uri, newDocument);
   }
 
   filter(uri: string) {

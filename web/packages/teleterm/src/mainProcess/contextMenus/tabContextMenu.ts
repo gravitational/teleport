@@ -23,15 +23,21 @@ import {
   MenuItemConstructorOptions,
 } from 'electron';
 
+import { ConfigService } from 'teleterm/services/config';
+import { Shell } from 'teleterm/mainProcess/shell';
+
 import {
   TabContextMenuEventChannel,
   TabContextMenuEventType,
   TabContextMenuOptions,
 } from '../types';
 
-type MainTabContextMenuOptions = Pick<TabContextMenuOptions, 'documentKind'>;
+type MainTabContextMenuOptions = Pick<TabContextMenuOptions, 'document'>;
 
-export function subscribeToTabContextMenuEvent(): void {
+export function subscribeToTabContextMenuEvent(
+  shells: Shell[],
+  configService: ConfigService
+): void {
   ipcMain.handle(
     TabContextMenuEventChannel,
     (event, options: MainTabContextMenuOptions) => {
@@ -40,38 +46,84 @@ export function subscribeToTabContextMenuEvent(): void {
           return [
             {
               label: 'Close',
-              click: () => resolve(TabContextMenuEventType.Close),
+              click: () => resolve({ event: TabContextMenuEventType.Close }),
             },
             {
               label: 'Close Others',
-              click: () => resolve(TabContextMenuEventType.CloseOthers),
+              click: () =>
+                resolve({ event: TabContextMenuEventType.CloseOthers }),
             },
             {
               label: 'Close to the Right',
-              click: () => resolve(TabContextMenuEventType.CloseToRight),
+              click: () =>
+                resolve({ event: TabContextMenuEventType.CloseToRight }),
             },
           ];
         }
 
         function getPtyTemplate(): MenuItemConstructorOptions[] {
           if (
-            options.documentKind === 'doc.terminal_shell' ||
-            options.documentKind === 'doc.terminal_tsh_node'
+            options.document.kind === 'doc.terminal_shell' ||
+            options.document.kind === 'doc.terminal_tsh_node'
           ) {
+            return [
+              {
+                label: 'Duplicate Tab',
+                click: () =>
+                  resolve({ event: TabContextMenuEventType.DuplicatePty }),
+              },
+            ];
+          }
+        }
+
+        function getShellTemplate(): MenuItemConstructorOptions[] {
+          const doc = options.document;
+          if (
+            doc.kind === 'doc.terminal_shell' ||
+            doc.kind === 'doc.gateway_kube'
+          ) {
+            const activeShell = doc.shellId;
+            const defaultShell = configService.get('terminal.shell').value;
             return [
               {
                 type: 'separator',
               },
               {
-                label: 'Duplicate Tab',
-                click: () => resolve(TabContextMenuEventType.DuplicatePty),
+                label: `Active Shell (${activeShell})`,
+                type: 'submenu',
+                submenu: shells.map(shell => ({
+                  label: shell.friendlyName,
+                  id: shell.id,
+                  type: 'radio',
+                  checked: shell.id === activeShell,
+                  click: () => {
+                    resolve({
+                      event: TabContextMenuEventType.ReopenPtyInShell,
+                      item: shell,
+                    });
+                  },
+                })),
+              },
+              {
+                label: `Default Shell (${defaultShell})`,
+                type: 'submenu',
+                submenu: shells.map(shell => ({
+                  label: shell.friendlyName,
+                  id: shell.id,
+                  type: 'radio',
+                  checked: shell.id === defaultShell,
+                  click: () => {
+                    configService.set('terminal.shell', shell.id);
+                    resolve(undefined);
+                  },
+                })),
               },
             ];
           }
         }
 
         Menu.buildFromTemplate(
-          [getCommonTemplate(), getPtyTemplate()]
+          [getCommonTemplate(), getPtyTemplate(), getShellTemplate()]
             .filter(Boolean)
             .flatMap(template => template)
         ).popup({
@@ -86,13 +138,17 @@ export async function openTabContextMenu(
   options: TabContextMenuOptions
 ): Promise<void> {
   const mainOptions: MainTabContextMenuOptions = {
-    documentKind: options.documentKind,
+    document: options.document,
   };
-  const eventType = await ipcRenderer.invoke(
+  const response = await ipcRenderer.invoke(
     TabContextMenuEventChannel,
     mainOptions
   );
-  switch (eventType) {
+  if (!response) {
+    return;
+  }
+
+  switch (response.event) {
     case TabContextMenuEventType.Close:
       return options.onClose();
     case TabContextMenuEventType.CloseOthers:
@@ -101,5 +157,7 @@ export async function openTabContextMenu(
       return options.onCloseToRight();
     case TabContextMenuEventType.DuplicatePty:
       return options.onDuplicatePty();
+    case TabContextMenuEventType.ReopenPtyInShell:
+      return options.onReopenPtyInShell(response.item);
   }
 }

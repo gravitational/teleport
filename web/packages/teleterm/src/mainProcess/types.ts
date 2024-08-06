@@ -20,7 +20,7 @@ import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfi
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { Kind } from 'teleterm/ui/services/workspacesService';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
 import { ConfigService } from '../services/config';
@@ -211,15 +211,12 @@ export interface ClusterContextMenuOptions {
 }
 
 export interface TabContextMenuOptions {
-  documentKind: Kind;
-
+  document: Document;
   onClose(): void;
-
   onCloseOthers(): void;
-
   onCloseToRight(): void;
-
   onDuplicatePty(): void;
+  onReopenPtyInShell(shell: Shell): void;
 }
 
 export const TerminalContextMenuEventChannel =
@@ -233,6 +230,7 @@ export enum TabContextMenuEventType {
   CloseOthers = 'CloseOthers',
   CloseToRight = 'CloseToRight',
   DuplicatePty = 'DuplicatePty',
+  ReopenPtyInShell = 'ReopenPtyInShell',
 }
 
 export enum ConfigServiceEventType {

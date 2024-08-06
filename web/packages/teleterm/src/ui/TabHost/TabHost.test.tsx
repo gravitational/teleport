@@ -135,7 +135,7 @@ test('open context menu', async () => {
 
   // @ts-expect-error `openTabContextMenu` doesn't know about jest
   const options: TabContextMenuOptions = openTabContextMenu.mock.calls[0][0];
-  expect(options.documentKind).toBe(document.kind);
+  expect(options.document).toEqual(document);
 
   options.onClose();
   expect(close).toHaveBeenCalledWith(document.uri);
