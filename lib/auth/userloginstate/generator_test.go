@@ -413,6 +413,40 @@ func TestAccessLists(t *testing.T) {
 			expectedRoleCount:  2,
 			expectedTraitCount: 1,
 		},
+
+		{
+			name:  "access lists member of nested list",
+			cloud: true,
+			user:  userNoRolesOrTraits,
+			// user is member of acl 3, acl 1 includes acl 2, which includes 3
+			// so user will be granted role1 and 2, and trait1
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", grants([]string{"role1"},
+					trait.Traits{
+						"trait1": {"value"},
+					}),
+					emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role1"}, trait.Traits{}),
+					emptyGrants),
+				newAccessList(t, clock, "3", grants([]string{"role2"}, trait.Traits{}), emptyGrants),
+			},
+			members: append(
+				newAccessListMembers(t, clock, "3", "user"),
+				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "3"),
+				newAccessListMemberWithKind(t, clock, "1", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2")),
+			roles:   []string{"role1", "role2"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				map[string]string{
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				nil,
+				nil,
+				[]string{"role1", "role2"},
+				trait.Traits{"trait1": {"value"}}),
+			expectedRoleCount:  2,
+			expectedTraitCount: 1,
+		},
 		{
 			name:  "access lists member of nested list, in diamond formation",
 			cloud: true,
@@ -444,6 +478,38 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"trait": {"1", "2", "3", "4"}}),
 			expectedRoleCount:  0,
 			expectedTraitCount: 4,
+		},
+		{
+			name:  "access list owners inherit owner grants",
+			cloud: true,
+			user:  userNoRolesOrTraits,
+			// user is member of acl 1, acl 3, includes members of acl 2, which includes members of acl 1 as owners
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", emptyGrants, grants([]string{"oroleA"}, trait.Traits{"okey": {"oval1"}})),
+				newAccessList(t, clock, "2", emptyGrants, grants([]string{"oroleB"}, trait.Traits{"okey": {"oval2"}})),
+				newAccessListWithOwners(t, clock, "3", emptyGrants, grants([]string{"oroleC"}, trait.Traits{"okey": {"oval3"}}), []accesslist.Owner{{
+					Name:           "2",
+					Description:    "hello",
+					MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()},
+				}),
+			},
+			members: append(
+				newAccessListMembers(t, clock, "1", "user"),
+				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "1"),
+				newAccessListMemberWithKind(t, clock, "3", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2"),
+			),
+			roles:   []string{"oroleA", "oroleB", "oroleC"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				map[string]string{
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				nil,
+				nil,
+				[]string{"oroleA", "oroleB", "oroleC"},
+				trait.Traits{"okey": {"oval1", "oval2", "oval3"}}),
+			expectedRoleCount:  1,
+			expectedTraitCount: 1,
 		},
 	}
 
@@ -571,6 +637,33 @@ func newAccessList(t *testing.T, clock clockwork.Clock, name string, grants acce
 				Description: "description",
 			},
 		},
+		OwnershipRequires: accesslist.Requires{
+			Roles:  []string{},
+			Traits: map[string][]string{},
+		},
+		MembershipRequires: accesslist.Requires{
+			Roles:  []string{},
+			Traits: map[string][]string{},
+		},
+		Grants:      grants,
+		OwnerGrants: ownerGrants,
+	})
+	require.NoError(t, err)
+
+	return accessList
+}
+
+func newAccessListWithOwners(t *testing.T, clock clockwork.Clock, name string, grants accesslist.Grants, ownerGrants accesslist.Grants, owners []accesslist.Owner) *accesslist.AccessList {
+	t.Helper()
+
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: name,
+	}, accesslist.Spec{
+		Title: "title",
+		Audit: accesslist.Audit{
+			NextAuditDate: clock.Now().Add(time.Hour * 48),
+		},
+		Owners: owners,
 		OwnershipRequires: accesslist.Requires{
 			Roles:  []string{},
 			Traits: map[string][]string{},

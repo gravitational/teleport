@@ -240,10 +240,9 @@ func IsAccessListOwner(ctx context.Context, members AccessListsAndMembersGetter,
 	})
 	if !isOwner {
 		err := recursiveIsAccessListOwnerCheck(ctx, members, identity, accessList)
-		if err == nil {
-			return nil
+		if err != nil {
+			return accessDenied
 		}
-		return accessDenied
 	}
 
 	// Does the supplied Identity meet the ownership requirements?
@@ -304,44 +303,41 @@ func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx contex
 	queue := []string{accessList.GetName()}
 
 	for len(queue) > 0 {
-		size := len(queue)
-		for i := 0; i < size; i++ {
-			pal := queue[0]
-			queue = queue[1:]
+		pal := queue[0]
+		queue = queue[1:]
 
-			member, err := a.members.GetAccessListMember(ctx, pal, identity.Username)
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-			if trace.IsNotFound(err) {
-				subAccessListMembers, err := getAccessListDynamicMembers(ctx, a.members, pal)
-				if err != nil {
-					return trace.NotFound("error finding access list %s", pal)
-				}
-				for _, next := range subAccessListMembers {
-					if _, ok := seen[next]; ok {
-						continue
-					}
-					seen[next] = struct{}{}
-					queue = append(queue, next)
-				}
-				continue
-			}
-
-			expires := member.Spec.Expires
-			if !expires.IsZero() && !a.clock.Now().Before(expires) {
-				return trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
-			}
-
-			subAccessList, err := a.members.GetAccessList(ctx, pal)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if UserMeetsRequirements(identity, subAccessList.Spec.MembershipRequires) {
-				return nil
-			}
-
+		member, err := a.members.GetAccessListMember(ctx, pal, identity.Username)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
 		}
+		if trace.IsNotFound(err) {
+			subAccessListMembers, err := getAccessListDynamicMembers(ctx, a.members, pal)
+			if err != nil {
+				return trace.NotFound("error finding access list %s", pal)
+			}
+			for _, next := range subAccessListMembers {
+				if _, ok := seen[next]; ok {
+					continue
+				}
+				seen[next] = struct{}{}
+				queue = append(queue, next)
+			}
+			continue
+		}
+
+		expires := member.Spec.Expires
+		if !expires.IsZero() && !a.clock.Now().Before(expires) {
+			return trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
+		}
+
+		subAccessList, err := a.members.GetAccessList(ctx, pal)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if UserMeetsRequirements(identity, subAccessList.Spec.MembershipRequires) {
+			return nil
+		}
+
 	}
 	return trace.NotFound("user %s is not a member of the access list or its parents", identity.Username)
 
@@ -361,6 +357,7 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 		queue = queue[1:]
 
 		member, err := members.GetAccessListMember(ctx, pal, identity.Username)
+
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -378,7 +375,6 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 			}
 			continue
 		}
-
 		expires := member.Spec.Expires
 		if !expires.IsZero() && !time.Now().Before(expires) {
 			return trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
@@ -428,6 +424,10 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
+			return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
+		}
+		return nil
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -436,7 +436,6 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 	if !expires.IsZero() && !a.clock.Now().Before(expires) {
 		return trace.AccessDenied("user %s's membership has expired in the access list", username)
 	}
-
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
 		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
 	}
