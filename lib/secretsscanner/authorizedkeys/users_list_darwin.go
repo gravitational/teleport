@@ -34,7 +34,7 @@ func getHostUsers() (results []user.User, _ error) {
 	C.setpwent()
 	var result *C.struct_passwd
 	for {
-		result = C.getpwent()
+		result = C.getpwent() /* on darwin, getpwent() is reentrant */
 		if result == nil {
 			break
 		}
