@@ -71,6 +71,8 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("object cannot be nil")
+	case s.Metadata == nil:
+		return trace.BadParameter("metadata: is required")
 	case s.Metadata.Name == "":
 		return trace.BadParameter("metadata.name: is required")
 	case s.Spec == nil:

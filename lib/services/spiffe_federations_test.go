@@ -84,7 +84,94 @@ func TestValidateSPIFFEFederation(t *testing.T) {
 		{
 			name:       "fail - null",
 			in:         nil,
-			requireErr: errContains(""),
+			requireErr: errContains("object cannot be nil"),
+		},
+		{
+			name: "fail - nil metadata",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/foo",
+						},
+					},
+				},
+			},
+			requireErr: errContains("metadata: is required"),
+		},
+		{
+			name: "fail - no name",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "",
+				},
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/foo",
+						},
+					},
+				},
+			},
+			requireErr: errContains("metadata.name: is required"),
+		},
+		{
+			name: "fail - bad url",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example.com",
+				},
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: ":::::",
+						},
+					},
+				},
+			},
+			requireErr: errContains("validating spec.bundle_source.https_web.bundle_endpoint_url"),
+		},
+		{
+			name: "fail - bad bundle",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example.com",
+				},
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						Static: &machineidv1.SPIFFEFederationBundleSourceStatic{
+							Bundle: "xyzzy",
+						},
+					},
+				},
+			},
+			requireErr: errContains("validating spec.bundle_source.static.bundle"),
+		},
+		{
+			name: "fail - name contains prefix",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "spiffe://example.com",
+				},
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/foo",
+						},
+					},
+				},
+			},
+			requireErr: errContains("metadata.name: must not include the spiffe:// prefix"),
 		},
 	}
 
