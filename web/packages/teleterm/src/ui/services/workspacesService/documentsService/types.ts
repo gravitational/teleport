@@ -154,6 +154,8 @@ export interface DocumentGatewayKube extends DocumentBase {
   leafClusterId: string | undefined;
   targetUri: uri.KubeUri;
   origin: DocumentOrigin;
+  /** Identifier of the shell to be opened. */
+  shellId?: string;
   // status is used merely to show a progress bar when the gateway is being set up.
   status: '' | 'connecting' | 'connected' | 'error';
 }
@@ -200,6 +202,8 @@ export interface DocumentAccessRequests extends DocumentBase {
 export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
+  /** Identifier of the shell to be opened. */
+  shellId?: string;
   rootClusterId?: string;
   leafClusterId?: string;
 }

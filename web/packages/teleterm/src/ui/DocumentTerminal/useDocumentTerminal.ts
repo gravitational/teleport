@@ -53,12 +53,25 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
       documentsService.update(doc.uri, { status: 'connecting' });
     }
 
+    // Add `shellId` before going further.
+    let docWithDefaultShell: types.DocumentTerminal;
+    if (
+      (doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.gateway_kube') &&
+      !doc.shellId
+    ) {
+      docWithDefaultShell = {
+        ...doc,
+        shellId: ctx.configService.get('terminal.shell').value,
+      };
+      documentsService.update(doc.uri, docWithDefaultShell);
+    }
+
     try {
       return await initializePtyProcess(
         ctx,
         logger.current,
         documentsService,
-        doc
+        docWithDefaultShell || doc
       );
     } catch (err) {
       if ('status' in doc) {
@@ -448,6 +461,7 @@ function createCmd(
       clusterName,
       env,
       initMessage,
+      shellId: doc.shellId,
     };
   }
 
@@ -457,5 +471,6 @@ function createCmd(
     proxyHost,
     clusterName,
     cwd: doc.cwd,
+    shellId: doc.shellId,
   };
 }

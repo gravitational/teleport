@@ -256,6 +256,8 @@ export class DocumentsService {
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),
+          // Do not inherit the shell of this document when opening a new one, use default.
+          shellId: undefined,
           ...opts,
         };
       } else {
