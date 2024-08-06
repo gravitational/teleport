@@ -48,6 +48,7 @@ RUN apt-get -y update && \
 
 # Install Node.js.
 ARG NODE_VERSION
+ARG PNPM_VERSION
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
 ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN NODE_ARCH="$(if [ "$BUILDARCH" = 'amd64' ]; then echo 'x64'; else echo 'arm64'; fi)" && \
@@ -58,6 +59,7 @@ RUN NODE_ARCH="$(if [ "$BUILDARCH" = 'amd64' ]; then echo 'x64'; else echo 'arm6
     tar -xJf "$NODE_FILE" -C /usr/local/lib/nodejs-linux --strip-components=1 && \
     rm -f "$NODE_FILE"
 RUN corepack enable pnpm
+RUN corepack install -g --cache-only pnpm@${PNPM_VERSION}
 
 # Install Go.
 ARG GOLANG_VERSION

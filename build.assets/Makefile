@@ -182,6 +182,7 @@ buildbox:
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg PNPM_VERSION=$(PNPM_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
@@ -270,6 +271,7 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg PNPM_VERSION=$(PNPM_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
@@ -292,6 +294,7 @@ buildbox-node:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg PNPM_VERSION=$(PNPM_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--cache-to type=inline \

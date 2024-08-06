@@ -20,9 +20,9 @@ FROM node:${NODE_VERSION}-buster AS buildbox
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
 
+ARG PNPM_VERSION
 RUN corepack enable pnpm
-# Call pnpm to trigger corepack to download pnpm.
-RUN pnpm -v
+RUN corepack install -g --cache-only pnpm@${PNPM_VERSION}
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile

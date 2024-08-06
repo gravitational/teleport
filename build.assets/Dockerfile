@@ -238,6 +238,7 @@ USER root
 
 # Install Node.js.
 ARG NODE_VERSION
+ARG PNPM_VERSION
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
 ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
@@ -246,8 +247,7 @@ RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo
     curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
 RUN corepack enable yarn pnpm
-# Call pnpm to trigger corepack to download pnpm.
-RUN pnpm -v
+RUN corepack install -g pnpm@${PNPM_VERSION}
 
 # Install Go.
 ARG GOLANG_VERSION
