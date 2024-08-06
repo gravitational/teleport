@@ -61,7 +61,7 @@ func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs Clean
 		AccessPoint:   plugin.authServer.AuthServer,
 		LockWatcher:   lockWatcher,
 		OktaConnected: plugin.oktaConnected,
-		OktaClient:    plugin.authServer.AuthServer.OktaClient(),
+		OktaClient:    plugin.authServer.AuthServer.Services.Okta,
 		ClusterName:   clusterName.GetClusterName(),
 		Plugins:       plugin.plugins,
 	})
