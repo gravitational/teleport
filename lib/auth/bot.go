@@ -35,13 +35,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // legacyValidateGenerationLabel validates and updates a generation label.
@@ -153,14 +151,6 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 	certReq.generation = newGeneration
 
 	return nil
-}
-
-func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keys.MarshalPublicKey(cryptoPubKey)
 }
 
 // commitGenerationCounterToBotUser updates the legacy generation counter label
