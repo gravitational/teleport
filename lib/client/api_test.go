@@ -1403,7 +1403,7 @@ func TestGetAppsWithLogin(t *testing.T) {
 			clt := TeleportClient{Config: Config{Tracer: tracing.NoopTracer("")}}
 			// Given we're mocking the list result, the expression won't be
 			// considered.
-			res, err := clt.getAppWithLogins(ctx, tc.clt, "")
+			res, err := clt.getAppsWithLogins(ctx, tc.clt, "")
 			if tc.expectedErr != "" {
 				require.ErrorContains(t, err, tc.expectedErr)
 				return

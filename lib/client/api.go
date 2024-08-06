@@ -2566,7 +2566,7 @@ func (tc *TeleportClient) GetAppWithLogins(ctx context.Context, predicateExpress
 	}
 	defer clt.Close()
 
-	apps, err := tc.getAppWithLogins(ctx, clt.AuthClient, predicateExpression)
+	apps, err := tc.getAppsWithLogins(ctx, clt.AuthClient, predicateExpression)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2584,8 +2584,8 @@ type appWithLogins struct {
 	logins []string
 }
 
-// getAppWithLogins returns a list of apps with their available logins.
-func (tc *TeleportClient) getAppWithLogins(ctx context.Context, clt client.GetResourcesClient, predicateExpression string) ([]appWithLogins, error) {
+// getAppsWithLogins returns a list of apps with their available logins.
+func (tc *TeleportClient) getAppsWithLogins(ctx context.Context, clt client.GetResourcesClient, predicateExpression string) ([]appWithLogins, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getAppsWithLogins",
