@@ -304,7 +304,7 @@ describe('fqdn is matched', () => {
     }
   );
 
-  test('not matching fqdns throws error', async () => {
+  test('not matching FQDN throws error', async () => {
     jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
       fqdn: 'different.fqdn',
     });
@@ -330,7 +330,7 @@ describe('fqdn is matched', () => {
     expect(window.location.replace).not.toHaveBeenCalled();
   });
 
-  test('invalid url when constructing a new URL with a malformed fqdn', async () => {
+  test('invalid URL when constructing a new URL with a malformed FQDN', async () => {
     jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
       fqdn: 'invalid.fqdn:3080:3090',
     });
@@ -348,11 +348,7 @@ describe('fqdn is matched', () => {
     );
 
     await screen.findByText(/access denied/i);
-    expect(
-      screen.getByText(
-        /failed to match applications with FQDN "invalid.fqdn:3080:3090"/i
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Failed to parse URL:/i)).toBeInTheDocument();
     expect(window.location.replace).not.toHaveBeenCalled();
   });
 });

@@ -57,7 +57,7 @@ export function AppLauncher() {
       // the attacker can't control what domain is redirected to this has
       // a low risk factor.
       if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
-        throwFailedToMatchFqdnError(params.fqdn);
+        throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
       }
 
       let path = '';
@@ -157,13 +157,17 @@ function prepareFqdn(fqdn: string) {
     // The returned FQDN will have a scheme added to it, but that's
     // fine because we're just using it to compare the FQDNs.
     return fqdnUrl.toString().toLowerCase();
-  } catch (e) {
-    throwFailedToMatchFqdnError(fqdn);
+  } catch (err) {
+    throwFailedToParseUrlError(err);
   }
 }
 
 function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
-  return new URL(`https://${fqdn}${port}/x-teleport-auth`);
+  try {
+    return new URL(`https://${fqdn}${port}/x-teleport-auth`);
+  } catch (err) {
+    throwFailedToParseUrlError(err);
+  }
 }
 
 // initiateNewAuthExchange is the first step to gaining access to an
@@ -220,6 +224,6 @@ function initiateNewAuthExchange({
   window.location.replace(url.toString());
 }
 
-function throwFailedToMatchFqdnError(fqdn: string) {
-  throw Error(`Failed to match applications with FQDN "${fqdn}"`);
+function throwFailedToParseUrlError(err: TypeError) {
+  throw Error(`Failed to parse URL: ${err.message}`);
 }
