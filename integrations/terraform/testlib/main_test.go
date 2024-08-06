@@ -35,11 +35,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
@@ -164,27 +166,35 @@ func (s *TerraformBaseSuite) SetupSuite() {
 }
 
 func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, outputPath string) {
-	key, err := libclient.GenerateRSAKey()
+	s.T().Helper()
+
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(s.T(), err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(signer)
+	require.NoError(s.T(), err)
+	publicKeyPEM, err := keys.MarshalPublicKey(signer.Public())
+	require.NoError(s.T(), err)
+	privateKey, err := keys.NewPrivateKey(signer, privateKeyPEM)
+	require.NoError(s.T(), err)
+	keyRing := libclient.NewKey(privateKey)
 
 	certs, err := s.client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: key.MarshalSSHPublicKey(),
-		Username:  user.GetName(),
-		Expires:   time.Now().Add(time.Hour),
-		Format:    constants.CertificateFormatStandard,
+		TLSPublicKey: publicKeyPEM,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		Format:       constants.CertificateFormatStandard,
 	})
 	require.NoError(s.T(), err)
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
+	keyRing.TLSCert = certs.TLS
 
 	hostCAs, err := s.client.GetCertAuthorities(ctx, types.HostCA, false)
 	require.NoError(s.T(), err)
-	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           outputPath,
-		Key:                  key,
+		Key:                  keyRing,
 		Format:               identityfile.FormatTLS,
 		OverwriteDestination: false,
 		Writer:               &identityfile.StandardConfigWriter{},
@@ -200,11 +210,10 @@ func (s *TerraformBaseSuite) SetupTest() {
 }
 
 func (s *TerraformBaseSuite) closeClient() {
+	s.T().Helper()
 	p, ok := s.terraformProvider.(*provider.Provider)
 	require.True(s.T(), ok)
-	if p != nil && p.Client != nil {
-		require.NoError(s.T(), p.Client.Close())
-	}
+	require.NoError(s.T(), p.Close())
 }
 
 // getFixture loads fixture and returns it as string or <error> if failed

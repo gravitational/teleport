@@ -55,9 +55,14 @@ func NewAWSNodeFromEC2Instance(instance ec2types.Instance, awsCloudMetadata *typ
 	// We use the default port for the OpenSSH daemon.
 	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), defaultSSHPort)
 
+	hostname := aws.ToString(instance.PrivateDnsName)
+	if hostnameFromTag, ok := labels[types.CloudHostnameTag]; ok {
+		hostname = hostnameFromTag
+	}
+
 	server, err := types.NewEICENode(
 		types.ServerSpecV2{
-			Hostname: aws.ToString(instance.PrivateDnsName),
+			Hostname: hostname,
 			Addr:     addr,
 			CloudMetadata: &types.CloudMetadata{
 				AWS: awsCloudMetadata,

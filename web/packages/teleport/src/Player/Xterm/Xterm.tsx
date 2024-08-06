@@ -27,7 +27,7 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import StyledXterm from 'teleport/Console/StyledXterm';
 
 export default function Xterm({ tty }: { tty: Tty }) {
-  const refContainer = useRef<HTMLElement>();
+  const refContainer = useRef<HTMLDivElement>();
   const theme = useTheme();
   const terminalPlayer = useRef<TerminalPlayer>();
 

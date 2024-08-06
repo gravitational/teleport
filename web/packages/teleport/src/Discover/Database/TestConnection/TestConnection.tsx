@@ -17,10 +17,12 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, LabelInput } from 'design';
+import { Box, LabelInput, H3, Subtitle3 } from 'design';
 
 import Select, { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
+
+import { P } from 'design/Text/Text';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -126,10 +128,12 @@ export function TestConnection() {
             you just added.
           </HeaderSubtitle>
           <StyledBox mb={5}>
-            <Text bold>Step 1</Text>
-            <Text typography="subtitle1" mb={3}>
-              Select a user and a database name to test.
-            </Text>
+            <header>
+              <H3>Step 1</H3>
+              <Subtitle3 mb={3}>
+                Select a user and a database name to test
+              </Subtitle3>
+            </header>
             <Box width="500px" mb={4}>
               <LabelInput htmlFor={'select'}>Database User</LabelInput>
               <Select
@@ -203,24 +207,20 @@ export function TestConnection() {
             stepDescription="Verify that your database is accessible"
           />
           <StyledBox>
-            <Text bold mb={3}>
+            <H3 bold mb={3}>
               To Access your Database
-            </Text>
-            <Box mb={2}>
-              Log into your Teleport cluster
-              <TextSelectCopy
-                mt="1"
-                text={generateTshLoginCommand({
-                  authType,
-                  username,
-                  clusterId,
-                })}
-              />
-            </Box>
-            <Box mb={2}>
-              Connect to your database
-              <TextSelectCopy mt="1" text={tshDbCmd} />
-            </Box>
+            </H3>
+            <P>Log into your Teleport cluster:</P>
+            <TextSelectCopy
+              my="3"
+              text={generateTshLoginCommand({
+                authType,
+                username,
+                clusterId,
+              })}
+            />
+            <P mb={2}>Connect to your database:</P>
+            <TextSelectCopy mt="3" text={tshDbCmd} />
           </StyledBox>
           <ActionButtons
             onProceed={nextStep}

@@ -40,9 +40,17 @@ export default function generateResourcePath(
         : '';
   }
 
+  // as of now, "none" and "all" function the same. if both options are selected (requestable, accessible_only)
+  // then you will see the same results. The distinction comes from user preferences, which change the visual of
+  // the filter. If "none", there are no options selected. If "all", both options are selected and a filter indicator
+  // is shown.
+  if (processedParams.includedResourceMode === 'none') {
+    processedParams.includedResourceMode = 'all';
+  }
+
   const output = path
     .replace(':clusterId', params.clusterId)
-    .replace(':limit?', params.limit)
+    .replace(':limit?', params.limit || '')
     .replace(':startKey?', params.startKey || '')
     .replace(':query?', processedParams.query || '')
     .replace(':search?', processedParams.search || '')
@@ -50,7 +58,10 @@ export default function generateResourcePath(
     .replace(':sort?', processedParams.sort || '')
     .replace(':kinds?', processedParams.kinds || '')
     .replace(':pinnedOnly?', processedParams.pinnedOnly || '')
-    .replace(':includeRequestable?', processedParams.includeRequestable || '');
+    .replace(
+      ':includedResourceMode?',
+      processedParams.includedResourceMode || ''
+    );
 
   return output;
 }

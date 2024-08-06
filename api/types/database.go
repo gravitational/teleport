@@ -179,16 +179,6 @@ func (d *DatabaseV3) SetSubKind(sk string) {
 	d.SubKind = sk
 }
 
-// GetResourceID returns the database resource ID.
-func (d *DatabaseV3) GetResourceID() int64 {
-	return d.Metadata.ID
-}
-
-// SetResourceID sets the database resource ID.
-func (d *DatabaseV3) SetResourceID(id int64) {
-	d.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (d *DatabaseV3) GetRevision() string {
 	return d.Metadata.GetRevision()
@@ -402,7 +392,7 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return protoKnownFieldsEqual(&a, &AWS{})
+	return deriveTeleportEqualAWS(&a, &AWS{})
 }
 
 // Partition returns the AWS partition based on the region.
@@ -435,7 +425,7 @@ func (d *DatabaseV3) SetAWSAssumeRole(roleARN string) {
 
 // IsEmpty returns true if GCP metadata is empty.
 func (g GCPCloudSQL) IsEmpty() bool {
-	return protoKnownFieldsEqual(&g, &GCPCloudSQL{})
+	return deriveTeleportEqualGCPCloudSQL(&g, &GCPCloudSQL{})
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
@@ -445,7 +435,7 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 
 // IsEmpty returns true if Azure metadata is empty.
 func (a Azure) IsEmpty() bool {
-	return protoKnownFieldsEqual(&a, &Azure{})
+	return deriveTeleportEqualAzure(&a, &Azure{})
 }
 
 // GetAzure returns Azure database server metadata.
@@ -593,6 +583,9 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	}
 	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
 		return DatabaseTypeRDSProxy, true
+	}
+	if aws.DocumentDB.ClusterID != "" || aws.DocumentDB.InstanceID != "" {
+		return DatabaseTypeDocumentDB, true
 	}
 	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ResourceID != "" || aws.RDS.ClusterID != "" {
 		return DatabaseTypeRDS, true
@@ -821,6 +814,23 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
 
+	case awsutils.IsDocumentDBEndpoint(d.Spec.URI):
+		endpointInfo, err := awsutils.ParseDocumentDBEndpoint(d.Spec.URI)
+		if err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse DocumentDB endpoint.", "uri", d.Spec.URI, "error", err)
+			break
+		}
+		if d.Spec.AWS.DocumentDB.ClusterID == "" {
+			d.Spec.AWS.DocumentDB.ClusterID = endpointInfo.ClusterID
+		}
+		if d.Spec.AWS.DocumentDB.InstanceID == "" {
+			d.Spec.AWS.DocumentDB.InstanceID = endpointInfo.InstanceID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = endpointInfo.Region
+		}
+		d.Spec.AWS.DocumentDB.EndpointType = endpointInfo.EndpointType
+
 	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
 		// For Azure MySQL and PostgresSQL.
 		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
@@ -930,6 +940,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if protocol == DatabaseProtocolClickHouse {
 			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseNativeSchema, d.Spec.URI)
 		}
+	}
+
+	const defaultKRB5FilePath = "/etc/krb5.conf"
+	// The presence of AD Domain indicates the AD configuration will be used.
+	// In those cases, set the default KRB5 file location if not present.
+	if d.Spec.AD.Domain != "" && d.Spec.AD.Krb5File == "" {
+		d.Spec.AD.Krb5File = defaultKRB5FilePath
 	}
 
 	return nil
@@ -1049,7 +1066,8 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	case DatabaseTypeAWSKeyspaces,
 		DatabaseTypeDynamoDB,
 		DatabaseTypeOpenSearch,
-		DatabaseTypeRedshiftServerless:
+		DatabaseTypeRedshiftServerless,
+		DatabaseTypeDocumentDB:
 		return true
 	default:
 		return false
@@ -1096,6 +1114,8 @@ func (d *DatabaseV3) GetEndpointType() string {
 		if details, err := awsutils.ParseRDSEndpoint(d.GetURI()); err == nil {
 			return details.EndpointType
 		}
+	case DatabaseTypeDocumentDB:
+		return d.GetAWS().DocumentDB.EndpointType
 	}
 	return ""
 }
@@ -1152,6 +1172,8 @@ const (
 	DatabaseTypeOpenSearch = "opensearch"
 	// DatabaseTypeMongoAtlas
 	DatabaseTypeMongoAtlas = "mongo-atlas"
+	// DatabaseTypeDocumentDB is the database type for AWS-hosted DocumentDB.
+	DatabaseTypeDocumentDB = "docdb"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

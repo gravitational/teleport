@@ -20,9 +20,9 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"path"
 	"regexp"
@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
@@ -46,6 +47,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -73,6 +75,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
+	types.NewRule(types.KindVnetConfig, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -262,7 +265,7 @@ func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 	// be used, only log expression parse errors as a warning.
 	if err := validateRoleExpressions(r); err != nil {
 		options.warningReporter(err)
-		log.Warnf("Detected invalid role %q: %v", r.GetName(), err)
+		slog.WarnContext(context.Background(), "Detected invalid role", "role", r.GetName(), "error", err)
 	}
 	return nil
 }
@@ -297,7 +300,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_names", r.GetDatabaseNames(condition.condition)},
 			{"db_users", r.GetDatabaseUsers(condition.condition)},
 			{"host_groups", r.GetHostGroups(condition.condition)},
-			{"host_sudeoers", r.GetHostSudoers(condition.condition)},
+			{"host_sudoers", r.GetHostSudoers(condition.condition)},
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
 			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
@@ -389,7 +392,7 @@ func filterInvalidUnixLogins(candidates []string) []string {
 		// Log any invalid logins which were added by a user but ignore any
 		// Teleport internal logins which are known to be invalid.
 		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+			slog.DebugContext(context.Background(), "Skipping invalid Unix login.", "login", candidate)
 		}
 	}
 	return output
@@ -403,7 +406,7 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 
 	for _, candidate := range candidates {
 		if strings.ContainsAny(candidate, invalidChars) {
-			log.Debugf("Skipping Windows login %v, not a valid Windows login.", candidate)
+			slog.DebugContext(context.Background(), "Skipping invalid Windows login.", "login", candidate)
 			continue
 		}
 
@@ -416,7 +419,7 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 func warnInvalidAzureIdentities(candidates []string) {
 	for _, candidate := range candidates {
 		if !MatchValidAzureIdentity(candidate) {
-			log.Warningf("Invalid format of Azure identity %q", candidate)
+			slog.WarnContext(context.Background(), "Invalid format of Azure identity", "identity", candidate)
 		}
 	}
 }
@@ -525,7 +528,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		for i, ext := range options.CertExtensions {
 			vals, err := ApplyValueTraits(ext.Value, traits)
 			if err != nil && !trace.IsNotFound(err) {
-				log.Warnf("Did not apply trait to cert_extensions.value: %v", err)
+				slog.WarnContext(context.Background(), "Failed to apply trait to cert_extensions.value", "error", err)
 				continue
 			}
 			if len(vals) != 0 {
@@ -555,7 +558,7 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 		outputs, err := ApplyValueTraits(value, traits)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				log.WithError(err).Debugf("Skipping %s %q.", fieldName, value)
+				slog.DebugContext(context.Background(), "Skipping trait value.", "field", fieldName, "value", value, "error", err)
 			}
 			continue
 		}
@@ -585,7 +588,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 		keyVars, err := ApplyValueTraits(key, traits)
 		if err != nil {
 			// empty key will not match anything
-			log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
+			slog.DebugContext(context.Background(), "Setting empty node label pair", "key", key, "values", vals, "error", err)
 			keyVars = []string{""}
 		}
 
@@ -593,7 +596,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 		for _, val := range vals {
 			valVars, err := ApplyValueTraits(val, traits)
 			if err != nil {
-				log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
+				slog.DebugContext(context.Background(), "Setting empty node label value", "key", key, "value", val, "error", err)
 				// empty value will not match anything
 				valVars = []string{""}
 			}
@@ -869,10 +872,10 @@ func ExtractFromIdentity(ctx context.Context, access UserGetter, identity tlsca.
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
-			"from backend. If the identity provider allows username changes, this can "+
-			"potentially allow an attacker to change the role of the existing user.",
-			identity.Username)
+		const msg = "Failed to find roles in x509 identity. Fetching " +
+			"from backend. If the identity provider allows username changes, this can " +
+			"potentially allow an attacker to change the role of the existing user."
+		slog.WarnContext(ctx, msg, "username", identity.Username)
 		return u.GetRoles(), u.GetTraits(), nil
 	}
 
@@ -1197,7 +1200,7 @@ func (set RoleSet) PinSourceIP() bool {
 
 // GetAccessState returns the AccessState, setting [AccessState.MFARequired]
 // according to the user's roles and cluster auth preference.
-func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+func (set RoleSet) GetAccessState(authPref readonly.AuthPreference) AccessState {
 	return AccessState{
 		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
 		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
@@ -1526,7 +1529,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 // TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 //
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ...AccessState) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, states ...AccessState) error {
 	_, debugf := rbacDebugLogger()
 
 	if authPref != nil {
@@ -2418,7 +2421,7 @@ func NewKubernetesResourceMatcher(resource types.KubernetesResource) *Kubernetes
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition))
+	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition), condition)
 
 	return result, trace.Wrap(err)
 }
@@ -3307,50 +3310,38 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 
 // UnmarshalRoleV6 unmarshals the RoleV6 resource from JSON.
 func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error) {
-	var h types.ResourceHeader
-	err := json.Unmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch h.Version {
-	case types.V7:
-		fallthrough
-	case types.V6:
-		fallthrough
-	case types.V5:
-		fallthrough
-	case types.V4:
-		// V4 roles are identical to V3 except for their defaults
-		fallthrough
-	case types.V3:
-		var role types.RoleV6
-		if err := utils.FastUnmarshal(bytes, &role); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-
-		if err := ValidateRole(&role); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if cfg.ID != 0 {
-			role.SetResourceID(cfg.ID)
-		}
-		if cfg.Revision != "" {
-			role.SetRevision(cfg.Revision)
-		}
-		if !cfg.Expires.IsZero() {
-			role.SetExpiry(cfg.Expires)
-		}
-		return &role, nil
+	version := jsoniter.Get(bytes, "version").ToString()
+	switch version {
+	// these are all backed by the same shape of data, they just have different semantics and defaults
+	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	default:
+		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
 
-	return nil, trace.BadParameter("role version %q is not supported", h.Version)
+	var role types.RoleV6
+	if err := utils.FastUnmarshal(bytes, &role); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	if role.Version != version {
+		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
+	}
+
+	if err := ValidateRole(&role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Revision != "" {
+		role.SetRevision(cfg.Revision)
+	}
+	if !cfg.Expires.IsZero() {
+		role.SetExpiry(cfg.Expires)
+	}
+	return &role, nil
 }
 
 // MarshalRole marshals the Role resource to JSON.
@@ -3366,7 +3357,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV6:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, role))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, role))
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}

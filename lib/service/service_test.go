@@ -41,7 +41,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -49,6 +48,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -368,9 +369,8 @@ func TestServiceCheckPrincipals(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	testConnector := &Connector{
-		ServerIdentity: tlsServer.Identity,
-	}
+	testConnector, err := newConnector(tlsServer.Identity, tlsServer.Identity)
+	require.NoError(t, err)
 
 	tests := []struct {
 		inPrincipals  []string
@@ -477,8 +477,10 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 
@@ -886,17 +888,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				// Setting Supervisor so that `ExitContext` can be called.
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
-			conn := &Connector{
-				ServerIdentity: &state.Identity{
-					Cert: &ssh.Certificate{
-						Permissions: ssh.Permissions{
-							Extensions: map[string]string{},
-						},
-					},
-				},
-			}
 			tls, err := process.setupProxyTLSConfig(
-				conn,
+				&Connector{},
 				&mockReverseTunnelServer{},
 				&mockAccessPoint{},
 				"cluster",
@@ -1235,10 +1228,9 @@ func TestProxyGRPCServers(t *testing.T) {
 	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
 	require.NoError(t, err)
 
-	testConnector := &Connector{
-		ServerIdentity: serverIdentity,
-		Client:         client,
-	}
+	testConnector, err := newConnector(serverIdentity, serverIdentity)
+	require.NoError(t, err)
+	testConnector.Client = client
 
 	// Create a listener for the insecure gRPC server.
 	insecureListener, err := net.Listen("tcp", "localhost:0")
@@ -1294,7 +1286,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGRPC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	insecureGRPC, err := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	require.NoError(t, err)
 	t.Cleanup(insecureGRPC.GracefulStop)
 
 	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
@@ -1354,10 +1347,19 @@ func TestProxyGRPCServers(t *testing.T) {
 		{
 			name: "secure client to secure server",
 			credentials: func() credentials.TransportCredentials {
-				// Create a new client using the server identity.
-				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
-				require.NoError(t, err)
-				return credentials.NewTLS(creds)
+				// Create a new client using the client identity.
+				tlsConfig := utils.TLSConfig(nil)
+				tlsConfig.ServerName = apiutils.EncodeClusterName(testConnector.ClusterName())
+				tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+					tlsCert, err := testConnector.ClientGetCertificate()
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return tlsCert, nil
+				}
+				tlsConfig.InsecureSkipVerify = true
+				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
+				return credentials.NewTLS(tlsConfig)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.NoError,
@@ -1619,4 +1621,195 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	require.NoError(t, err)
 	defer req.Body.Close()
 	require.Equal(t, http.StatusNotFound, req.StatusCode)
+}
+
+type mockInstanceMetadata struct {
+	hostname    string
+	hostnameErr error
+}
+
+func (m *mockInstanceMetadata) IsAvailable(ctx context.Context) bool {
+	return true
+}
+
+func (m *mockInstanceMetadata) GetTags(ctx context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
+func (m *mockInstanceMetadata) GetHostname(ctx context.Context) (string, error) {
+	return m.hostname, m.hostnameErr
+}
+
+func (m *mockInstanceMetadata) GetType() types.InstanceMetadataType {
+	return "mock"
+}
+
+func (m *mockInstanceMetadata) GetID(ctx context.Context) (string, error) {
+	return "", nil
+}
+
+func TestInstanceMetadata(t *testing.T) {
+	t.Parallel()
+
+	newCfg := func() *servicecfg.Config {
+		cfg := servicecfg.MakeDefaultConfig()
+		cfg.Hostname = "default.example.com"
+		cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+		cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+		cfg.Proxy.Enabled = false
+		cfg.SSH.Enabled = false
+		cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		return cfg
+	}
+
+	tests := []struct {
+		name              string
+		imClient          imds.Client
+		expectCloudLabels bool
+		expectedHostname  string
+	}{
+		{
+			name:              "no instance metadata",
+			imClient:          imds.NewDisabledIMDSClient(),
+			expectCloudLabels: false,
+			expectedHostname:  "default.example.com",
+		},
+		{
+			name: "instance metadata with valid hostname",
+			imClient: &mockInstanceMetadata{
+				hostname: "new.example.com",
+			},
+			expectCloudLabels: true,
+			expectedHostname:  "new.example.com",
+		},
+		{
+			name: "instance metadata with no hostname",
+			imClient: &mockInstanceMetadata{
+				hostnameErr: trace.NotFound(""),
+			},
+			expectCloudLabels: true,
+			expectedHostname:  "default.example.com",
+		},
+		{
+			name: "instance metadata with invalid hostname",
+			imClient: &mockInstanceMetadata{
+				hostname: ")7%#(*&@())",
+			},
+			expectCloudLabels: true,
+			expectedHostname:  "default.example.com",
+		},
+		{
+			name: "instance metadata with hostname error",
+			imClient: &mockInstanceMetadata{
+				hostnameErr: trace.Errorf(""),
+			},
+			expectCloudLabels: true,
+			expectedHostname:  "default.example.com",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := newCfg()
+			cfg.DataDir = t.TempDir()
+			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.InstanceMetadataClient = tc.imClient
+
+			process, err := NewTeleport(cfg)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, process.Close())
+			})
+
+			if tc.expectCloudLabels {
+				require.NotNil(t, process.cloudLabels)
+			} else {
+				require.Nil(t, process.cloudLabels)
+			}
+
+			require.Equal(t, tc.expectedHostname, cfg.Hostname)
+		})
+	}
+}
+
+func TestInitDatabaseService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc      string
+		enabled   bool
+		databases []servicecfg.Database
+		expectErr bool
+	}{
+		{
+			desc:    "enabled valid databases",
+			enabled: true,
+			databases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+			},
+			expectErr: false,
+		},
+		{
+			desc:    "enabled invalid databases",
+			enabled: true,
+			databases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+				{Name: ""},
+			},
+			expectErr: true,
+		},
+		{
+			desc:    "disabled invalid databases",
+			enabled: false,
+			databases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+				{Name: ""},
+			},
+			expectErr: false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := servicecfg.MakeDefaultConfig()
+			cfg.DataDir = t.TempDir()
+			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Hostname = "default.example.com"
+			cfg.Auth.Enabled = true
+			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Proxy.Enabled = true
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+			cfg.SSH.Enabled = false
+			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+			cfg.Databases.Enabled = test.enabled
+			cfg.Databases.Databases = test.databases
+
+			process, err := NewTeleport(cfg)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, process.Close())
+			})
+			require.NoError(t, process.Start())
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if !test.expectErr {
+				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
+				require.NoError(t, err)
+				return
+			}
+
+			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
+			require.NoError(t, err)
+			require.NotNil(t, event)
+			exitPayload, ok := event.Payload.(ExitEventPayload)
+			require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
+			require.Equal(t, "db.init", exitPayload.Service.Name())
+		})
+	}
 }

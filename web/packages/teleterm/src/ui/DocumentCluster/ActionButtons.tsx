@@ -19,7 +19,7 @@
 import React from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
+import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
 
 import {
   connectToServer,
@@ -249,14 +249,14 @@ function AppButton(props: {
         onClick={props.onLaunchUrl}
         as="a"
         textTransform="none"
-        title="Log in to the app in the browser"
+        title="Log in to the SAML application in the browser"
         href={getSamlAppSsoUrl({
           app: props.app,
           rootCluster: props.rootCluster,
         })}
         target="_blank"
       >
-        Login
+        Log In
       </ButtonBorder>
     );
   }
@@ -304,6 +304,32 @@ function AppButton(props: {
       textTransform="none"
     >
       Connect
+    </ButtonBorder>
+  );
+}
+
+export function AccessRequestButton(props: {
+  isResourceAdded: boolean;
+  requestStarted: boolean;
+  onClick(): void;
+}) {
+  return props.isResourceAdded ? (
+    <ButtonPrimary
+      textTransform="none"
+      width="124px"
+      size="small"
+      onClick={props.onClick}
+    >
+      Remove
+    </ButtonPrimary>
+  ) : (
+    <ButtonBorder
+      textTransform="none"
+      width="124px"
+      size="small"
+      onClick={props.onClick}
+    >
+      {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
   );
 }

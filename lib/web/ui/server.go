@@ -359,16 +359,17 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
-		Kind:          database.GetKind(),
-		Name:          database.GetName(),
-		Desc:          database.GetDescription(),
-		Protocol:      database.GetProtocol(),
-		Type:          database.GetType(),
-		Labels:        uiLabels,
-		DatabaseUsers: dbUsers,
-		DatabaseNames: dbNames,
-		Hostname:      stripProtocolAndPort(database.GetURI()),
-		URI:           database.GetURI(),
+		Kind:            database.GetKind(),
+		Name:            database.GetName(),
+		Desc:            database.GetDescription(),
+		Protocol:        database.GetProtocol(),
+		Type:            database.GetType(),
+		Labels:          uiLabels,
+		DatabaseUsers:   dbUsers,
+		DatabaseNames:   dbNames,
+		Hostname:        stripProtocolAndPort(database.GetURI()),
+		URI:             database.GetURI(),
+		RequiresRequest: requiresRequest,
 	}
 
 	if database.IsAWSHosted() {

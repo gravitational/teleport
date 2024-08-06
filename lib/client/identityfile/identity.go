@@ -181,7 +181,7 @@ type WriteConfig struct {
 	// and use OutputPath as a prefix.
 	OutputPath string
 	// Key contains the credentials to write to the identity file.
-	Key *client.Key
+	Key *client.KeyRing
 	// Format is the output format for the identity file.
 	Format Format
 	// KubeProxyAddr is the public address of the proxy with its kubernetes
@@ -230,7 +230,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 		idFile := &identityfile.IdentityFile{
-			PrivateKey: cfg.Key.PrivateKeyPEM(),
+			PrivateKey: cfg.Key.PrivateKey.PrivateKeyPEM(),
 			Certs: identityfile.Certs{
 				SSH: cfg.Key.Cert,
 				TLS: cfg.Key.TLSCert,
@@ -277,7 +277,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -314,7 +314,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -354,7 +354,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -377,7 +377,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKeyPEM()...), identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKey.PrivateKeyPEM()...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -517,7 +517,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyK, err := utils.ParsePrivateKeyPEM(cfg.Key.PrivateKeyPEM())
+	keyK, err := keys.ParsePrivateKey(cfg.Key.PrivateKey.PrivateKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -527,7 +527,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	// issuer for an oracle wallet user_cert, and the server cert we create
 	// is not signed by the DB Client CA, so don't pass trusted certs
 	// (DB Client CA) here.
-	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK, certBlock, nil, cfg.Password)
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK.Signer, certBlock, nil, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -660,7 +660,7 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 
 func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
-	privBlock, _ := pem.Decode(cfg.Key.PrivateKeyPEM())
+	privBlock, _ := pem.Decode(cfg.Key.PrivateKey.PrivateKeyPEM())
 
 	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
 	if err != nil {
@@ -725,7 +725,7 @@ func checkOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths 
 }
 
 // KeyFromIdentityFile loads client key from identity file.
-func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.Key, error) {
+func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.KeyRing, error) {
 	if proxyHost == "" {
 		return nil, trace.BadParameter("proxyHost must be provided to parse identity file")
 	}

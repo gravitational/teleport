@@ -32,13 +32,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/crownjewel"
+	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -50,6 +50,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -652,12 +653,21 @@ func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient {
+	return accessgraphsecretsv1pb.NewSecretsScannerServiceClient(c.APIClient.GetConnection())
+}
+
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
+}
+
+// DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
+func (c *Client) DatabaseObjectsClient() *databaseobject.Client {
+	return databaseobject.NewClient(c.APIClient.DatabaseObjectClient())
 }
 
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
@@ -782,6 +792,31 @@ func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotificatio
 // UpsertUserNotification not implemented: can only be called locally.
 func (c *Client) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetAccessGraphSettings gets the access graph settings from the backend.
+func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateAccessGraphSettings creates the access graph settings in the backend.
+func (c *Client) CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateAccessGraphSettings updates the access graph settings in the backend.
+func (c *Client) UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
+func (c *Client) UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAccessGraphSettings deletes the access graph settings from the backend.
+func (c *Client) DeleteAccessGraphSettings(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 type WebSessionReq struct {
@@ -1323,6 +1358,8 @@ type SSHLoginResponse struct {
 	TLSCert []byte `json:"tls_cert"`
 	// HostSigners is a list of signing host public keys trusted by proxy
 	HostSigners []TrustedCerts `json:"host_signers"`
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
+	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1416,7 +1453,6 @@ type ClientI interface {
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
-	services.Assistant
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -1426,6 +1462,7 @@ type ClientI interface {
 	services.Integrations
 	services.KubeWaitingContainer
 	services.Notifications
+	services.VnetConfigGetter
 	types.Events
 
 	types.WebSessionsGetter
@@ -1446,11 +1483,10 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	LoginRuleClient() loginrulepb.LoginRuleServiceClient
 
-	// EmbeddingClient returns a client to the Embedding gRPC service.
-	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
-
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
+
+	AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
@@ -1595,8 +1631,8 @@ type ClientI interface {
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
 
-	// DatabaseObjectClient returns a database object client.
-	DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient
+	// DatabaseObjectsClient returns a database object client.
+	DatabaseObjectsClient() *databaseobject.Client
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
@@ -1604,11 +1640,18 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	SecReportsClient() *secreport.Client
 
-	// BotServiceClient returns a client for security reports.
+	// BotServiceClient returns a client for the Machine ID Bot Service.
 	// Clients connecting to older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
+
+	// BotInstanceServiceClient returns a client for interacting with Machine ID
+	// Bot Instances.
+	// Clients connecting to older Teleport versions, still get a bot service client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
@@ -1654,6 +1697,11 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
+	// VnetConfigServiceClient returns a VnetConfig service client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	VnetConfigServiceClient() vnet.VnetConfigServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
@@ -1721,6 +1769,8 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 		AWSRoleARN:        routeToApp.AWSRoleARN,
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GCPServiceAccount: routeToApp.GCPServiceAccount,
+		URI:               routeToApp.URI,
+		AppName:           routeToApp.Name,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

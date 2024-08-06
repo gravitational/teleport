@@ -151,7 +151,7 @@ export function AwsAccount() {
       <Box maxWidth="700px">
         <Heading />
         <Box maxWidth="700px">
-          <Text mt={4} width="100px">
+          <Text mt={4}>
             You don’t have the required permissions for integrating.
             <br />
             Ask your Teleport administrator to update your role with the
@@ -272,7 +272,7 @@ export function AwsAccount() {
                       options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
-                  <ButtonText as={Link} to={locationState} pl={0}>
+                  <ButtonText as={Link} to={locationState} pl={2} pr={2}>
                     Or click here to set up a different AWS account
                   </ButtonText>
                 </>

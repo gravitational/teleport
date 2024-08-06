@@ -36,11 +36,25 @@ let sesstionCheckerTimerId = null;
 
 const session = {
   logout(rememberLocation = false) {
+    api.delete(cfg.api.webSessionPath).then(response => {
+      this.clear();
+      if (response.samlSloUrl) {
+        window.open(response.samlSloUrl, '_self');
+      } else {
+        history.goToLogin(rememberLocation);
+      }
+    });
+  },
+
+  logoutWithoutSlo(rememberLocation = false) {
     api.delete(cfg.api.webSessionPath).finally(() => {
       history.goToLogin(rememberLocation);
     });
+  },
 
+  clearBrowserSession(rememberLocation = false) {
     this.clear();
+    history.goToLogin(rememberLocation);
   },
 
   clear() {
@@ -162,6 +176,14 @@ const session = {
     return !!this._isRenewing;
   },
 
+  setDeviceTrustRequired() {
+    this._isDeviceTrustRequired = true;
+  },
+
+  getDeviceTrustRequired() {
+    return !!this._isDeviceTrustRequired;
+  },
+
   getIsDeviceTrusted() {
     return !!this._isDeviceTrusted;
   },
@@ -210,7 +232,7 @@ const session = {
     this.validateCookieAndSession().catch(err => {
       // this indicates that session is no longer valid (caused by server restarts or updates)
       if (err.response.status == 403) {
-        this.logout();
+        this.clearBrowserSession();
       }
     });
   },
@@ -248,7 +270,7 @@ function receiveMessage(event) {
 
   // check if logout was triggered from other tabs
   if (storageService.getBearerToken() === null) {
-    session.logout();
+    session.clearBrowserSession();
   }
 
   // check if token is being renewed from another tab

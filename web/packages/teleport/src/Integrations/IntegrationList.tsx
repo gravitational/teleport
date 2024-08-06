@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
+import { AWSIcon, AzureIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import jamfIcon from 'design/assets/images/icons/jamf.svg';
@@ -34,6 +34,7 @@ import servicenowIcon from 'design/assets/images/icons/servicenow.svg';
 import discordIcon from 'design/assets/images/icons/discord.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
 import msteamIcon from 'design/assets/images/icons/msteams.svg';
+import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -50,7 +51,6 @@ import {
 import cfg from 'teleport/config';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
-import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -196,9 +196,6 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
         <Flex alignItems="center">
           <StatusLight status={status} />
           {getStatusCodeTitle(item.statusCode)}
-          <Box mx="1">
-            <UpdateAwsOidcThumbprint integration={item} />
-          </Box>
         </Flex>
       </Cell>
     );
@@ -253,7 +250,7 @@ function getStatus(item: IntegrationLike): Status | null {
   }
 }
 
-const StatusLight = styled(Box)`
+const StatusLight = styled(Box)<{ status: Status }>`
   border-radius: 50%;
   margin-right: 4px;
   width: 8px;
@@ -325,6 +322,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Microsoft Teams';
         icon = <IconContainer src={msteamIcon} />;
         break;
+      case 'entra-id':
+        formattedText = 'Microsoft Entra ID';
+        icon = <IconContainer src={entraIdIcon} />;
+        break;
     }
   } else {
     // Default is integration.
@@ -335,6 +336,14 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         icon = (
           <SvgIconContainer>
             <AWSIcon />
+          </SvgIconContainer>
+        );
+        break;
+      case IntegrationKind.AzureOidc:
+        formattedText = 'Azure OIDC';
+        icon = (
+          <SvgIconContainer>
+            <AzureIcon size={24} />
           </SvgIconContainer>
         );
         break;

@@ -48,9 +48,6 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
-
-	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
-	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -280,13 +277,10 @@ const (
 	// ComponentAthena represents athena clients.
 	ComponentAthena = "athena"
 
-	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
+	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
-	// ComponentAssist represents Teleport Assist
-	ComponentAssist = "assist"
-
-	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// IterationsEnvVar sets tests iterations to run
@@ -309,7 +303,7 @@ const (
 	DataDirParameterName = "data_dir"
 
 	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
-	// a server keep pining each other with it.
+	// a server keep pinging each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like
@@ -509,6 +503,10 @@ const (
 	// CertExtensionBotName indicates the name of the Machine ID bot this
 	// certificate was issued to, if any.
 	CertExtensionBotName = "bot-name@goteleport.com"
+	// CertExtensionBotInstanceID indicates the unique identifier of this
+	// Machine ID bot instance, if any. This identifier is persisted through
+	// certificate renewals.
+	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -677,6 +675,10 @@ const (
 	// resources.
 	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
 
+	// PresetTerraformProviderRoleName is a name of a default role that allows the Terraform provider
+	// to configure all its supported Teleport resources.
+	PresetTerraformProviderRoleName = "terraform-provider"
+
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request
 	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
@@ -731,6 +733,14 @@ const (
 	// version they are running.
 	VersionRequest = "x-teleport-version"
 
+	// CurrentSessionIDRequest is sent by servers to inform clients of
+	// the session ID that is being used.
+	CurrentSessionIDRequest = "current-session-id@goteleport.com"
+
+	// SessionIDQueryRequest is sent by clients to ask servers if they
+	// will generate their own session ID when a new session is created.
+	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
@@ -754,8 +764,8 @@ const (
 	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
 	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
 
-	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
-	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
+	// EnvSSHSessionInvited is an environment variable listing people invited to a session.
+	EnvSSHSessionInvited = "TELEPORT_SESSION_INVITED_USERS"
 
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.

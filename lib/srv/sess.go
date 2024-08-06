@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -264,7 +263,7 @@ func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
 }
 
 func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
-	if !ctx.srv.GetCreateHostUser() {
+	if !ctx.srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
 		return nil // not an error to not be able to create host users
 	}
@@ -282,7 +281,7 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	if trace.IsAccessDenied(err) && existsErr != nil {
 		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
-	userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
+	userCloser, err := s.users.UpsertUser(ctx.Identity.Login, ui)
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
 	}
@@ -325,20 +324,18 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
 
-	// session not found? need to create one. start by getting/generating an ID for it
-	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
-	if !found {
-		sid = string(rsession.NewID())
-		scx.SetEnv(sshutils.SessionEnvVar, sid)
+	sid := scx.SessionID()
+	if sid.IsZero() {
+		return trace.BadParameter("session ID is not set")
 	}
 
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	sess, p, err := newSession(ctx, rsession.ID(sid), s, scx, ch)
+	sess, p, err := newSession(ctx, sid, s, scx, ch, sessionTypeInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(sess)
+	scx.setSession(sess, ch)
 	s.addSession(sess)
 	scx.Infof("Creating (interactive) session %v.", sid)
 
@@ -353,28 +350,20 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 
 // OpenExecSession opens a non-interactive exec session.
 func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	var sessionID rsession.ID
+	sessionID := scx.SessionID()
 
-	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
-	if !found {
-		// Create a new session ID. These sessions can not be joined
+	if sessionID.IsZero() {
 		sessionID = rsession.NewID()
 		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
-		sessionID = rsession.ID(sid)
 		scx.Tracef("Session found, reusing it %s", sessionID)
-	}
-
-	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)
-	if found {
-		scx.recordNonInteractiveSession = true
 	}
 
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
-	sess, _, err := newSession(ctx, sessionID, s, scx, channel)
+	sess, _, err := newSession(ctx, sessionID, s, scx, channel, sessionTypeNonInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,7 +387,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(sess)
+	scx.setSession(sess, channel)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
@@ -728,8 +717,15 @@ type session struct {
 	started atomic.Bool
 }
 
+type sessionType bool
+
+const (
+	sessionTypeInteractive    sessionType = true
+	sessionTypeNonInteractive sessionType = false
+)
+
 // newSession creates a new session with a given ID within a given context.
-func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *ServerContext, ch ssh.Channel) (*session, *party, error) {
+func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
@@ -802,7 +798,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	sess.participants[p.id] = p
 
 	var err error
-	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets, p); err != nil {
+	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets, p, sessType); err != nil {
 		if trace.IsNotImplemented(err) {
 			return nil, nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
@@ -1015,8 +1011,18 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 		sessionJoinEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
 
+	var notifyPartyPayload []byte
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionJoinEvent)
 	if err == nil {
+		// Try marshaling the event prior to emitting it to prevent races since
+		// the audit/recording machinery might try to set some fields while the
+		// marshal is underway.
+		if eventPayload, err := json.Marshal(preparedEvent); err != nil {
+			s.log.Warnf("Unable to marshal %v: %v.", events.SessionJoinEvent, err)
+		} else {
+			notifyPartyPayload = eventPayload
+		}
+
 		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to record session join event.")
 		}
@@ -1030,12 +1036,15 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
 	for _, p := range s.parties {
-		eventPayload, err := json.Marshal(sessionJoinEvent)
-		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+		if len(notifyPartyPayload) == 0 {
+			s.log.Warnf("No join event to send to %v", p.sconn.RemoteAddr())
 			continue
 		}
-		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
+
+		payload := make([]byte, len(notifyPartyPayload))
+		copy(payload, notifyPartyPayload)
+
+		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, payload)
 		if err != nil {
 			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
 			continue
@@ -1384,6 +1393,11 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 
+	// Don't record non-interactive sessions when enhanced recording is disabled.
+	if ctx.GetTerm() == nil && !ctx.srv.GetBPF().Enabled() {
+		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+	}
+
 	rec, err := recorder.New(recorder.Config{
 		SessionID:    s.id,
 		ServerID:     s.serverMeta.ServerID,
@@ -1414,12 +1428,6 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	if scx.recordNonInteractiveSession {
-		// enable recording.
-		s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
-		s.scx.multiWriter = s.io
-	}
-
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
@@ -1473,10 +1481,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 
 	// Process has been placed in a cgroup, continue execution.
 	execRequest.Continue()
-
-	if scx.recordNonInteractiveSession {
-		s.io.On()
-	}
 
 	// Process is running, wait for it to stop.
 	go func() {
@@ -2101,7 +2105,7 @@ func (p *party) closeUnderSessionLock() error {
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
-func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet, p *party) error {
+func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet, p *party, sessType sessionType) error {
 	s.log.Debugf("Tracking participant: %s", p.id)
 	var initialCommand []string
 	if execRequest, err := s.scx.GetExecRequest(); err == nil {
@@ -2132,16 +2136,20 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		InitialCommand: initialCommand,
 	}
 
-	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {
-		if err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &trackerSpec.Invited); err != nil {
+	if invitedUsers := s.scx.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &trackerSpec.Invited); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	svc := s.registry.SessionTrackerService
-	// only propagate the session tracker when the recording mode and component are in sync
+	// Only propagate the session tracker when the recording mode and component are in sync
+	// AND the sesssion is interactive
+	// AND the session was not initiated by a bot
 	if (s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) ||
-		(s.registry.Srv.Component() == teleport.ComponentProxy && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) {
+		(s.registry.Srv.Component() == teleport.ComponentProxy && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) ||
+		sessType == sessionTypeNonInteractive ||
+		s.scx.Identity.BotName != "" {
 		svc = nil
 	}
 

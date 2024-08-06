@@ -100,7 +100,6 @@ required for your particular use case.
 </TabItem>
 </Tabs>
 </TabItem>
-
 </Tabs>
 
 ### Teleport Connect
@@ -117,8 +116,8 @@ server and database access within a single window.
 1. Provide the address of your Teleport Cluster (e.g.
    `https://example.teleport.sh`) and click **NEXT**.
 
-1. Teleport Connect will ask you for your username, password, and MFA. 
-   
+1. Teleport Connect will ask you for your username, password, and MFA.
+
    If Teleport is integrated with an external Identity Provider (**IdP**), you might be
    prompted to authenticate with that service in a browser window.
 
@@ -132,7 +131,7 @@ Teleport provides a web interface for users to interact with Teleport, e.g., by
 accessing resources or creating Access Requests. This is usually found at the
 same URL used to connect to Teleport with (e.g.  `https://example.teleport.sh`),
 but you should confirm the Web UI URL with the team that manages your Teleport
-deployment. 
+deployment.
 
 The Web UI provides similar access to resources as Teleport Connect, and
 additional access to to Request and Activity logs for users with the right
@@ -149,8 +148,8 @@ permissions.
 
 ```code
 $ tsh ls
-Node Name           Address         Labels                       
-------------------- --------------- ---------------------------- 
+Node Name           Address         Labels
+------------------- --------------- ----------------------------
 server1.example.com 192.0.2.24:3022 access=servers,hostname=server1
 server2.example.com 192.0.2.32:3022 access=servers,hostname=server2
 ```
@@ -180,15 +179,6 @@ button will open a new tab with a terminal emulator to provide access to that se
 
 </TabItem>
 </Tabs>
-
-### Transferring files (`scp`)
-
-`tsh scp` will let you transfer files to servers behind Teleport:
-
-```code
-$ tsh scp some-file.ext server.example.com:
-some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
-```
 
 ### Kubernetes access (`kubectl`)
 
@@ -250,6 +240,42 @@ cluster](../../img/use-teleport/kubernetes-login.png)
 </TabItem>
 </Tabs>
 
+### Transferring files
+
+<Tabs>
+<TabItem label="tsh scp">
+
+`tsh scp` will let you transfer files to servers behind Teleport:
+
+```code
+$ tsh scp some-file.ext server.example.com:
+some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
+```
+</TabItem>
+<TabItem label="Teleport Connect">
+
+Teleport Connect allows you to transfer files to a remote server and runs on macOS, Linux and Windows. You can use the arrows in the top-left corner of an active SSH session to upload and download files:
+
+![Download with connect](../../img/download_files_connect.png)
+
+You can upload files from systems using drag and drop:
+
+![Drag and drop in Connect](../../img/upload_files_connect_drag_drop.png)
+
+</TabItem>
+<TabItem label="Web UI">
+
+You can use the arrows in the top-left corner of the Web UI to download files:
+
+![Arrows in Web UI](../../img/download_files_webui.png)
+
+Or you can upload using drag and drop:
+
+![Upload in Web UI](../../img/upload_files_webui.png)
+
+</TabItem>
+</Tabs>
+
 ### Database Access
 
 <Tabs>
@@ -270,7 +296,7 @@ that database. For example, to connect to a MySQL or MariaDB database, you'll
 need the [MySQL CLI](https://dev.mysql.com/doc/refman/8.0/en/mysql.html) client:
 
 ```code
-$ tsh db connect --db-user=alice --db-name=teleport_example mysql-server1 
+$ tsh db connect --db-user=alice --db-name=teleport_example mysql-server1
 ```
 
 In this example, `teleport_example` is a pre-existing database on the MySQL server:
@@ -332,9 +358,9 @@ list those that are accessible to your user under <Icon name="database" size="sm
 
 ### Desktop access
 
-Desktop access is available through the Teleport Web UI. 
+Desktop access is available through the Teleport Web UI.
 
-1. In your browser, navigate to your Teleport cluster (for example, 
+1. In your browser, navigate to your Teleport cluster (for example,
 `https://example.teleport.sh`).
 1. From the menu on the right, select <Icon name="desktop" inline size="sm"/> **Desktops**.
 1. Next to the desktop you want to access, click **CONNECT**. Select
@@ -360,4 +386,3 @@ either directly or through proxy tunnels.
 {/*lint ignore messaging for page title*/}
 - [Database Access GUI Clients](./gui-clients.mdx) details
 how to connect many popular database GUI clients through Teleport.
-

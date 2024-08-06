@@ -90,7 +90,7 @@ export function defaultDiscoverContext({
     emitEvent: () => null,
     eventState: null,
     currentStep: 0,
-    nextStep: jest.fn(),
+    nextStep: () => null,
     prevStep: () => null,
     onSelectResource: () => null,
     resourceSpec: resourceSpec ? resourceSpec : defaultResourceSpec(null),

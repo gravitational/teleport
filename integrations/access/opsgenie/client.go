@@ -29,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -45,6 +46,7 @@ const (
 	heartbeatName         = "teleport-access-heartbeat"
 	ResponderTypeSchedule = "schedule"
 	ResponderTypeUser     = "user"
+	ResponderTypeTeam     = "team"
 
 	ResolveAlertRequestRetryInterval = time.Second * 10
 	ResolveAlertRequestRetryTimeout  = time.Minute * 2
@@ -82,6 +84,8 @@ type ClientConfig struct {
 	APIEndpoint string
 	// DefaultSchedules are the default on-call schedules to check for auto approval
 	DefaultSchedules []string
+	// DefaultTeams are the default Opsgenie Teams to add as responders
+	DefaultTeams []string
 	// Priority is the priority alerts are to be created with
 	Priority string
 
@@ -142,7 +146,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		Message:     fmt.Sprintf("Access request from %s", reqData.User),
 		Alias:       fmt.Sprintf("%s/%s", alertKeyPrefix, reqID),
 		Description: bodyDetails,
-		Responders:  og.getScheduleResponders(reqData),
+		Responders:  og.getResponders(reqData),
 		Priority:    og.Priority,
 	}
 
@@ -205,19 +209,37 @@ func (og Client) getAlertRequestResult(ctx context.Context, reqID string) (GetAl
 	return result, nil
 }
 
-func (og Client) getScheduleResponders(reqData RequestData) []Responder {
+func (og Client) getResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
 	if reqSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]; ok {
 		schedules = reqSchedules
 	}
-	responders := make([]Responder, 0, len(schedules))
+	teams := og.DefaultTeams
+	if reqTeams, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationTeamsLabel]; ok {
+		teams = reqTeams
+	}
+	responders := make([]Responder, 0, len(schedules)+len(teams))
 	for _, s := range schedules {
-		responders = append(responders, Responder{
-			Type: ResponderTypeSchedule,
-			ID:   s,
-		})
+		responders = append(responders, createResponder(ResponderTypeSchedule, s))
+	}
+	for _, t := range teams {
+		responders = append(responders, createResponder(ResponderTypeTeam, t))
 	}
 	return responders
+}
+
+// Check if the responder is a UUID. If it is, then it is an ID; otherwise, it is a name.
+func createResponder(responderType string, value string) Responder {
+	if _, err := uuid.Parse(value); err == nil {
+		return Responder{
+			Type: responderType,
+			ID:   value,
+		}
+	}
+	return Responder{
+		Type: responderType,
+		Name: value,
+	}
 }
 
 // PostReviewNote posts a note once a new request review appears.

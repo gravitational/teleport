@@ -148,8 +148,8 @@ func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, app
 	return app, trace.Wrap(err)
 }
 
-// reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
+// ReissueAppCert issue new certificates for the app and saves them to disk.
+func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
 	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
 		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
 	}
@@ -169,6 +169,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		AWSRoleARN:        "",
 		AzureIdentity:     "",
 		GCPServiceAccount: "",
+		URI:               app.GetURI(),
 	}
 
 	// TODO (Joerger): DELETE IN v17.0.0
@@ -187,7 +188,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", routeToApp.Name)))
+	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", routeToApp.Name)))
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

@@ -130,7 +130,7 @@ type ReissueParams struct {
 	//
 	// TODO(awly): refactor lib/web to use a Keystore implementation that
 	// mimics LocalKeystore and remove this.
-	ExistingCreds *Key
+	ExistingCreds *KeyRing
 
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
@@ -205,16 +205,16 @@ const (
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *KeyRing) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		rsaKeyPEM, err := pk.PrivateKey.RSAPrivateKeyPEM()
+		keyPEM, err := pk.PrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
-			return append(cert, rsaKeyPEM...), nil
+			return append(cert, keyPEM...), nil
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a non-rsa private key.")
+		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a hardware private key.")
 	}
 	return cert, nil
 }
@@ -366,7 +366,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 // RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
-func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer)) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunInteractiveShell",
@@ -395,7 +395,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, mode, c.TC.OnChannelRequest, beforeStart, c.TC.OnShellCreated); err != nil {
 		var exitErr *ssh.ExitError
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
@@ -539,7 +539,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
 		originErr := trace.Unwrap(err)
 		var exitErr *ssh.ExitError
 		if errors.As(originErr, &exitErr) {

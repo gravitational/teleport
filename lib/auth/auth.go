@@ -26,7 +26,9 @@ package auth
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
@@ -46,7 +48,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -58,6 +59,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -65,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -79,8 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -92,7 +92,9 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -107,8 +109,10 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -168,6 +172,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.VersionStorage == nil {
+		return nil, trace.BadParameter("version storage is not set")
+	}
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -210,9 +217,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
-	}
-	if cfg.Assist == nil {
-		cfg.Assist = local.NewAssistService(cfg.Backend)
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
@@ -311,9 +315,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Embeddings == nil {
-		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
-	}
 	if cfg.UserPreferences == nil {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
@@ -335,6 +336,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -343,28 +350,28 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.KeyStoreConfig.PKCS11 != (keystore.PKCS11Config{}) {
-		if !modules.GetModules().Features().HSM {
+	keystoreOpts := &keystore.Options{
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cfg.ClusterName,
+		CloudClients:         cfg.CloudClients,
+		AuthPreferenceGetter: cfg.ClusterConfiguration,
+	}
+	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.PKCS11.HostUUID = cfg.HostUUID
-	} else if cfg.KeyStoreConfig.GCPKMS != (keystore.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
-	} else if cfg.KeyStoreConfig.AWSKMS != (keystore.AWSKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.AWSKMS.Cluster = cfg.ClusterName.GetClusterName()
-		cfg.KeyStoreConfig.AWSKMS.CloudClients = cfg.CloudClients
 	} else {
 		native.PrecomputeKeys()
-		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
 	}
-	cfg.KeyStoreConfig.Logger = log
-	keyStore, err := keystore.NewManager(context.Background(), cfg.KeyStoreConfig)
+	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,7 +413,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Embeddings:                cfg.Embeddings,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
 		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
@@ -415,13 +421,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserLoginStates:           cfg.UserLoginState,
 		StatusInternal:            cfg.Status,
 		UsageReporter:             cfg.UsageReporter,
-		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
 	}
 
 	as := Server{
@@ -444,8 +450,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                    cfg.FIPS,
 		loadAllCAs:              cfg.LoadAllCAs,
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		embeddingsRetriever:     cfg.EmbeddingRetriever,
-		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
 	as.inventory = inventory.NewController(&as, services,
@@ -482,6 +486,20 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, cacheEnabled := as.getCache()
+
+	// cluster config ttl cache *must* be set up after `opts` has been applied to the server because
+	// the Cache field starts off as a pointer to the local backend services and is only switched
+	// over to being a proper cache during option processing.
+	as.ReadOnlyCache, err = readonly.NewCache(readonly.CacheConfig{
+		Upstream:    as.Cache,
+		Disabled:    !cacheEnabled,
+		ReloadOnErr: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -587,8 +605,6 @@ type Services struct {
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
-	services.Assistant
-	services.Embeddings
 	services.UserPreferences
 	services.PluginData
 	services.SCIM
@@ -600,6 +616,9 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.BotInstance
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
 }
 
 // SecReportsClient returns the security reports client.
@@ -665,6 +684,21 @@ func (r *Services) UserLoginStateClient() services.UserLoginStates {
 // container client.
 func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
 	return r
+}
+
+// DatabaseObjectsClient returns the database objects client.
+func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
+	return r
+}
+
+// GetAccessGraphSecretsGetter returns the AccessGraph secrets service.
+func (r *Services) GetAccessGraphSecretsGetter() services.AccessGraphSecretsGetter {
+	return r.AccessGraphSecretsGetter
+}
+
+// GetDevicesGetter returns the trusted devices service.
+func (r *Services) GetDevicesGetter() services.DevicesGetter {
+	return r.DevicesGetter
 }
 
 var (
@@ -811,6 +845,14 @@ type LoginHook func(context.Context, types.User) error
 // the user has no suitable trusted device.
 type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
 
+// CreateDeviceAssertionFunc creates a new device assertion ceremony to authenticate
+// a trusted device.
+type CreateDeviceAssertionFunc func() (assertserver.Ceremony, error)
+
+// ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
+// where it would have a naming conflict with other types named Cache.
+type ReadOnlyCache = readonly.Cache
+
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
@@ -861,6 +903,11 @@ type Server struct {
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
 	authclient.Cache
+
+	// ReadOnlyCache is a specialized cache that provides read-only shared references
+	// in certain performance-critical paths where deserialization/cloning may be too
+	// expensive at scale.
+	*ReadOnlyCache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -968,12 +1015,6 @@ type Server struct {
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
 
-	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
-	embeddingsRetriever *ai.SimpleRetriever
-
-	// embedder is an embedder client used to generate embeddings.
-	embedder embedding.Embedder
-
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
 
@@ -983,6 +1024,15 @@ type Server struct {
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
+
+	// deviceAssertionServer holds the server-side implementation of device assertions.
+	//
+	// It is used to authenticate devices previously enrolled in the cluster. The goal
+	// is to provide an API for devices to authenticate with the cluster without the need
+	// for valid user credentials, e.g. when running `tsh scan keys`.
+	//
+	// The value is nil on OSS clusters.
+	deviceAssertionServer CreateDeviceAssertionFunc
 
 	// bcryptCostOverride overrides the bcrypt cost for operations executed
 	// directly by [Server].
@@ -1130,6 +1180,26 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// SetDeviceAssertionServer sets the device assertion implementation.
+func (a *Server) SetDeviceAssertionServer(f CreateDeviceAssertionFunc) {
+	a.lock.Lock()
+	a.deviceAssertionServer = f
+	a.lock.Unlock()
+}
+
+// GetDeviceAssertionServer returns the device assertion implementation.
+// On OSS clusters, this will return a non nil function that returns an error.
+func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.deviceAssertionServer == nil {
+		return func() (assertserver.Ceremony, error) {
+			return nil, trace.NotImplemented("device assertions are not supported on OSS clusters")
+		}
+	}
+	return a.deviceAssertionServer
 }
 
 func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
@@ -1280,7 +1350,7 @@ func (a *Server) runPeriodicOperations() {
 	defer instancePeriodics.Stop()
 
 	var ossDesktopsCheck <-chan time.Time
-	if modules.GetModules().BuildType() == modules.BuildOSS {
+	if modules.GetModules().IsOSSBuild() {
 		ossDesktopsCheck = interval.New(interval.Config{
 			Duration:      OSSDesktopsCheckPeriod,
 			FirstDuration: utils.HalfJitter(time.Second * 10),
@@ -1749,6 +1819,16 @@ func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
 }
 
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecretsGetter) {
+	a.Services.AccessGraphSecretsGetter = s
+}
+
+// SetDevicesGetter sets the server's device service
+func (a *Server) SetDevicesGetter(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
+}
+
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
 	a.Services.AuditLogSessionStreamer = auditLog
@@ -1871,7 +1951,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(ctx)
+
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1894,7 +1975,7 @@ func (a *Server) generateHostCert(
 	default:
 		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
-	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
 	); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
@@ -1909,6 +1990,18 @@ func (a *Server) GetKeyStore() *keystore.Manager {
 }
 
 type certRequest struct {
+	// sshPublicKey is a public key in SSH authorized_keys format. If set it
+	// will be used as the subject public key for the returned SSH certificate.
+	sshPublicKey []byte
+	// tlsPublicKey is a PEM-encoded public key in PKCS#1 or PKIX ASN.1 DER
+	// form. If set it will be used as the subject public key for the returned
+	// TLS certificate.
+	tlsPublicKey []byte
+	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
+	sshPublicKeyAttestationStatement *keys.AttestationStatement
+	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
+	tlsPublicKeyAttestationStatement *keys.AttestationStatement
+
 	// user is a user to generate certificate for
 	user services.UserState
 	// impersonator is a user who generates the certificate,
@@ -1918,8 +2011,6 @@ type certRequest struct {
 	checker services.AccessChecker
 	// ttl is Duration of the certificate
 	ttl time.Duration
-	// publicKey is RSA public key in authorized_keys format
-	publicKey []byte
 	// compatibility is compatibility mode
 	compatibility string
 	// overrideRoleTTL is used for requests when the requested TTL should not be
@@ -1951,6 +2042,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	appURI string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -1999,12 +2092,13 @@ type certRequest struct {
 	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
-	// attestationStatement is an attestation statement associated with the given public key.
-	attestationStatement *keys.AttestationStatement
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
 	botName string
+	// botInstanceID is the unique identifier of the bot instance associated
+	// with this cert, if any
+	botInstanceID string
 }
 
 // check verifies the cert request is valid.
@@ -2024,6 +2118,11 @@ func (r *certRequest) check() error {
 			return trace.BadParameter("must provide database user name to generate certificate for database %q", r.dbService)
 		}
 	}
+
+	if r.sshPublicKey == nil && r.tlsPublicKey == nil {
+		return trace.BadParameter("must provide a public key")
+	}
+
 	return nil
 }
 
@@ -2056,11 +2155,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("public key is empty")
 	}
 	if req.TTL == 0 {
-		cap, err := a.GetAuthPreference(ctx)
+		readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
 		}
-		req.TTL = proto.Duration(cap.GetDefaultSessionTTL())
+		req.TTL = proto.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 	if req.TTL < 0 {
 		return nil, trace.BadParameter("TTL must be positive")
@@ -2110,7 +2209,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 	certs, err := a.generateOpenSSHCert(ctx, certRequest{
 		user:            req.User,
-		publicKey:       req.PublicKey,
+		sshPublicKey:    req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
 		ttl:             sessionTTL,
@@ -2137,6 +2236,8 @@ type GenerateUserTestCertsRequest struct {
 	PinnedIP             string
 	MFAVerified          string
 	AttestationStatement *keys.AttestationStatement
+	AppName              string
+	AppSessionID         string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2155,18 +2256,34 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := req.Key
+	cryptoPubKey, err := sshutils.CryptoPublicKey(req.Key)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                 userState,
-		ttl:                  req.TTL,
-		compatibility:        req.Compatibility,
-		publicKey:            req.Key,
-		routeToCluster:       req.RouteToCluster,
-		checker:              checker,
-		traits:               userState.GetTraits(),
-		loginIP:              req.PinnedIP,
-		pinIP:                req.PinnedIP != "",
-		mfaVerified:          req.MFAVerified,
-		attestationStatement: req.AttestationStatement,
+		user:                             userState,
+		ttl:                              req.TTL,
+		compatibility:                    req.Compatibility,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		routeToCluster:                   req.RouteToCluster,
+		checker:                          checker,
+		traits:                           userState.GetTraits(),
+		loginIP:                          req.PinnedIP,
+		pinIP:                            req.PinnedIP != "",
+		mfaVerified:                      req.MFAVerified,
+		sshPublicKeyAttestationStatement: req.AttestationStatement,
+		tlsPublicKeyAttestationStatement: req.AttestationStatement,
+		appName:                          req.AppName,
+		appSessionID:                     req.AppSessionID,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2176,7 +2293,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 
 // AppTestCertRequest combines parameters for generating a test app access cert.
 type AppTestCertRequest struct {
-	// PublicKey is the public key to sign.
+	// PublicKey is the public key to sign, in PEM-encoded PKCS#1 or PKIX DER format.
 	PublicKey []byte
 	// Username is the Teleport user name to sign certificate for.
 	Username string
@@ -2228,10 +2345,10 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:      userState,
-		publicKey: req.PublicKey,
-		checker:   checker,
-		ttl:       req.TTL,
+		user:         userState,
+		tlsPublicKey: req.PublicKey,
+		checker:      checker,
+		ttl:          req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
@@ -2259,7 +2376,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 // DatabaseTestCertRequest combines parameters for generating test database
 // access certificate.
 type DatabaseTestCertRequest struct {
-	// PublicKey is the public key to sign.
+	// PublicKey is the public key to sign, in PEM-encoded PKCS#1 or PKIX format.
 	PublicKey []byte
 	// Cluster is the Teleport cluster name.
 	Cluster string
@@ -2289,12 +2406,12 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:      userState,
-		publicKey: req.PublicKey,
-		loginIP:   req.PinnedIP,
-		pinIP:     req.PinnedIP != "",
-		checker:   checker,
-		ttl:       time.Hour,
+		user:         userState,
+		tlsPublicKey: req.PublicKey,
+		loginIP:      req.PinnedIP,
+		pinIP:        req.PinnedIP != "",
+		checker:      checker,
+		ttl:          time.Hour,
 		traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
 		},
@@ -2604,13 +2721,13 @@ func (a *Server) augmentUserCertificates(
 	}
 
 	// Verify locks right before we re-issue any certificates.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              opts.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
 		activeAccessRequests: x509Identity.ActiveRequests,
@@ -2675,7 +2792,7 @@ func (a *Server) augmentUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.UserCertParams) {
+func (a *Server) submitCertificateIssuedEvent(req *certRequest, attestedKeyPolicy keys.PrivateKeyPolicy) {
 	var database, app, kubernetes, desktop bool
 
 	if req.dbService != "" {
@@ -2718,7 +2835,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.
 		UsageApp:         app,
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
-		PrivateKeyPolicy: string(params.PrivateKeyPolicy),
+		PrivateKeyPolicy: string(attestedKeyPolicy),
 	})
 }
 
@@ -2743,24 +2860,18 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	// Reject the cert request if there is a matching lock in force.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              req.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// reuse the same RSA keys for SSH and TLS keys
-	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2778,7 +2889,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	var allowedLogins []string
 
 	if req.ttl == 0 {
-		req.ttl = time.Duration(authPref.GetDefaultSessionTTL())
+		req.ttl = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
@@ -2806,68 +2917,60 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			return nil, trace.Wrap(err)
 		}
 	}
+	notAfter := a.clock.Now().UTC().Add(sessionTTL)
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if requiredKeyPolicy != keys.PrivateKeyPolicyNone {
-		// Try to attest the given hardware key using the given attestation statement.
-		attestationData, err := modules.GetModules().AttestHardwareKey(ctx, a, req.attestationStatement, cryptoPubKey, sessionTTL)
-		if trace.IsNotFound(err) {
-			return nil, keys.NewPrivateKeyPolicyError(requiredKeyPolicy)
-		} else if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// verify that the required private key policy for the requested identity
-		// is met by the provided attestation statement.
-		attestedKeyPolicy = attestationData.PrivateKeyPolicy
-		if err := requiredKeyPolicy.VerifyPolicy(attestedKeyPolicy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var validateSerialNumber bool
-		hksnv, err := authPref.GetHardwareKeySerialNumberValidation()
-		if err == nil {
-			validateSerialNumber = hksnv.Enabled
-		}
-
-		// Validate the serial number if enabled, unless this is a web session.
-		if validateSerialNumber && attestedKeyPolicy != keys.PrivateKeyPolicyWebSession {
-			const defaultSerialNumberTraitName = "hardware_key_serial_numbers"
-			// Note: currently only yubikeys are supported as hardware keys. If we extend
-			// support to more hardware keys, we can add prefixes to serial numbers.
-			// Ex: solokey_12345678 or s_12345678.
-			// When prefixes are added, we can default to assuming that serial numbers
-			// without prefixes are for yubikeys, meaning there will be no backwards
-			// compatibility issues.
-			serialNumberTraitName := hksnv.SerialNumberTraitName
-			if serialNumberTraitName == "" {
-				serialNumberTraitName = defaultSerialNumberTraitName
+		var (
+			sshAttestedKeyPolicy keys.PrivateKeyPolicy
+			tlsAttestedKeyPolicy keys.PrivateKeyPolicy
+		)
+		if req.sshPublicKey != nil {
+			sshCryptoPubKey, err := sshutils.CryptoPublicKey(req.sshPublicKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-
-			// Check that the attested hardware key serial number matches
-			// a serial number in the user's traits, if any are set.
-			registeredSerialNumbers, ok := req.checker.Traits()[serialNumberTraitName]
-			if !ok || len(registeredSerialNumbers) == 0 {
-				log.Debugf("user %q tried to sign in with hardware key support, but has no known hardware keys. A user's known hardware key serial numbers should be set \"in user.traits.%v\"", req.user.GetName(), serialNumberTraitName)
-				return nil, trace.BadParameter("cannot generate certs for user with no known hardware keys")
-			}
-
-			attestatedSerialNumber := strconv.Itoa(int(attestationData.SerialNumber))
-			// serial number traits can be a comma separated list, or a list of comma separated lists.
-			// e.g. [["12345678,87654321"], ["13572468"]].
-			if !slices.ContainsFunc(registeredSerialNumbers, func(s string) bool {
-				return slices.Contains(strings.Split(s, ","), attestatedSerialNumber)
-			}) {
-				log.Debugf("user %q tried to sign in with hardware key support with an unknown hardware key and was denied: YubiKey serial number %q", req.user.GetName(), attestatedSerialNumber)
-				return nil, trace.BadParameter("cannot generate certs for user with unknown hardware key: YubiKey serial number %q", attestatedSerialNumber)
+			sshAttestedKeyPolicy, err = a.attestHardwareKey(ctx, &attestHardwareKeyParams{
+				requiredKeyPolicy:    requiredKeyPolicy,
+				pubKey:               sshCryptoPubKey,
+				attestationStatement: req.sshPublicKeyAttestationStatement,
+				sessionTTL:           sessionTTL,
+				readOnlyAuthPref:     readOnlyAuthPref,
+				userName:             req.user.GetName(),
+				userTraits:           req.checker.Traits(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err, "attesting SSH key")
 			}
 		}
-
+		if req.tlsPublicKey != nil {
+			tlsCryptoPubKey, err := keys.ParsePublicKey(req.tlsPublicKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tlsAttestedKeyPolicy, err = a.attestHardwareKey(ctx, &attestHardwareKeyParams{
+				requiredKeyPolicy:    requiredKeyPolicy,
+				pubKey:               tlsCryptoPubKey,
+				attestationStatement: req.tlsPublicKeyAttestationStatement,
+				sessionTTL:           sessionTTL,
+				readOnlyAuthPref:     readOnlyAuthPref,
+				userName:             req.user.GetName(),
+				userTraits:           req.checker.Traits(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err, "attesting TLS key")
+			}
+		}
+		if req.sshPublicKey != nil && req.tlsPublicKey != nil && sshAttestedKeyPolicy != tlsAttestedKeyPolicy {
+			return nil, trace.BadParameter("SSH attested key policy %q does not match TLS attested key policy %q, this not supported",
+				sshAttestedKeyPolicy, tlsAttestedKeyPolicy)
+		}
+		attestedKeyPolicy = cmp.Or(sshAttestedKeyPolicy, tlsAttestedKeyPolicy)
 	}
 
 	clusterName, err := a.GetDomainName()
@@ -2916,45 +3019,50 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	params := services.UserCertParams{
-		CASigner:                sshSigner,
-		PublicUserKey:           req.publicKey,
-		Username:                req.user.GetName(),
-		Impersonator:            req.impersonator,
-		AllowedLogins:           allowedLogins,
-		TTL:                     sessionTTL,
-		Roles:                   req.checker.RoleNames(),
-		CertificateFormat:       certificateFormat,
-		PermitPortForwarding:    req.checker.CanPortForward(),
-		PermitAgentForwarding:   req.checker.CanForwardAgents(),
-		PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
-		RouteToCluster:          req.routeToCluster,
-		Traits:                  req.traits,
-		ActiveRequests:          req.activeRequests,
-		MFAVerified:             req.mfaVerified,
-		PreviousIdentityExpires: req.previousIdentityExpires,
-		LoginIP:                 req.loginIP,
-		PinnedIP:                pinnedIP,
-		DisallowReissue:         req.disallowReissue,
-		Renewable:               req.renewable,
-		Generation:              req.generation,
-		BotName:                 req.botName,
-		CertificateExtensions:   req.checker.CertificateExtensions(),
-		AllowedResourceIDs:      requestedResourcesStr,
-		ConnectionDiagnosticID:  req.connectionDiagnosticID,
-		PrivateKeyPolicy:        attestedKeyPolicy,
-		DeviceID:                req.deviceExtensions.DeviceID,
-		DeviceAssetTag:          req.deviceExtensions.AssetTag,
-		DeviceCredentialID:      req.deviceExtensions.CredentialID,
-	}
-	signedSSHCert, err := a.GenerateUserCert(params)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var signedSSHCert []byte
+	if req.sshPublicKey != nil {
+		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		params := services.UserCertParams{
+			CASigner:                sshSigner,
+			PublicUserKey:           req.sshPublicKey,
+			Username:                req.user.GetName(),
+			Impersonator:            req.impersonator,
+			AllowedLogins:           allowedLogins,
+			TTL:                     sessionTTL,
+			Roles:                   req.checker.RoleNames(),
+			CertificateFormat:       certificateFormat,
+			PermitPortForwarding:    req.checker.CanPortForward(),
+			PermitAgentForwarding:   req.checker.CanForwardAgents(),
+			PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
+			RouteToCluster:          req.routeToCluster,
+			Traits:                  req.traits,
+			ActiveRequests:          req.activeRequests,
+			MFAVerified:             req.mfaVerified,
+			PreviousIdentityExpires: req.previousIdentityExpires,
+			LoginIP:                 req.loginIP,
+			PinnedIP:                pinnedIP,
+			DisallowReissue:         req.disallowReissue,
+			Renewable:               req.renewable,
+			Generation:              req.generation,
+			BotName:                 req.botName,
+			BotInstanceID:           req.botInstanceID,
+			CertificateExtensions:   req.checker.CertificateExtensions(),
+			AllowedResourceIDs:      requestedResourcesStr,
+			ConnectionDiagnosticID:  req.connectionDiagnosticID,
+			PrivateKeyPolicy:        attestedKeyPolicy,
+			DeviceID:                req.deviceExtensions.DeviceID,
+			DeviceAssetTag:          req.deviceExtensions.AssetTag,
+			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+		}
+		signedSSHCert, err = a.GenerateUserCert(params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
@@ -3010,6 +3118,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
+			URI:               req.appURI,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -3039,6 +3148,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3051,10 +3161,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	var signedTLSCert []byte
-	notAfter := a.clock.Now().UTC().Add(sessionTTL)
-	// generate TLS certificate if the signing CA isn't OpenSSH CA, as
-	// OpenSSH CA doesn't have any TLS keypairs
-	if caType != types.OpenSSHCA {
+	if req.tlsPublicKey != nil {
+		tlsCryptoPubKey, err := keys.ParsePublicKey(req.tlsPublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3069,7 +3180,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 		certRequest := tlsca.CertificateRequest{
 			Clock:     a.clock,
-			PublicKey: cryptoPubKey,
+			PublicKey: tlsCryptoPubKey,
 			Subject:   subject,
 			NotAfter:  notAfter,
 		}
@@ -3107,11 +3218,77 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
 
-	a.submitCertificateIssuedEvent(&req, params)
-
+	a.submitCertificateIssuedEvent(&req, attestedKeyPolicy)
 	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
 
 	return certs, nil
+}
+
+type attestHardwareKeyParams struct {
+	requiredKeyPolicy    keys.PrivateKeyPolicy
+	pubKey               crypto.PublicKey
+	attestationStatement *keys.AttestationStatement
+	sessionTTL           time.Duration
+	readOnlyAuthPref     readonly.AuthPreference
+	userName             string
+	userTraits           map[string][]string
+}
+
+func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKeyParams) (attestedKeyPolicy keys.PrivateKeyPolicy, err error) {
+	// Try to attest the given hardware key using the given attestation statement.
+	attestationData, err := modules.GetModules().AttestHardwareKey(ctx, a, params.attestationStatement, params.pubKey, params.sessionTTL)
+	if trace.IsNotFound(err) {
+		return attestedKeyPolicy, keys.NewPrivateKeyPolicyError(params.requiredKeyPolicy)
+	} else if err != nil {
+		return attestedKeyPolicy, trace.Wrap(err)
+	}
+
+	// verify that the required private key policy for the requested identity
+	// is met by the provided attestation statement.
+	attestedKeyPolicy = attestationData.PrivateKeyPolicy
+	if err := params.requiredKeyPolicy.VerifyPolicy(attestedKeyPolicy); err != nil {
+		return attestedKeyPolicy, trace.Wrap(err)
+	}
+
+	var validateSerialNumber bool
+	hksnv, err := params.readOnlyAuthPref.GetHardwareKeySerialNumberValidation()
+	if err == nil {
+		validateSerialNumber = hksnv.Enabled
+	}
+
+	// Validate the serial number if enabled, unless this is a web session.
+	if validateSerialNumber && attestedKeyPolicy != keys.PrivateKeyPolicyWebSession {
+		const defaultSerialNumberTraitName = "hardware_key_serial_numbers"
+		// Note: currently only yubikeys are supported as hardware keys. If we extend
+		// support to more hardware keys, we can add prefixes to serial numbers.
+		// Ex: solokey_12345678 or s_12345678.
+		// When prefixes are added, we can default to assuming that serial numbers
+		// without prefixes are for yubikeys, meaning there will be no backwards
+		// compatibility issues.
+		serialNumberTraitName := hksnv.SerialNumberTraitName
+		if serialNumberTraitName == "" {
+			serialNumberTraitName = defaultSerialNumberTraitName
+		}
+
+		// Check that the attested hardware key serial number matches
+		// a serial number in the user's traits, if any are set.
+		registeredSerialNumbers, ok := params.userTraits[serialNumberTraitName]
+		if !ok || len(registeredSerialNumbers) == 0 {
+			log.Debugf("user %q tried to sign in with hardware key support, but has no known hardware keys. A user's known hardware key serial numbers should be set \"in user.traits.%v\"", params.userName, serialNumberTraitName)
+			return attestedKeyPolicy, trace.BadParameter("cannot generate certs for user with no known hardware keys")
+		}
+
+		attestedSerialNumber := strconv.Itoa(int(attestationData.SerialNumber))
+		// serial number traits can be a comma separated list, or a list of comma separated lists.
+		// e.g. [["12345678,87654321"], ["13572468"]].
+		if !slices.ContainsFunc(registeredSerialNumbers, func(s string) bool {
+			return slices.Contains(strings.Split(s, ","), attestedSerialNumber)
+		}) {
+			log.Debugf("user %q tried to sign in with hardware key support with an unknown hardware key and was denied: YubiKey serial number %q", params.userName, attestedSerialNumber)
+			return attestedKeyPolicy, trace.BadParameter("cannot generate certs for user with unknown hardware key: YubiKey serial number %q", attestedSerialNumber)
+		}
+	}
+	return attestedKeyPolicy, nil
 }
 
 type verifyLocksForUserCertsReq struct {
@@ -3619,7 +3796,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3667,7 +3844,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
-	switch sf := authPref.GetSecondFactor(); sf {
+	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices <= minDevices {
@@ -3688,7 +3865,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// It checks whether the credential to delete is a last passkey and whether
 	// the user has other valid local credentials.
 	canDeleteLastPasskey := func() (bool, error) {
-		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
+		if !readOnlyAuthPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
 			return true, nil
 		}
 
@@ -3710,7 +3887,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Whether we take TOTPs into consideration or not depends on whether it's
 		// enabled.
-		switch sf := authPref.GetSecondFactor(); sf {
+		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 			if sfToCount[constants.SecondFactorOTP] >= 1 {
 				return true, nil
@@ -4056,7 +4233,11 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	// Create a new web session with the same private key. This way, if the
 	// original session was an attested web session, the extended session will
 	// also be an attested web session.
-	prevKey, err := keys.ParsePrivateKey(prevSession.GetPriv())
+	prevSSHKey, err := keys.ParsePrivateKey(prevSession.GetSSHPriv())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	prevTLSKey, err := keys.ParsePrivateKey(prevSession.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4072,7 +4253,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
+	sess, _, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -4080,7 +4261,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
 		RequestedResourceIDs: allowedResourceIDs,
-		PrivateKey:           prevKey,
+		SSHPrivateKey:        prevSSHKey,
+		TLSPrivateKey:        prevTLSKey,
 	}, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4263,7 +4445,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
 		return nil, trace.BadParameter("failed to parse SSH public key")
 	}
-	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+	cryptoPubKey, err := keys.ParsePublicKey(req.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4395,6 +4577,22 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}, nil
 }
 
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (a *Server) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
+	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
+}
+
+// GetSystemRoleAssertions is used in validated claims made by older instances to prove that they hold a given
+// system role. This method will be deprecated once we have a more comprehensive model for join token
+// joining/replacement.
+func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.SystemRoleAssertionSet, error) {
+	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	return set, trace.Wrap(err)
+}
+
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
@@ -4403,6 +4601,11 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 	downstreamHello := proto.DownstreamInventoryHello{
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
+		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+			NodeHeartbeats: true,
+			AppHeartbeats:  true,
+			AppCleanup:     true,
+		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
 		return trace.Wrap(err)
@@ -4950,7 +5153,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Expires: timestamppb.New(req.Expiry()),
 				},
 			},
 		},
@@ -5181,23 +5385,29 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 	if req.GetState().IsApproved() {
 		subKind = types.NotificationAccessRequestApprovedSubKind
 		reviewVerb = "approved"
+	} else if req.GetState().IsPromoted() {
+		subKind = types.NotificationAccessRequestPromotedSubKind
 	} else {
 		subKind = types.NotificationAccessRequestDeniedSubKind
 		reviewVerb = "denied"
 	}
 
 	var notificationText string
-	// If this was a resource request.
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
-		if len(req.GetRequestedResourceIDs()) == 1 {
-			notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
-		}
-		// If this was a role request.
+	if req.GetState().IsPromoted() {
+		notificationText = fmt.Sprintf("%s promoted your access request to long-term access.", params.Review.Author)
 	} else {
-		notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
-		if len(req.GetRoles()) > 1 {
-			notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+		// If this was a resource request.
+		if len(req.GetRequestedResourceIDs()) > 0 {
+			notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
+			if len(req.GetRequestedResourceIDs()) == 1 {
+				notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
+			}
+			// If this was a role request.
+		} else {
+			notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
+			if len(req.GetRoles()) > 1 {
+				notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+			}
 		}
 	}
 
@@ -5217,7 +5427,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"request-id":                 params.RequestID,
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
-			}},
+			},
+			Expires: timestamppb.New(req.Expiry())},
 	}
 }
 
@@ -5335,7 +5546,7 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 func enforceLicense(t string) error {
 	switch t {
 	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !modules.GetModules().Features().Kubernetes {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.K8s).Enabled {
 			return trace.AccessDenied(
 				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 		}
@@ -5500,7 +5711,7 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 
 // desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
 func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
-	if modules.GetModules().BuildType() != modules.BuildOSS {
+	if modules.GetModules().IsEnterpriseBuild() {
 		return false, nil
 	}
 
@@ -5953,10 +6164,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
-	// (no other changes necessary)
-	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
-
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
@@ -5965,24 +6172,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
-}
-
-// DELETE IN 16.0
-func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
-	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
-
-	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
-	// if access monitoring is enabled.
-	if versionExists {
-		clientVersion := semver.New(clientVersionString)
-		supportedVersion := semver.New("14.2.1")
-		if clientVersion.LessThan(*supportedVersion) {
-			features.IdentityGovernance = accessMonitoringEnabled
-		}
-	}
-
-	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
-	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
@@ -6691,65 +6880,83 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
+// Keep this function in sync with lib/services/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
+
+	// Add SSH keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA:
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, sshCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA, types.DatabaseClientCA:
-		// Database CA only contains TLS cert.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.OpenSSHCA:
-		// OpenSSH CA only contains a SSH key pair.
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner, types.OIDCIdPCA:
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	case types.SAMLIDPCA:
-		// SAML IDP CA only contains TLS certs.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.SPIFFECA:
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-		// Whilst we don't currently support JWT-SVIDs, we will eventually. So
-		// generate a JWT keypair.
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	default:
-		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}
+
+	// Add TLS keys if necessary.
+	switch caID.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	}
+
+	// Add JWT keys if necessary.
+	switch caID.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
 	return keySet, nil
+}
+
+func sshCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCASSH
+	case types.HostCA:
+		return cryptosuites.HostCASSH
+	case types.OpenSSHCA:
+		return cryptosuites.OpenSSHCASSH
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCATLS
+	case types.HostCA:
+		return cryptosuites.HostCATLS
+	case types.DatabaseCA:
+		return cryptosuites.DatabaseCATLS
+	case types.DatabaseClientCA:
+		return cryptosuites.DatabaseClientCATLS
+	case types.SAMLIDPCA:
+		return cryptosuites.SAMLIdPCATLS
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECATLS
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.JWTSigner:
+		return cryptosuites.JWTCAJWT
+	case types.OIDCIdPCA:
+		return cryptosuites.OIDCIdPCAJWT
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECAJWT
+	}
+	return cryptosuites.KeyPurposeUnspecified
 }
 
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
@@ -6825,39 +7032,6 @@ func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username 
 	return trace.Wrap(err)
 }
 
-// GetAssistantMessages returns all messages with given conversation ID.
-func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	resp, err := a.Services.GetAssistantMessages(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
-// CreateAssistantMessage adds the message to the backend.
-func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
-}
-
-// UpdateAssistantConversationInfo stores the given conversation title in the backend.
-func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
-}
-
-// CreateAssistantConversation creates a new conversation entry in the backend.
-func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	resp, err := a.Services.CreateAssistantConversation(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
-// GetAssistantConversations returns all conversations started by a user.
-func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	resp, err := a.Services.GetAssistantConversations(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// DeleteAssistantConversation deletes a conversation from the backend.
-func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assist.DeleteAssistantConversationRequest) error {
-	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
-}
-
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
@@ -6874,10 +7048,13 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if f.IsLegacy() || f.IGSEnabled() {
-		return nil // unlimited
+	accessRequestsEntitlement := f.GetEntitlement(entitlements.AccessRequests)
+
+	if accessRequestsEntitlement.Limit == 0 {
+		return nil // unlimited access
 	}
-	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	monthlyLimit := accessRequestsEntitlement.Limit
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
@@ -6885,7 +7062,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if usage >= monthlyLimit {
+	if usage >= int(monthlyLimit) {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 

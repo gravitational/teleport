@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"net/netip"
 	"net/url"
 	"slices"
 	"time"
@@ -35,6 +36,11 @@ type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
 	ResourceWithOrigin
+	// Validate will preform checks not found in CheckAndSetDefaults
+	// that should only be preformed when the OIDC connector resource
+	// itself is being created or updated, not when a OIDCConnector
+	// object is being created or updated.
+	Validate() error
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string
 	// ClientID is id for authentication client (in our case it's our Auth server)
@@ -175,16 +181,6 @@ func (o *OIDCConnectorV3) SetSubKind(s string) {
 // GetKind returns resource kind
 func (o *OIDCConnectorV3) GetKind() string {
 	return o.Kind
-}
-
-// GetResourceID returns resource ID
-func (o *OIDCConnectorV3) GetResourceID() int64 {
-	return o.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (o *OIDCConnectorV3) SetResourceID(id int64) {
-	o.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -453,6 +449,23 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		}
 		if maxAge.Round(time.Second) != maxAge {
 			return trace.BadParameter("max_age must be a multiple of seconds")
+		}
+	}
+
+	return nil
+}
+
+// Validate will preform checks not found in CheckAndSetDefaults
+// that should only be preformed when the OIDC connector resource
+// itself is being created or updated, not when a OIDCConnector
+// object is being created or updated.
+func (o *OIDCConnectorV3) Validate() error {
+	if o.Spec.ClientRedirectSettings != nil {
+		for _, cidrStr := range o.Spec.ClientRedirectSettings.InsecureAllowedCidrRanges {
+			_, err := netip.ParsePrefix(cidrStr)
+			if err != nil {
+				return trace.BadParameter("bad CIDR range in insecure_allowed_cidr_ranges '%s': %v", cidrStr, err)
+			}
 		}
 	}
 

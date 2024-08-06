@@ -71,12 +71,12 @@ function ConnectorListItem({ name, id, onEdit, onDelete }) {
         <Box mb={3} mt={3}>
           <GitHubIcon style={{ textAlign: 'center' }} size={50} />
         </Box>
-        <Text style={{ width: '100%' }} typography="body2" bold caps>
+        <Text style={{ width: '100%' }} typography="h3">
           {name}
         </Text>
       </Flex>
       <ButtonPrimary mt="auto" size="medium" block onClick={onClickEdit}>
-        EDIT CONNECTOR
+        Edit Connector
       </ButtonPrimary>
     </ResponsiveConnector>
   );

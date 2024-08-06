@@ -1,5 +1,6 @@
 ---
-title: Join Methods and Token Reference
+title: Join Methods and Tokens
+h1: Join Methods and Token Reference
 description: Describes the different ways to configure a Teleport to join a cluster.
 keywords: [join, joining, token]
 tocDepth: 3
@@ -253,8 +254,8 @@ Or as Teleport resources:
 When a MachineID bot uses an ephemeral join token, the token is deleted.
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with a Secure Token](../agents/join-services-to-your-cluster/join-token.mdx).
-- [Deploying Machine ID on Linux](../machine-id/deployment/linux.mdx)
+- How to [Join Services with a Secure Token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+- [Deploying Machine ID on Linux](../enroll-resources/machine-id/deployment/linux.mdx)
 </Admonition>
 
 ### AWS IAM role: `iam`
@@ -270,8 +271,8 @@ This is the recommended method to join workload running on AWS.
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via AWS IAM Role](../agents/join-services-to-your-cluster/aws-iam.mdx).
-- [Deploying Machine ID on AWS](../machine-id/deployment/aws.mdx)
+- [Joining Services via AWS IAM Role](../enroll-resources/agents/join-services-to-your-cluster/aws-iam.mdx).
+- [Deploying Machine ID on AWS](../enroll-resources/machine-id/deployment/aws.mdx)
 </Admonition>
 
 ### AWS EC2 identity document: `ec2`
@@ -295,7 +296,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-[Joining Services via AWS EC2 Identity Document](../agents/join-services-to-your-cluster/aws-ec2.mdx).
+[Joining Services via AWS EC2 Identity Document](../enroll-resources/agents/join-services-to-your-cluster/aws-ec2.mdx).
 </Admonition>
 
 ### Azure managed identity: `azure`
@@ -308,8 +309,8 @@ is available in Teleport 13.0+.
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Azure Managed Identity](../agents/join-services-to-your-cluster/azure.mdx).
-- [Deploying Machine ID on Azure](../machine-id/deployment/azure.mdx)
+- [Joining Services via Azure Managed Identity](../enroll-resources/agents/join-services-to-your-cluster/azure.mdx).
+- [Deploying Machine ID on Azure](../enroll-resources/machine-id/deployment/azure.mdx)
 </Admonition>
 
 ### GCP service account: `gcp`
@@ -323,32 +324,32 @@ on the Teleport process joining the cluster.
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with GCP](../agents/join-services-to-your-cluster/gcp.mdx).
-- [Deploying Machine ID on GCP](../machine-id/deployment/gcp.mdx)
+- How to [Join Services with GCP](../enroll-resources/agents/join-services-to-your-cluster/gcp.mdx).
+- [Deploying Machine ID on GCP](../enroll-resources/machine-id/deployment/gcp.mdx)
 </Admonition>
 
 ### GitHub Actions: `github`
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server. This join method is
-typically used with [Machine ID](../machine-id/introduction.mdx) to access
+typically used with [Machine ID](../enroll-resources/machine-id/introduction.mdx) to access
 Teleport-protected resources in GitHub Actions pipelines.
 
 (!docs/pages/includes/provision-token/github-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on GitHub Actions](../machine-id/deployment/github-actions.mdx)
+- [Deploying Machine ID on GitHub Actions](../enroll-resources/machine-id/deployment/github-actions.mdx)
 </Admonition>
 
 ### CircleCI: `circleci`
 
-This join method is typically used with [Machine ID](../machine-id/introduction.mdx)
+This join method is typically used with [Machine ID](../enroll-resources/machine-id/introduction.mdx)
 to access Teleport-protected resources in Circle CI pipelines.
 
 (!docs/pages/includes/provision-token/circleci-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Circle CI](../machine-id/deployment/circleci.mdx)
+- [Deploying Machine ID on Circle CI](../enroll-resources/machine-id/deployment/circleci.mdx)
 </Admonition>
 
 ### GitLab: `gitlab`
@@ -356,13 +357,13 @@ to access Teleport-protected resources in Circle CI pipelines.
 Teleport supports secure joining on both cloud-hosted and self-hosted GitLab
 instances. **The minimum supported GitLab version is 15.7**.
 
-This join method is typically used with [MachineID](../machine-id/introduction.mdx)
+This join method is typically used with [MachineID](../enroll-resources/machine-id/introduction.mdx)
 to access Teleport-protected resources in Gitlab CI pipelines.
 
 (!docs/pages/includes/provision-token/gitlab-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on GitLab CI](../machine-id/deployment/gitlab.mdx)
+- [Deploying Machine ID on GitLab CI](../enroll-resources/machine-id/deployment/gitlab.mdx)
 </Admonition>
 
 ### Kubernetes: `kubernetes`
@@ -390,7 +391,7 @@ Teleport 12+.
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Kubernetes ServiceAccount Token](../agents/join-services-to-your-cluster/kubernetes.mdx)
+- [Joining Services via Kubernetes ServiceAccount Token](../enroll-resources/agents/join-services-to-your-cluster/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes JWKS
@@ -413,7 +414,7 @@ to contain the new Kubernetes singing keys (update the
 </Admonition>
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Kubernetes](../machine-id/deployment/kubernetes.mdx)
+- [Deploying Machine ID on Kubernetes](../enroll-resources/machine-id/deployment/kubernetes.mdx)
 </Admonition>
 
 ### Trusted Platform Module: `tpm`
@@ -423,5 +424,5 @@ to contain the new Kubernetes singing keys (update the
 (!docs/pages/includes/provision-token/tpm-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Linux: TPM](../machine-id/deployment/linux-tpm.mdx)
+- [Deploying Machine ID on Linux: TPM](../enroll-resources/machine-id/deployment/linux-tpm.mdx)
 </Admonition>

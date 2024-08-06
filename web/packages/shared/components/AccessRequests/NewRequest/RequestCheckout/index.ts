@@ -17,7 +17,7 @@
  */
 
 export { RequestCheckoutWithSlider, RequestCheckout } from './RequestCheckout';
-export type { RequestCheckoutProps } from './RequestCheckout';
+export type { RequestCheckoutProps, PendingListItem } from './RequestCheckout';
 
 export * from './utils';
 export type { ReviewerOption } from './types';

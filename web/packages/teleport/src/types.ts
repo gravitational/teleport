@@ -60,6 +60,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   Roles = 'User Roles',
+  JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
   EnrollNewResource = 'Enroll New Resource',
@@ -82,8 +83,6 @@ export enum NavTitle {
 
   // Billing
   BillingSummary = 'Summary',
-  PaymentsAndInvoices = 'Payments and Invoices',
-  InvoiceSettings = 'Invoice Settings',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
@@ -180,7 +179,7 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  assist: boolean;
+  tokens: boolean;
   accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;

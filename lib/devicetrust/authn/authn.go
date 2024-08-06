@@ -20,6 +20,8 @@ package authn
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/gravitational/trace"
 
@@ -153,7 +155,10 @@ func (c *Ceremony) run(
 		Payload: &devicepb.AuthenticateDeviceRequest_Init{
 			Init: init,
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
@@ -203,7 +208,13 @@ func (c *Ceremony) authenticateDeviceMacOS(
 			},
 		},
 	})
-	return trace.Wrap(err)
+	if err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (c *Ceremony) authenticateDeviceTPM(
@@ -223,5 +234,11 @@ func (c *Ceremony) authenticateDeviceTPM(
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	return trace.Wrap(err)
+	if err != nil && !errors.Is(err, io.EOF) {
+		// [io.EOF] indicates that the server has closed the stream.
+		// The client should handle the underlying error on the subsequent Recv call.
+		// All other errors are client-side errors and should be returned.
+		return trace.Wrap(err)
+	}
+	return nil
 }

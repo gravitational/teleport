@@ -21,6 +21,7 @@ package regular
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1046,7 +1047,7 @@ func TestX11Forward(t *testing.T) {
 // TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
 // with the connecting user's file permissions (where needed), rather than root.
 func TestRootX11ForwardPermissions(t *testing.T) {
-	requireRoot(t)
+	utils.RequireRoot(t)
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
@@ -1488,8 +1489,10 @@ func TestProxyRoundRobin(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ClusterName:           f.testSrv.ClusterName(),
-		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		Listener:              listener,
 		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
@@ -1564,7 +1567,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		HostSigner:  f.signer,
+		AuthMethods: []ssh.AuthMethod{ssh.PublicKeys(f.signer)},
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
 	})
@@ -1578,7 +1581,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		HostSigner:  f.signer,
+		AuthMethods: []ssh.AuthMethod{ssh.PublicKeys(f.signer)},
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
 	})
@@ -1625,7 +1628,9 @@ func TestProxyDirectAccess(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2338,7 +2343,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-			ClientTLS:             proxyClient.TLSConfig(),
+			GetClientTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyClient.TLSConfig().Certificates[0], nil
+			},
 			ID:                    hostID,
 			ClusterName:           f.testSrv.ClusterName(),
 			Listener:              listener,
@@ -2600,7 +2607,9 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2961,13 +2970,6 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 	require.NoError(t, err)
 	t.Cleanup(caWatcher.Close)
 	return caWatcher
-}
-
-func requireRoot(t *testing.T) {
-	t.Helper()
-	if os.Geteuid() != 0 {
-		t.Skip("This test will be skipped because tests are not being run as root.")
-	}
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.

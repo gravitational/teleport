@@ -93,6 +93,14 @@ func (m *TestModules) BuildType() string {
 	return m.TestBuildType
 }
 
+func (m *TestModules) IsEnterpriseBuild() bool {
+	return m.BuildType() == BuildEnterprise
+}
+
+func (m *TestModules) IsOSSBuild() bool {
+	return m.BuildType() != BuildEnterprise
+}
+
 // AttestHardwareKey attests a hardware key.
 func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *keys.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
 	if m.MockAttestationData != nil {

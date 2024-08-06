@@ -1823,6 +1823,16 @@ export const formatters: Formatters = {
     format: ({ user }) =>
       `User [${user}] updated the cluster session recording configuration`,
   },
+  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: {
+    type: 'access_graph.path.changed',
+    desc: 'Access Path Changed',
+    format: ({
+      affected_resource_kind,
+      affected_resource_name,
+      affected_resource_source,
+    }) =>
+      `${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed an access path`,
+  },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
     desc: 'Spanner RPC',
@@ -1847,6 +1857,55 @@ export const formatters: Formatters = {
         )}] in database [${db_name}] on [${db_service}]`;
       }
       return `User [${user}] attempted to call [${procedure}] in database [${db_name}] on [${db_service}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: {
+    type: 'discovery_config.create',
+    desc: 'Discovery Config Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a discovery config [${name}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: {
+    type: 'discovery_config.update',
+    desc: 'Discovery Config Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a discovery config [${name}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: {
+    type: 'discovery_config.delete',
+    desc: 'Discovery Config Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a discovery config [${name}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: {
+    type: 'discovery_config.delete_all',
+    desc: 'All Discovery Configs Deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted all discovery configs`;
+    },
+  },
+  [eventCodes.INTEGRATION_CREATE]: {
+    type: 'integration.create',
+    desc: 'Integration Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created an integration [${name}]`;
+    },
+  },
+  [eventCodes.INTEGRATION_UPDATE]: {
+    type: 'integration.update',
+    desc: 'Integration Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated an integration [${name}]`;
+    },
+  },
+  [eventCodes.INTEGRATION_DELETE]: {
+    type: 'integration.delete',
+    desc: 'Integration Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted an integration [${name}]`;
     },
   },
   [eventCodes.UNKNOWN]: {

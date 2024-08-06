@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,11 +31,12 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
-	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
@@ -45,10 +47,8 @@ const (
 	batchSize = 500
 )
 
-var (
-	// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
-	errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
-)
+// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
+var errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 
 func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
 	type fetcherResult struct {
@@ -67,7 +67,12 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
-	s.updateDiscoveryConfigStatus(allFetchers, nil, true /* preRun */)
+
+	s.awsSyncStatus.iterationStarted(allFetchers, s.clock.Now())
+	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -104,10 +109,15 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	result := aws_sync.MergeResources(results...)
 	// Merge all results into a single result
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
-	err = push(stream, upsert, toDel)
-	s.updateDiscoveryConfigStatus(allFetchers, err, false /* preRun */)
-	if err != nil {
-		s.Log.WithError(err).Error("Error pushing TAGs")
+	pushErr := push(stream, upsert, toDel)
+
+	s.awsSyncStatus.iterationFinished(allFetchers, pushErr, s.clock.Now())
+	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
+	if pushErr != nil {
+		s.Log.WithError(pushErr).Error("Error pushing TAGs")
 		return nil
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
@@ -202,8 +212,8 @@ func push(
 }
 
 // NewAccessGraphClient returns a new access graph service client.
-func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentials(config, certs)
+func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate, error), config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	opt, err := grpcCredentials(config, getCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -241,7 +251,8 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	if !clusterFeatures.AccessGraph && (clusterFeatures.Policy == nil || !clusterFeatures.Policy.Enabled) {
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
@@ -251,24 +262,41 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to push AWS resources in parallel.
 	// lease must be released to cleanup the resource in auth server.
-	lease, err := services.AcquireSemaphoreLock(
+	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
-		services.SemaphoreLockConfig{
-			Service: s.AccessPoint,
-			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.KindAccessGraph,
-				SemaphoreName: semaphoreName,
-				MaxLeases:     1,
-				Expires:       s.clock.Now().Add(semaphoreExpiration),
-				Holder:        s.Config.ServerID,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Expires:       s.clock.Now().Add(semaphoreExpiration),
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
 			},
-			Expiry: semaphoreExpiration,
-			Clock:  s.clock,
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.NewJitter(),
+			},
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// once the lease parent context is canceled, the lease will be released.
+	// this will stop the access graph sync.
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
@@ -280,7 +308,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 
 	accessGraphConn, err := newAccessGraphClient(
 		ctx,
-		s.ServerCredentials.Certificates,
+		s.GetClientCert,
 		config,
 		grpc.WithDefaultServiceConfig(serviceConfig),
 	)
@@ -310,12 +338,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}
 	features := aws_sync.BuildFeatures(supportedKinds...)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
 			s.Log.Info("access graph service connection was closed")
@@ -343,7 +371,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 }
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.DialOption, error) {
+func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate, error)) (grpc.DialOption, error) {
 	var pool *x509.CertPool
 	if len(config.CA) > 0 {
 		pool = x509.NewCertPool()
@@ -352,8 +380,15 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 		}
 	}
 
+	// TODO(espadolini): this doesn't honor the process' configured ciphersuites
 	tlsConfig := &tls.Config{
-		Certificates:       certs,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			tlsCert, err := getCert()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return tlsCert, nil
+		},
 		MinVersion:         tls.VersionTLS13,
 		InsecureSkipVerify: config.Insecure,
 		RootCAs:            pool,
@@ -439,47 +474,4 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 	}
 
 	return fetchers, trace.NewAggregate(errs...)
-}
-
-func (s *Server) updateDiscoveryConfigStatus(fetchers []aws_sync.AWSSync, pushErr error, preRun bool) {
-	lastUpdate := s.clock.Now()
-	for _, fetcher := range fetchers {
-		// Only update the status for fetchers that are from the discovery config.
-		if !fetcher.IsFromDiscoveryConfig() {
-			continue
-		}
-
-		status := buildFetcherStatus(fetcher, pushErr, lastUpdate)
-		if preRun {
-			// If this is a pre-run, the status is syncing.
-			status.State = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String()
-		}
-		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-		defer cancel()
-		_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, fetcher.DiscoveryConfigName(), status)
-		switch {
-		case trace.IsNotImplemented(err):
-			s.Log.Warn("UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-		case err != nil:
-			s.Log.WithError(err).Infof("Error updating discovery config %q status", fetcher.DiscoveryConfigName())
-		}
-	}
-}
-
-func buildFetcherStatus(fetcher aws_sync.AWSSync, pushErr error, lastUpdate time.Time) discoveryconfig.Status {
-	count, err := fetcher.Status()
-	err = trace.NewAggregate(err, pushErr)
-	var errStr *string
-	state := discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING
-	if err != nil {
-		errStr = new(string)
-		*errStr = err.Error()
-		state = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR
-	}
-	return discoveryconfig.Status{
-		State:               state.String(),
-		ErrorMessage:        errStr,
-		LastSyncTime:        lastUpdate,
-		DiscoveredResources: count,
-	}
 }

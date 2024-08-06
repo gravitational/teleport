@@ -272,7 +272,7 @@ func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 		TeleportClusterName: "localhost",
 		ClusterAddr:         "https://localhost:443",
 		KubeClusters:        []string{kubeCluster},
-		Credentials: &client.Key{
+		Credentials: &client.KeyRing{
 			PrivateKey: priv,
 			TLSCert:    []byte(fixtures.TLSCACertPEM),
 			TrustedCerts: []authclient.TrustedCerts{{

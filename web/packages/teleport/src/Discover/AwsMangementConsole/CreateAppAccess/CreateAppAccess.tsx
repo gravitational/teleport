@@ -18,11 +18,13 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Flex, Link, Mark, H3 } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { Danger } from 'design/Alert';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useAsync } from 'shared/hooks/useAsync';
+
+import { P } from 'design/Text/Text';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { useDiscover } from 'teleport/Discover/useDiscover';
@@ -31,7 +33,7 @@ import cfg from 'teleport/config';
 import { Container } from 'teleport/Discover/Shared/CommandBox';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { ActionButtons, Header, Mark } from '../../Shared';
+import { ActionButtons, Header } from '../../Shared';
 
 import { AppCreatedDialog } from './AppCreatedDialog';
 
@@ -68,17 +70,17 @@ export function CreateAppAccess() {
   return (
     <Box maxWidth="800px">
       <Header>Enable Access to AWS with Teleport Application Access</Header>
-      <Text mt={1} mb={3}>
+      <P mt={1} mb={3}>
         An application will be created that will use the selected AWS OIDC
         Integration <Mark>{agentMeta.awsIntegration.name}</Mark> for proxying
         access to AWS Management Console, AWS CLI, and AWS APIs.
-      </Text>
+      </P>
       {attempt.status === 'error' && (
         <Danger mt={3}>{attempt.statusText}</Danger>
       )}
       <Container>
         <Flex alignItems="center" gap={1} mb={1}>
-          <Text bold>First configure your AWS IAM permissions</Text>
+          <H3>First configure your AWS IAM permissions</H3>
           <ToolTipInfo sticky={true} maxWidth={450}>
             The following IAM permissions will be added as an inline policy
             named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}
@@ -94,7 +96,7 @@ export function CreateAppAccess() {
             </Box>
           </ToolTipInfo>
         </Flex>
-        <Text typography="subtitle1" mb={1}>
+        <P mb={2}>
           Run the command below on your{' '}
           <Link
             href="https://console.aws.amazon.com/cloudshell/home"
@@ -103,7 +105,7 @@ export function CreateAppAccess() {
             AWS CloudShell
           </Link>{' '}
           to configure your IAM permissions.
-        </Text>
+        </P>
         <TextSelectCopyMulti
           lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
         />
@@ -125,7 +127,7 @@ export function CreateAppAccess() {
   );
 }
 
-const EditorWrapper = styled(Flex)`
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;

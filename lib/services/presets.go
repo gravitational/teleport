@@ -21,7 +21,6 @@ package services
 import (
 	"slices"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -162,7 +162,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
-					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
@@ -177,6 +176,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAccessMonitoringRule, RW()),
 					types.NewRule(types.KindAppServer, RW()),
 					types.NewRule(types.KindVnetConfig, RW()),
+					types.NewRule(types.KindBotInstance, RW()),
+					types.NewRule(types.KindAccessGraphSettings, RW()),
 				},
 			},
 		},
@@ -234,7 +235,6 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
-					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
 				},
 			},
@@ -283,11 +283,11 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindSecurityReport, append(RO(), types.VerbUse)),
 					types.NewRule(types.KindAuditQuery, append(RO(), types.VerbUse)),
+					types.NewRule(types.KindBotInstance, RO()),
 				},
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 
@@ -555,6 +555,61 @@ func NewSystemOktaRequesterRole() types.Role {
 	return role
 }
 
+// NewPresetTerraformProviderRole returns a new pre-defined role for the Teleport Terraform provider.
+// This role can edit any Terraform-supported resource.
+func NewPresetTerraformProviderRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetTerraformProviderRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default Terraform provider role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				// In Teleport, you can only see what you have access to. To be able to reconcile
+				// Apps, Databases, and Nodes, Terraform must be able to access them all.
+				// For Databases and Nodes, Terraform cannot actually access them because it has no
+				// Login/user set.
+				AppLabels:      map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				// Every resource currently supported by the Terraform provider.
+				Rules: []types.Rule{
+					{
+						Resources: []string{
+							types.KindAccessList,
+							types.KindApp,
+							types.KindClusterAuthPreference,
+							types.KindClusterMaintenanceConfig,
+							types.KindClusterNetworkingConfig,
+							types.KindDatabase,
+							types.KindDevice,
+							types.KindGithub,
+							types.KindLoginRule,
+							types.KindNode,
+							types.KindOIDC,
+							types.KindOktaImportRule,
+							types.KindRole,
+							types.KindSAML,
+							types.KindSessionRecordingConfig,
+							types.KindToken,
+							types.KindTrustedCluster,
+							types.KindUser,
+						},
+						Verbs: RW(),
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
 // These are intended to add labels for older roles that didn't previously have them.
 func bootstrapRoleMetadataLabels() map[string]map[string]string {
@@ -599,10 +654,16 @@ func defaultAllowRules() map[string][]types.Rule {
 // - DatabaseServiceLabels (db_service_labels)
 // - GroupLabels
 func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
+	wildcardLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
 	conditions := map[string]types.RoleConditions{
 		teleport.PresetAccessRoleName: {
-			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: wildcardLabels,
 			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
+		},
+		teleport.PresetTerraformProviderRoleName: {
+			AppLabels:      wildcardLabels,
+			DatabaseLabels: wildcardLabels,
+			NodeLabels:     wildcardLabels,
 		},
 	}
 
@@ -731,15 +792,21 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	if ok {
 		for _, kind := range []string{
 			types.KindApp,
+			types.KindDatabase,
 			types.KindDatabaseService,
+			types.KindNode,
 			types.KindUserGroup,
 		} {
 			var labels types.Labels
 			switch kind {
 			case types.KindApp:
 				labels = defaultLabels.AppLabels
+			case types.KindDatabase:
+				labels = defaultLabels.DatabaseLabels
 			case types.KindDatabaseService:
 				labels = defaultLabels.DatabaseServiceLabels
+			case types.KindNode:
+				labels = defaultLabels.NodeLabels
 			case types.KindUserGroup:
 				labels = defaultLabels.GroupLabels
 			}

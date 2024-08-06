@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 
@@ -77,12 +77,14 @@ function BackButton({
   disabled: boolean;
   prevStep: () => void;
 }) {
+  const location = useLocation<{ previousPathname: string }>();
+
   if (isFirstStep) {
     return (
       <ButtonSecondary
         disabled={disabled}
         as={Link}
-        to={cfg.getBotsNewRoute()}
+        to={location.state?.previousPathname || cfg.getBotsNewRoute()}
         data-testid="button-back-first-step"
       >
         Back

@@ -55,12 +55,14 @@ import (
 	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -69,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1347,7 +1350,7 @@ func TestGetCurrentUser(t *testing.T) {
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1362,7 +1365,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestAuthPreferenceSettings(t *testing.T) {
@@ -1390,7 +1393,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.Equal(t, "local", gotAP.GetType())
 	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
 	require.True(t, gotAP.GetDisconnectExpiredCert())
-	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestTunnelConnectionsCRUD(t *testing.T) {
@@ -1402,8 +1405,8 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-		Clock:     clockwork.NewFakeClock(),
+		TrustS: clt,
+		Clock:  clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(t)
 }
@@ -1445,7 +1448,7 @@ func TestRemoteClustersCRUD(t *testing.T) {
 		cmp.Diff(
 			rc,
 			updated,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
 		),
 	)
@@ -2402,6 +2405,29 @@ func TestPluginData(t *testing.T) {
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"spam": "eggs"}))
 }
 
+// newSSHAndTLSKeyPairs returns newly generated keys for SSH and TLS.
+// sshPrivKey and tlsPrivKey will be in PEM-encoded PKCS#1 or PKCS#8 format.
+// sshPubKey will be in SSH authorized_keys format.
+// tlsPubKey will be in PEM-encoded PKCS#1 or PKIX format.
+func newSSHAndTLSKeyPairs(t *testing.T) (sshPrivKey, sshPubKey, tlsPrivKey, tlsPubKey []byte) {
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPrivKey, err = keys.MarshalPrivateKey(sshKey)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubKey = ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPrivKey, err = keys.MarshalPrivateKey(tlsKey)
+	require.NoError(t, err)
+	tlsPubKey, err = keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	return sshPrivKey, sshPubKey, tlsPrivKey, tlsPubKey
+}
+
 // TestGenerateCerts tests edge cases around authorization of
 // certificate generation for servers and users
 func TestGenerateCerts(t *testing.T) {
@@ -2410,19 +2436,14 @@ func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
+	sshPrivKey, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	clock := srv.Auth().GetClock()
 
-	// make sure we can parse the private and public key
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
+	// make sure we can parse the private and public keys
+	_, err := ssh.ParseRawPrivateKey(sshPrivKey)
 	require.NoError(t, err)
-
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
-	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(sshPubKey)
 	require.NoError(t, err)
 
 	// generate server keys for node
@@ -2436,8 +2457,8 @@ func TestGenerateCerts(t *testing.T) {
 			NodeName:             srv.AuthServer.ClusterName,
 			Role:                 types.RoleNode,
 			AdditionalPrincipals: []string{"example.com"},
-			PublicSSHKey:         pub,
-			PublicTLSKey:         pubTLS,
+			PublicSSHKey:         sshPubKey,
+			PublicTLSKey:         tlsPubKey,
 		})
 	require.NoError(t, err)
 
@@ -2456,8 +2477,8 @@ func TestGenerateCerts(t *testing.T) {
 			NodeName:             srv.AuthServer.ClusterName,
 			Role:                 types.RoleNode,
 			AdditionalPrincipals: []string{"example.com"},
-			PublicSSHKey:         pub,
-			PublicTLSKey:         pubTLS,
+			PublicSSHKey:         sshPubKey,
+			PublicTLSKey:         tlsPubKey,
 		})
 	require.NoError(t, err)
 
@@ -2472,8 +2493,8 @@ func TestGenerateCerts(t *testing.T) {
 				HostID:       hostID,
 				NodeName:     srv.AuthServer.ClusterName,
 				Role:         types.RoleAdmin,
-				PublicSSHKey: pub,
-				PublicTLSKey: pubTLS,
+				PublicSSHKey: sshPubKey,
+				PublicTLSKey: tlsPubKey,
 			})
 		require.True(t, trace.IsAccessDenied(err))
 
@@ -2483,8 +2504,8 @@ func TestGenerateCerts(t *testing.T) {
 				HostID:       "some-other-host-id",
 				NodeName:     srv.AuthServer.ClusterName,
 				Role:         types.RoleNode,
-				PublicSSHKey: pub,
-				PublicTLSKey: pubTLS,
+				PublicSSHKey: sshPubKey,
+				PublicTLSKey: tlsPubKey,
 			})
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -2501,10 +2522,11 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), err.Error())
@@ -2518,10 +2540,11 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateDeny", func(t *testing.T) {
 		// User can't generate certificates for another user by default
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
@@ -2581,10 +2604,11 @@ func TestGenerateCerts(t *testing.T) {
 		// can impersonate super impersonator and request certs
 		// longer than their own TTL, but not exceeding super impersonator's max session ttl
 		userCerts, err := iClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  superImpersonator.GetName(),
-			Expires:   clock.Now().Add(1000 * time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     superImpersonator.GetName(),
+			Expires:      clock.Now().Add(1000 * time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
@@ -2604,28 +2628,27 @@ func TestGenerateCerts(t *testing.T) {
 
 		// impersonator can't impersonate user1
 		_, err = iClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 
-		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
-		require.NoError(t, err)
-
-		clientCert, err := tls.X509KeyPair(userCerts.TLS, privateKeyPEM)
+		clientCert, err := tls.X509KeyPair(userCerts.TLS, tlsPrivKey)
 		require.NoError(t, err)
 
 		// client that uses impersonated certificate can't impersonate other users
 		// although super impersonator's roles allow it
 		impersonatedClient := srv.NewClientWithCert(clientCert)
 		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
@@ -2638,7 +2661,8 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		userCerts, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey:      pub,
+			SSHPublicKey:   sshPubKey,
+			TLSPublicKey:   tlsPubKey,
 			Username:       superImpersonator.GetName(),
 			Expires:        clock.Now().Add(time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
@@ -2670,7 +2694,8 @@ func TestGenerateCerts(t *testing.T) {
 		// to the TTL of their session for both SSH and x509 certs and
 		// that route to cluster will be encoded in the cert metadata
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey:      pub,
+			SSHPublicKey:   sshPubKey,
+			TLSPublicKey:   tlsPubKey,
 			Username:       user2.GetName(),
 			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
@@ -2695,10 +2720,11 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		userCerts, err := adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(40 * time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(40 * time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
@@ -2720,10 +2746,11 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(1 * time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(1 * time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 		parsedCert, _ = parseCert(userCerts.SSH)
@@ -2736,10 +2763,11 @@ func TestGenerateCerts(t *testing.T) {
 
 		// apply HTTP Auth to generate user cert:
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user1.GetName(),
-			Expires:   clock.Now().Add(time.Hour).UTC(),
-			Format:    constants.CertificateFormatStandard,
+			SSHPublicKey: sshPubKey,
+			TLSPublicKey: tlsPubKey,
+			Username:     user1.GetName(),
+			Expires:      clock.Now().Add(time.Hour).UTC(),
+			Format:       constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
@@ -2750,7 +2778,8 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("DenyLeaf", func(t *testing.T) {
 		// User can't generate certificates for an unknown leaf cluster.
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey:      pub,
+			SSHPublicKey:   sshPubKey,
+			TLSPublicKey:   tlsPubKey,
 			Username:       user2.GetName(),
 			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
@@ -2769,7 +2798,8 @@ func TestGenerateCerts(t *testing.T) {
 		// User can't generate certificates for leaf cluster they don't have access
 		// to due to labels.
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey:      pub,
+			SSHPublicKey:   sshPubKey,
+			TLSPublicKey:   tlsPubKey,
 			Username:       user2.GetName(),
 			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
@@ -2783,7 +2813,8 @@ func TestGenerateCerts(t *testing.T) {
 
 		// User can generate certificates for leaf cluster they do have access to.
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-			PublicKey:      pub,
+			SSHPublicKey:   sshPubKey,
+			TLSPublicKey:   tlsPubKey,
 			Username:       user2.GetName(),
 			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
@@ -2796,6 +2827,95 @@ func TestGenerateCerts(t *testing.T) {
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
 		require.Equal(t, identity.RouteToCluster, rc2.GetName())
+	})
+
+	t.Run("SplitKeys", func(t *testing.T) {
+		testUser2 := TestUser(user2.GetName())
+		testUser2.TTL = time.Hour
+		userClient2, err := srv.NewClient(testUser2)
+		require.NoError(t, err)
+
+		// All standard library key types implement this.
+		type equalPublicKey interface {
+			Equal(crypto.PublicKey) bool
+		}
+
+		sshCryptoPub, err := libsshutils.CryptoPublicKey(sshPubKey)
+		require.NoError(t, err)
+		sshEqualPub := sshCryptoPub.(equalPublicKey)
+
+		for _, tc := range []struct {
+			desc                   string
+			publicKey              []byte
+			sshPublicKey           []byte
+			tlsPublicKey           []byte
+			expectBadParameter     bool
+			tlsPrivateKey          []byte
+			expectSSHCertPublicKey equalPublicKey
+		}{
+			{
+				desc:                   "legacy",
+				publicKey:              sshPubKey,
+				tlsPrivateKey:          sshPrivKey,
+				expectSSHCertPublicKey: sshEqualPub,
+			},
+			{
+				desc:                   "split",
+				sshPublicKey:           sshPubKey,
+				tlsPublicKey:           tlsPubKey,
+				tlsPrivateKey:          tlsPrivKey,
+				expectSSHCertPublicKey: sshEqualPub,
+			},
+			{
+				desc:                   "only SSH",
+				sshPublicKey:           sshPubKey,
+				expectSSHCertPublicKey: sshEqualPub,
+			},
+			{
+				desc:          "only TLS",
+				tlsPublicKey:  tlsPubKey,
+				tlsPrivateKey: tlsPrivKey,
+			},
+			{
+				desc:               "no key",
+				expectBadParameter: true,
+			},
+		} {
+			t.Run(tc.desc, func(t *testing.T) {
+				t.Parallel()
+
+				certs, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+					PublicKey:    tc.publicKey, //nolint:staticcheck // SA1019: testing the deprecated field.
+					SSHPublicKey: tc.sshPublicKey,
+					TLSPublicKey: tc.tlsPublicKey,
+					Username:     user2.GetName(),
+					Expires:      clock.Now().Add(100 * time.Hour).UTC(),
+				})
+
+				if tc.expectBadParameter {
+					var badParameterErr *trace.BadParameterError
+					require.ErrorAs(t, err, &badParameterErr)
+					return
+				}
+				require.NoError(t, err)
+
+				if tc.sshPublicKey != nil {
+					// Make sure the SSH cert public key matches up.
+					sshAuthorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(certs.SSH)
+					require.NoError(t, err)
+					sshCert := sshAuthorizedKey.(*ssh.Certificate)
+					sshCertCryptoPub := sshCert.Key.(ssh.CryptoPublicKey).CryptoPublicKey()
+					require.True(t, tc.expectSSHCertPublicKey.Equal(sshCertCryptoPub))
+				}
+
+				if tc.tlsPublicKey != nil {
+					// This makes sure that the TLS cert public key matches tc.tlsPrivateKey.
+					_, err = tls.X509KeyPair(certs.TLS, tc.tlsPrivateKey)
+					require.NoError(t, err)
+				}
+			})
+		}
+
 	})
 }
 
@@ -4101,7 +4221,7 @@ func TestEvents(t *testing.T) {
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     testSrv.Auth(),
-		CAS:           testSrv.Auth(),
+		TrustS:        testSrv.Auth(),
 		ProvisioningS: clt,
 		Access:        clt,
 		UsersS:        clt,
@@ -4443,7 +4563,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -4613,7 +4733,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -4636,12 +4756,12 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	t.Run("no tokens", func(t *testing.T) {
+	t.Run("no extra tokens", func(t *testing.T) {
 		client, err := testSrv.NewClient(TestUser(privilegedUser.GetName()))
 		require.NoError(t, err)
 		toks, err := client.GetTokens(ctx)
 		require.NoError(t, err)
-		require.Empty(t, toks)
+		require.Len(t, toks, 1) // only a single static token exists
 	})
 
 	// Create tokens to then assert are returned
@@ -4703,7 +4823,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					expectTokens,
 					tokens,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			} else {
 				require.Empty(t, tokens)
@@ -4773,7 +4893,7 @@ func TestGRPCServer_GetToken(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					token,
 					pt,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			} else {
 				require.Nil(t, token)
@@ -4855,7 +4975,7 @@ func TestGRPCServer_DeleteToken(t *testing.T) {
 func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
@@ -4864,7 +4984,6 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		key, err := jwt.New(&jwt.Config{
 			Clock:       clock,
 			PublicKey:   publicKey,
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: clusterName,
 		})
 		if err != nil {
@@ -4889,7 +5008,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token, issuer string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
@@ -4898,7 +5017,6 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 		key, err := jwt.New(&jwt.Config{
 			Clock:       clock,
 			PublicKey:   publicKey,
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: clusterName,
 		})
 		if err != nil {

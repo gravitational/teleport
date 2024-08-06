@@ -38,7 +38,7 @@ const (
 
 	// PackageNameOSS is the teleport package name for the OSS version.
 	PackageNameOSS = "teleport"
-	// PackageNameOSS is the teleport package name for the Enterprise version.
+	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
 
 	// ActionRead grants read access (get, list)
@@ -65,6 +65,10 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindBotInstance is an instance of a Machine ID bot
+	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -463,10 +467,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindAssistant is used to program RBAC for
-	// Teleport Assist resources.
-	KindAssistant = "assistant"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -523,8 +523,26 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
+
+	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
+	KindAccessGraphSettings = "access_graph_settings"
+
+	// KindStaticHostUser is a host user to be created on matching SSH nodes.
+	KindStaticHostUser = "static_host_user"
+
+	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
+	// access graph settings.
+	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -548,6 +566,9 @@ const (
 	// not explicitly versioned.
 	V1 = "v1"
 )
+
+// PackageNameKinds is the list of valid teleport package names.
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -671,7 +692,15 @@ const (
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
 	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
-	// ZoneLabek is used to identify virtual machines by GCP zone
+	// RegionLabel is used to identify virtual machines by region found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	RegionLabel = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabel is used to identify virtual machines by resource-group found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// ZoneLabel is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	ZoneLabel = TeleportInternalLabelPrefix + "zone"
@@ -739,6 +768,8 @@ const (
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
 	// ReqAnnotationNotifySchedulesLabel is the request annotation key at which notify schedules are stored for access plugins.
 	ReqAnnotationNotifySchedulesLabel = "/notify-services"
+	// ReqAnnotationTeamsLabel is the request annotation key at which teams are stored for access plugins.
+	ReqAnnotationTeamsLabel = "/teams"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -1029,6 +1060,8 @@ const (
 	NotificationAccessRequestApprovedSubKind = "access-request-approved"
 	// NotificationAccessRequestDeniedSubKind is the subkind for a notification for a user's access request being denied.
 	NotificationAccessRequestDeniedSubKind = "access-request-denied"
+	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
+	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
 )
 
 const (
@@ -1168,6 +1201,7 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
@@ -1307,6 +1341,13 @@ const (
 	// SCIM requests from the upstream organization. The content of the credential
 	// is a bcrypt hash of actual token.
 	OktaCredPurposeSCIMToken = "scim-bearer-token"
+
+	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is used when okta integration was enabled without
+	// app groups sync. Due to backward compatibility when teleport was downgraded to version where the
+	// AppGroupSyncDisabled flag is not supported we need to prevent plugin from starting.
+	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+	// that are only set when AppGroupSyncDisabled is set to true.
+	CredPurposeOKTAAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
 )
 
 const (

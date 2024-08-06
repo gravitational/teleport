@@ -32,12 +32,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -94,6 +97,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindDatabaseService:       {},
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
+	types.KindDatabaseObject:        {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -176,6 +180,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
+		{Kind: types.KindDatabaseObject},
+		{Kind: types.KindAccessGraphSettings},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -492,6 +498,7 @@ type Cache struct {
 	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
 	databasesCache               services.Databases
+	databaseObjectsCache         *local.DatabaseObjectService
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
@@ -648,6 +655,8 @@ type Config struct {
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
+	// DatabaseObjects is a database object service.
+	DatabaseObjects services.DatabaseObjects
 	// SAMLIdPSession holds SAML IdP sessions.
 	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
@@ -863,7 +872,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	secReprotsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
+	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -876,6 +885,12 @@ func New(config Config) (*Cache, error) {
 	}
 
 	accessListCache, err := simple.NewAccessListService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -943,9 +958,10 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
-		secReportsCache:              secReprotsCache,
+		secReportsCache:              secReportsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
+		databaseObjectsCache:         databaseObjectsCache,
 		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
@@ -1245,6 +1261,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 
+	fetchAndApplyStart := time.Now()
+
 	confirmedKindsMap := make(map[resourceKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
 		confirmedKindsMap[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = kind
@@ -1307,6 +1325,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
+
+	fetchAndApplyDuration := time.Since(fetchAndApplyStart)
+	if fetchAndApplyDuration > time.Second*20 {
+		c.Logger.WithFields(log.Fields{
+			"cache_target": c.Config.target,
+			"duration":     fetchAndApplyDuration.String(),
+		}).Warn("slow fetch and apply")
+	} else {
+		c.Logger.WithFields(log.Fields{
+			"cache_target": c.Config.target,
+			"duration":     fetchAndApplyDuration.String(),
+		}).Debug("fetch and apply")
+	}
 
 	var lastStalenessWarning time.Time
 	var staleEventCount int
@@ -1392,7 +1423,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 // cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
-	gracePeriod := apidefaults.ServerAnnounceTTL
+
+	// because event streams are not necessarily ordered across keys expiring on the
+	// server announce TTL may sometimes generate false positives. Using the watcher
+	// creation grace period as our safety buffer is mostly an arbitrary choice, but
+	// since it approximates our expected worst-case staleness of the event stream its
+	// a fairly reasonable one.
+	gracePeriod := apidefaults.ServerAnnounceTTL + backend.DefaultCreationGracePeriod
 
 	// latestExp will be the value that we choose to consider the most recent "expired"
 	// timestamp.  This will either end up being the most recently seen node expiry, or
@@ -2097,7 +2134,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 		rg.Release()
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Presence.GetRemoteCluster(ctx, clusterName); err == nil {
+		if rc, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}
@@ -2427,6 +2464,30 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetDatabases(ctx)
+}
+
+func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetDatabaseObject(ctx, name)
+}
+
+func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
 }
 
 // GetDatabase returns the specified database resource.
@@ -3125,6 +3186,21 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	return out, nextKey, trace.Wrap(err)
 }
 
+// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
+func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, pageSize, nextToken, subjects, notificationName)
+	return out, nextKey, trace.Wrap(err)
+}
+
 // GetAccessMonitoringRule returns the specified AccessMonitoringRule resources.
 func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
@@ -3187,4 +3263,29 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	}
 
 	return rg.reader.ListResources(ctx, req)
+}
+
+// GetAccessGraphSettings gets AccessGraphSettings from the backend.
+func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessGraphSettings)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+			cfg, err := rg.reader.GetAccessGraphSettings(ctx)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clone := protobuf.Clone(cachedCfg).(*clusterconfigpb.AccessGraphSettings)
+		return clone, nil
+	}
+	return rg.reader.GetAccessGraphSettings(ctx)
 }

@@ -18,8 +18,11 @@
 
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import generateResourcePath from './generateResourcePath';
+
+import { defaultEntitlements } from './entitlement';
 
 import type {
   Auth2faType,
@@ -37,13 +40,10 @@ import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
-  /**
-   * @deprecated use cfg.edition instead
-   */
+  /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
   edition: 'oss',
   isCloud: false,
-  assistEnabled: false,
   automaticUpgrades: false,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
@@ -60,40 +60,44 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  /**
-   * isTeam is true if [Features.ProductType] == Team
-   * @deprecated use other flags do determine cluster features istead of relying on isTeam
-   * TODO(mcbattirola): remove isTeam when it is no longer used
-   */
+  /** @deprecated */
   isTeam: false,
   isStripeManaged: false,
   hasQuestionnaire: false,
   externalAuditStorage: false,
   premiumSupport: false,
   accessRequests: false,
+  /** @deprecated Use entitlements instead. */
   trustedDevices: false,
   oidc: false,
   saml: false,
+  /** @deprecated Use entitlements instead. */
   joinActiveSessions: false,
+  /** @deprecated Use entitlements instead. */
   mobileDeviceManagement: false,
-
-  // isIgsEnabled refers to Identity Governance & Security product.
-  // It refers to a group of features: access request, device trust,
-  // access list, and access monitoring.
+  /** @deprecated Use entitlements instead. */
   isIgsEnabled: false,
+
+  // isPolicyEnabled refers to the Teleport Policy product
+  isPolicyEnabled: false,
 
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,
 
   // featureLimits define limits for features.
-  // Typically used with feature teasers if feature is not enabled for the
-  // product type eg: Team product contains teasers to upgrade to Enterprise.
+  /** @deprecated Use entitlements instead. */
   featureLimits: {
+    /** @deprecated Use entitlements instead. */
     accessListCreateLimit: 0,
+    /** @deprecated Use entitlements instead. */
     accessMonitoringMaxReportRangeLimit: 0,
+    /** @deprecated Use entitlements instead. */
     AccessRequestMonthlyRequestLimit: 0,
   },
+
+  // default entitlements to false
+  entitlements: defaultEntitlements,
 
   ui: {
     scrollbackLines: 1000,
@@ -127,8 +131,6 @@ const cfg = {
     root: '/web',
     discover: '/web/discover',
     accessRequest: '/web/accessrequest',
-    assistBase: '/web/assist/',
-    assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
@@ -137,6 +139,7 @@ const cfg = {
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
+    joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
@@ -158,6 +161,8 @@ const cfg = {
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
+    kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
+    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -167,6 +172,7 @@ const cfg = {
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
+    samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
     userInviteContinue: '/web/invite/:tokenId/continue',
     userReset: '/web/reset/:tokenId',
@@ -209,7 +215,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includeRequestable=:includeRequestable?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -229,6 +235,8 @@ const cfg = {
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
+    ttyKubeExecWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -251,6 +259,8 @@ const cfg = {
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
+    joinTokenYamlPath: '/v1/webapi/tokens/yaml',
+    joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -281,11 +291,6 @@ const cfg = {
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
-    installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
-    installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
-    configureADPath:
-      '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
-
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
@@ -297,31 +302,38 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
-      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
     awsConfigureIamScriptListDatabasesPath:
-      '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamEksScriptPath:
       '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
 
     awsRdsDbDeployServicesPath:
-      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
+    awsDatabaseVpcsPath:
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+    awsSubnetListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/subnets',
 
     awsAppAccessPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
     awsConfigureIamAppAccessPath:
       '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+
+    awsConfigureIamEc2AutoDiscoverWithSsmPath:
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -339,16 +351,6 @@ const cfg = {
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    assistConversationsPath: '/v1/webapi/assistant/conversations',
-    assistSetConversationTitlePath:
-      '/v1/webapi/assistant/conversations/:conversationId/title',
-    assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
-    assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant/ws',
-    assistConversationHistoryPath:
-      '/v1/webapi/assistant/conversations/:conversationId',
-    assistExecuteCommandWebSocketPath:
-      'wss://:hostname/v1/webapi/command/:clusterId/execute/ws',
     userPreferencesPath: '/v1/webapi/user/preferences',
     userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
@@ -364,7 +366,7 @@ const cfg = {
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
-      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKeys=:startKey?',
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
     notificationLastSeenTimePath:
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
@@ -373,6 +375,12 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
+  },
+
+  playable_db_protocols: [],
+
+  getPlayableDatabaseProtocols() {
+    return cfg.playable_db_protocols;
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -450,18 +458,6 @@ const cfg = {
     return 'sso';
   },
 
-  // isLegacyEnterprise describes product that should have legacy support
-  // where certain features access remain unlimited. This was before
-  // product EUB (enterprise usage based) was introduced.
-  // eg: access request and device trust.
-  isLegacyEnterprise() {
-    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
-  },
-
-  getAuthType() {
-    return cfg.auth.authType;
-  },
-
   getDeviceTrustAuthorizeRoute(id: string, token: string) {
     return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
   },
@@ -494,8 +490,20 @@ const cfg = {
     return generatePath(cfg.routes.desktops, { clusterId });
   },
 
+  getJoinTokensRoute() {
+    return cfg.routes.joinTokens;
+  },
+
+  getJoinTokensUrl() {
+    return cfg.api.joinTokensPath;
+  },
+
   getJoinTokenUrl() {
     return cfg.api.joinTokenPath;
+  },
+
+  getJoinTokenYamlUrl() {
+    return cfg.api.joinTokenYamlPath;
   },
 
   getNodeScriptUrl(token: string) {
@@ -512,27 +520,12 @@ const cfg = {
   },
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
-    let path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    if (p.s3Bucket && p.s3Prefix) {
-      path += '&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix';
-    }
+    const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
     return cfg.baseUrl + generatePath(path, { ...p });
   },
 
   getDbScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
-  },
-
-  getConfigureADUrl(token: string) {
-    return cfg.baseUrl + generatePath(cfg.api.configureADPath, { token });
-  },
-
-  getInstallADDSPath() {
-    return cfg.baseUrl + cfg.api.installADDSPath;
-  },
-
-  getInstallADCSPath() {
-    return cfg.baseUrl + cfg.api.installADCSPath;
   },
 
   getAppNodeScriptUrl(token: string, name: string, uri: string) {
@@ -581,12 +574,30 @@ const cfg = {
     });
   },
 
+  getKubeExecConnectRoute(params: UrlKubeExecParams) {
+    return generatePath(cfg.routes.kubeExec, { ...params });
+  },
+
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
       clusterId,
       desktopName,
       username,
     });
+  },
+
+  getKubeExecSessionRoute(
+    { clusterId, sid }: UrlParams,
+    mode?: ParticipantMode
+  ) {
+    const basePath = generatePath(cfg.routes.kubeExecSession, {
+      clusterId,
+      sid,
+    });
+    if (mode) {
+      return `${basePath}?mode=${mode}`;
+    }
+    return basePath;
   },
 
   getSshSessionRoute({ clusterId, sid }: UrlParams, mode?: ParticipantMode) {
@@ -903,6 +914,13 @@ const cfg = {
     });
   },
 
+  getAwsDatabaseVpcsUrl(integrationName: string, clusterId: string) {
+    return generatePath(cfg.api.awsDatabaseVpcsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getAwsRdsDbsDeployServicesUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -939,73 +957,6 @@ const cfg = {
 
   getUIConfig() {
     return cfg.ui;
-  },
-
-  getAssistSetConversationTitleUrl(conversationId: string) {
-    return generatePath(cfg.api.assistSetConversationTitlePath, {
-      conversationId,
-    });
-  },
-
-  getAssistConversationWebSocketUrl(
-    hostname: string,
-    clusterId: string,
-    conversationId: string
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('conversation_id', conversationId);
-
-    return (
-      generatePath(cfg.api.assistConversationWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistActionWebSocketUrl(
-    hostname: string,
-    clusterId: string,
-    action: string
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('action', action);
-
-    return (
-      generatePath(cfg.api.assistConversationWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistConversationHistoryUrl(conversationId: string) {
-    return generatePath(cfg.api.assistConversationHistoryPath, {
-      conversationId,
-    });
-  },
-
-  getAssistExecuteCommandUrl(
-    hostname: string,
-    clusterId: string,
-    params: Record<string, string>
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('params', JSON.stringify(params));
-
-    return (
-      generatePath(cfg.api.assistExecuteCommandWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistConversationUrl(conversationId: string) {
-    return generatePath(cfg.routes.assist, { conversationId });
   },
 
   getAccessRequestUrl(requestId?: string) {
@@ -1074,6 +1025,13 @@ const cfg = {
     });
   },
 
+  getAwsSubnetListUrl(integrationName: string, clusterId: string) {
+    return generatePath(cfg.api.awsSubnetListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getEc2InstanceConnectIAMConfigureScriptUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -1100,6 +1058,17 @@ const cfg = {
     return (
       cfg.baseUrl +
       generatePath(cfg.api.awsConfigureIamAppAccessPath, {
+        ...params,
+      })
+    );
+  },
+
+  getAwsIamConfigureScriptEc2AutoDiscoverWithSsmUrl(
+    params: UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
         ...params,
       })
     );
@@ -1187,6 +1156,11 @@ export interface UrlSshParams {
   clusterId: string;
 }
 
+export interface UrlKubeExecParams {
+  clusterId: string;
+  kubeId: string;
+}
+
 export interface UrlSessionRecordingsParams {
   start: string;
   end: string;
@@ -1240,7 +1214,7 @@ export interface UrlResourcesParams {
   startKey?: string;
   searchAsRoles?: 'yes' | '';
   pinnedOnly?: boolean;
-  includeRequestable?: boolean;
+  includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }
@@ -1262,6 +1236,13 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+}
+
+export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
+  region: Regions;
+  iamRoleName: string;
+  ssmDocument: string;
+  integrationName: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {

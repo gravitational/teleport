@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -41,13 +43,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -58,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -71,17 +74,28 @@ var log = logrus.WithFields(logrus.Fields{
 	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
+// VersionStorage local storage for saving the version.
+type VersionStorage interface {
+	// GetTeleportVersion reads the last known Teleport version from storage.
+	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	// WriteTeleportVersion writes the last known Teleport version to the storage.
+	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+}
+
 // InitConfig is auth server init config
 type InitConfig struct {
 	// Backend is auth backend to use
 	Backend backend.Backend
+
+	// VersionStorage is a version storage for local process
+	VersionStorage VersionStorage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
 
 	// KeyStoreConfig is the config for the KeyStore which handles private CA
 	// keys that may be held in an HSM.
-	KeyStoreConfig keystore.Config
+	KeyStoreConfig servicecfg.KeystoreConfig
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -159,9 +173,6 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
-	// Assist is a service that implements the Teleport Assist functionality.
-	Assist services.Assistant
-
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
 
@@ -220,9 +231,6 @@ type InitConfig struct {
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
 
-	// Embeddings is a service that manages Embeddings
-	Embeddings services.Embeddings
-
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -276,12 +284,6 @@ type InitConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
-	// EmbeddingRetriever is a retriever for embeddings.
-	EmbeddingRetriever *ai.SimpleRetriever
-
-	// EmbeddingClient is a client that allows generating embeddings.
-	EmbeddingClient embedding.Embedder
-
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
 
@@ -301,6 +303,9 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -346,6 +351,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -432,6 +440,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+		defer span.End()
+		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+	})
+
+	g.Go(func() error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
 		defer span.End()
 		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
@@ -476,12 +490,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-			warnMessage := "Cannot rename cluster to %q: continuing with %q. Teleport " +
+			msg := "Cannot rename cluster: continuing with current cluster name. Teleport " +
 				"clusters can not be renamed once they are created. You are seeing this " +
-				"warning for one of two reasons. Either you have not set \"cluster_name\" in " +
+				"message for one of two reasons. Either you have not set \"cluster_name\" in " +
 				"Teleport configuration and changed the hostname of the auth server or you " +
 				"are trying to change the value of \"cluster_name\"."
-			log.Warnf(warnMessage, cfg.ClusterName.GetClusterName(), cn.GetClusterName())
+			log.WithFields(logrus.Fields{
+				"current_cluster_name":    cn.GetClusterName(),
+				"configured_cluster_name": cfg.ClusterName.GetClusterName(),
+			}).Error(msg)
 		}
 
 		log.Debugf("Cluster configuration: %v.", cn.GetClusterName())
@@ -706,6 +723,20 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
+var secondFactorUpgradeInstructions = `
+Teleport requires second factor authentication for local users.
+The auth_service configuration should be updated to enable it.
+
+auth_service:
+  authentication:
+    second_factor: on
+    webauthn:
+      rp_id: example.com
+
+For more information:
+- https://goteleport.com/docs/access-controls/guides/webauthn/
+`
+
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
@@ -721,7 +752,13 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		if !shouldReplace {
 			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				return trace.Wrap(modules.ValidateResource(storedAuthPref))
+				err := modules.ValidateResource(storedAuthPref)
+				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+					return trace.Wrap(err, secondFactorUpgradeInstructions)
+				}
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
 			return nil
 		}
@@ -740,6 +777,9 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
 		if trace.IsCompareFailed(err) {
 			continue
+		}
+		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+			return trace.Wrap(err, secondFactorUpgradeInstructions)
 		}
 
 		return trace.Wrap(err)
@@ -828,6 +868,31 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
 }
 
+func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
+	stored, err := asrv.Services.GetAccessGraphSettings(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Creating access graph settings: %v.", stored)
+	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
 // resource should be used to replace the stored resource during auth server
 // initialization.  Dynamically configured resources must not be overwritten
@@ -906,6 +971,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetRequireTrustedDeviceRole(),
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
+		services.NewPresetTerraformProviderRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1115,20 +1181,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 		}
 	}
 	return nil
-}
-
-// Identity alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type Identity = state.Identity
-
-// IdentityID alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type IdentityID = state.IdentityID
-
-// ReadLocalIdentity left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-func ReadLocalIdentity(dataDir string, id state.IdentityID) (*Identity, error) {
-	return state.ReadLocalIdentity(dataDir, id)
 }
 
 // GenerateIdentity generates identity for the auth server

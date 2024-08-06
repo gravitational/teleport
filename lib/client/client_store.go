@@ -72,7 +72,7 @@ func NewMemClientStore() *Store {
 
 // AddKey adds the given key to the key store. The key's trusted certificates are
 // added to the trusted certs store.
-func (s *Store) AddKey(key *Key) error {
+func (s *Store) AddKey(key *KeyRing) error {
 	if err := s.KeyStore.AddKey(key); err != nil {
 		return trace.Wrap(err)
 	}
@@ -82,21 +82,28 @@ func (s *Store) AddKey(key *Key) error {
 	return nil
 }
 
-// ErrNoCredentials is returned by the client store when a specific key is not found.
-// This error can be used to determine whether a client should retrieve new credentials,
-// like how it is used with lib/client.RetryWithRelogin.
-var ErrNoCredentials = trace.NotFound("no credentials")
+var (
+	// ErrNoCredentials is returned by the client store when a specific key is not found.
+	// This error can be used to determine whether a client should retrieve new credentials,
+	// like how it is used with lib/client.RetryWithRelogin.
+	ErrNoCredentials = &trace.NotFoundError{Message: "no credentials"}
 
-// IsNoCredentialsError returns whether the given error is an ErrNoCredentials error.
+	// ErrNoProfile is returned by the client store when a specific profile is not found.
+	// This error can be used to determine whether a client should retrieve new credentials,
+	// like how it is used with lib/client.RetryWithRelogin.
+	ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
+)
+
+// IsNoCredentialsError returns whether the given error implies that the user should retrieve new credentials.
 func IsNoCredentialsError(err error) bool {
-	return errors.Is(err, ErrNoCredentials)
+	return errors.Is(err, ErrNoCredentials) || errors.Is(err, ErrNoProfile)
 }
 
 // GetKey gets the requested key with trusted the requested certificates. The key's
 // trusted certs will be retrieved from the trusted certs store. If the key is not
 // found or is missing data (certificates, etc.), then an ErrNoCredentials error
 // is returned.
-func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
+func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
 	if trace.IsNotFound(err) {
 		return nil, trace.Wrap(ErrNoCredentials, err.Error())
@@ -161,6 +168,9 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 
 	profile, err := s.GetProfile(profileName)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.Wrap(ErrNoProfile, err.Error())
+		}
 		return nil, trace.Wrap(err)
 	}
 	idx := KeyIndex{
@@ -185,7 +195,8 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 				Cluster:     profile.SiteName,
 				KubeEnabled: profile.KubeProxyAddr != "",
 				// Set ValidUntil to now to show that the keys are not available.
-				ValidUntil: time.Now(),
+				ValidUntil:              time.Now(),
+				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 			}, nil
 		}
 		return nil, trace.Wrap(err)
@@ -194,13 +205,14 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
 	return profileStatusFromKey(key, profileOptions{
-		ProfileName:   profileName,
-		ProfileDir:    profile.Dir,
-		WebProxyAddr:  profile.WebProxyAddr,
-		Username:      profile.Username,
-		SiteName:      profile.SiteName,
-		KubeProxyAddr: profile.KubeProxyAddr,
-		IsVirtual:     !onDisk,
+		ProfileName:             profileName,
+		ProfileDir:              profile.Dir,
+		WebProxyAddr:            profile.WebProxyAddr,
+		Username:                profile.Username,
+		SiteName:                profile.SiteName,
+		KubeProxyAddr:           profile.KubeProxyAddr,
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		IsVirtual:               !onDisk,
 	})
 }
 
@@ -265,8 +277,8 @@ func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster,
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if ok := keys.IsRSAPrivateKey(privKey); !ok {
-		return nil, nil, trace.BadParameter("unsupported private key type")
+	if err := keys.AssertSoftwarePrivateKey(privKey); err != nil {
+		return nil, nil, trace.Wrap(err, "unsupported private key type")
 	}
 	return kubeCert, privKey, nil
 }

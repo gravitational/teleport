@@ -20,16 +20,17 @@ import React, { useState } from 'react';
 
 import { ButtonBorder } from 'design';
 
-import { apps } from 'teleport/Apps/fixtures';
-import { databases } from 'teleport/Databases/fixtures';
-import { kubes } from 'teleport/Kubes/fixtures';
-import { desktops } from 'teleport/Desktops/fixtures';
-import { nodes } from 'teleport/Nodes/fixtures';
+import { apps, moreApps } from 'teleport/Apps/fixtures';
+import { databases, moreDatabases } from 'teleport/Databases/fixtures';
+import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
+import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
+import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
 
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
@@ -64,11 +65,11 @@ const allResources = [
   ...kubes,
   ...desktops,
   ...nodes,
-  ...apps,
-  ...databases,
-  ...kubes,
-  ...desktops,
-  ...nodes,
+  ...moreApps,
+  ...moreDatabases,
+  ...moreKubes,
+  ...moreDesktops,
+  ...moreNodes,
 ];
 
 const story = ({
@@ -100,6 +101,7 @@ const story = ({
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ACCESSIBLE,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,

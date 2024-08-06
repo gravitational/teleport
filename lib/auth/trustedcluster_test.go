@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -61,7 +60,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err := a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(wantRC, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(wantRC, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Create several tunnel connections.
 	lastHeartbeat := a.clock.Now().UTC()
@@ -92,7 +91,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetLastHeartbeat(tc2.GetLastHeartbeat())
 	gotRC, err = a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the latest connection.
 	require.NoError(t, a.DeleteTunnelConnection(tc2.GetClusterName(), tc2.GetName()))
@@ -105,7 +104,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	gotRC, err = a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the remaining connection
 	require.NoError(t, a.DeleteTunnelConnection(tc1.GetClusterName(), tc1.GetName()))
@@ -117,7 +116,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err = a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestRefreshRemoteClusters(t *testing.T) {
@@ -195,7 +194,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			var updated int
 			for _, cluster := range clusters {
 				old := allClusters[cluster.GetName()]
-				if cmp.Diff(old, cluster, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")) != "" {
+				if cmp.Diff(old, cluster, cmpopts.IgnoreFields(types.Metadata{}, "Revision")) != "" {
 					updated++
 				}
 			}
@@ -401,7 +400,6 @@ func TestValidateTrustedCluster(t *testing.T) {
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { bk.Close() })
 
 	clusterName := "me.localhost"
 	if len(name) != 0 {
@@ -415,17 +413,18 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	authConfig := &InitConfig{
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { a.Close() })
+
+	t.Cleanup(func() {
+		bk.Close()
+		a.Close()
+	})
+
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	_, err = a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)

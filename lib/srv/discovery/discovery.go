@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -138,9 +138,9 @@ type Config struct {
 	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
-	// ServerCredentials are the credentials used to identify the discovery service
+	// GetClientCert returns credentials used to identify the discovery service
 	// to the Access Graph service.
-	ServerCredentials *tls.Config
+	GetClientCert func() (*tls.Certificate, error)
 	// AccessGraphConfig is the configuration for the Access Graph client
 	AccessGraphConfig AccessGraphConfig
 
@@ -327,6 +327,8 @@ type Server struct {
 
 	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
 
+	awsSyncStatus awsSyncStatus
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -358,6 +360,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
+		awsSyncStatus:              awsSyncStatus{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -788,8 +791,8 @@ func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	})
 }
 
-func genGCPInstancesLogStr(instances []*gcp.Instance) string {
-	return genInstancesLogStr(instances, func(i *gcp.Instance) string {
+func genGCPInstancesLogStr(instances []*gcpimds.Instance) string {
+	return genInstancesLogStr(instances, func(i *gcpimds.Instance) string {
 		return i.Name
 	})
 }
@@ -1137,7 +1140,7 @@ func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 		_, nameOK := labels[types.NameLabel]
 		return projectIDOK && zoneOK && nameOK
 	})
-	var filtered []*gcp.Instance
+	var filtered []*gcpimds.Instance
 outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {
@@ -1683,14 +1686,42 @@ func splitMatchers[T types.Matcher](matchers []T, matcherTypeCheck func(string) 
 	return
 }
 
-func (s *Server) updatesEmptyDiscoveryGroup(getter func() (types.ResourceWithLabels, error)) bool {
-	if s.DiscoveryGroup == "" {
-		return false
+func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, getter func() (types.ResourceWithLabels, error)) error {
+	// We can only resolve the error if we have a discovery group configured
+	// and the error is that the resource already exists.
+	if s.DiscoveryGroup == "" || !trace.IsAlreadyExists(createErr) {
+		return trace.Wrap(createErr)
 	}
+
 	old, err := getter()
 	if err != nil {
-		return false
+		return trace.NewAggregate(createErr, err)
 	}
+
+	// Check that the registered resource origin matches the origin we want.
+	oldOrigin, err := types.GetOrigin(old)
+	if err != nil {
+		return trace.NewAggregate(createErr, err)
+	}
+	if oldOrigin != discoveryOrigin {
+		return trace.Wrap(createErr,
+			"not updating because the resource origin indicates that it is not managed by auto-discovery",
+		)
+	}
+
+	// Check that the registered resource's discovery group is blank or matches
+	// this server's discovery group.
+	// We check if the old group is empty because that's a special case where
+	// the old/new groups don't match but we still want to update the resource.
+	// In this way, discovery agents with a discovery_group essentially claim
+	// the resources they discover that used to be (or currently are) discovered
+	// by an agent that did not have a discovery_group configured.
 	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
-	return oldDiscoveryGroup == ""
+	if oldDiscoveryGroup != "" && oldDiscoveryGroup != s.DiscoveryGroup {
+		return trace.Wrap(createErr,
+			"not updating because the resource is in a different discovery group",
+		)
+	}
+
+	return nil
 }

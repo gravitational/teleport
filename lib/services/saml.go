@@ -41,6 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type SAMLConnectorGetter interface {
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+}
+
+const ErrMsgHowToFixMissingPrivateKey = "You must either specify the singing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove singing_key_pair in the resource you're trying to create)."
+
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
 func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
@@ -299,9 +305,6 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.Wrap(err)
 		}
 
-		if cfg.ID != 0 {
-			c.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			c.SetRevision(cfg.Revision)
 		}
@@ -328,8 +331,28 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 
 	switch samlConnector := samlConnector.(type) {
 	case *types.SAMLConnectorV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, samlConnector))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, samlConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}
+}
+
+// FillSAMLSigningKeyFromExisting looks up the existing SAML connector and populates the signing key if it's missing.
+// This must be called only if the SAML Connector signing key pair has been initialized (ValidateSAMLConnector) and
+// the private key is still empty.
+func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
+	existing, err := sg.GetSAMLConnector(ctx, connector.GetName(), true /* with secrets */)
+	switch {
+	case trace.IsNotFound(err):
+		return trace.BadParameter("failed to create SAML connector, the SAML connector has no signing key set. " + ErrMsgHowToFixMissingPrivateKey)
+	case err != nil:
+		return trace.BadParameter("failed to update SAML connector, the SAML connector has no signing key set and looking up the existing connector failed with the error: %s. %s", err.Error(), ErrMsgHowToFixMissingPrivateKey)
+	}
+
+	existingSkp := existing.GetSigningKeyPair()
+	if existingSkp == nil || existingSkp.Cert != connector.GetSigningKeyPair().Cert {
+		return trace.BadParameter("failed to update the SAML connector, the SAML connector has no signing key and its signing certificate does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
+	}
+	connector.SetSigningKeyPair(existingSkp)
+	return nil
 }

@@ -39,7 +39,8 @@ type Event struct {
 //   - Suffix code with one of these letters: I (info), W (warn), E (error).
 //
 // After defining an event code, make sure to keep
-// `web/packages/teleport/src/services/audit/types.ts` in sync.
+// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
+// entry in the `eventsMap` in `lib/events/events_test.go`.
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -161,6 +162,8 @@ const (
 	DatabaseSessionUserDeactivateCode = "TDB09I"
 	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
 	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
+	// DatabaseSessionCommandResultCode is the db.session.result event code.
+	DatabaseSessionCommandResultCode = "TDB10I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -607,6 +610,10 @@ const (
 	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
 	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
 	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
+	// SPIFFEFederationCreateCode is the SPIFFE Federation created code.
+	SPIFFEFederationCreateCode = "TSPIFFE001I"
+	// SPIFFEFederationDeleteCode is the SPIFFE Federation deleted code.
+	SPIFFEFederationDeleteCode = "TSPIFFE002I"
 
 	// AuthPreferenceUpdateCode is the auth preference updated event code.
 	AuthPreferenceUpdateCode = "TCAUTH001I"
@@ -614,9 +621,27 @@ const (
 	ClusterNetworkingConfigUpdateCode = "TCNET002I"
 	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
 	SessionRecordingConfigUpdateCode = "TCREC003I"
+	// AccessGraphSettingsUpdateCode is the access graph settings updated event code.
+	AccessGraphSettingsUpdateCode = "TCAGC003I"
 
 	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
 	AccessGraphAccessPathChangedCode = "TAG001I"
+
+	// DiscoveryConfigCreateCode is the discovery config created event code.
+	DiscoveryConfigCreateCode = "DC001I"
+	// DiscoveryConfigUpdateCode is the discovery config updated event code.
+	DiscoveryConfigUpdateCode = "DC002I"
+	// DiscoveryConfigDeleteCode is the discovery config delete event code.
+	DiscoveryConfigDeleteCode = "DC003I"
+	// DiscoveryConfigDeleteAllCode is the discovery config delete all event code.
+	DiscoveryConfigDeleteAllCode = "DC004I"
+
+	// IntegrationCreateCode is the integration resource create event code.
+	IntegrationCreateCode = "IG001I"
+	// IntegrationUpdateCode is the integration resource update event code.
+	IntegrationUpdateCode = "IG002I"
+	// IntegrationDeleteCode is the integration resource delete event code.
+	IntegrationDeleteCode = "IG003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

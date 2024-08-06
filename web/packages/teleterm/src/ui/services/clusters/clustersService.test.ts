@@ -105,6 +105,35 @@ test('add cluster', async () => {
   );
 });
 
+test('add cluster does not overwrite the existing cluster', async () => {
+  const { addCluster } = getClientMocks();
+  const service = createService({
+    addCluster,
+  });
+  service.state.clusters.set(clusterUri, {
+    ...clusterMock,
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: true },
+  });
+
+  await service.addRootCluster(clusterUri);
+
+  expect(addCluster).toHaveBeenCalledWith({ name: clusterUri });
+  expect(service.state.clusters).toStrictEqual(
+    new Map([
+      [
+        clusterUri,
+        {
+          ...clusterMock,
+          features: {
+            advancedAccessWorkflows: true,
+            isUsageBasedBilling: true,
+          },
+        },
+      ],
+    ])
+  );
+});
+
 test('remove cluster', async () => {
   const { removeGateway } = getClientMocks();
   const service = createService({ removeGateway });

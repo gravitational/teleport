@@ -172,36 +172,106 @@ func TestParseMetadataClientError(t *testing.T) {
 	}
 }
 
+func TestGetInstanceInfo(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                 string
+		statusCode           int
+		body                 []byte
+		expectedInstanceInfo *InstanceInfo
+		errAssertion         require.ErrorAssertionFunc
+	}{
+		{
+			name:       "with resource ID",
+			statusCode: http.StatusOK,
+			body:       []byte(`{"resourceId":"test-id"}`),
+			expectedInstanceInfo: &InstanceInfo{
+				ResourceID: "test-id",
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:       "all fields",
+			statusCode: http.StatusOK,
+			body: []byte(`{"resourceId":"test-id", "location":"eastus", "resourceGroupName":"TestGroup", ` +
+				`"subscriptionId": "5187AF11-3581-4AB6-A654-59405CD40C44", "vmId":"ED7DAC09-6E73-447F-BD18-AF4D1196C1E4"}`),
+			expectedInstanceInfo: &InstanceInfo{
+				ResourceID:        "test-id",
+				Location:          "eastus",
+				ResourceGroupName: "TestGroup",
+				SubscriptionID:    "5187AF11-3581-4AB6-A654-59405CD40C44",
+				VMID:              "ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:       "request error",
+			statusCode: http.StatusNotFound,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "not found")
+			},
+		},
+		{
+			name:       "empty body returns an error",
+			statusCode: http.StatusOK,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error found in #0 byte")
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.statusCode)
+				w.Write(tc.body)
+			}))
+
+			client := NewInstanceMetadataClient(WithBaseURL(server.URL))
+			instanceInfo, err := client.GetInstanceInfo(context.Background())
+			tc.errAssertion(t, err)
+			if tc.expectedInstanceInfo != nil {
+				require.Equal(t, tc.expectedInstanceInfo, instanceInfo)
+			}
+		})
+	}
+}
+
 func TestGetInstanceID(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name               string
-		stausCode          int
+		statusCode         int
 		body               []byte
 		expectedResourceID string
 		errAssertion       require.ErrorAssertionFunc
 	}{
 		{
 			name:               "with resource ID",
-			stausCode:          http.StatusOK,
+			statusCode:         http.StatusOK,
 			body:               []byte(`{"resourceId":"test-id"}`),
 			expectedResourceID: "test-id",
 			errAssertion:       require.NoError,
 		},
 		{
 			name:         "with error",
-			stausCode:    http.StatusOK,
+			statusCode:   http.StatusOK,
 			body:         []byte(`{"error":"test-error"}`),
 			errAssertion: require.Error,
 		},
 		{
-			name:         "request error",
-			stausCode:    http.StatusNotFound,
-			errAssertion: require.Error,
+			name:       "request error",
+			statusCode: http.StatusNotFound,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "not found")
+			},
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(tc.statusCode)
 				w.Write(tc.body)
 			}))
 

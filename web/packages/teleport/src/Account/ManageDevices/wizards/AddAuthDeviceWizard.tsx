@@ -24,7 +24,6 @@ import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import Text from 'design/Text';
 import React, { useState, useEffect, FormEvent } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -37,6 +36,8 @@ import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import Box from 'design/Box';
 
 import { StepHeader } from 'design/StepSlider';
+
+import { P } from 'design/Text/Text';
 
 import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
@@ -276,7 +277,7 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
       gap={4}
       p={4}
       mb={4}
-      bg="interactive.tonal.neutral.0"
+      bg="interactive.tonal.neutral.0.background"
     >
       <Flex height="168px" justifyContent="center" alignItems="center">
         {fetchQrCodeAttempt.status === 'error' && (
@@ -297,9 +298,9 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
           />
         )}
       </Flex>
-      <Text typography="body1" textAlign="center" mt={2}>
+      <P textAlign="center" mt={2}>
         Scan the QR Code with any authenticator app.
-      </Text>
+      </P>
     </Flex>
   );
 }

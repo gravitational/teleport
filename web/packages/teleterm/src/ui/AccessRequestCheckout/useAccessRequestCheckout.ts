@@ -22,27 +22,30 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
-  ReviewerOption,
   getDryRunMaxDuration,
+  PendingListItem,
 } from 'shared/components/AccessRequests/NewRequest';
+import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
-import { Option } from 'shared/components/Select';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
+import {
+  PendingAccessRequest,
+  extractResourceRequestProperties,
+  ResourceRequest,
+} from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
 
+import { routing } from 'teleterm/ui/uri';
+
 import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
-
-import type { AccessRequest } from 'shared/services/accessRequests';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
@@ -52,33 +55,28 @@ export default function useAccessRequestCheckout() {
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
-  // Contains max time options (to calculate max duration and requestTTL options)
-  // and suggested reviewers that were available both statically (from roles)
-  // and dynamically (from access lists).
-  const [dryRunResponse, setDryRunResponse] = useState<AccessRequest | null>();
-  // The reviewers defined in the users roles (static) and access list owners
-  // (dynamic).
-  const [suggestedReviewers, setSuggestedReviewers] = useState<string[]>([]);
-  // User selected reviewers from suggested reviewers options and/or
-  // any other reviewers they manually added.
-  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
-    []
-  );
-
-  // Access request lifetime upon creation.
-  // Duration countdown starts from access request creation.
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
-  // How long the request can be in a PENDING state before it expires.
-  const [requestTTL, setRequestTTL] = useState<Option<number>>();
+  const {
+    selectedReviewers,
+    setSelectedReviewers,
+    resourceRequestRoles,
+    setResourceRequestRoles,
+    selectedResourceRequestRoles,
+    setSelectedResourceRequestRoles,
+    maxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
+    dryRunResponse,
+    onDryRunChange,
+    startTime,
+    onStartTimeChange,
+  } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
   const [requestedCount, setRequestedCount] = useState(0);
-  const [resourceRequestRoles, setResourceRequestRoles] = useState<string[]>(
-    []
-  );
-  const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
-    useState<string[]>([]);
 
   const { attempt: createRequestAttempt, setAttempt: setCreateRequestAttempt } =
     useAttempt('');
@@ -93,33 +91,38 @@ export default function useAccessRequestCheckout() {
     workspaceAccessRequest?.getPendingAccessRequest();
 
   useEffect(() => {
-    // Do a new dry run per checkout to get the latest time options
-    // and latest calculated suggested reviewers.
-    if (showCheckout) {
+    // Do a new dry run per changes to pending data
+    // to get the latest time options and latest calculated
+    // suggested reviewers.
+    // Options and reviewers can change depending on the selected
+    // roles or resources.
+    if (showCheckout && requestedCount == 0) {
       performDryRun();
     }
-  }, [showCheckout]);
+  }, [showCheckout, pendingAccessRequest]);
 
   useEffect(() => {
-    if (!pendingAccessRequest) {
+    if (!pendingAccessRequest || requestedCount > 0) {
       return;
     }
 
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     runFetchResourceRoles(() =>
-      retryWithRelogin(ctx, clusterUri, () =>
-        ctx.clustersService.getRequestableRoles({
+      retryWithRelogin(ctx, clusterUri, async () => {
+        const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
           resourceIds: data
             .filter(d => d.kind !== 'role')
             .map(d => ({
-              name: d.name,
+              // We have to use id, not name.
+              // These fields are the same for all resources except servers,
+              // where id is UUID and name is the hostname.
+              name: d.id,
               kind: d.kind,
               clusterName: d.clusterName,
               subResourceName: '',
             })),
-        })
-      ).then(response => {
+        });
         setResourceRequestRoles(response.applicableRoles);
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
@@ -138,29 +141,48 @@ export default function useAccessRequestCheckout() {
     ) {
       clearCreateAttempt();
       setRequestedCount(0);
-      setDryRunResponse(null);
+      onDryRunChange(null /* set dryRunResponse to null */);
     }
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
   function getPendingAccessRequestsPerResource(
-    resourceIds: PendingAccessRequest
-  ) {
-    const data: {
-      kind: ResourceKind;
-      clusterName: string;
-      id: string;
-      name: string;
-    }[] = [];
+    pendingRequest: PendingAccessRequest
+  ): PendingListItemWithOriginalItem[] {
+    const data: PendingListItemWithOriginalItem[] = [];
     if (!workspaceAccessRequest) {
       return data;
     }
-    const clusterName = ctx.clustersService.findCluster(clusterUri)?.name;
-    const resourceKeys = Object.keys(resourceIds) as ResourceKind[];
-    resourceKeys.forEach(kind => {
-      Object.keys(resourceIds[kind]).forEach(id => {
-        data.push({ kind, id, name: resourceIds[kind][id], clusterName });
-      });
-    });
+
+    switch (pendingRequest.kind) {
+      case 'role': {
+        const clusterName =
+          ctx.clustersService.findCluster(rootClusterUri)?.name;
+        pendingRequest.roles.forEach(role => {
+          data.push({
+            kind: 'role',
+            id: role,
+            name: role,
+            clusterName,
+          });
+        });
+        break;
+      }
+      case 'resource': {
+        pendingRequest.resources.forEach(resourceRequest => {
+          const { kind, id, name } =
+            extractResourceRequestProperties(resourceRequest);
+          data.push({
+            kind,
+            id,
+            name,
+            originalItem: resourceRequest,
+            clusterName: ctx.clustersService.findClusterByResource(
+              resourceRequest.resource.uri
+            )?.name,
+          });
+        });
+      }
+    }
     return data;
   }
 
@@ -171,12 +193,17 @@ export default function useAccessRequestCheckout() {
     return workspaceAccessRequest.getCollapsed();
   }
 
-  function toggleResource(
-    kind: ResourceKind,
-    resourceId: string,
-    resourceName: string
+  async function toggleResource(
+    pendingListItem: PendingListItemWithOriginalItem
   ) {
-    workspaceAccessRequest.addOrRemoveResource(kind, resourceId, resourceName);
+    if (pendingListItem.kind === 'role') {
+      await workspaceAccessRequest.addOrRemoveRole(pendingListItem.id);
+      return;
+    }
+
+    await workspaceAccessRequest.addOrRemoveResource(
+      pendingListItem.originalItem
+    );
   }
 
   function getAssumedRequests() {
@@ -247,18 +274,7 @@ export default function useAccessRequestCheckout() {
     setCreateRequestAttempt({ status: '' });
 
     const accessRequest = makeUiAccessRequest(teletermAccessRequest);
-    setDryRunResponse(accessRequest);
-
-    const reviewers = accessRequest.reviewers.map(r => r.name).sort();
-    setSuggestedReviewers(reviewers);
-    // Initially select suggested reviewers for the requestor.
-    setSelectedReviewers(
-      reviewers.map(r => ({
-        value: r,
-        label: r,
-        isSelected: true,
-      }))
-    );
+    onDryRunChange(accessRequest);
   }
 
   async function createRequest(req: CreateRequest) {
@@ -310,12 +326,19 @@ export default function useAccessRequestCheckout() {
     }
   }
 
+  const shouldShowClusterNameColumn =
+    pendingAccessRequest?.kind === 'resource' &&
+    Array.from(pendingAccessRequest.resources.values()).some(a =>
+      routing.isLeafCluster(a.resource.uri)
+    );
+
   return {
     showCheckout,
     isCollapsed,
     assumedRequests: getAssumedRequests(),
     toggleResource,
     data: getPendingAccessRequestsPerResource(pendingAccessRequest),
+    shouldShowClusterNameColumn,
     createRequest,
     reset,
     setHasExited,
@@ -331,13 +354,27 @@ export default function useAccessRequestCheckout() {
     createRequestAttempt,
     collapseBar,
     setShowCheckout,
-    suggestedReviewers,
     selectedReviewers,
     setSelectedReviewers,
     dryRunResponse,
     maxDuration,
-    setMaxDuration,
-    requestTTL,
-    setRequestTTL,
+    onMaxDurationChange,
+    maxDurationOptions,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
+    startTime,
+    onStartTimeChange,
   };
 }
+
+type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
+  (
+    | {
+        kind: Exclude<ResourceKind, 'role'>;
+        originalItem: ResourceRequest;
+      }
+    | {
+        kind: 'role';
+      }
+  );

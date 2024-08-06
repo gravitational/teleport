@@ -64,8 +64,11 @@ export type UpsertNotificationStateRequest = {
 export type Notification = {
   /** id is the uuid of this notification */
   id: string;
-  /* subKind is a string which represents which type of notification this is, ie. "access-request-approved" */
-  subKind: NotificationSubKind;
+  /* subKind is a string which represents which type of notification this is, ie. "access-request-approved"*/
+  subKind:
+    | NotificationSubKind
+    | LocalNotificationKind
+    | LocalNotificationGroupedKind;
   /** createdDate is when the notification was created. */
   createdDate: Date;
   /** clicked is whether this notification has been clicked on by this user. */
@@ -74,6 +77,11 @@ export type Notification = {
   labels: Label[];
   /** title is the title of this notification. This can be overwritten in notificationContentFactory if needed. */
   title: string;
+  /** localNotification is whether this is a notification stored in a frontend store as opposed to a "real" notification
+   * from the notifications system. The reason for this is that some notification types (such as access lists) are not supported
+   * by the backend notifications system, and are instead generated entirely on the frontend.
+   */
+  localNotification?: boolean;
 };
 
 /** NotificationSubKind is the subkind of notifications, these should be kept in sync with the values in api/types/constants.go */
@@ -85,6 +93,19 @@ export enum NotificationSubKind {
   AccessRequestPending = 'access-request-pending',
   AccessRequestApproved = 'access-request-approved',
   AccessRequestDenied = 'access-request-denied',
+  AccessRequestPromoted = 'access-request-promoted',
+}
+
+/** LocalNotificationKind is the kind of local notifications which are generated on the frontend and not stored in the backend. These do not need to be kept in sync with the backend. */
+export enum LocalNotificationKind {
+  /** AccessList is a notification for an access list reminder. */
+  AccessList = 'access-list',
+}
+
+/** LocalNotificationGroupedKind is the kind of groupings of local notifications. These do not need to be kept in sync with the backend. */
+export enum LocalNotificationGroupedKind {
+  /** AccessListGrouping is a notification which combines the notifications for multiple access list reminders into one to reduce clutter. */
+  AccessListGrouping = 'access-list-grouping',
 }
 
 /**

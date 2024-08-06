@@ -1,23 +1,37 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`active sessions CTA 1`] = `
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c30 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
+.c33 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
+.c14 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
 .c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-}
-
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c9 {
-  box-sizing: border-box;
-  width: 340px;
-}
-
-.c11 {
   box-sizing: border-box;
 }
 
@@ -38,14 +52,21 @@ exports[`active sessions CTA 1`] = `
   margin-right: 8px;
 }
 
-.c10 {
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -54,32 +75,52 @@ exports[`active sessions CTA 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   padding-top: 12px;
   padding-bottom: 12px;
   width: 100%;
   height: 36px;
 }
 
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c10:active {
-  background: #C5B6FF;
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c10:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
+}
+
+.c8:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -90,7 +131,8 @@ exports[`active sessions CTA 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -99,29 +141,110 @@ exports[`active sessions CTA 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c32:focus-visible,
+.teleport-button__force-focus-visible .c32 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c32:hover,
-.c32:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c32 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c32:active {
-  background: rgba(255,255,255,0.13);
+.c32:active,
+.teleport-button__force-active .c32 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c32:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
+  -webkit-font-smoothing: antialiased;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
+}
+
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c13:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -143,12 +266,12 @@ exports[`active sessions CTA 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .c25:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -179,11 +302,11 @@ exports[`active sessions CTA 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
+  margin-left: 0;
 }
 
 .c27:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -196,59 +319,37 @@ exports[`active sessions CTA 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c13 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c30 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  padding: 4px;
-}
-
-.c33 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.72);
-  margin-left: 4px;
-}
-
-.c7 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 32px;
-  margin: 0px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
+  margin: 0;
   font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
   margin-right: 4px;
-  font-weight: 500;
 }
 
 .c1 {
   display: flex;
 }
 
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c12 {
+.c9 {
   display: flex;
   align-items: center;
 }
@@ -259,17 +360,19 @@ exports[`active sessions CTA 1`] = `
   justify-content: flex-end;
 }
 
-.c5 {
+.c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
+  align-items: center;
 }
 
-.c8 {
+.c7 {
   white-space: nowrap;
 }
 
@@ -277,6 +380,8 @@ exports[`active sessions CTA 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -284,7 +389,7 @@ exports[`active sessions CTA 1`] = `
   padding-bottom: 24px;
 }
 
-.c14 {
+.c11 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
@@ -299,42 +404,43 @@ exports[`active sessions CTA 1`] = `
   width: 100%;
 }
 
-.c28 > thead > tr > th,
-.c28 > tbody > tr > th,
-.c28 > tfoot > tr > th,
-.c28 > thead > tr > td,
-.c28 > tbody > tr > td,
-.c28 > tfoot > tr > td {
+.c28>thead>tr>th,
+.c28>tbody>tr>th,
+.c28>tfoot>tr>th,
+.c28>thead>tr>td,
+.c28>tbody>tr>td,
+.c28>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c28 > thead > tr > th:first-child,
-.c28 > tbody > tr > th:first-child,
-.c28 > tfoot > tr > th:first-child,
-.c28 > thead > tr > td:first-child,
-.c28 > tbody > tr > td:first-child,
-.c28 > tfoot > tr > td:first-child {
+.c28>thead>tr>th:first-child,
+.c28>tbody>tr>th:first-child,
+.c28>tfoot>tr>th:first-child,
+.c28>thead>tr>td:first-child,
+.c28>tbody>tr>td:first-child,
+.c28>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c28 > thead > tr > th:last-child,
-.c28 > tbody > tr > th:last-child,
-.c28 > tfoot > tr > th:last-child,
-.c28 > thead > tr > td:last-child,
-.c28 > tbody > tr > td:last-child,
-.c28 > tfoot > tr > td:last-child {
+.c28>thead>tr>th:last-child,
+.c28>tbody>tr>th:last-child,
+.c28>tfoot>tr>th:last-child,
+.c28>thead>tr>td:last-child,
+.c28>tbody>tr>td:last-child,
+.c28>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c28 > tbody > tr > td {
+.c28>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c28 > thead > tr > th {
+.c28>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -343,11 +449,11 @@ exports[`active sessions CTA 1`] = `
   white-space: nowrap;
 }
 
-.c28 > thead > tr > th svg {
+.c28>thead>tr>th svg {
   height: 12px;
 }
 
-.c28 > tbody > tr > td {
+.c28>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -359,10 +465,6 @@ exports[`active sessions CTA 1`] = `
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c28 tbody tr:hover {
@@ -371,7 +473,7 @@ exports[`active sessions CTA 1`] = `
 }
 
 .c28 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -381,7 +483,7 @@ exports[`active sessions CTA 1`] = `
   height: 100%;
 }
 
-.c28 tbody tr:hover + tr {
+.c28 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -390,9 +492,9 @@ exports[`active sessions CTA 1`] = `
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 0 0 16px 0;
   max-height: 40px;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
 .c26 svg {
@@ -437,15 +539,14 @@ exports[`active sessions CTA 1`] = `
 .c16 {
   border-radius: 200px;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 40px;
 }
 
 .c18 {
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: 16px;
+  font-size: 14px;
   width: 100%;
   transition: all 0.2s;
   padding-left: 16px;
@@ -456,12 +557,12 @@ exports[`active sessions CTA 1`] = `
   padding-left: 24px;
 }
 
-.c29 tbody > tr > td {
+.c29 tbody>tr>td {
   vertical-align: middle;
 }
 
 @media screen and (max-width:800px) {
-  .c6 {
+  .c5 {
     flex-direction: column;
     height: auto;
     gap: 10px;
@@ -475,32 +576,31 @@ exports[`active sessions CTA 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5 c6"
+    class="c0 c3 c4 c5"
   >
-    <div
-      class="c7 c8"
+    <h1
+      class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
     <div
-      class="c9"
-      width="340px"
+      class="c0"
     >
       <a
-        class="c10"
+        class="c8"
+        fill="filled"
         height="36px"
-        href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
-        kind="primary"
+        href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
         rel="noreferrer"
         style="text-transform: none;"
         target="blank"
         width="100%"
       >
         <div
-          class="c11 c12"
+          class="c0 c9"
         >
           <span
-            class="c13 c14"
+            class="c10 c11"
             data-testid="locked-icon"
           >
             <svg
@@ -522,8 +622,37 @@ exports[`active sessions CTA 1`] = `
     </div>
   </div>
   <div
-    class="c3"
-  />
+    class="c12 c9"
+  >
+    <div
+      class="c0 c1"
+    >
+      <button
+        class="c13"
+        fill="filled"
+      >
+        Cluster: 
+        teleport.example.sh
+        <span
+          class="c14 icon icon-chevrondown"
+          color="text.slightlyMuted"
+        >
+          <svg
+            fill="currentColor"
+            height="16"
+            viewBox="0 0 24 24"
+            width="16"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </button>
+    </div>
+  </div>
   <nav
     class="c15"
   >
@@ -547,86 +676,85 @@ exports[`active sessions CTA 1`] = `
         </div>
       </div>
     </div>
-  </nav>
-  <div
-    class="c21 c22"
-    width="100%"
-  >
     <div
-      class="c23 c1"
+      class="c21 c22"
+      width="100%"
     >
       <div
-        class="c24"
-        font-weight="500"
-        style="white-space: nowrap; letter-spacing: 0.15px;"
+        class="c23 c1"
       >
-        Showing 
-        <strong>
-          1
-        </strong>
-         - 
-        <strong>
-          7
-        </strong>
-         of
-         
-        <strong>
-          7
-        </strong>
+        <div
+          class="c24"
+          style="white-space: nowrap;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c0 c1"
+      >
+        <button
+          class="c25 c26"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c10 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c27 c26"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c10 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
       </div>
     </div>
-    <div
-      class="c11 c1"
-    >
-      <button
-        class="c25 c26"
-        disabled=""
-        title="Previous page"
-      >
-        <span
-          class="c13 icon icon-circlearrowleft"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c27 c26"
-        disabled=""
-        title="Next page"
-      >
-        <span
-          class="c13 icon icon-circlearrowright"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-    </div>
-  </div>
+  </nav>
   <table
     class="c28 c29"
   >
@@ -638,7 +766,7 @@ exports[`active sessions CTA 1`] = `
           >
             Type
             <span
-              class="c13 icon icon-chevronsvertical"
+              class="c10 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -663,7 +791,7 @@ exports[`active sessions CTA 1`] = `
           >
             Name
             <span
-              class="c13 icon icon-chevronsvertical"
+              class="c10 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -703,7 +831,7 @@ exports[`active sessions CTA 1`] = `
           >
             Duration
             <span
-              class="c13 icon icon-chevronup"
+              class="c10 icon icon-chevronup"
               title="sort items asc"
             >
               <svg
@@ -810,7 +938,7 @@ exports[`active sessions CTA 1`] = `
           >
             <button
               class="c32"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -878,7 +1006,7 @@ exports[`active sessions CTA 1`] = `
           >
             <button
               class="c32"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -946,7 +1074,7 @@ exports[`active sessions CTA 1`] = `
           >
             <button
               class="c32"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -1095,50 +1223,158 @@ exports[`active sessions CTA 1`] = `
       </tr>
     </tbody>
   </table>
+  <nav
+    class="c15"
+  >
+    <div
+      class="c21 c22"
+      width="100%"
+    >
+      <div
+        class="c23 c1"
+      >
+        <div
+          class="c24"
+          style="white-space: nowrap;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c0 c1"
+      >
+        <button
+          class="c25 c26"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c10 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c27 c26"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c10 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+  </nav>
 </div>
 `;
 
 exports[`loaded 1`] = `
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
+.c31 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c27 {
+.c29 {
   box-sizing: border-box;
   width: 80px;
   text-align: center;
 }
 
-.c15 {
+.c18 {
   box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c17 {
+.c20 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c19 {
+.c8 {
   box-sizing: border-box;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
-.c28 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1147,172 +1383,238 @@ exports[`loaded 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
 }
 
-.c28:hover,
-.c28:focus {
-  background: rgba(255,255,255,0.07);
+.c30:focus-visible,
+.teleport-button__force-focus-visible .c30 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c28:active {
-  background: rgba(255,255,255,0.13);
+.c30:hover,
+.teleport-button__force-hover .c30 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c28:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+.c30:active,
+.teleport-button__force-active .c30 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c30:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
-.c20 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
   justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c20:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c20:not(:disabled):hover,
-.c20:not(:disabled):focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c20:not(:disabled):active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c23 {
   align-items: center;
-  border: none;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
   cursor: pointer;
-  display: flex;
+  font-family: inherit;
+  font-weight: 600;
   outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
+  position: relative;
   text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
 }
 
-.c23:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
+.c10:focus-visible,
+.teleport-button__force-focus-visible .c10 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c23:not(:disabled):hover,
-.c23:not(:disabled):focus {
-  background: rgba(255,255,255,0.13);
+.c10:hover,
+.teleport-button__force-hover .c10 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c23:not(:disabled):active {
-  background: rgba(255,255,255,0.18);
+.c10:active,
+.teleport-button__force-active .c10 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c10:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
 }
 
 .c22 {
-  display: inline-flex;
   align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
   justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  padding: 4px;
+.c22:disabled {
+  color: rgba(255, 255, 255, 0.36);
+  cursor: default;
 }
 
-.c29 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.72);
-  margin-left: 4px;
+.c22:not(:disabled):hover,
+.c22:not(:disabled):focus {
+  background: rgba(255,255,255,0.13);
 }
 
-.c7 {
+.c22:not(:disabled):active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c25 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0;
+}
+
+.c25:disabled {
+  color: rgba(255, 255, 255, 0.36);
+  cursor: default;
+}
+
+.c25:not(:disabled):hover,
+.c25:not(:disabled):focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c25:not(:disabled):active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
+  margin: 0;
   font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 4px;
 }
 
 .c1 {
   display: flex;
 }
 
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c16 {
+.c19 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
 }
 
-.c5 {
+.c9 {
+  display: flex;
+  align-items: center;
+}
+
+.c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
+  align-items: center;
 }
 
-.c8 {
+.c7 {
   white-space: nowrap;
 }
 
@@ -1320,6 +1622,8 @@ exports[`loaded 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -1327,7 +1631,7 @@ exports[`loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c24 {
+.c26 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -1335,42 +1639,43 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c26>thead>tr>th,
+.c26>tbody>tr>th,
+.c26>tfoot>tr>th,
+.c26>thead>tr>td,
+.c26>tbody>tr>td,
+.c26>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c26>thead>tr>th:first-child,
+.c26>tbody>tr>th:first-child,
+.c26>tfoot>tr>th:first-child,
+.c26>thead>tr>td:first-child,
+.c26>tbody>tr>td:first-child,
+.c26>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c26>thead>tr>th:last-child,
+.c26>tbody>tr>th:last-child,
+.c26>tfoot>tr>th:last-child,
+.c26>thead>tr>td:last-child,
+.c26>tbody>tr>td:last-child,
+.c26>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c26>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c26>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -1379,11 +1684,11 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th svg {
+.c26>thead>tr>th svg {
   height: 12px;
 }
 
-.c24 > tbody > tr > td {
+.c26>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -1391,23 +1696,19 @@ exports[`loaded 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c24 tbody tr {
+.c26 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
-.c24 tbody tr:hover {
+.c26 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c24 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+.c26 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -1417,29 +1718,29 @@ exports[`loaded 1`] = `
   height: 100%;
 }
 
-.c24 tbody tr:hover + tr {
+.c26 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c9 {
+.c12 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 0 0 16px 0;
   max-height: 40px;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
-.c21 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c21 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c14 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -1449,7 +1750,7 @@ exports[`loaded 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c13 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -1460,7 +1761,7 @@ exports[`loaded 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c11 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -1470,18 +1771,17 @@ exports[`loaded 1`] = `
   max-width: 725px;
 }
 
-.c10 {
+.c13 {
   border-radius: 200px;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 40px;
 }
 
-.c12 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: 16px;
+  font-size: 14px;
   width: 100%;
   transition: all 0.2s;
   padding-left: 16px;
@@ -1492,12 +1792,12 @@ exports[`loaded 1`] = `
   padding-left: 24px;
 }
 
-.c25 tbody > tr > td {
+.c27 tbody>tr>td {
   vertical-align: middle;
 }
 
 @media screen and (max-width:800px) {
-  .c6 {
+  .c5 {
     flex-direction: column;
     height: auto;
     gap: 10px;
@@ -1511,122 +1811,150 @@ exports[`loaded 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5 c6"
+    class="c0 c3 c4 c5"
   >
-    <div
-      class="c7 c8"
+    <h1
+      class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
   </div>
   <div
-    class="c3"
-  />
-  <nav
-    class="c9"
+    class="c8 c9"
   >
     <div
-      class="c10"
+      class="c0 c1"
+    >
+      <button
+        class="c10"
+        fill="filled"
+      >
+        Cluster: 
+        teleport.example.sh
+        <span
+          class="c11 icon icon-chevrondown"
+          color="text.slightlyMuted"
+        >
+          <svg
+            fill="currentColor"
+            height="16"
+            viewBox="0 0 24 24"
+            width="16"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </button>
+    </div>
+  </div>
+  <nav
+    class="c12"
+  >
+    <div
+      class="c13"
     >
       <div
-        class="c11"
+        class="c14"
       >
         <input
-          class="c12"
+          class="c15"
           placeholder="Search..."
           value=""
         />
         <div
-          class="c13"
+          class="c16"
         >
           <div
-            class="c14"
+            class="c17"
           />
         </div>
       </div>
     </div>
-  </nav>
-  <div
-    class="c15 c16"
-    width="100%"
-  >
     <div
-      class="c17 c1"
+      class="c18 c19"
+      width="100%"
     >
       <div
-        class="c18"
-        font-weight="500"
-        style="white-space: nowrap; letter-spacing: 0.15px;"
+        class="c20 c1"
       >
-        Showing 
-        <strong>
-          1
-        </strong>
-         - 
-        <strong>
-          7
-        </strong>
-         of
-         
-        <strong>
-          7
-        </strong>
+        <div
+          class="c21"
+          style="white-space: nowrap;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c0 c1"
+      >
+        <button
+          class="c22 c23"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c24 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c25 c23"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c24 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
       </div>
     </div>
-    <div
-      class="c19 c1"
-    >
-      <button
-        class="c20 c21"
-        disabled=""
-        title="Previous page"
-      >
-        <span
-          class="c22 icon icon-circlearrowleft"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c23 c21"
-        disabled=""
-        title="Next page"
-      >
-        <span
-          class="c22 icon icon-circlearrowright"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-    </div>
-  </div>
+  </nav>
   <table
-    class="c24 c25"
+    class="c26 c27"
   >
     <thead>
       <tr>
@@ -1636,7 +1964,7 @@ exports[`loaded 1`] = `
           >
             Type
             <span
-              class="c22 icon icon-chevronsvertical"
+              class="c24 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -1661,7 +1989,7 @@ exports[`loaded 1`] = `
           >
             Name
             <span
-              class="c22 icon icon-chevronsvertical"
+              class="c24 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -1701,7 +2029,7 @@ exports[`loaded 1`] = `
           >
             Duration
             <span
-              class="c22 icon icon-chevronup"
+              class="c24 icon icon-chevronup"
               title="sort items asc"
             >
               <svg
@@ -1728,7 +2056,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-kubernetes"
+            class="c28 icon icon-kubernetes"
           >
             <svg
               fill="currentColor"
@@ -1767,7 +2095,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-cli"
+            class="c28 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -1803,16 +2131,16 @@ exports[`loaded 1`] = `
           height="26px"
         >
           <div
-            class="c27"
+            class="c29"
             width="80px"
           >
             <button
-              class="c28"
-              kind="border"
+              class="c30"
+              fill="border"
             >
               Join
               <span
-                class="c29 icon icon-chevrondown"
+                class="c31 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1835,7 +2163,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-cli"
+            class="c28 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -1871,16 +2199,16 @@ exports[`loaded 1`] = `
           height="26px"
         >
           <div
-            class="c27"
+            class="c29"
             width="80px"
           >
             <button
-              class="c28"
-              kind="border"
+              class="c30"
+              fill="border"
             >
               Join
               <span
-                class="c29 icon icon-chevrondown"
+                class="c31 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1903,7 +2231,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-cli"
+            class="c28 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -1939,16 +2267,16 @@ exports[`loaded 1`] = `
           height="26px"
         >
           <div
-            class="c27"
+            class="c29"
             width="80px"
           >
             <button
-              class="c28"
-              kind="border"
+              class="c30"
+              fill="border"
             >
               Join
               <span
-                class="c29 icon icon-chevrondown"
+                class="c31 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1971,7 +2299,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-desktop"
+            class="c28 icon icon-desktop"
           >
             <svg
               fill="currentColor"
@@ -2010,7 +2338,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-database"
+            class="c28 icon icon-database"
           >
             <svg
               fill="currentColor"
@@ -2049,7 +2377,7 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-application"
+            class="c28 icon icon-application"
           >
             <svg
               fill="currentColor"
@@ -2093,50 +2421,158 @@ exports[`loaded 1`] = `
       </tr>
     </tbody>
   </table>
+  <nav
+    class="c12"
+  >
+    <div
+      class="c18 c19"
+      width="100%"
+    >
+      <div
+        class="c20 c1"
+      >
+        <div
+          class="c21"
+          style="white-space: nowrap;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c0 c1"
+      >
+        <button
+          class="c22 c23"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c24 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c25 c23"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c24 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+  </nav>
 </div>
 `;
 
 exports[`moderated sessions CTA for non-enterprise 1`] = `
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: 16px;
+}
+
+.c31 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 4px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  margin-left: 8px;
+}
+
 .c0 {
   box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c27 {
+.c29 {
   box-sizing: border-box;
   width: 80px;
   text-align: center;
 }
 
-.c15 {
+.c18 {
   box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c17 {
+.c20 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c19 {
+.c8 {
   box-sizing: border-box;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
-.c28 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2145,172 +2581,238 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255,255,255,0.18);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
 }
 
-.c28:hover,
-.c28:focus {
-  background: rgba(255,255,255,0.07);
+.c30:focus-visible,
+.teleport-button__force-focus-visible .c30 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c28:active {
-  background: rgba(255,255,255,0.13);
+.c30:hover,
+.teleport-button__force-hover .c30 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c28:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+.c30:active,
+.teleport-button__force-active .c30 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c30:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
-.c20 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
   justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c20:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c20:not(:disabled):hover,
-.c20:not(:disabled):focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c20:not(:disabled):active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c23 {
   align-items: center;
-  border: none;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 4px;
   cursor: pointer;
-  display: flex;
+  font-family: inherit;
+  font-weight: 600;
   outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
+  position: relative;
   text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
+  text-decoration: none;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
 }
 
-.c23:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
+.c10:focus-visible,
+.teleport-button__force-focus-visible .c10 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c23:not(:disabled):hover,
-.c23:not(:disabled):focus {
-  background: rgba(255,255,255,0.13);
+.c10:hover,
+.teleport-button__force-hover .c10 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c23:not(:disabled):active {
-  background: rgba(255,255,255,0.18);
+.c10:active,
+.teleport-button__force-active .c10 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
+}
+
+.c10:disabled {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: auto;
 }
 
 .c22 {
-  display: inline-flex;
   align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
   justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  padding: 4px;
+.c22:disabled {
+  color: rgba(255, 255, 255, 0.36);
+  cursor: default;
 }
 
-.c29 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.72);
-  margin-left: 4px;
+.c22:not(:disabled):hover,
+.c22:not(:disabled):focus {
+  background: rgba(255,255,255,0.13);
 }
 
-.c7 {
+.c22:not(:disabled):active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c25 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0;
+}
+
+.c25:disabled {
+  color: rgba(255, 255, 255, 0.36);
+  cursor: default;
+}
+
+.c25:not(:disabled):hover,
+.c25:not(:disabled):focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c25:not(:disabled):active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-}
-
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
+  margin: 0;
   font-weight: 500;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.015px;
+  margin-right: 4px;
 }
 
 .c1 {
   display: flex;
 }
 
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c16 {
+.c19 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
 }
 
-.c5 {
+.c9 {
+  display: flex;
+  align-items: center;
+}
+
+.c4 {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
+  margin-bottom: 24px;
   padding-left: 40px;
   padding-right: 40px;
+  align-items: center;
+  align-items: center;
 }
 
-.c8 {
+.c7 {
   white-space: nowrap;
 }
 
@@ -2318,6 +2820,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   width: 100%;
   height: 100%;
   flex-direction: column;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .c2::after {
@@ -2325,7 +2829,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   padding-bottom: 24px;
 }
 
-.c24 {
+.c26 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -2333,42 +2837,43 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c26>thead>tr>th,
+.c26>tbody>tr>th,
+.c26>tfoot>tr>th,
+.c26>thead>tr>td,
+.c26>tbody>tr>td,
+.c26>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c26>thead>tr>th:first-child,
+.c26>tbody>tr>th:first-child,
+.c26>tfoot>tr>th:first-child,
+.c26>thead>tr>td:first-child,
+.c26>tbody>tr>td:first-child,
+.c26>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c26>thead>tr>th:last-child,
+.c26>tbody>tr>th:last-child,
+.c26>tfoot>tr>th:last-child,
+.c26>thead>tr>td:last-child,
+.c26>tbody>tr>td:last-child,
+.c26>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c26>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c26>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
+  line-height: 20px;
   line-height: 24px;
   cursor: pointer;
   padding-bottom: 0;
@@ -2377,11 +2882,11 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th svg {
+.c26>thead>tr>th svg {
   height: 12px;
 }
 
-.c24 > tbody > tr > td {
+.c26>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2389,23 +2894,19 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c24 tbody tr {
+.c26 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
-.c24 tbody tr:hover {
+.c26 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c24 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+.c26 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2415,29 +2916,29 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   height: 100%;
 }
 
-.c24 tbody tr:hover + tr {
+.c26 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c9 {
+.c12 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 0 0 16px 0;
   max-height: 40px;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
-.c21 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c21 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c14 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -2447,7 +2948,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c13 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -2458,7 +2959,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c11 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -2468,18 +2969,17 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   max-width: 725px;
 }
 
-.c10 {
+.c13 {
   border-radius: 200px;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 40px;
 }
 
-.c12 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: 16px;
+  font-size: 14px;
   width: 100%;
   transition: all 0.2s;
   padding-left: 16px;
@@ -2490,12 +2990,12 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   padding-left: 24px;
 }
 
-.c25 tbody > tr > td {
+.c27 tbody>tr>td {
   vertical-align: middle;
 }
 
 @media screen and (max-width:800px) {
-  .c6 {
+  .c5 {
     flex-direction: column;
     height: auto;
     gap: 10px;
@@ -2509,122 +3009,150 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3 c4 c5 c6"
+    class="c0 c3 c4 c5"
   >
-    <div
-      class="c7 c8"
+    <h1
+      class="c6 c7"
     >
       Active Sessions
-    </div>
+    </h1>
   </div>
   <div
-    class="c3"
-  />
-  <nav
-    class="c9"
+    class="c8 c9"
   >
     <div
-      class="c10"
+      class="c0 c1"
+    >
+      <button
+        class="c10"
+        fill="filled"
+      >
+        Cluster: 
+        teleport.example.sh
+        <span
+          class="c11 icon icon-chevrondown"
+          color="text.slightlyMuted"
+        >
+          <svg
+            fill="currentColor"
+            height="16"
+            viewBox="0 0 24 24"
+            width="16"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </button>
+    </div>
+  </div>
+  <nav
+    class="c12"
+  >
+    <div
+      class="c13"
     >
       <div
-        class="c11"
+        class="c14"
       >
         <input
-          class="c12"
+          class="c15"
           placeholder="Search..."
           value=""
         />
         <div
-          class="c13"
+          class="c16"
         >
           <div
-            class="c14"
+            class="c17"
           />
         </div>
       </div>
     </div>
-  </nav>
-  <div
-    class="c15 c16"
-    width="100%"
-  >
     <div
-      class="c17 c1"
+      class="c18 c19"
+      width="100%"
     >
       <div
-        class="c18"
-        font-weight="500"
-        style="white-space: nowrap; letter-spacing: 0.15px;"
+        class="c20 c1"
       >
-        Showing 
-        <strong>
-          1
-        </strong>
-         - 
-        <strong>
-          7
-        </strong>
-         of
-         
-        <strong>
-          7
-        </strong>
+        <div
+          class="c21"
+          style="white-space: nowrap;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c0 c1"
+      >
+        <button
+          class="c22 c23"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c24 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c25 c23"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c24 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
       </div>
     </div>
-    <div
-      class="c19 c1"
-    >
-      <button
-        class="c20 c21"
-        disabled=""
-        title="Previous page"
-      >
-        <span
-          class="c22 icon icon-circlearrowleft"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c23 c21"
-        disabled=""
-        title="Next page"
-      >
-        <span
-          class="c22 icon icon-circlearrowright"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-    </div>
-  </div>
+  </nav>
   <table
-    class="c24 c25"
+    class="c26 c27"
   >
     <thead>
       <tr>
@@ -2634,7 +3162,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           >
             Type
             <span
-              class="c22 icon icon-chevronsvertical"
+              class="c24 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -2659,7 +3187,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           >
             Name
             <span
-              class="c22 icon icon-chevronsvertical"
+              class="c24 icon icon-chevronsvertical"
               title="sort items"
             >
               <svg
@@ -2699,7 +3227,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           >
             Duration
             <span
-              class="c22 icon icon-chevronup"
+              class="c24 icon icon-chevronup"
               title="sort items asc"
             >
               <svg
@@ -2726,7 +3254,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-kubernetes"
+            class="c28 icon icon-kubernetes"
           >
             <svg
               fill="currentColor"
@@ -2765,7 +3293,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-cli"
+            class="c28 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -2801,16 +3329,16 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           height="26px"
         >
           <div
-            class="c27"
+            class="c29"
             width="80px"
           >
             <button
-              class="c28"
-              kind="border"
+              class="c30"
+              fill="border"
             >
               Join
               <span
-                class="c29 icon icon-chevrondown"
+                class="c31 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2833,7 +3361,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-cli"
+            class="c28 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -2869,16 +3397,16 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           height="26px"
         >
           <div
-            class="c27"
+            class="c29"
             width="80px"
           >
             <button
-              class="c28"
-              kind="border"
+              class="c30"
+              fill="border"
             >
               Join
               <span
-                class="c29 icon icon-chevrondown"
+                class="c31 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2901,7 +3429,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-cli"
+            class="c28 icon icon-cli"
           >
             <svg
               fill="currentColor"
@@ -2937,16 +3465,16 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           height="26px"
         >
           <div
-            class="c27"
+            class="c29"
             width="80px"
           >
             <button
-              class="c28"
-              kind="border"
+              class="c30"
+              fill="border"
             >
               Join
               <span
-                class="c29 icon icon-chevrondown"
+                class="c31 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2969,7 +3497,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-desktop"
+            class="c28 icon icon-desktop"
           >
             <svg
               fill="currentColor"
@@ -3008,7 +3536,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-database"
+            class="c28 icon icon-database"
           >
             <svg
               fill="currentColor"
@@ -3047,7 +3575,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       <tr>
         <td>
           <span
-            class="c26 icon icon-application"
+            class="c28 icon icon-application"
           >
             <svg
               fill="currentColor"
@@ -3091,5 +3619,87 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       </tr>
     </tbody>
   </table>
+  <nav
+    class="c12"
+  >
+    <div
+      class="c18 c19"
+      width="100%"
+    >
+      <div
+        class="c20 c1"
+      >
+        <div
+          class="c21"
+          style="white-space: nowrap;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c0 c1"
+      >
+        <button
+          class="c22 c23"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c24 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c25 c23"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c24 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+  </nav>
 </div>
 `;

@@ -47,12 +47,6 @@ type proxySettings struct {
 	accessPoint networkConfigGetter
 }
 
-// GetOpenAIAPIKey returns the OpenAI API key.
-// TODO(jakule): Remove once plugin support is added to OSS.
-func (p *proxySettings) GetOpenAIAPIKey() string {
-	return p.cfg.Proxy.AssistAPIKey
-}
-
 // GetProxySettings allows returns current proxy configuration.
 func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	resp, err := p.accessPoint.GetClusterNetworkingConfig(ctx)
@@ -75,7 +69,6 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	proxySettings := webclient.ProxySettings{
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		AssistEnabled:     p.cfg.Proxy.AssistAPIKey != "",
 		Kube: webclient.KubeProxySettings{
 			Enabled: p.cfg.Proxy.Kube.Enabled,
 		},

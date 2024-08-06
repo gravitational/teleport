@@ -652,6 +652,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionRecordingConfigUpdate{
 			SessionRecordingConfigUpdate: e,
 		}
+	case *AccessGraphSettingsUpdate:
+		out.Event = &OneOf_AccessGraphSettingsUpdate{
+			AccessGraphSettingsUpdate: e,
+		}
 	case *DatabaseUserCreate:
 		out.Event = &OneOf_DatabaseUserCreate{
 			DatabaseUserCreate: e,
@@ -660,9 +664,53 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseUserDeactivate{
 			DatabaseUserDeactivate: e,
 		}
+	case *AccessPathChanged:
+		out.Event = &OneOf_AccessPathChanged{
+			AccessPathChanged: e,
+		}
 	case *SpannerRPC:
 		out.Event = &OneOf_SpannerRPC{
 			SpannerRPC: e,
+		}
+	case *DatabaseSessionCommandResult:
+		out.Event = &OneOf_DatabaseSessionCommandResult{
+			DatabaseSessionCommandResult: e,
+		}
+	case *DiscoveryConfigCreate:
+		out.Event = &OneOf_DiscoveryConfigCreate{
+			DiscoveryConfigCreate: e,
+		}
+	case *DiscoveryConfigUpdate:
+		out.Event = &OneOf_DiscoveryConfigUpdate{
+			DiscoveryConfigUpdate: e,
+		}
+	case *DiscoveryConfigDelete:
+		out.Event = &OneOf_DiscoveryConfigDelete{
+			DiscoveryConfigDelete: e,
+		}
+	case *DiscoveryConfigDeleteAll:
+		out.Event = &OneOf_DiscoveryConfigDeleteAll{
+			DiscoveryConfigDeleteAll: e,
+		}
+	case *IntegrationCreate:
+		out.Event = &OneOf_IntegrationCreate{
+			IntegrationCreate: e,
+		}
+	case *IntegrationUpdate:
+		out.Event = &OneOf_IntegrationUpdate{
+			IntegrationUpdate: e,
+		}
+	case *IntegrationDelete:
+		out.Event = &OneOf_IntegrationDelete{
+			IntegrationDelete: e,
+		}
+	case *SPIFFEFederationCreate:
+		out.Event = &OneOf_SPIFFEFederationCreate{
+			SPIFFEFederationCreate: e,
+		}
+	case *SPIFFEFederationDelete:
+		out.Event = &OneOf_SPIFFEFederationDelete{
+			SPIFFEFederationDelete: e,
 		}
 
 	default:

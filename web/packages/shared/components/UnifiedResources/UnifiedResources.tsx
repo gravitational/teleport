@@ -27,14 +27,7 @@ import React, {
 } from 'react';
 
 import styled from 'styled-components';
-import {
-  Box,
-  Flex,
-  ButtonLink,
-  ButtonSecondary,
-  Text,
-  ButtonBorder,
-} from 'design';
+import { Box, Flex, ButtonSecondary, Text, ButtonBorder } from 'design';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
@@ -47,6 +40,7 @@ import {
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
+  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
@@ -69,6 +63,7 @@ import {
   PinningSupport,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
+  IncludedResourceMode,
 } from './types';
 
 import { ResourceTab } from './ResourceTab';
@@ -131,6 +126,16 @@ export type FilterKind = {
   disabled: boolean;
 };
 
+export type ResourceAvailabilityFilter =
+  | {
+      canRequestAll: true;
+      mode: IncludedResourceMode;
+    }
+  | {
+      canRequestAll: false;
+      mode: Exclude<IncludedResourceMode, 'all'>;
+    };
+
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
@@ -164,6 +169,7 @@ export interface UnifiedResourcesProps {
    * while the unified resources component is visible.
    */
   unifiedResourcePreferencesAttempt?: AsyncAttempt<void>;
+  availabilityFilter?: ResourceAvailabilityFilter;
   unifiedResourcePreferences: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
@@ -177,6 +183,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     resourcesFetchAttempt,
     resources,
     fetchResources,
+    availabilityFilter,
     availableKinds,
     pinning,
     unifiedResourcePreferencesAttempt,
@@ -333,6 +340,33 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
   };
 
+  const changeAvailableResourceMode = (
+    includedResourceMode: IncludedResourceMode
+  ) => {
+    let mode = AvailableResourceMode.UNSPECIFIED;
+    switch (includedResourceMode) {
+      case 'none':
+        mode = AvailableResourceMode.NONE;
+        break;
+      case 'accessible':
+        mode = AvailableResourceMode.ACCESSIBLE;
+        break;
+      case 'requestable':
+        mode = AvailableResourceMode.REQUESTABLE;
+        break;
+      case 'all':
+        mode = AvailableResourceMode.ALL;
+        break;
+      default:
+        includedResourceMode satisfies never;
+    }
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      availableResourceMode: mode,
+    });
+    setParams({ ...params, includedResourceMode });
+  };
+
   const getSelectedResources = () => {
     return resources
       .filter(({ resource }) =>
@@ -408,39 +442,55 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     >
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
-          <Danger mb={0}>
-            Could not fetch resources: {resourcesFetchAttempt.statusText}
-            {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-            {resourcesFetchAttempt.statusCode !== 400 &&
-              resourcesFetchAttempt.statusCode !== 403 && (
-                <Box flex="0 0 auto" ml={2}>
-                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
-                </Box>
-              )}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            primaryAction={
+              // We don't want them to try another request with BAD REQUEST, it will just fail again.
+              resourcesFetchAttempt.statusCode !== 400 &&
+              resourcesFetchAttempt.statusCode !== 403 && {
+                content: 'Retry',
+                onClick: onRetryClicked,
+              }
+            }
+            details={resourcesFetchAttempt.statusText}
+          >
+            Could not fetch resources
           </Danger>
         )}
         {getPinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch pinned resources:{' '}
-            {getPinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={getPinnedResourcesAttempt.statusText}
+          >
+            Could not fetch pinned resources
           </Danger>
         )}
         {updatePinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not update pinned resources:{' '}
-            {updatePinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={updatePinnedResourcesAttempt.statusText}
+          >
+            Could not update pinned resources:
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch unified view preferences:{' '}
-            {unifiedResourcePreferencesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={unifiedResourcePreferencesAttempt.statusText}
+          >
+            Could not fetch unified view preferences
           </Danger>
         )}
       </ErrorsContainer>
 
       {props.Header}
       <FilterPanel
+        availabilityFilter={availabilityFilter}
+        changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}
         setParams={setParams}
         availableKinds={availableKinds}
@@ -541,9 +591,19 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           // and a loading indicator if needed.
           !unifiedResourcePreferencesAttempt ||
           hasFinished(unifiedResourcePreferencesAttempt)
-            ? resources.map(unifiedResource => ({
-                item: mapResourceToViewItem(unifiedResource),
-                key: generateUnifiedResourceKey(unifiedResource.resource),
+            ? resources.map(({ ui, resource }) => ({
+                item: mapResourceToViewItem({
+                  ui,
+                  resource: {
+                    ...resource,
+                    // if we are in 'requestable' only mode, then all resources returned
+                    // require a request and should be displayed that way
+                    requiresRequest:
+                      resource.requiresRequest ||
+                      availabilityFilter?.mode === 'requestable',
+                  },
+                }),
+                key: generateUnifiedResourceKey(resource),
               }))
             : []
         }
@@ -607,7 +667,7 @@ function generateUnifiedResourceKey(
 function NoPinned() {
   return (
     <Box p={8} mt={3} mx="auto" textAlign="center">
-      <Text typography="h3">You have not pinned any resources</Text>
+      <Text typography="h1">You have not pinned any resources</Text>
     </Box>
   );
 }
@@ -622,7 +682,7 @@ function NoResults({
   if (query) {
     return (
       <Text
-        typography="h3"
+        typography="h1"
         mt={9}
         mx="auto"
         justifyContent="center"
@@ -683,3 +743,35 @@ const ListFooter = styled.div`
   min-height: ${INDICATOR_SIZE};
   text-align: center;
 `;
+
+/**
+ * Returns an intersection of `availableResourceMode` and `canRequestAllResources`.
+ * Since the cluster admin can change the `showResources`
+ * setting, we shouldn't blindly follow the user preferences.
+ *
+ * Instead, if the user can't see all resources, we should default to accessible ones.
+ */
+export function getResourceAvailabilityFilter(
+  availableResourceMode: AvailableResourceMode,
+  canRequestAllResources: boolean
+): ResourceAvailabilityFilter {
+  switch (availableResourceMode) {
+    case AvailableResourceMode.NONE:
+      if (!canRequestAllResources) {
+        return { mode: 'accessible', canRequestAll: false };
+      }
+      return { mode: 'none', canRequestAll: true };
+    case AvailableResourceMode.ALL:
+      if (!canRequestAllResources) {
+        return { mode: 'accessible', canRequestAll: false };
+      }
+      return { mode: 'all', canRequestAll: true };
+    case AvailableResourceMode.UNSPECIFIED:
+    case AvailableResourceMode.ACCESSIBLE:
+      return { mode: 'accessible', canRequestAll: canRequestAllResources };
+    case AvailableResourceMode.REQUESTABLE:
+      return { mode: 'requestable', canRequestAll: canRequestAllResources };
+    default:
+      availableResourceMode satisfies never;
+  }
+}

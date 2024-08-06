@@ -30,7 +30,6 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 	"unicode"
 
 	"github.com/gravitational/trace"
@@ -211,7 +210,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,6 +230,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
+			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 		}
 		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
@@ -241,7 +241,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
-		).GetConnectCommandAlternatives()
+		).GetConnectCommandAlternatives(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -382,60 +382,29 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
+	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
+	app, err := appInfo.GetApp(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	routeToApp, err := getRouteToApp(cf, tc, profile, app)
-	if err != nil {
+	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
-	opts := []alpnproxy.LocalProxyConfigOpt{
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-		alpnproxy.WithMiddleware(libclient.NewAppCertChecker(tc, routeToApp, nil)),
-	}
-
-	addr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
-	}
-
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
+	defer func() {
+		if err := proxyApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close app proxy.")
 		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
-	if cf.LocalProxyPort == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		lp.Close()
 	}()
 
-	defer lp.Close()
-	if err = lp.Start(cf.Context); err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Proxy connections until the client terminates the command.
+	<-cf.Context.Done()
 	return nil
 }
 
@@ -450,7 +419,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = awsApp.StartLocalProxies()
+	err = awsApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -464,6 +433,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	if err := printProxyAWSTemplate(cf, awsApp); err != nil {
 		return trace.Wrap(err)
 	}
+
 	<-cf.Context.Done()
 	return nil
 }
@@ -542,7 +512,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = azApp.StartLocalProxies()
+	err = azApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -573,7 +543,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = gcpApp.StartLocalProxies()
+	err = gcpApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -597,59 +567,20 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 	return nil
 }
 
-// loadAppCertificateWithAppLogin is a wrapper around loadAppCertificate that will attempt to login the user to
-// the app of choice at most once, if the return value from loadAppCertificate call indicates that app login
-// should fix the problem.
-func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	cert, needLogin, err := loadAppCertificate(tc, appName)
-	if err != nil {
-		if !needLogin {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-		log.WithError(err).Debugf("Loading app certificate failed, attempting to login into app %q", appName)
-		quiet := cf.Quiet
-		cf.Quiet = true
-		errLogin := onAppLogin(cf)
-		cf.Quiet = quiet
-		if errLogin != nil {
-			log.WithError(errLogin).Debugf("Login attempt failed")
-			// combine errors
-			return tls.Certificate{}, trace.NewAggregate(err, errLogin)
-		}
-		// another attempt
-		cert, _, err = loadAppCertificate(tc, appName)
-		return cert, trace.Wrap(err)
-	}
-	return cert, nil
-}
-
-// loadAppCertificate loads the app certificate for the provided app.
-// Returns tuple (certificate, needLogin, err).
-// The boolean `needLogin` will be true if the error returned should go away with successful `tsh app login <appName>`.
-func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certificate tls.Certificate, needLogin bool, err error) {
+func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
-		return tls.Certificate{}, false, trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	appCert, err := key.AppTLSCert(appName)
 	if trace.IsNotFound(err) {
-		return tls.Certificate{}, true, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
+		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {
-		return tls.Certificate{}, false, trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(appCert)
-	if err != nil {
-		return tls.Certificate{}, true, trace.WrapWithMessage(err, "invalid certificate - please login to the application again: 'tsh apps login %v'", appName)
-	}
-	if time.Until(expiresAt) < 5*time.Second {
-		return tls.Certificate{}, true, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh apps login %v'", appName,
-			appName)
-	}
-
-	return appCert, false, nil
+	return appCert, nil
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
@@ -668,15 +599,6 @@ func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certifi
 	return dbCert, nil
 }
 
-// getTLSCertExpireTime returns the certificate NotAfter time.
-func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	x509cert, err := utils.TLSCertLeaf(cert)
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	return x509cert.NotAfter, nil
-}
-
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -684,17 +606,17 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient, listener net.Listener, insecure bool) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         tc.WebProxyAddr,
-		InsecureSkipVerify:      cf.InsecureSkipVerify,
-		ParentContext:           cf.Context,
+		InsecureSkipVerify:      insecure,
+		ParentContext:           ctx,
 		Listener:                listener,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}
 }
 
-func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(key *libclient.KeyRing, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -704,7 +626,7 @@ func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStat
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      key,
+		Signer:      key.PrivateKey.Signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,

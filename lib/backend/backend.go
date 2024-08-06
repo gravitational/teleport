@@ -197,9 +197,6 @@ func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageS
 type Lease struct {
 	// Key is the resource identifier.
 	Key []byte
-	// ID is a lease ID, could be empty.
-	// Deprecated: use Revision instead
-	ID int64
 	// Revision is the last known version of the object.
 	Revision string
 }
@@ -260,9 +257,6 @@ type Item struct {
 	Value []byte
 	// Expires is an optional record expiry time
 	Expires time.Time
-	// ID is a record ID, newer records have newer ids
-	// Deprecated: use Revision instead
-	ID int64
 	// Revision is the last known version of the object.
 	Revision string
 }

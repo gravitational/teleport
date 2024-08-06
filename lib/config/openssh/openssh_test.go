@@ -174,3 +174,67 @@ func TestSSHConfig_GetSSHConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		sshVersion string
+		config     *MuxedSSHConfigParameters
+	}{
+		{
+			name:       "legacy OpenSSH - single cluster",
+			sshVersion: "7.4.0",
+			config: &MuxedSSHConfigParameters{
+				AppName:         TbotApp,
+				ClusterNames:    []string{"example.com"},
+				KnownHostsPath:  "/opt/machine-id/known_hosts",
+				MuxSocketPath:   "/opt/machine-id/v1.sock",
+				AgentSocketPath: "/opt/machine-id/agent.sock",
+				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
+			},
+		},
+		{
+			name:       "modern OpenSSH - single cluster",
+			sshVersion: "9.0.0",
+			config: &MuxedSSHConfigParameters{
+				AppName:         TbotApp,
+				ClusterNames:    []string{"example.com"},
+				KnownHostsPath:  "/opt/machine-id/known_hosts",
+				MuxSocketPath:   "/opt/machine-id/v1.sock",
+				AgentSocketPath: "/opt/machine-id/agent.sock",
+				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
+			},
+		},
+		{
+			name:       "modern OpenSSH - multiple clusters",
+			sshVersion: "9.0.0",
+			config: &MuxedSSHConfigParameters{
+				AppName:         TbotApp,
+				ClusterNames:    []string{"example.com", "example.org"},
+				KnownHostsPath:  "/opt/machine-id/known_hosts",
+				MuxSocketPath:   "/opt/machine-id/v1.sock",
+				AgentSocketPath: "/opt/machine-id/agent.sock",
+				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &SSHConfig{
+				getSSHVersion: func() (*semver.Version, error) {
+					return semver.New(tt.sshVersion), nil
+				},
+				log: logrus.New(),
+			}
+
+			sb := &strings.Builder{}
+			err := c.GetMuxedSSHConfig(sb, tt.config)
+			if golden.ShouldSet() {
+				golden.Set(t, []byte(sb.String()))
+			}
+			require.NoError(t, err)
+			require.Equal(t, string(golden.Get(t)), sb.String())
+		})
+	}
+}

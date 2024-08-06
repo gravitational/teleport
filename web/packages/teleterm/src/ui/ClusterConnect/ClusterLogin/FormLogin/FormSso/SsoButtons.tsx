@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box } from 'design';
+import { Box, Text } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 
 import * as types from 'teleterm/ui/services/clusters/types';
@@ -51,7 +51,7 @@ const SSOBtnList = ({
   });
 
   if ($btns.length === 0) {
-    return <h4> You have no SSO providers configured </h4>;
+    return <Text typography="h3">You have no SSO providers configured</Text>;
   }
 
   return <Box>{$btns}</Box>;

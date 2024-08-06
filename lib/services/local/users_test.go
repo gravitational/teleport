@@ -1032,14 +1032,14 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 			}
 
 			// Assert update response.
-			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
+			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
 			}
 
 			// Assert stored.
 			stored, err := identity.GetUser(ctx, test.user, test.withSecrets)
 			require.NoError(t, err, "GetUser failed")
-			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
+			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
 			}
 		})

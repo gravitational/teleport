@@ -61,7 +61,8 @@ exports[`render correct dialog after creating a new account 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -70,28 +71,48 @@ exports[`render correct dialog after creating a new account 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c16:hover,
-.c16:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c16 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c16:active {
-  background: #C5B6FF;
+.c16:active,
+.teleport-button__force-active .c16 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c16:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -102,7 +123,8 @@ exports[`render correct dialog after creating a new account 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -111,29 +133,49 @@ exports[`render correct dialog after creating a new account 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   margin-top: 8px;
 }
 
-.c18:hover,
-.c18:focus {
-  background: #B29DFF;
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c18:active {
-  background: #C5B6FF;
+.c18:hover,
+.teleport-button__force-hover .c18 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c18:active,
+.teleport-button__force-active .c18 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -144,7 +186,8 @@ exports[`render correct dialog after creating a new account 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -153,35 +196,55 @@ exports[`render correct dialog after creating a new account 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-top: 40px;
   width: 100%;
 }
 
-.c19:hover,
-.c19:focus {
-  background: #B29DFF;
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c19:active {
-  background: #C5B6FF;
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -189,10 +252,12 @@ exports[`render correct dialog after creating a new account 1`] = `
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
@@ -200,47 +265,49 @@ exports[`render correct dialog after creating a new account 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
   font-weight: 600;
-  margin: 0px;
   margin-bottom: 8px;
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 8px;
 }
 
 .c23 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 8px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c3 {
@@ -297,7 +364,7 @@ exports[`render correct dialog after creating a new account 1`] = `
   class="c0 c1"
 >
   <div
-    class="c2 c3 sc-gEvEer c2 c4 no-print"
+    class="c2 c3 sc-dsLQwm c2 c4 no-print"
     overflow="hidden"
   >
     <div
@@ -351,13 +418,13 @@ tele-testword-testword-testword-testword-testword-testword-testword
           >
             <button
               class="c16 c17"
-              kind="primary"
+              fill="filled"
             >
               COPY
             </button>
             <button
               class="c18 c17"
-              kind="primary"
+              fill="filled"
             >
               PRINT
             </button>
@@ -370,7 +437,7 @@ tele-testword-testword-testword-testword-testword-testword-testword
         </div>
         <button
           class="c19 no-print"
-          kind="primary"
+          fill="filled"
           width="100%"
         >
           I have saved my Recovery Codes - Continue
@@ -476,7 +543,8 @@ exports[`render correct dialog after resetting account 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -485,28 +553,48 @@ exports[`render correct dialog after resetting account 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c16:hover,
-.c16:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c16 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
-.c16:active {
-  background: #C5B6FF;
+.c16:active,
+.teleport-button__force-active .c16 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c16:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -517,7 +605,8 @@ exports[`render correct dialog after resetting account 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -526,29 +615,49 @@ exports[`render correct dialog after resetting account 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   margin-top: 8px;
 }
 
-.c18:hover,
-.c18:focus {
-  background: #B29DFF;
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c18:active {
-  background: #C5B6FF;
+.c18:hover,
+.teleport-button__force-hover .c18 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c18:active,
+.teleport-button__force-active .c18 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -559,7 +668,8 @@ exports[`render correct dialog after resetting account 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -568,35 +678,55 @@ exports[`render correct dialog after resetting account 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-top: 40px;
   width: 100%;
 }
 
-.c19:hover,
-.c19:focus {
-  background: #B29DFF;
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c19:active {
-  background: #C5B6FF;
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255, 255, 255, 0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
 .c4 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),0px 6px 10px rgba(0, 0, 0, 0.14),0px 1px 18px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
@@ -604,10 +734,12 @@ exports[`render correct dialog after resetting account 1`] = `
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
@@ -615,47 +747,49 @@ exports[`render correct dialog after resetting account 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
   font-weight: 600;
-  margin: 0px;
   margin-bottom: 8px;
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 8px;
 }
 
 .c23 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 32px;
-  margin: 0px;
+  margin: 0;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.03px;
+  text-transform: uppercase;
   margin-bottom: 8px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c3 {
@@ -712,7 +846,7 @@ exports[`render correct dialog after resetting account 1`] = `
   class="c0 c1"
 >
   <div
-    class="c2 c3 sc-gEvEer c2 c4 no-print"
+    class="c2 c3 sc-dsLQwm c2 c4 no-print"
     overflow="hidden"
   >
     <div
@@ -766,13 +900,13 @@ tele-testword-testword-testword-testword-testword-testword-testword
           >
             <button
               class="c16 c17"
-              kind="primary"
+              fill="filled"
             >
               COPY
             </button>
             <button
               class="c18 c17"
-              kind="primary"
+              fill="filled"
             >
               PRINT
             </button>
@@ -785,7 +919,7 @@ tele-testword-testword-testword-testword-testword-testword-testword
         </div>
         <button
           class="c19 no-print"
-          kind="primary"
+          fill="filled"
           width="100%"
         >
           I have saved my new Recovery Codes - Return to login

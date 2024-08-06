@@ -7,7 +7,8 @@ BUILDDIR ?= build
 TFDIR ?= example
 
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
+# CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
@@ -56,7 +57,7 @@ endif
 
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
-	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | jq .Dir))
+	$(eval PROTOBUF_MOD_PATH := $(shell go list -m -u -f '{{.Dir}}' github.com/gogo/protobuf))
 
 	@protoc \
 		-I=../../api/proto \
@@ -103,7 +104,6 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
-	@go run ./gen/main.go docs
 
 .PHONY: release
 ifeq ($(OS)-$(ARCH),darwin-universal)
@@ -155,3 +155,16 @@ destroy:
 .PHONY: lint
 lint:
 	golangci-lint run -c ../../.golangci.yml
+
+.PHONY: docs
+docs: gen-tfschema install bin/tfplugindocs
+	./gen/docs.sh $(VERSION)
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+bin/tfplugindocs: go.mod $(LOCALBIN)
+	mkdir -p bin
+	GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

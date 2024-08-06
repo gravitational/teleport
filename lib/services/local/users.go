@@ -255,7 +255,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 			continue
 		}
 		u, err := services.UnmarshalUser(
-			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -359,7 +359,6 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
@@ -372,7 +371,6 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		}
 	}
 	user.SetRevision(lease.Revision)
-	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -391,7 +389,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Backend.ConditionalUpdate(ctx, item)
@@ -404,7 +401,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		}
 	}
 	user.SetRevision(lease.Revision)
-	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -457,7 +453,6 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -568,7 +563,7 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 	}
 
 	u, err := services.UnmarshalUser(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1251,6 +1246,9 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
@@ -1260,7 +1258,6 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1273,6 +1270,9 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1281,7 +1281,6 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {
@@ -1293,6 +1292,9 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 
 // UpdateOIDCConnector updates an existing OIDC connector.
 func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1301,7 +1303,6 @@ func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1444,7 +1445,6 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1649,7 +1649,6 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1673,7 +1672,6 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1697,7 +1695,6 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {
@@ -1900,27 +1897,25 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 }
 
 const (
-	webPrefix                   = "web"
-	usersPrefix                 = "users"
-	sessionsPrefix              = "sessions"
-	attemptsPrefix              = "attempts"
-	pwdPrefix                   = "pwd"
-	connectorsPrefix            = "connectors"
-	oidcPrefix                  = "oidc"
-	samlPrefix                  = "saml"
-	githubPrefix                = "github"
-	requestsPrefix              = "requests"
-	requestsTracePrefix         = "requestsTrace"
-	usedTOTPPrefix              = "used_totp"
-	usedTOTPTTL                 = 30 * time.Second
-	mfaDevicePrefix             = "mfa"
-	webauthnPrefix              = "webauthn"
-	webauthnGlobalSessionData   = "sessionData"
-	webauthnLocalAuthPrefix     = "webauthnlocalauth"
-	webauthnSessionData         = "webauthnsessiondata"
-	recoveryCodesPrefix         = "recoverycodes"
-	attestationsPrefix          = "key_attestations"
-	assistantMessagePrefix      = "assistant_messages"
-	assistantConversationPrefix = "assistant_conversations"
-	userPreferencesPrefix       = "user_preferences"
+	webPrefix                 = "web"
+	usersPrefix               = "users"
+	sessionsPrefix            = "sessions"
+	attemptsPrefix            = "attempts"
+	pwdPrefix                 = "pwd"
+	connectorsPrefix          = "connectors"
+	oidcPrefix                = "oidc"
+	samlPrefix                = "saml"
+	githubPrefix              = "github"
+	requestsPrefix            = "requests"
+	requestsTracePrefix       = "requestsTrace"
+	usedTOTPPrefix            = "used_totp"
+	usedTOTPTTL               = 30 * time.Second
+	mfaDevicePrefix           = "mfa"
+	webauthnPrefix            = "webauthn"
+	webauthnGlobalSessionData = "sessionData"
+	webauthnLocalAuthPrefix   = "webauthnlocalauth"
+	webauthnSessionData       = "webauthnsessiondata"
+	recoveryCodesPrefix       = "recoverycodes"
+	attestationsPrefix        = "key_attestations"
+	userPreferencesPrefix     = "user_preferences"
 )

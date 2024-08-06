@@ -24,6 +24,7 @@ import {
   ButtonPrimary,
   Link,
   Box,
+  Mark,
 } from 'design';
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
@@ -39,7 +40,7 @@ import {
   Ec2InstanceConnectEndpoint,
   integrationService,
 } from 'teleport/services/integrations';
-import { Mark, TextIcon } from 'teleport/Discover/Shared';
+import { TextIcon } from 'teleport/Discover/Shared';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import {

@@ -78,7 +78,6 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	if c.UnmarshalFunc == nil {
 		return trace.BadParameter("unmarshal func is missing")
 	}
-
 	return nil
 }
 
@@ -155,7 +154,7 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -167,17 +166,17 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 // ListResources returns a paginated list of resources.
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
-	resources, next, err := s.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
-	var nextKey string
-	if next != nil {
-		nextKey = backend.GetPaginationKey(*next)
-	}
+	resources, _, nextKey, err := s.listResourcesReturnNextResourceWithKey(ctx, pageSize, pageToken)
 	return resources, nextKey, trace.Wrap(err)
 }
 
 // ListResourcesReturnNextResource returns a paginated list of resources. The next resource is returned, which allows consumers to construct
 // the next pagination key as appropriate.
 func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) ([]T, *T, error) {
+	resources, next, _, err := s.listResourcesReturnNextResourceWithKey(ctx, pageSize, pageToken)
+	return resources, next, trace.Wrap(err)
+}
+func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
 	rangeStart := backend.Key(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
@@ -191,26 +190,82 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	// no filter provided get the range directly
 	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 
 	out := make([]T, 0, len(result.Items))
+	var lastKey []byte
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, "", trace.Wrap(err)
 		}
 		out = append(out, resource)
+		lastKey = item.Key
 	}
 
-	var next *T
+	var (
+		next    *T
+		nextKey string
+	)
 	if len(out) > pageSize {
 		next = &out[pageSize]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
+		nextKey = trimLastKey(string(lastKey), s.backendPrefix)
 	}
 
-	return out, next, nil
+	return out, next, nextKey, nil
+}
+
+// ListResourcesWithFilter returns a paginated list of resources that match the given filter.
+func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > int(s.pageLimit) {
+		pageSize = int(s.pageLimit)
+	}
+
+	limit := pageSize + 1
+
+	var resources []T
+	var lastKey []byte
+	if err := backend.IterateRange(
+		ctx,
+		s.backend,
+		rangeStart,
+		rangeEnd,
+		limit,
+		func(items []backend.Item) (stop bool, err error) {
+			for _, item := range items {
+				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				if matcher(resource) {
+					lastKey = item.Key
+					resources = append(resources, resource)
+				}
+				if len(resources) == pageSize {
+					break
+				}
+			}
+			return limit == len(resources), nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var nextKey string
+	if len(resources) > pageSize {
+		nextKey = trimLastKey(string(lastKey), s.backendPrefix)
+		// Truncate the last item that was used to determine next row existence.
+		resources = resources[:pageSize]
+	}
+
+	return resources, nextKey, nil
+
 }
 
 // GetResource returns the specified resource.
@@ -223,7 +278,7 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -334,7 +389,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
+		services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -384,12 +439,6 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	//nolint:staticcheck // SA1019. Added for backward compatibility.
-	item.ID, err = types.GetResourceID(resource)
-	if err != nil {
-		return backend.Item{}, trace.Wrap(err)
-	}
-
 	return item, nil
 }
 
@@ -411,4 +460,14 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl ti
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
 		}))
+}
+
+func trimLastKey(lastKey, prefix string) string {
+	if !strings.HasSuffix(prefix, string(backend.Separator)) {
+		prefix += string(backend.Separator)
+	}
+	if !strings.HasPrefix(prefix, string(backend.Separator)) {
+		prefix = string(backend.Separator) + prefix
+	}
+	return strings.TrimPrefix(lastKey, prefix)
 }

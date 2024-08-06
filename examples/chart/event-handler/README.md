@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Event Handler plugin.
 
 ## Installation
 
-See the [Access Requests with Slack guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-slack/).
+See the [Export Events with FluentD Guide](https://goteleport.com/docs/management/export-audit-events/fluentd/).
 
 ## Settings
 

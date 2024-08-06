@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"sort"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -778,30 +780,6 @@ func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.Cl
 	return append(matchers, ms...), nil
 }
 
-// insertAnnotations constructs all annotations for a given
-// AccessRequestConditions instance and adds them to the
-// supplied annotations mapping.
-func insertAnnotations(annotations map[string][]string, conditions types.AccessRequestConditions, traits map[string][]string) {
-	for key, vals := range conditions.Annotations {
-		// get any previous values at key
-		allVals := annotations[key]
-
-		// iterate through all new values and expand any
-		// variable interpolation syntax they contain.
-	ApplyTraits:
-		for _, v := range vals {
-			applied, err := ApplyValueTraits(v, traits)
-			if err != nil {
-				// skip values that failed variable expansion
-				continue ApplyTraits
-			}
-			allVals = append(allVals, applied...)
-		}
-
-		annotations[key] = allVals
-	}
-}
-
 // ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
@@ -1056,7 +1034,12 @@ type RequestValidator struct {
 		AllowSearch, DenySearch   []string
 	}
 	Annotations struct {
-		Allow, Deny map[string][]string
+		// Allowed annotations are not greedy, the role that defines the annotation must allow requesting one
+		// of the roles that are being requested in order for the annotation to be applied.
+		Allow map[singleAnnotation]annotationMatcher
+		// Denied annotations match greedily, if a user has any role that denies a specific annotation it will
+		// always be denied.
+		Deny map[singleAnnotation]struct{}
 	}
 	ThresholdMatchers []struct {
 		Matchers   []parse.Matcher
@@ -1067,6 +1050,7 @@ type RequestValidator struct {
 		Matchers    []parse.Matcher
 		MaxDuration time.Duration
 	}
+	logger *slog.Logger
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -1080,6 +1064,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		clock:     clock,
 		getter:    getter,
 		userState: uls,
+		logger:    slog.With(teleport.ComponentKey, "request.validator"),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1088,8 +1073,8 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		m.Annotations.Allow = make(map[string][]string)
-		m.Annotations.Deny = make(map[string][]string)
+		m.Annotations.Allow = make(map[singleAnnotation]annotationMatcher)
+		m.Annotations.Deny = make(map[singleAnnotation]struct{})
 	}
 
 	// load all statically assigned roles for the user and
@@ -1099,7 +1084,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
-		if err := m.push(role); err != nil {
+		if err := m.push(ctx, role); err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
 	}
@@ -1487,7 +1472,7 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tls
 // push compiles a role's configuration into the request validator.
 // All of the requesting user's statically assigned roles must be pushed
 // before validation begins.
-func (m *RequestValidator) push(role types.Role) error {
+func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
@@ -1503,8 +1488,7 @@ func (m *RequestValidator) push(role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	// record what will be the starting index of the allow
-	// matchers for this role, if it applies any.
+	// record what will be the starting index of the allow and deny matchers for this role, if it applies any.
 	astart := len(m.Roles.AllowRequest)
 
 	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
@@ -1517,18 +1501,21 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
-		// between its matchers and its thresholds.  this information is used later to calculate
+		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
-		newMatchers := m.Roles.AllowRequest[astart:]
-		for _, searchAsRoleName := range allow.SearchAsRoles {
-			newMatchers = append(newMatchers, literalMatcher{searchAsRoleName})
-		}
-		if len(newMatchers) > 0 {
+		newAllowRequestMatchers := m.Roles.AllowRequest[astart:]
+		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+
+		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
+		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
+		allNewAllowMatchers = append(allNewAllowMatchers, newAllowSearchMatchers...)
+
+		if len(allNewAllowMatchers) > 0 {
 			m.ThresholdMatchers = append(m.ThresholdMatchers, struct {
 				Matchers   []parse.Matcher
 				Thresholds []types.AccessReviewThreshold
 			}{
-				Matchers:   newMatchers,
+				Matchers:   allNewAllowMatchers,
 				Thresholds: allow.Thresholds,
 			})
 		}
@@ -1538,7 +1525,7 @@ func (m *RequestValidator) push(role types.Role) error {
 				Matchers    []parse.Matcher
 				MaxDuration time.Duration
 			}{
-				Matchers:    newMatchers,
+				Matchers:    allNewAllowMatchers,
 				MaxDuration: allow.MaxDuration.Duration(),
 			})
 		}
@@ -1546,8 +1533,8 @@ func (m *RequestValidator) push(role types.Role) error {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		insertAnnotations(m.Annotations.Deny, deny, m.userState.GetTraits())
-		insertAnnotations(m.Annotations.Allow, allow, m.userState.GetTraits())
+		m.insertAllowedAnnotations(ctx, allow, newAllowRequestMatchers, newAllowSearchMatchers)
+		m.insertDeniedAnnotations(ctx, deny)
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
@@ -1701,55 +1688,109 @@ Outer:
 	return sets, nil
 }
 
+// singleAnnotation holds a single annotation key/value pair. The value must already have been expanded with
+// ApplyValueTraits.
+type singleAnnotation struct {
+	key, value string
+}
+
+// annotationsMatcher holds a set of role matchers used to decide if an annotations should be added to an
+// access request when one of the requested roles matches.
+type annotationMatcher struct {
+	roleRequestMatchers     []parse.Matcher
+	resourceRequestMatchers []parse.Matcher
+}
+
+// matchesRequest returns true if either:
+// - req is a role access request and one of [m.roleRequestMatchers] matches one of the requested roles
+// - req is a resource access request and one of [m.resourceRequestMatchers] matches one of the requested roles
+func (m *annotationMatcher) matchesRequest(req types.AccessRequest) bool {
+	matchers := m.roleRequestMatchers
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		matchers = m.resourceRequestMatchers
+	}
+	for _, matcher := range matchers {
+		for _, role := range req.GetRoles() {
+			if matcher.Match(role) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// insertAllowedAnnotations constructs all allowed annotations for a given AccessRequestConditions instance
+// from one of the users current roles and adds them to the annotation matchers mapping.
+//
+// Annotations are only applied to access requests requests when one of the requested roles matches one of the
+// role matchers.
+func (m *RequestValidator) insertAllowedAnnotations(ctx context.Context, conditions types.AccessRequestConditions, roleRequestMatchers, resourceRequestMatchers []parse.Matcher) {
+	for annotationKey, annotationValueTemplates := range conditions.Annotations {
+		// iterate through all new values and expand any
+		// variable interpolation syntax they contain.
+		for _, template := range annotationValueTemplates {
+			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			if err != nil {
+				// skip values that failed variable expansion
+				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
+					"key", annotationKey, "template", template, "error", err)
+				continue
+			}
+			for _, expanded := range expandedValues {
+				annotation := singleAnnotation{annotationKey, expanded}
+				matchers := m.Annotations.Allow[annotation]
+				matchers.roleRequestMatchers = append(matchers.roleRequestMatchers, roleRequestMatchers...)
+				matchers.resourceRequestMatchers = append(matchers.resourceRequestMatchers, resourceRequestMatchers...)
+				m.Annotations.Allow[annotation] = matchers
+			}
+		}
+	}
+}
+
+// insertDeniedAnnotations constructs all denied annotations for a given AccessRequestConditions instance
+// from one of the users current roles and adds them to the denied annotations set.
+func (m *RequestValidator) insertDeniedAnnotations(ctx context.Context, conditions types.AccessRequestConditions) {
+	for annotationKey, annotationValueTemplates := range conditions.Annotations {
+		// iterate through all new values and expand any
+		// variable interpolation syntax they contain.
+		for _, template := range annotationValueTemplates {
+			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			if err != nil {
+				// skip values that failed variable expansion
+				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
+					"key", annotationKey, "template", template, "error", err)
+				continue
+			}
+			for _, expanded := range expandedValues {
+				annotation := singleAnnotation{annotationKey, expanded}
+				m.Annotations.Deny[annotation] = struct{}{}
+			}
+		}
+	}
+}
+
 // SystemAnnotations calculates the system annotations for a pending
 // access request.
 func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[string][]string, error) {
 	annotations := make(map[string][]string)
 
-	// allowedAnnotations keeps track of annotations an access request
-	// can be granted by the roles requested.
-	allowedAnnotations := make(map[string][]string)
-	for _, userRole := range m.userState.GetRoles() {
-		role, err := m.getter.GetRole(context.Background(), userRole)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		acr := role.GetAccessRequestConditions(types.Allow)
-
-		for _, reqRole := range req.GetRoles() {
-			// if the requested role is a resource request, the roles
-			// granted in `search_as_roles` must be used to make the
-			// access request and so only annotations from those roles should be included
-			roles := acr.Roles
-			if len(req.GetRequestedResourceIDs()) != 0 {
-				roles = acr.SearchAsRoles
-			}
-			if slices.Contains(roles, reqRole) {
-				for k, v := range acr.Annotations {
-					vals := allowedAnnotations[k]
-					allowedAnnotations[k] = slices.Concat(vals, v)
-				}
-			}
-		}
-	}
-
-	for k, va := range m.Annotations.Allow {
-		var filtered []string
-		for _, v := range va {
-			if slices.Contains(m.Annotations.Deny[k], v) {
-				continue
-			}
-			if !slices.Contains(allowedAnnotations[k], v) {
-				continue
-			}
-			filtered = append(filtered, v)
-		}
-		if len(filtered) == 0 {
+	for annotation, allowMatchers := range m.Annotations.Allow {
+		if _, denied := m.Annotations.Deny[annotation]; denied {
+			// Deny matches are greedy, if any of the users roles denies this annotation it is filtered out.
 			continue
 		}
-		slices.Sort(filtered)
-		annotations[k] = slices.Compact(filtered)
+		if !allowMatchers.matchesRequest(req) {
+			// Annotations are filtered out unless this request matches one of the role matchers for this
+			// annotation.
+			continue
+		}
+		annotations[annotation.key] = append(annotations[annotation.key], annotation.value)
+	}
+
+	// Sort and deduplicate.
+	for k := range annotations {
+		slices.Sort(annotations[k])
+		annotations[k] = slices.Compact(annotations[k])
 	}
 	return annotations, nil
 }
@@ -1791,9 +1832,6 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 	if err := ValidateAccessRequest(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.ID != 0 {
-		req.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		req.SetRevision(cfg.Revision)
 	}
@@ -1816,7 +1854,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}

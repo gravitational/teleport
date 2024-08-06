@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp"
@@ -90,6 +92,8 @@ func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationCo
 		IntegrationRole: params.RoleName,
 		SSMDocumentName: params.SSMDocumentName,
 		ProxyPublicURL:  params.ProxyPublicURL,
+		ClusterName:     params.ClusterName,
+		IntegrationName: params.IntegrationName,
 	}
 	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
 }
@@ -142,8 +146,6 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
 		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
 		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		S3BucketLocation:   clf.IntegrationConfAWSOIDCIdPArguments.S3BucketURI,
-		S3JWKSContentsB64:  clf.IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -189,7 +191,9 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 				GlueDatabase:           params.GlueDatabase,
 				GlueTable:              params.GlueTable,
 			},
-			Region: params.Region,
+			Region:          params.Region,
+			ClusterName:     params.ClusterName,
+			IntegrationName: params.IntegrationName,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -216,6 +220,38 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 		IntegrationRole: params.Role,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, confReq))
+}
+
+func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	if err := azureoidc.EnsureAZLogin(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
+
+	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if params.AccessGraphEnabled {
+		err := azureoidc.CreateTAGCacheFile(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Success! Use the following information to finish the integration onboarding in Teleport:")
+	fmt.Printf("Tenant ID: %s\nClient ID: %s\n", tenantID, appID)
+	if params.AccessGraphEnabled {
+		fmt.Println("To finish the setup you will need the `cache.json` file that we created for you.")
+		fmt.Println("Use `download cache.json` to download it from the Azure Cloud Shell, and submit it on the integration onboarding page.")
+	}
+	return nil
 }
 
 func onIntegrationConfSAMLIdPGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforceAPIParams) error {

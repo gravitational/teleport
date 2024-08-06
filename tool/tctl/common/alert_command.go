@@ -205,7 +205,7 @@ func (c *AlertCommand) List(ctx context.Context, client *authclient.Client) erro
 
 func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 	if verbose {
-		table := asciitable.MakeTable([]string{"ID", "Severity", "Message", "Created", "Labels"})
+		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message", "Created", "Labels"})
 		for _, alert := range alerts {
 			var labelPairs []string
 			for key, val := range alert.Metadata.Labels {
@@ -216,6 +216,7 @@ func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 			table.AddRow([]string{
 				alert.GetName(),
 				alert.Spec.Severity.String(),
+				calculateTTL(alert.GetMetadata().Expires).String(),
 				fmt.Sprintf("%q", alert.Spec.Message),
 				alert.Spec.Created.Format(time.RFC822),
 				strings.Join(labelPairs, ", "),
@@ -223,12 +224,30 @@ func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 		}
 		fmt.Println(table.AsBuffer().String())
 	} else {
-		table := asciitable.MakeTable([]string{"ID", "Severity", "Message"})
+		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message"})
 		for _, alert := range alerts {
-			table.AddRow([]string{alert.GetName(), alert.Spec.Severity.String(), fmt.Sprintf("%q", alert.Spec.Message)})
+			table.AddRow([]string{
+				alert.GetName(),
+				alert.Spec.Severity.String(),
+				calculateTTL(alert.GetMetadata().Expires).String(),
+				fmt.Sprintf("%q", alert.Spec.Message),
+			})
 		}
 		fmt.Println(table.AsBuffer().String())
 	}
+}
+
+// calculateTTL returns the remaining TTL of the alert.
+func calculateTTL(expiration *time.Time) time.Duration {
+	if expiration == nil {
+		return time.Duration(0)
+	}
+	remainingDuration := time.Until(*expiration)
+	if remainingDuration < 0 {
+		return time.Duration(0)
+	}
+
+	return remainingDuration.Round(time.Minute)
 }
 
 func displayAlertsJSON(alerts []types.ClusterAlert) error {

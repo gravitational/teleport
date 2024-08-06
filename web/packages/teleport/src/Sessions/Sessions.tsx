@@ -70,7 +70,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
       >
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
         {showActiveSessionsCTA && (
-          <Box width="340px">
+          <Box>
             <ButtonLockedFeature
               height="36px"
               event={CtaEvent.CTA_ACTIVE_SESSIONS}
@@ -81,13 +81,12 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
         )}
       </FeatureHeader>
       {!errorMessage && (
-        <Box mb={4}>
-          <ClusterDropdown
-            clusterLoader={ctx.clusterService}
-            clusterId={clusterId}
-            onError={setErrorMessage}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={ctx.clusterService}
+          clusterId={clusterId}
+          onError={setErrorMessage}
+          mb={2}
+        />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.isFailed && <Danger>{attempt.message} </Danger>}

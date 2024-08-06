@@ -31,6 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
@@ -59,9 +60,11 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -86,6 +89,7 @@ func TestSSH(t *testing.T) {
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 			cfg.Proxy.KeyPairs = []servicecfg.KeyPairPath{{
 				PrivateKey:  webKeyPath,
 				Certificate: webCertPath,
@@ -94,6 +98,7 @@ func TestSSH(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 		}),
 	)
 
@@ -1434,4 +1439,145 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			test.checkError(t, checkProxyAWSFormatCompatibility(test.input))
 		})
 	}
+}
+
+// TestProxyAppWithIdentity ensures `tsh -i <identity> proxy app` works
+// correctly given a Machine ID-style identity with a valid RouteToApp.
+func TestProxyAppWithIdentity(t *testing.T) {
+	disableAgent(t)
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+	ctx := context.Background()
+
+	const (
+		clusterName = "root"
+		appName     = "rootapp"
+		userName    = "admin"
+	)
+
+	appURI := startDummyHTTPServer(t, appName)
+
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithClusterName(t, clusterName),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps = servicecfg.AppsConfig{
+				Enabled: true,
+				Apps: []servicecfg.App{{
+					Name: appName,
+					URI:  appURI,
+				}},
+			}
+		}),
+	}
+	process := testserver.MakeTestServer(t, rootServerOpts...)
+	authServer := process.GetAuthServer()
+
+	// create admin role and user.
+	adminRole, err := types.NewRole(userName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.Wildcard},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	adminRole, err = authServer.CreateRole(ctx, adminRole)
+	require.NoError(t, err)
+
+	user, err := types.NewUser(userName)
+	user.SetRoles([]string{adminRole.GetName()})
+	require.NoError(t, err)
+	_, err = authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	// create an app session for the user
+	userState, err := authServer.GetUserOrLoginState(ctx, userName)
+	require.NoError(t, err)
+	accessInfo := services.AccessInfoFromUserState(userState)
+	ws, err := authServer.CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
+		NewWebSessionRequest: auth.NewWebSessionRequest{
+			User:       userName,
+			Roles:      accessInfo.Roles,
+			Traits:     accessInfo.Traits,
+			SessionTTL: time.Hour,
+		},
+		PublicAddr:  fmt.Sprintf("%s.%s", appName, clusterName),
+		ClusterName: clusterName,
+	})
+	require.NoError(t, err)
+
+	key, err := client.GenerateRSAKey()
+	require.NoError(t, err)
+	key.ClusterName = clusterName
+
+	// generate user certs with a RouteToApp. note that unlike certs generated
+	// with `tsh app login`, this is intended to match Machine ID-type certs
+	// which are not usage restricted to apps only; this is required for tsh to
+	// make other auth API calls beyond just accessing the app.
+	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		Key:            key.PrivateKey.MarshalSSHPublicKey(),
+		Username:       userName,
+		TTL:            time.Hour,
+		Compatibility:  constants.CertificateFormatStandard,
+		RouteToCluster: clusterName,
+		AppName:        appName,
+		AppSessionID:   ws.GetName(),
+	})
+	require.NoError(t, err)
+
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
+
+	hostCAs, err := authServer.GetCertAuthorities(context.Background(), types.HostCA, false)
+	require.NoError(t, err)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+
+	idPath := filepath.Join(t.TempDir(), "identity")
+	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
+		OutputPath: idPath,
+		Key:        key,
+		Format:     identityfile.FormatFile,
+	})
+	require.NoError(t, err)
+
+	port := ports.Pop()
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errC := make(chan error)
+	go func() {
+		var tshArgs []string
+		if testing.Verbose() {
+			tshArgs = append(tshArgs, "--debug")
+		}
+
+		errC <- Run(cancelCtx, append(tshArgs,
+			"--debug",
+			"--insecure",
+			"--identity", idPath,
+			"--proxy", process.Config.Proxy.WebAddr.Addr,
+			"proxy", "app", appName,
+			"--port", port,
+		))
+	}()
+
+	require.Eventually(t, func() bool {
+		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
+		if err != nil {
+			return false
+		}
+
+		defer r.Body.Close()
+
+		return r.StatusCode == 200
+	}, time.Second*5, time.Millisecond*250, "a proxied app request must eventually succeed")
+
+	cancel()
+	require.NoError(t, <-errC)
 }

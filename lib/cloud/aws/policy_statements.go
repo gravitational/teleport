@@ -65,6 +65,9 @@ func StatementForECSManageService() *Statement {
 
 			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
 			"ec2:DescribeSecurityGroups",
+
+			// IAM CreateServiceLinkedRole is required to ensure the ECS Service linked role exists.
+			"iam:CreateServiceLinkedRole",
 		},
 		Resources: allResources,
 	}
@@ -216,6 +219,8 @@ func StatementForListRDSDatabases() *Statement {
 			"rds:DescribeDBInstances",
 			"rds:DescribeDBClusters",
 			"ec2:DescribeSecurityGroups",
+			"ec2:DescribeSubnets",
+			"ec2:DescribeVpcs",
 		},
 		Resources: allResources,
 	}

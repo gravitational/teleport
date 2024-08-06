@@ -106,6 +106,7 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
@@ -132,6 +133,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
@@ -158,6 +160,7 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},

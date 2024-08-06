@@ -17,13 +17,12 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonBorder } from 'design';
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
-
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
@@ -34,6 +33,11 @@ import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 type Props = {
   resource: UnifiedResource;
@@ -136,8 +140,12 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
   );
 };
 
-const AppLaunch = ({ app }: { app: App }) => {
+type AppLaunchProps = {
+  app: App;
+};
+const AppLaunch = ({ app }: AppLaunchProps) => {
   const {
+    name,
     launchUrl,
     awsConsole,
     awsRoles,
@@ -147,7 +155,9 @@ const AppLaunch = ({ app }: { app: App }) => {
     isCloudOrTcpEndpoint,
     samlApp,
     samlAppSsoUrl,
+    samlAppPreset,
   } = app;
+  const { actions, userSamlIdPPerm } = useSamlAppAction();
   if (awsConsole) {
     return (
       <AwsLaunchButton
@@ -178,19 +188,57 @@ const AppLaunch = ({ app }: { app: App }) => {
     );
   }
   if (samlApp) {
-    return (
-      <ButtonBorder
-        as="a"
-        width="123px"
-        size="small"
-        target="_blank"
-        href={samlAppSsoUrl}
-        rel="noreferrer"
-        textTransform="none"
-      >
-        Login
-      </ButtonBorder>
-    );
+    if (actions.showActions) {
+      const currentSamlAppSpec: ResourceSpec = {
+        name: name,
+        event: DiscoverEventResource.SamlApplication,
+        kind: ResourceKind.SamlApplication,
+        samlMeta: { preset: samlAppPreset },
+        icon: 'application',
+        keywords: 'saml',
+      };
+      return (
+        <ButtonWithMenu
+          text="Log In"
+          width="123px"
+          size="small"
+          target="_blank"
+          href={samlAppSsoUrl}
+          rel="noreferrer"
+          textTransform="none"
+          forwardedAs="a"
+          title="Log in to SAML application"
+        >
+          <MenuItem
+            onClick={() => actions.startEdit(currentSamlAppSpec)}
+            disabled={!userSamlIdPPerm.edit} // disable props does not disable onClick
+          >
+            Edit
+          </MenuItem>
+          <MenuItem
+            onClick={() => actions.startDelete(currentSamlAppSpec)}
+            disabled={!userSamlIdPPerm.remove} // disable props does not disable onClick
+          >
+            Delete
+          </MenuItem>
+        </ButtonWithMenu>
+      );
+    } else {
+      return (
+        <ButtonBorder
+          as="a"
+          width="123px"
+          size="small"
+          target="_blank"
+          href={samlAppSsoUrl}
+          rel="noreferrer"
+          textTransform="none"
+          title="Log in to SAML application"
+        >
+          Log In
+        </ButtonBorder>
+      );
+    }
   }
   return (
     <ButtonBorder

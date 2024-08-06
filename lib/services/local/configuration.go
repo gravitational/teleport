@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
@@ -70,7 +71,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalClusterName(item.Value,
-		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithRevision(item.Revision))...)
+		services.AddOptions(opts, services.WithRevision(item.Revision))...)
 }
 
 // DeleteClusterName deletes types.ClusterName from the backend.
@@ -119,7 +120,6 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 		Key:      backend.Key(clusterConfigPrefix, namePrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
-		ID:       c.GetResourceID(),
 		Revision: rev,
 	})
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, err
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalStaticTokens(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
@@ -153,7 +153,6 @@ func (s *ClusterConfigurationService) SetStaticTokens(c types.StaticTokens) erro
 		Key:      backend.Key(clusterConfigPrefix, staticTokensPrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
-		ID:       c.GetResourceID(),
 		Revision: rev,
 	})
 	if err != nil {
@@ -186,7 +185,7 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalAuthPreference(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateAuthPreference creates an auth preference if once does not already exist.
@@ -231,7 +230,6 @@ func (s *ClusterConfigurationService) UpdateAuthPreference(ctx context.Context, 
 	item := backend.Item{
 		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
 		Value:    value,
-		ID:       preference.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -293,7 +291,7 @@ func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context)
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterAuditConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalClusterAuditConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetClusterAuditConfig sets the cluster audit config on the backend.
@@ -387,7 +385,7 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
@@ -492,7 +490,7 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSessionRecordingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalSessionRecordingConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateSessionRecordingConfig creates a session recording config if once does not already exist.
@@ -724,18 +722,112 @@ func (s *ClusterConfigurationService) DeleteClusterMaintenanceConfig(ctx context
 	return nil
 }
 
+// GetAccessGraphSettings fetches the cluster *clusterconfigpb.AccessGraphSettings from the backend and return them.
+func (s *ClusterConfigurationService) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("AccessGraphSettings preference not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalAccessGraphSettings(item.Value,
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+}
+
+// CreateAccessGraphSettings creates an *clusterconfigpb.AccessGraphSettings if it does not already exist.
+func (s *ClusterConfigurationService) CreateAccessGraphSettings(ctx context.Context, set *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	value, err := services.MarshalAccessGraphSettings(set)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	set.Metadata.Revision = lease.Revision
+	return set, nil
+}
+
+// UpdateAccessGraphSettings updates an existing *clusterconfigpb.AccessGraphSettings.
+func (s *ClusterConfigurationService) UpdateAccessGraphSettings(ctx context.Context, set *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	rev := set.GetMetadata().GetRevision()
+
+	value, err := services.MarshalAccessGraphSettings(set)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix),
+		Value:    value,
+		Revision: rev,
+	}
+
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	set.Metadata.Revision = lease.Revision
+	return set, nil
+}
+
+// UpsertAccessGraphSettings creates or overwrites an *clusterconfigpb.AccessGraphSettings.
+func (s *ClusterConfigurationService) UpsertAccessGraphSettings(ctx context.Context, set *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	rev := set.GetMetadata().GetRevision()
+	value, err := services.MarshalAccessGraphSettings(set)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix),
+		Value:    value,
+		Revision: rev,
+	}
+
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	set.Metadata.Revision = lease.Revision
+	return set, nil
+}
+
+// DeleteAccessGraphSettings deletes *clusterconfigpb.AccessGraphSettings from the backend.
+func (s *ClusterConfigurationService) DeleteAccessGraphSettings(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("access graph settings not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
-	clusterConfigPrefix    = "cluster_configuration"
-	namePrefix             = "name"
-	staticTokensPrefix     = "static_tokens"
-	authPrefix             = "authentication"
-	preferencePrefix       = "preference"
-	generalPrefix          = "general"
-	auditPrefix            = "audit"
-	networkingPrefix       = "networking"
-	sessionRecordingPrefix = "session_recording"
-	scriptsPrefix          = "scripts"
-	uiPrefix               = "ui"
-	installerPrefix        = "installer"
-	maintenancePrefix      = "maintenance"
+	clusterConfigPrefix       = "cluster_configuration"
+	namePrefix                = "name"
+	staticTokensPrefix        = "static_tokens"
+	authPrefix                = "authentication"
+	preferencePrefix          = "preference"
+	generalPrefix             = "general"
+	auditPrefix               = "audit"
+	networkingPrefix          = "networking"
+	sessionRecordingPrefix    = "session_recording"
+	scriptsPrefix             = "scripts"
+	uiPrefix                  = "ui"
+	installerPrefix           = "installer"
+	maintenancePrefix         = "maintenance"
+	accessGraphSettingsPrefix = "access_graph_settings"
 )

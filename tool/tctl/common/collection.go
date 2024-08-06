@@ -19,6 +19,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -48,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -1488,6 +1490,23 @@ func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
+type accessGraphSettings struct {
+	accessGraphSettings *clusterconfigrec.AccessGraphSettings
+}
+
+func (c *accessGraphSettings) resources() []types.Resource {
+	return []types.Resource{c.accessGraphSettings}
+}
+
+func (c *accessGraphSettings) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"SSH Keys Scan"})
+	t.AddRow([]string{
+		c.accessGraphSettings.Spec.SecretsScanConfig,
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type accessRequestCollection struct {
 	accessRequests []types.AccessRequest
 }
@@ -1521,6 +1540,161 @@ func (c *accessRequestCollection) writeText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
 	}
 
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type pluginCollection struct {
+	plugins []types.Plugin
+}
+
+type pluginResourceWrapper struct {
+	types.PluginV1
+}
+
+func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
+
+	const (
+		credOauth2AccessToken     = "oauth2_access_token"
+		credBearerToken           = "bearer_token"
+		credIdSecret              = "id_secret"
+		credStaticCredentialsRef  = "static_credentials_ref"
+		settingsSlackAccessPlugin = "slack_access_plugin"
+		settingsOpsgenie          = "opsgenie"
+		settingsOpenAI            = "openai"
+		settingsOkta              = "okta"
+		settingsJamf              = "jamf"
+		settingsPagerDuty         = "pager_duty"
+		settingsMattermost        = "mattermost"
+		settingsJira              = "jira"
+		settingsDiscord           = "discord"
+		settingsServiceNow        = "serviceNow"
+		settingsGitlab            = "gitlab"
+		settingsEntraID           = "entra_id"
+	)
+	type unknownPluginType struct {
+		Spec struct {
+			Settings map[string]json.RawMessage `json:"Settings"`
+		} `json:"spec"`
+		Credentials struct {
+			Credentials map[string]json.RawMessage `json:"Credentials"`
+		} `json:"credentials"`
+	}
+
+	var unknownPlugin unknownPluginType
+	if err := json.Unmarshal(data, &unknownPlugin); err != nil {
+		return err
+	}
+
+	if unknownPlugin.Spec.Settings == nil {
+		return trace.BadParameter("plugin settings are missing")
+	}
+	if len(unknownPlugin.Spec.Settings) != 1 {
+		return trace.BadParameter("unknown plugin settings count")
+	}
+
+	if len(unknownPlugin.Credentials.Credentials) == 1 {
+		p.PluginV1.Credentials = &types.PluginCredentialsV1{}
+		for k := range unknownPlugin.Credentials.Credentials {
+			switch k {
+			case credOauth2AccessToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_Oauth2AccessToken{}
+			case credBearerToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_BearerToken{}
+			case credIdSecret:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_IdSecret{}
+			case credStaticCredentialsRef:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_StaticCredentialsRef{}
+			default:
+				return trace.BadParameter("unsupported plugin credential type: %v", k)
+			}
+		}
+	}
+
+	for k := range unknownPlugin.Spec.Settings {
+
+		switch k {
+		case settingsSlackAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
+		case settingsOpsgenie:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Opsgenie{}
+		case settingsOpenAI:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
+		case settingsOkta:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+		case settingsJamf:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
+		case settingsPagerDuty:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
+		case settingsMattermost:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Mattermost{}
+		case settingsJira:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jira{}
+		case settingsDiscord:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Discord{}
+		case settingsServiceNow:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
+		case settingsGitlab:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+		case settingsEntraID:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+		default:
+			return trace.BadParameter("unsupported plugin type: %v", k)
+		}
+	}
+
+	if err := json.Unmarshal(data, &p.PluginV1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *pluginCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.plugins))
+	for i, resource := range c.plugins {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *pluginCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Status"})
+	for _, plugin := range c.plugins {
+		t.AddRow([]string{
+			plugin.GetName(),
+			plugin.GetStatus().GetCode().String(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type botInstanceCollection struct {
+	items []*machineidv1pb.BotInstance
+}
+
+func (c *botInstanceCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *botInstanceCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Bot Name", "Instance ID"}
+
+	// TODO: consider adding additional (possibly verbose) fields showing
+	// last heartbeat, last auth, etc.
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

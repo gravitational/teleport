@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"os"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -245,6 +247,7 @@ type Server struct {
 // TargetMetadata returns metadata about the server.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.ID(),
 		ServerAddr:      s.Addr(),
@@ -849,6 +852,12 @@ func New(
 	}
 	s.srv = server
 
+	if !s.proxyMode {
+		if err := s.startAuthorizedKeysManager(ctx, auth); err != nil {
+			log.WithError(err).Infof("Failed to start authorized keys manager.")
+		}
+	}
+
 	var heartbeatMode srv.HeartbeatMode
 	if s.proxyMode {
 		heartbeatMode = srv.HeartbeatModeProxy
@@ -901,6 +910,31 @@ func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelc
 	}
 
 	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+}
+
+// startAuthorizedKeysManager starts the authorized keys manager.
+func (s *Server) startAuthorizedKeysManager(ctx context.Context, auth authclient.ClientI) error {
+	authorizedKeysWatcher, err := authorizedkeysreporter.NewWatcher(
+		ctx,
+		authorizedkeysreporter.WatcherConfig{
+			Client: auth,
+			Logger: slog.Default(),
+			HostID: s.uuid,
+			Clock:  s.clock,
+		},
+	)
+	if errors.Is(err, authorizedkeysreporter.ErrUnsupportedPlatform) {
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := authorizedKeysWatcher.Run(ctx); err != nil {
+			s.Warningf("Failed to start authorized keys watcher: %v", err)
+		}
+	}()
+	return nil
 }
 
 // Context returns server shutdown context
@@ -1107,7 +1141,7 @@ func (s *Server) getDirectTCPIPForwardDialer(scx *srv.ServerContext) (sshutils.T
 		}
 		defer remoteFD.Close()
 
-		_, _, err = proc.Conn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+		_, _, err = uds.WriteWithFDs(proc.Conn, []byte(addr), []*os.File{remoteFD})
 		if err != nil {
 			local.Close()
 			return nil, trace.Wrap(err)
@@ -1151,7 +1185,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (*net.TCPListe
 		return nil, trace.Wrap(err)
 	}
 	defer remoteFD.Close()
-	_, _, err = proc.Conn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+	_, _, err = uds.WriteWithFDs(proc.Conn, []byte(addr), []*os.File{remoteFD})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1165,7 +1199,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (*net.TCPListe
 		defer close(fileCh)
 
 		fbuf := make([]*os.File, 1)
-		if _, fn, _ := localConn.ReadWithFDs(nil, fbuf); fn == 0 {
+		if _, fn, _ := uds.ReadWithFDs(localConn, nil, fbuf); fn == 0 {
 			fileCh <- nil
 		}
 		select {
@@ -1186,7 +1220,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (*net.TCPListe
 	if listenerFD == nil {
 		return nil, trace.BadParameter("forwarding process did not return a listener")
 	}
-	if err := validateListenerSocket(scx, localConn.UnixConn, listenerFD); err != nil {
+	if err := validateListenerSocket(scx, localConn, listenerFD); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1381,6 +1415,13 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
 			}
 		}
+	case teleport.SessionIDQueryRequest:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions
+		if err := r.Reply(true, nil); err != nil {
+			s.Logger.WithError(err).Warnf("Failed to reply to session ID query request")
+		}
+		return
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1472,6 +1513,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
 					ServerMetadata: apievents.ServerMetadata{
+						ServerVersion:   teleport.Version,
 						ServerID:        s.uuid,
 						ServerNamespace: s.GetNamespace(),
 					},

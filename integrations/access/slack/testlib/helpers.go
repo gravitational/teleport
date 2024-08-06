@@ -135,6 +135,8 @@ func channelsToMessages(channels ...string) (messages []slack.Message) {
 type slackCheckMessage func(context.Context) (slack.Message, error)
 
 func (s *SlackBaseSuite) matchAndCallFn(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns []checkMsgTestFn, slackCall slackCheckMessage) []slack.Message {
+	s.T().Helper()
+
 	matchingTimestamps := map[string]slack.Message{}
 
 	for _, matchMessage := range matchMessages {

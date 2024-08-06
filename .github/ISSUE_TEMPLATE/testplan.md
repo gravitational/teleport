@@ -58,7 +58,6 @@ as well as an upgrade of the previous version of Teleport.
     Windows Webauthn requires Windows 10 19H1 and device capable of Windows
     Hello.
 
-  - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
     - [ ] macOS/Linux
@@ -77,10 +76,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
-    - [ ] Attempt removing the last MFA device on the user
-      - [ ] with `second_factor: on` in `auth_service`, should fail
-      - [ ] with `second_factor: optional` in `auth_service`, should succeed
-  - [ ] Login Password Only
+    - [ ] Removing the last MFA device on the user fails
   - [ ] Login with MFA
     - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
@@ -559,6 +555,11 @@ and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
+- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+and with [label](https://cloud.google.com/compute/docs/labeling-resources)
+`foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
+`baz`: `quux`. Verify that a node running on the instance has labels
+`gcp/label/foo=bar` and `gcp/tag/baz=quux`.
 
 ### Passwordless
 
@@ -697,12 +698,15 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] App Access
     - [ ] Desktop Access
+    - [ ] GitHub user
+    - [ ] OIDC user
+    - [ ] SAML user
 
     Confirm that it works by failing first. Most protocols can be tested using
-    device_trust.mode="required". App Acess and Deskop Access require a custom
-    role (see [enforcing device trust][enforcing-device-trust]).
+    device_trust.mode="required". App Access and Desktop Access require a custom
+    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
 
-[enforcing-device-trust]: https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support).
+    For SSO users confirm that device web authentication happens successfully.
 
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
@@ -715,16 +719,6 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
-  - [ ] device_trust.mode="required" is enforced by processes and not only by
-        Auth APIs
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
-
-    Testing this requires issuing a certificate without device extensions
-    (mode="off"), then changing the cluster configuration to mode="required" and
-    attempting to access a process directly, without a login attempt.
-
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
@@ -732,7 +726,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access
     - [ ] Desktop Access
-  - [ ] Device authorization works correctly for both require_session_mfa=false
+  - [ ] Device authentication works correctly for both require_session_mfa=false
         and require_session_mfa=true
     - [ ] SSH
     - [ ] DB Access
@@ -744,12 +738,12 @@ tsh ssh node-that-requires-device-trust
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
-  - [ ] Device authorization issues device event (any outcomes)
+  - [ ] Device authentication issues device event (any outcomes)
   - [ ] Device web authentication issues "Device Web Token Created" and "Device
         Web Authentication Confirmed" events
-  - [ ] Device web authentication events have web_session_id set.
+  - [ ] Device web authentication events have web_authentication_id set.
         Corresponding "Device Authenticated" events have both
-        web_authentication=true and web_session_id set.
+        web_authentication=true and web_authentication_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -832,8 +826,8 @@ $
 $ # test AWS KMS
 $ # login in to AWS locally
 $ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
 $
 $ # test AWS CloudHSM
 $ # set up the CloudHSM cluster and run this on an EC2 that can reach it
@@ -973,11 +967,15 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
+Some tests are marked with "coverved by E2E test" and automatically completed
+by default. In cases the E2E test is flaky or disabled, deselect the task for
+manualy testing.
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -987,6 +985,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
@@ -998,7 +997,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1031,7 +1030,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1046,9 +1045,12 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [ ] AWS RDS Postgres.
-  - [ ] AWS RDS MySQL.
+  - [x] AWS RDS Postgres. (covered by E2E test)
+  - [x] AWS RDS MySQL. (coverved by E2E test)
   - [ ] AWS RDS MariaDB.
+  - [x] AWS Redshift (coverved by E2E test).
+- [ ] Verify Database Access Control
+  - [ ] Postgres (tables)
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1071,13 +1073,14 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
-      - [ ] Can detect and register RDS instances.
-        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
+      - [x] Can detect and register RDS instances. (covered by E2E test)
+        - [x] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
-      - [ ] Can detect and register Redshift clusters.
-      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
+      - [x] Can detect and register Redshift clusters. (covered by E2E test)
+      - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
@@ -1094,8 +1097,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
-- [ ] Other
-  - [ ] MySQL server version reported by Teleport is correct.
+- [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
 
 ## TLS Routing
 
@@ -1227,7 +1229,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
-    - [ ] Attempting to share directory logs a sensible warning in the warning dropdown
+    - [ ] Directory sharing option is not available in the dropdown
   - On supported, chromium based browsers (Chrome/Edge)
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
@@ -1289,7 +1291,7 @@ tsh bench web sessions --max=5000 --web user ls
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
-    start (due to RBAC, for example)
+    start (due to RBAC, or a desktop lock, for example)
   - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
     to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
@@ -1303,12 +1305,20 @@ tsh bench web sessions --max=5000 --web user ls
 - Warnings/Errors (test by applying [this patch](https://gist.github.com/ibeckermayer/7591333275e87ad0d7afa028a7bb54cb))
   - [ ] Induce the backend to send a TDP Notification of severity warning (1), confirm that a warning is logged in the warning dropdown
   - [ ] Induce the backend to send a TDP Notification of severity error (2), confirm that session is terminated and error popup is shown
-  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown (confirms backwards compatibility w/ older w_d_s starting in Teleport 12)
+  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown. Confirm that the error is
+        shown at the end of the playback of this session (confirms backwards compatibility w/ recordings from older w_d_s pre Teleport 12).
 - Trusted Cluster / Tunneling
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
-- Screen size
+- Screen size/resize
+  - resize
+    - [ ] Screen can be resized during an active session
+    - [ ] Screen can be resized during login (meaning before resize dvc is opened).
+          The screen won't resize immediately, but it should resize when the dvc is opened (about when login completes).
+    - [ ] Screen can be resized during mfa dialog without losing the session
+    - [ ] Screen can be resized during "Active Session" dialog without losing the session
+  - `screen_size`
     - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
     - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
     - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
@@ -1321,8 +1331,8 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Connecting to non-AD instance works with OSS if there are no more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance fails with OSS if there are more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance works with Enterprise license always
-  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade
-  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5
+  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade (check occurs every 5 minutes so you may need to wait to confirm)
+  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5 (check occurs every 5 minutes so you may need to wait to confirm)
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
@@ -1367,6 +1377,7 @@ With an SSH node registered to the Teleport cluster:
 
 - [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
 - [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
+- [ ] Verify you are able to connect to the SSH node using the SSH multiplexer service
 
 With a Postgres DB registered to the Teleport cluster:
 
@@ -1377,6 +1388,8 @@ With a Postgres DB registered to the Teleport cluster:
 With a Kubernetes cluster registered to the Teleport cluster:
 
 - [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+  - [ ] With ALPN routing
+  - [ ] Without ALPN routing
 
 With a HTTP application registered to the Teleport cluster:
 
@@ -1535,23 +1548,6 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] You can access Desktop service on leaf cluster
   - [ ] If you change your IP you no longer can access Desktop services.
 
-## Assist
-
-Assist is not supported by `tsh` and WebUI is the only way to use it.
-Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
-
-- Configuration
-  - [ ] Assist is disabled by default (OSS, Enterprise)
-  - [ ] Assist can be enabled in the configuration file.
-  - [ ] Assist is disabled in the Cloud.
-  - [ ] Assist is enabled by default in the Cloud Team plan.
-  - [ ] Assist is always disabled when etcd is used as a backend.
-
-- SSH integration
-  - [ ] Assist icon is visible in WebUI's Terminal
-  - [ ] A Bash command can be generated in the above window.
-  - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
-
 ## IGS:
 - [ ] Access Monitoring
   - [ ] Verify that users can run custom audit queries.
@@ -1566,15 +1562,15 @@ Assist test plan is in the core section instead of WebUI as most functionality i
     - [ ] Verify that owners can only add/remove members and not change other properties.
 
 - [ ] Verify Okta Sync Service
-  - [ ] Verify OKTA Plugin configuration.
-    - [ ] Verify that the OKTA Plugin can be configured.
-    - [ ] Verify the Single Sign-On (SSO) connector created by the OKTA Plugin.
-  - [ ] Verify OKTA users/apps/groups sync.
-    - [ ] Verify that users/apps/groups are synced from OKTA to Teleport.
+  - [ ] Verify Okta Plugin configuration.
+    - [ ] Verify that the Okta Plugin can be configured.
+    - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
+  - [ ] Verify Okta users/apps/groups sync.
+    - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
-  - [ ] Verify access to OKTA apps granted by access_list/access_request.
+  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
+  - [ ] Verify access to Okta apps granted by access_list/access_request.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.

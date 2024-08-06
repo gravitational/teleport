@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1354,7 +1355,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:    nil,
+					CloudClients:    tt.cloudClients,
 					ClusterFeatures: func() proto.Features { return proto.Features{} },
 					AccessPoint:     newFakeAccessPoint(),
 					Matchers:        tt.matchers,
@@ -1986,7 +1987,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
@@ -2124,7 +2125,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 				return
 			}
 			assert.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
 		}, waitForReconcileTimeout, 100*time.Millisecond)
@@ -2526,22 +2527,22 @@ func TestAzureVMDiscovery(t *testing.T) {
 }
 
 type mockGCPClient struct {
-	vms []*gcp.Instance
+	vms []*gcpimds.Instance
 }
 
-func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcp.Instance, error) {
+func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcpimds.Instance, error) {
 	return m.vms, nil
 }
 
-func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcp.Instance] {
+func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcpimds.Instance] {
 	return stream.Slice(m.vms)
 }
 
-func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (*gcp.Instance, error) {
+func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
 	return nil, trace.NotFound("disabled for test")
 }
 
-func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcp.InstanceRequest) (map[string]string, error) {
+func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcpimds.InstanceRequest) (map[string]string, error) {
 	return nil, nil
 }
 
@@ -2606,7 +2607,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 	tests := []struct {
 		name                   string
 		presentVMs             []types.Server
-		foundGCPVMs            []*gcp.Instance
+		foundGCPVMs            []*gcpimds.Instance
 		discoveryConfig        *discoveryconfig.DiscoveryConfig
 		staticMatchers         Matchers
 		wantInstalledInstances []string
@@ -2614,7 +2615,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		{
 			name:       "no nodes present, 1 found",
 			presentVMs: []types.Server{},
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2644,7 +2645,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2672,7 +2673,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2687,7 +2688,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		{
 			name:       "no nodes present, 1 found usind dynamic matchers",
 			presentVMs: []types.Server{},
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2792,12 +2793,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when a resource already exists with the same name but an empty discovery_group.
 func TestServer_onCreate(t *testing.T) {
-	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
-	_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "" /* empty discovery group */)
-	accessPoint := &fakeAccessPoint{
-		kube:     mustConvertEKSToKubeCluster(t, eksMockClusters[0], "" /* empty discovery group */),
-		database: awsRedshiftDBEmptyDiscoveryGroup,
-	}
+	accessPoint := &fakeAccessPoint{}
 	s := &Server{
 		Config: &Config{
 			DiscoveryGroup: "test-cluster",
@@ -2807,31 +2803,106 @@ func TestServer_onCreate(t *testing.T) {
 	}
 
 	t.Run("onCreate update kube", func(t *testing.T) {
+		// With cloud origin and an empty discovery group, it should update.
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "" /* empty discovery group */)
 		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
 		require.NoError(t, err)
-		require.True(t, accessPoint.updateKube)
+		require.True(t, accessPoint.updatedKube)
 
-		// Reset the update flag.
-		accessPoint.updateKube = false
-		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "nonEmpty")
-		// Update the kube cluster with non-empty discovery group.
+		// Reset the updated flag and set the registered kube cluster to have
+		// non-cloud origin. It should not update.
+		accessPoint.updatedKube = false
+		accessPoint.kube.SetOrigin(types.OriginDynamic)
 		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
 		require.Error(t, err)
-		require.False(t, accessPoint.updateKube)
+		require.False(t, accessPoint.updatedKube)
+
+		// Reset the updated flag and set the registered kube cluster to have
+		// an empty origin. It should not update.
+		accessPoint.updatedKube = false
+		accessPoint.kube.SetOrigin("")
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedKube)
+
+		// Reset the update flag and set the registered kube cluster to have
+		// a non-empty discovery group. It should not update.
+		accessPoint.updatedKube = false
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "nonEmpty")
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedKube)
 	})
 
 	t.Run("onCreate update database", func(t *testing.T) {
+		_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
+		_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "" /* empty discovery group */)
+
+		// With cloud origin and an empty discovery group, it should update.
+		accessPoint.database = awsRedshiftDBEmptyDiscoveryGroup
 		err := s.onDatabaseCreate(context.Background(), awsRedshiftDB)
 		require.NoError(t, err)
-		require.True(t, accessPoint.updateDatabase)
+		require.True(t, accessPoint.updatedDatabase)
 
-		// Reset the update flag.
-		accessPoint.updateDatabase = false
-		accessPoint.database = awsRedshiftDB
-		// Update the db with non-empty discovery group.
+		// Reset the updated flag and set the db to empty discovery group
+		// but non-cloud origin. It should not update.
+		accessPoint.updatedDatabase = false
+		accessPoint.database.SetOrigin(types.OriginDynamic)
 		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
 		require.Error(t, err)
-		require.False(t, accessPoint.updateDatabase)
+		require.False(t, accessPoint.updatedDatabase)
+
+		// Reset the updated flag and set the db to empty discovery group
+		// but empty origin. It should not update.
+		accessPoint.updatedDatabase = false
+		accessPoint.database.SetOrigin("")
+		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedDatabase)
+
+		// Reset the updated flag and set the registered db to have a non-empty
+		// discovery group. It should not update.
+		accessPoint.updatedDatabase = false
+		accessPoint.database = awsRedshiftDB
+		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedDatabase)
+	})
+
+	t.Run("onCreate update app", func(t *testing.T) {
+		kubeSvc := newMockKubeService("service1", "ns1", "",
+			map[string]string{"test-label": "testval"}, nil,
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}})
+
+		// With kube origin and empty discovery group, it should update.
+		accessPoint.app = mustConvertKubeServiceToApp(t, "" /*empty discovery group*/, "http", kubeSvc, kubeSvc.Spec.Ports[0])
+		err := s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.NoError(t, err)
+		require.True(t, accessPoint.updatedApp)
+
+		// Reset the updated flag and set the app to empty discovery group
+		// but non-cloud origin. It should not update.
+		accessPoint.updatedApp = false
+		accessPoint.app.SetOrigin(types.OriginDynamic)
+		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedApp)
+
+		// Reset the updated flag and set the app to empty discovery group
+		// but non-cloud origin. It should not update.
+		accessPoint.updatedApp = false
+		accessPoint.app.SetOrigin("")
+		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedApp)
+
+		// Reset the updated flag and set the app to non-empty discovery group.
+		// It should not update.
+		accessPoint.updatedApp = false
+		accessPoint.app = mustConvertKubeServiceToApp(t, "nonEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0])
+		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedApp)
 	})
 }
 
@@ -2930,10 +3001,12 @@ type fakeAccessPoint struct {
 	ping              func(context.Context) (proto.PingResponse, error)
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 
-	updateKube          bool
-	updateDatabase      bool
+	updatedKube         bool
+	updatedDatabase     bool
+	updatedApp          bool
 	kube                types.KubeCluster
 	database            types.Database
+	app                 types.Application
 	upsertedServerInfos chan types.ServerInfo
 	reports             map[string][]discoveryconfig.Status
 }
@@ -2980,7 +3053,7 @@ func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Dat
 }
 
 func (f *fakeAccessPoint) UpdateDatabase(ctx context.Context, database types.Database) error {
-	f.updateDatabase = true
+	f.updatedDatabase = true
 	return nil
 }
 
@@ -2990,7 +3063,20 @@ func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster t
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	f.updateKube = true
+	f.updatedKube = true
+	return nil
+}
+
+func (f *fakeAccessPoint) GetApp(ctx context.Context, name string) (types.Application, error) {
+	return f.app, nil
+}
+
+func (f *fakeAccessPoint) CreateApp(ctx context.Context, _ types.Application) error {
+	return trace.AlreadyExists("already exists")
+}
+
+func (f *fakeAccessPoint) UpdateApp(ctx context.Context, _ types.Application) error {
+	f.updatedApp = true
 	return nil
 }
 

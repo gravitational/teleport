@@ -18,10 +18,12 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Flex, ButtonText, Box } from 'design';
+import { Flex, ButtonText, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepSlider } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAsync';
+
+import { P } from 'design/Text/Text';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
@@ -74,10 +76,10 @@ export default function LoginForm(props: Props) {
     return (
       <FlexBordered p={4}>
         <Alerts.Danger>Login has not been enabled</Alerts.Danger>
-        <Text mb={2} typography="paragraph2" width="100%">
+        <P>
           The ability to login has not been enabled. Please contact your system
           administrator for more information.
-        </Text>
+        </P>
       </FlexBordered>
     );
   }

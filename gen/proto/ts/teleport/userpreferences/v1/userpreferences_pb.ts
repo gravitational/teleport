@@ -34,19 +34,12 @@ import { UnifiedResourcePreferences } from "./unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "./cluster_preferences_pb";
 import { OnboardUserPreferences } from "./onboard_pb";
 import { Theme } from "./theme_pb";
-import { AssistUserPreferences } from "./assist_pb";
 /**
  * UserPreferences is a collection of different user changeable preferences for the frontend.
  *
  * @generated from protobuf message teleport.userpreferences.v1.UserPreferences
  */
 export interface UserPreferences {
-    /**
-     * assist is the preferences for the Teleport Assist.
-     *
-     * @generated from protobuf field: teleport.userpreferences.v1.AssistUserPreferences assist = 1;
-     */
-    assist?: AssistUserPreferences;
     /**
      * theme is the theme of the frontend.
      *
@@ -115,7 +108,6 @@ export interface UpsertUserPreferencesRequest {
 class UserPreferences$Type extends MessageType<UserPreferences> {
     constructor() {
         super("teleport.userpreferences.v1.UserPreferences", [
-            { no: 1, name: "assist", kind: "message", T: () => AssistUserPreferences },
             { no: 2, name: "theme", kind: "enum", T: () => ["teleport.userpreferences.v1.Theme", Theme, "THEME_"] },
             { no: 3, name: "onboard", kind: "message", T: () => OnboardUserPreferences },
             { no: 4, name: "cluster_preferences", kind: "message", T: () => ClusterUserPreferences },
@@ -135,9 +127,6 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* teleport.userpreferences.v1.AssistUserPreferences assist */ 1:
-                    message.assist = AssistUserPreferences.internalBinaryRead(reader, reader.uint32(), options, message.assist);
-                    break;
                 case /* teleport.userpreferences.v1.Theme theme */ 2:
                     message.theme = reader.int32();
                     break;
@@ -165,9 +154,6 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
         return message;
     }
     internalBinaryWrite(message: UserPreferences, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.userpreferences.v1.AssistUserPreferences assist = 1; */
-        if (message.assist)
-            AssistUserPreferences.internalBinaryWrite(message.assist, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         /* teleport.userpreferences.v1.Theme theme = 2; */
         if (message.theme !== 0)
             writer.tag(2, WireType.Varint).int32(message.theme);

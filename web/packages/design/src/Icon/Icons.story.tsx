@@ -73,6 +73,8 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ChatBubble} text="ChatBubble" />
     <IconBox IconCmpt={Icon.ChatCircleSparkle} text="ChatCircleSparkle" />
     <IconBox IconCmpt={Icon.Check} text="Check" />
+    <IconBox IconCmpt={Icon.CheckThick} text="CheckThick" />
+    <IconBox IconCmpt={Icon.Checks} text="Checks" />
     <IconBox IconCmpt={Icon.ChevronCircleDown} text="ChevronCircleDown" />
     <IconBox IconCmpt={Icon.ChevronCircleLeft} text="ChevronCircleLeft" />
     <IconBox IconCmpt={Icon.ChevronCircleRight} text="ChevronCircleRight" />
@@ -181,6 +183,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Server} text="Server" />
     <IconBox IconCmpt={Icon.Share} text="Share" />
     <IconBox IconCmpt={Icon.ShieldCheck} text="ShieldCheck" />
+    <IconBox IconCmpt={Icon.ShieldWarning} text="ShieldWarning" />
     <IconBox IconCmpt={Icon.Sliders} text="Sliders" />
     <IconBox IconCmpt={Icon.SlidersVertical} text="SlidersVertical" />
     <IconBox IconCmpt={Icon.Speed} text="Speed" />

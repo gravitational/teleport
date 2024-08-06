@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build darwin
-// +build darwin
-
 package dns
 
 import (
@@ -96,6 +93,6 @@ func (s *OSUpstreamNameserverSource) upstreamNameservers(ctx context.Context) ([
 		nameservers = append(nameservers, nameserver)
 	}
 
-	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "source", confFilePath)
+	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)
 	return nameservers, nil
 }

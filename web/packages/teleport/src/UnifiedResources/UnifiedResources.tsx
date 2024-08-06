@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -27,6 +27,8 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
   BulkAction,
+  IncludedResourceMode,
+  ResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
@@ -48,6 +50,10 @@ import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering'
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
 import { UnifiedResource } from 'teleport/services/agents';
+import {
+  useSamlAppAction,
+  SamlAppActionProvider,
+} from 'teleport/SamlApplications/useSamlAppActions';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -57,11 +63,13 @@ export function UnifiedResources() {
 
   return (
     <FeatureBox px={4}>
-      <ClusterResources
-        key={clusterId} // when the current cluster changes, remount the component
-        clusterId={clusterId}
-        isLeafCluster={isLeafCluster}
-      />
+      <SamlAppActionProvider>
+        <ClusterResources
+          key={clusterId} // when the current cluster changes, remount the component
+          clusterId={clusterId}
+          isLeafCluster={isLeafCluster}
+        />
+      </SamlAppActionProvider>
     </FeatureBox>
   );
 }
@@ -95,17 +103,20 @@ export function ClusterResources({
   clusterId,
   isLeafCluster,
   getActionButton,
-  includeRequestable,
   showCheckout = false,
+  availabilityFilter,
   bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
-  getActionButton?: (resource: UnifiedResource) => JSX.Element;
-  includeRequestable?: boolean;
+  getActionButton?: (
+    resource: UnifiedResource,
+    includedResourceMode: IncludedResourceMode
+  ) => JSX.Element;
   showCheckout?: boolean;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
+  availabilityFilter?: ResourceAvailabilityFilter;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -126,6 +137,7 @@ export function ClusterResources({
       fieldName: 'name',
       dir: 'ASC',
     },
+    includedResourceMode: availabilityFilter?.mode,
     pinnedOnly:
       preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
@@ -143,7 +155,12 @@ export function ClusterResources({
     getClusterPinnedResources: getCurrentClusterPinnedResources,
   };
 
-  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+  const {
+    fetch,
+    resources: unfilteredResources,
+    attempt,
+    clear,
+  } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
         const response = await teleCtx.resourceService.fetchUnifiedResources(
@@ -157,7 +174,7 @@ export function ClusterResources({
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
-            includeRequestable,
+            includedResourceMode: params.includedResourceMode,
           },
           signal
         );
@@ -175,11 +192,26 @@ export function ClusterResources({
         params.query,
         params.search,
         params.sort,
+        params.includedResourceMode,
         teleCtx.resourceService,
-        includeRequestable,
       ]
     ),
   });
+  const { samlAppToDelete } = useSamlAppAction();
+  const resources = useMemo(
+    () =>
+      samlAppToDelete?.backendDeleted
+        ? unfilteredResources.filter(
+            res =>
+              !(
+                res.kind === 'app' &&
+                res.samlApp &&
+                res.name === samlAppToDelete.name
+              )
+          )
+        : unfilteredResources,
+    [samlAppToDelete, unfilteredResources]
+  );
 
   // This state is used to recognize when the `params` value has changed,
   // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a
@@ -209,6 +241,7 @@ export function ClusterResources({
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        availabilityFilter={availabilityFilter}
         unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
@@ -232,9 +265,10 @@ export function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: getActionButton?.(resource) || (
-              <ResourceActionButton resource={resource} />
-            ),
+            ActionButton: getActionButton?.(
+              resource,
+              params.includedResourceMode
+            ) || <ResourceActionButton resource={resource} />,
           },
         }))}
         setParams={newParams => {
@@ -254,9 +288,6 @@ export function ClusterResources({
         Header={
           <>
             <FeatureHeader
-              css={`
-                border-bottom: none;
-              `}
               mb={1}
               alignItems="center"
               justifyContent="space-between"

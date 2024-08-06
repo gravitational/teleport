@@ -42,6 +42,7 @@ import (
 type Auth interface {
 	UpsertNode(context.Context, types.Server) (*types.KeepAlive, error)
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 
 	KeepAliveServer(context.Context, types.KeepAlive) error
 
@@ -62,6 +63,7 @@ const (
 
 	appKeepAliveOk  testEvent = "app-keep-alive-ok"
 	appKeepAliveErr testEvent = "app-keep-alive-err"
+	appKeepAliveDel testEvent = "app-keep-alive-del"
 
 	appUpsertOk  testEvent = "app-upsert-ok"
 	appUpsertErr testEvent = "app-upsert-err"
@@ -76,6 +78,8 @@ const (
 
 	handlerStart = "handler-start"
 	handlerClose = "handler-close"
+
+	keepAliveTick = "keep-alive-tick"
 )
 
 // intervalKey is used to uniquely identify the subintervals registered with the interval.MultiInterval
@@ -185,6 +189,7 @@ type Controller struct {
 	serviceCounter             *serviceCounter
 	auth                       Auth
 	authID                     string
+	serverKeepAliveEnabled     bool
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
@@ -197,6 +202,18 @@ type Controller struct {
 	onDisconnectFunc           func(string)
 	closeContext               context.Context
 	cancel                     context.CancelFunc
+}
+
+// serverKeepAliveDisabledEnv checks if the periodic server keepalive has been
+// explicitly disabled via environment variable.
+func serverKeepAliveDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE") == "yes"
+}
+
+// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
+// via environment variable.
+func instanceHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 // NewController sets up a new controller instance.
@@ -217,6 +234,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	return &Controller{
 		store:                      NewStore(),
 		serviceCounter:             &serviceCounter{},
+		serverKeepAliveEnabled:     !serverKeepAliveDisabledEnv(),
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
@@ -302,6 +320,15 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 
 	defer func() {
+		if handle.goodbye.GetDeleteResources() {
+			log.WithField("apps", len(handle.appServers)).Debug("Cleaning up resources in response to instance termination")
+			for _, app := range handle.appServers {
+				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+					log.Warnf("Failed to remove app server %q on termination: %v.", handle.Hello().ServerID, err)
+				}
+			}
+		}
+
 		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
 			c.serviceCounter.decrement(service)
@@ -322,9 +349,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		c.testEvent(handlerClose)
 	}()
 
-	// keepAliveInit tracks wether or not we've initialized the server keepalive sub-interval. we do this lazily
-	// upon receipt of the first heartbeat since not all servers send heartbeats.
-	var keepAliveInit bool
+	// keepAliveNeedInit tracks wether or not we should initialize the server
+	// keepalive sub-interval upon receiving a heartbeat. We do this lazily upon
+	// receipt of the first heartbeat since not all servers send heartbeats.
+	keepAliveNeedInit := c.serverKeepAliveEnabled
 
 	for {
 		select {
@@ -341,7 +369,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
-				if !keepAliveInit {
+				if keepAliveNeedInit {
 					// this is the first heartbeat, so we need to initialize the keepalive sub-interval
 					handle.ticker.Push(interval.SubInterval[intervalKey]{
 						Key:           serverKeepAliveKey,
@@ -349,10 +377,12 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 						FirstDuration: halfJitter(c.serverKeepAlive),
 						Jitter:        seventhJitter,
 					})
-					keepAliveInit = true
+					keepAliveNeedInit = false
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
+			case proto.UpstreamInventoryGoodbye:
+				handle.goodbye = m
 			default:
 				log.Warnf("Unexpected upstream message type %T on control stream of server %q.", m, handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
@@ -386,12 +416,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
-}
-
-// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
-// via environment variable.
-func instanceHeartbeatsDisabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -616,6 +640,10 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 }
 
 func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {
+	// always fire off 'tick' event after keepalive processing to ensure
+	// that waiting for N ticks maps intuitively to waiting for N keepalive
+	// processing steps.
+	defer c.testEvent(keepAliveTick)
 	if err := c.keepAliveSSHServer(handle, now); err != nil {
 		return trace.Wrap(err)
 	}
@@ -641,14 +669,15 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 
 				srv.keepAliveErrs++
 				handle.appServers[name] = srv
-				shouldClose := srv.keepAliveErrs > c.maxKeepAliveErrs
+				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+				log.Warnf("Failed to keep alive app server %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
 
-				log.Warnf("Failed to keep alive app server %q: %v (count=%d, closing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldClose)
-
-				if shouldClose {
-					return trace.Errorf("failed to keep alive app server: %v", err)
+				if shouldRemove {
+					c.testEvent(appKeepAliveDel)
+					delete(handle.appServers, name)
 				}
 			} else {
+				srv.keepAliveErrs = 0
 				c.testEvent(appKeepAliveOk)
 			}
 		} else if srv.retryUpsert {
@@ -691,6 +720,7 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 				return trace.Errorf("failed to keep alive ssh server: %v", err)
 			}
 		} else {
+			handle.sshServer.keepAliveErrs = 0
 			c.testEvent(sshKeepAliveOk)
 		}
 	} else if handle.sshServer.retryUpsert {

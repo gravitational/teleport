@@ -45,6 +45,7 @@ func TestGetChartUrl(t *testing.T) {
 	testCases := []struct {
 		version  string
 		expected string
+		error    string
 	}{
 		{
 			version:  "14.3.3",
@@ -56,12 +57,22 @@ func TestGetChartUrl(t *testing.T) {
 		},
 		{
 			version:  "15.0.0-alpha.5",
-			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
+			expected: "https://charts.releases.development.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
+		},
+		{
+			version: "abc",
+			error:   "failed to parse chart version",
 		},
 	}
 
 	for _, tt := range testCases {
-		require.Equal(t, tt.expected, getChartURL(tt.version).String())
+		res, err := getChartURL(tt.version)
+		if tt.error != "" {
+			require.ErrorContains(t, err, tt.error)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, res.String())
+		}
 	}
 }
 

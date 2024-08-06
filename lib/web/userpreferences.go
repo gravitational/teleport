@@ -53,9 +53,10 @@ type ClusterUserPreferencesResponse struct {
 }
 
 type UnifiedResourcePreferencesResponse struct {
-	DefaultTab     userpreferencesv1.DefaultTab     `json:"defaultTab"`
-	ViewMode       userpreferencesv1.ViewMode       `json:"viewMode"`
-	LabelsViewMode userpreferencesv1.LabelsViewMode `json:"labelsViewMode"`
+	DefaultTab            userpreferencesv1.DefaultTab            `json:"defaultTab"`
+	ViewMode              userpreferencesv1.ViewMode              `json:"viewMode"`
+	LabelsViewMode        userpreferencesv1.LabelsViewMode        `json:"labelsViewMode"`
+	AvailableResourceMode userpreferencesv1.AvailableResourceMode `json:"availableResourceMode"`
 }
 
 // AccessGraphPreferencesResponse is the JSON response for Access Graph preferences.
@@ -129,13 +130,10 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
 			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-				DefaultTab:     req.UnifiedResourcePreferences.DefaultTab,
-				ViewMode:       req.UnifiedResourcePreferences.ViewMode,
-				LabelsViewMode: req.UnifiedResourcePreferences.LabelsViewMode,
-			},
-			Assist: &userpreferencesv1.AssistUserPreferences{
-				PreferredLogins: req.Assist.PreferredLogins,
-				ViewMode:        req.Assist.ViewMode,
+				DefaultTab:            req.UnifiedResourcePreferences.DefaultTab,
+				ViewMode:              req.UnifiedResourcePreferences.ViewMode,
+				LabelsViewMode:        req.UnifiedResourcePreferences.LabelsViewMode,
+				AvailableResourceMode: req.UnifiedResourcePreferences.AvailableResourceMode,
 			},
 			Onboard: &userpreferencesv1.OnboardUserPreferences{
 				PreferredResources: req.Onboard.PreferredResources,
@@ -182,7 +180,6 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Assist:                     assistUserPreferencesResponse(resp.Assist),
 		Theme:                      resp.Theme,
 		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
 		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
@@ -204,24 +201,13 @@ func clusterPreferencesResponse(prefs *userpreferencesv1.ClusterUserPreferences)
 	return resp
 }
 
-// assistUserPreferencesResponse creates a JSON response for the assist user preferences.
-func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences) AssistUserPreferencesResponse {
-	jsonResp := AssistUserPreferencesResponse{
-		PreferredLogins: make([]string, 0, len(resp.PreferredLogins)),
-		ViewMode:        resp.ViewMode,
-	}
-
-	jsonResp.PreferredLogins = append(jsonResp.PreferredLogins, resp.PreferredLogins...)
-
-	return jsonResp
-}
-
 // unifiedResourcePreferencesResponse creates a JSON response for the assist user preferences.
 func unifiedResourcePreferencesResponse(resp *userpreferencesv1.UnifiedResourcePreferences) UnifiedResourcePreferencesResponse {
 	return UnifiedResourcePreferencesResponse{
-		DefaultTab:     resp.DefaultTab,
-		ViewMode:       resp.ViewMode,
-		LabelsViewMode: resp.LabelsViewMode,
+		DefaultTab:            resp.DefaultTab,
+		ViewMode:              resp.ViewMode,
+		LabelsViewMode:        resp.LabelsViewMode,
+		AvailableResourceMode: resp.AvailableResourceMode,
 	}
 }
 

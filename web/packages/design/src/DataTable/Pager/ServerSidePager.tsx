@@ -28,7 +28,11 @@ export function ServerSidePager({ nextPage, prevPage, isLoading }: Props) {
   const isPrevDisabled = !prevPage || isLoading;
 
   return (
-    <Flex justifyContent="flex-end" width="100%">
+    <Flex
+      justifyContent="flex-end"
+      width="100%"
+      css={{ flexShrink: 1, flexGrow: 0, flexBasis: 0 }}
+    >
       <Flex>
         <StyledArrowBtn
           onClick={prevPage}

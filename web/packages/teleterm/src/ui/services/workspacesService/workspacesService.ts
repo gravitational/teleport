@@ -20,13 +20,12 @@ import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
-
 import {
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
+  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -48,6 +47,7 @@ import {
 import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
+  PendingAccessRequest,
 } from './accessRequestsService';
 
 import {
@@ -94,6 +94,9 @@ export interface Workspace {
   connectMyComputer?: {
     autoStart: boolean;
   };
+  //TODO(gzdunek): Make this property required.
+  // This requires updating many of tests
+  // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   previous?: {
     documents: Document[];
@@ -189,6 +192,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.accessRequestsServicesCache.set(
         clusterUri,
         new AccessRequestsService(
+          this.modalsService,
           () => {
             return this.state.workspaces[clusterUri].accessRequests;
           },
@@ -258,7 +262,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
   getUnifiedResourcePreferences(
     rootClusterUri: RootClusterUri
-  ): UnifiedResourcePreferences | undefined {
+  ): UnifiedResourcePreferences {
     return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
   }
 
@@ -429,10 +433,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   // TODO(gzdunek): Parse the entire workspace state read from disk like below.
   private parseUnifiedResourcePreferences(
     unifiedResourcePreferences: unknown
-    // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
-  ): Partial<UnifiedResourcePreferences> | undefined {
+  ): UnifiedResourcePreferences | undefined {
     try {
-      return unifiedResourcePreferencesSchema.parse(unifiedResourcePreferences);
+      return unifiedResourcePreferencesSchema.parse(
+        unifiedResourcePreferences
+      ) as UnifiedResourcePreferencesSchemaAsRequired;
     } catch (e) {
       this.logger.error('Failed to parse unified resource preferences', e);
     }
@@ -529,6 +534,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       localClusterUri,
       location: defaultDocument.uri,
       documents: [defaultDocument],
+      unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
     };
   }
 
@@ -551,12 +557,36 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   }
 }
 
-const unifiedResourcePreferencesSchema = z.object({
-  defaultTab: z.nativeEnum(DefaultTab),
-  viewMode: z.nativeEnum(ViewMode),
-  labelsViewMode: z.nativeEnum(LabelsViewMode),
-});
+// Best to keep in sync with lib/services/local/userpreferences.go.
+export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferences {
+  return {
+    defaultTab: DefaultTab.ALL,
+    viewMode: ViewMode.CARD,
+    labelsViewMode: LabelsViewMode.COLLAPSED,
+    availableResourceMode: AvailableResourceMode.NONE,
+  };
+}
+const unifiedResourcePreferencesSchema = z
+  .object({
+    defaultTab: z
+      .nativeEnum(DefaultTab)
+      .default(getDefaultUnifiedResourcePreferences().defaultTab),
+    viewMode: z
+      .nativeEnum(ViewMode)
+      .default(getDefaultUnifiedResourcePreferences().viewMode),
+    labelsViewMode: z
+      .nativeEnum(LabelsViewMode)
+      .default(getDefaultUnifiedResourcePreferences().labelsViewMode),
+    availableResourceMode: z
+      .nativeEnum(AvailableResourceMode)
+      .default(getDefaultUnifiedResourcePreferences().availableResourceMode),
+  })
+  // Assign the default values if undefined is passed.
+  .default({});
 
-export type PendingAccessRequest = {
-  [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
-};
+// Because we don't have `strictNullChecks` enabled, zod infers
+// all properties as optional.
+// With this helper, we can enforce the schema to contain all properties.
+type UnifiedResourcePreferencesSchemaAsRequired = Required<
+  z.infer<typeof unifiedResourcePreferencesSchema>
+>;

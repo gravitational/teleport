@@ -24,8 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -713,13 +716,15 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-			User:             userState.GetName(),
-			Roles:            userState.GetRoles(),
-			Traits:           userState.GetTraits(),
-			SessionTTL:       params.SessionTTL,
-			LoginTime:        a.clock.Now().UTC(),
-			LoginIP:          req.ClientLoginIP,
-			AttestWebSession: true,
+			User:                 userState.GetName(),
+			Roles:                userState.GetRoles(),
+			Traits:               userState.GetTraits(),
+			SessionTTL:           params.SessionTTL,
+			LoginTime:            a.clock.Now().UTC(),
+			LoginIP:              req.ClientLoginIP,
+			LoginUserAgent:       req.ClientUserAgent,
+			AttestWebSession:     true,
+			CreateDeviceWebToken: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -907,6 +912,8 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return user, nil
 }
 
+const unknownRedirectHostnameErrMsg = "unknown custom client redirect URL hostname"
+
 // ValidateClientRedirect checks a desktop client redirect URL for SSO logins
 // against some (potentially nil) settings from an auth connector; in the
 // current implementation, that means either "http" schema with a hostname of
@@ -914,7 +921,10 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 // or "https" schema with a hostname that matches one in the https_hostname
 // list, a path of "/callback" and either an empty port or explicitly 443. The
 // settings are ignored and only localhost URLs are allowed if we're using an
-// ephemeral connector (in the SSO testing flow).
+// ephemeral connector (in the SSO testing flow). If the insecure_allowed_cidr_ranges
+// list is non-empty URLs in both the "http" and "https" schema are allowed
+// if the hostname is an IP address that is contained in a specified CIDR
+// range on any port.
 func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
 	if clientRedirect == "" {
 		// empty redirects are non-functional and harmless, so we allow them as
@@ -944,45 +954,61 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 	}
 
 	// we checked everything but u.Scheme and u.Host now
-
-	switch u.Scheme {
-	default:
+	if u.Scheme != "http" && u.Scheme != "https" {
 		return trace.BadParameter("invalid scheme in client redirect URL")
+	}
 
-	case "http":
-		switch u.Hostname() {
-		default:
-			return trace.BadParameter("invalid hostname in client redirect URL")
-		case "localhost", "127.0.0.1", "::1":
-			return nil
+	// allow HTTP redirects to local addresses
+	allowedHTTPLocalAddrs := []string{"localhost", "127.0.0.1", "::1"}
+	if u.Scheme == "http" && slices.Contains(allowedHTTPLocalAddrs, u.Hostname()) {
+		return nil
+	}
+
+	if ssoTestFlow {
+		return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
+	}
+
+	if settings == nil {
+		return trace.AccessDenied(unknownRedirectHostnameErrMsg)
+	}
+
+	// allow HTTP or HTTPS redirects from IPs in specified CIDR ranges
+	hostIP, err := netip.ParseAddr(u.Hostname())
+	if err == nil {
+		hostIP = hostIP.Unmap()
+
+		for _, cidrStr := range settings.InsecureAllowedCidrRanges {
+			cidr, err := netip.ParsePrefix(cidrStr)
+			if err != nil {
+				slog.WarnContext(context.Background(), "error parsing OIDC connector CIDR prefix", "cidr", cidrStr, "err", err)
+				continue
+			}
+			if cidr.Contains(hostIP) {
+				return nil
+			}
 		}
+	}
 
-	case "https":
-		if ssoTestFlow {
-			return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
-		}
-
+	if u.Scheme == "https" {
 		switch u.Port() {
 		default:
 			return trace.BadParameter("invalid port in client redirect URL")
 		case "", "443":
 		}
 
-		var allowedHostnames []string
-		if settings != nil {
-			allowedHostnames = settings.AllowedHttpsHostnames
+		for _, expression := range settings.AllowedHttpsHostnames {
+			ok, err := utils.MatchString(u.Hostname(), expression)
+			if err != nil {
+				slog.WarnContext(context.Background(), "error compiling OIDC connector allowed HTTPS hostname regex", "regex", expression, "err", err)
+				continue
+			}
+			if ok {
+				return nil
+			}
 		}
-
-		ok, err := utils.SliceMatchesRegex(u.Hostname(), allowedHostnames)
-		if err != nil {
-			return trace.Wrap(err, "matching custom client redirect URL hostname")
-		}
-		if !ok {
-			return trace.AccessDenied("unknown custom client redirect URL hostname")
-		}
-
-		return nil
 	}
+
+	return trace.AccessDenied(unknownRedirectHostnameErrMsg)
 }
 
 // populateGithubClaims builds a GithubClaims using queried
@@ -1176,24 +1202,4 @@ const (
 var GithubScopes = []string{
 	// read:org grants read-only access to user's team memberships
 	"read:org",
-}
-
-var OIDCAuthRequestHook = func(_ context.Context, req *types.OIDCAuthRequest, connector types.OIDCConnector) error {
-	// see CreateGithubAuthRequest
-	if !req.CreateWebSession {
-		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
-			return trace.Wrap(err, InvalidClientRedirectErrorMessage)
-		}
-	}
-	return nil
-}
-
-var SAMLAuthRequestHook = func(_ context.Context, req *types.SAMLAuthRequest, connector types.SAMLConnector) error {
-	// see CreateGithubAuthRequest
-	if !req.CreateWebSession {
-		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
-			return trace.Wrap(err, InvalidClientRedirectErrorMessage)
-		}
-	}
-	return nil
 }

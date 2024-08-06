@@ -112,6 +112,7 @@ export type UnifiedResourcesQueryParams = {
   pinnedOnly?: boolean;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
+  includedResourceMode?: IncludedResourceMode;
 };
 export interface UnifiedResourceViewItem {
   name: string;
@@ -139,6 +140,12 @@ export enum PinningSupport {
   /** Hides the pinning button completely. */
   Hidden = 'Hidden',
 }
+
+export type IncludedResourceMode =
+  | 'none'
+  | 'all'
+  | 'requestable'
+  | 'accessible';
 
 export type ResourceItemProps = {
   name: string;

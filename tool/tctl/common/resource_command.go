@@ -42,12 +42,14 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
@@ -64,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -160,6 +163,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 		types.KindCrownJewel:               rc.createCrownJewel,
 		types.KindVnetConfig:               rc.createVnetConfig,
+		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
+		types.KindPlugin:                   rc.createPlugin,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -173,6 +178,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:              rc.updateCrownJewel,
 		types.KindVnetConfig:              rc.updateVnetConfig,
+		types.KindAccessGraphSettings:     rc.updateAccessGraphSettings,
+		types.KindPlugin:                  rc.updatePlugin,
 	}
 	rc.config = config
 
@@ -466,6 +473,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 
 	warnAboutKubernetesResources(rc.config.Log, role)
+
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
@@ -636,18 +644,14 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 	if rc.IsForced() {
-		_, err = client.DatabaseObjectClient().UpsertDatabaseObject(ctx, &dbobjectv1.UpsertDatabaseObjectRequest{
-			Object: object,
-		})
+		_, err = client.DatabaseObjectsClient().UpsertDatabaseObject(ctx, object)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
 		return nil
 	}
-	_, err = client.DatabaseObjectClient().CreateDatabaseObject(ctx, &dbobjectv1.CreateDatabaseObjectRequest{
-		Object: object,
-	})
+	_, err = client.DatabaseObjectsClient().CreateDatabaseObject(ctx, object)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1772,7 +1776,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabaseObject:
-		if _, err := client.DatabaseObjectClient().DeleteDatabaseObject(ctx, &dbobjectv1.DeleteDatabaseObjectRequest{Name: rc.ref.Name}); err != nil {
+		if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
@@ -2545,29 +2549,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &databaseObjectImportRuleCollection{rules: rules}, nil
 	case types.KindDatabaseObject:
-		remote := client.DatabaseObjectClient()
+		remote := client.DatabaseObjectsClient()
 		if rc.ref.Name != "" {
-			object, err := remote.GetDatabaseObject(ctx, &dbobjectv1.GetDatabaseObjectRequest{Name: rc.ref.Name})
+			object, err := remote.GetDatabaseObject(ctx, rc.ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &databaseObjectCollection{objects: []*dbobjectv1.DatabaseObject{object}}, nil
 		}
 
-		req := &dbobjectv1.ListDatabaseObjectsRequest{}
+		token := ""
 		var objects []*dbobjectv1.DatabaseObject
 		for {
-			resp, err := remote.ListDatabaseObjects(ctx, req)
+			resp, nextToken, err := remote.ListDatabaseObjects(ctx, 0, token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			objects = append(objects, resp.Objects...)
+			objects = append(objects, resp...)
 
-			if resp.NextPageToken == "" {
+			if nextToken == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
+			token = nextToken
 		}
 		return &databaseObjectCollection{objects: objects}, nil
 	case types.KindOktaImportRule:
@@ -2780,6 +2784,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
 		}
 		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
+
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
 		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -2790,6 +2795,83 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindAccessRequest:
 		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
 		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
+	case types.KindPlugin:
+		if rc.ref.Name != "" {
+			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &pluginCollection{plugins: []types.Plugin{plugin}}, nil
+		}
+		var plugins []types.Plugin
+		startKey := ""
+		for {
+			resp, err := client.PluginsClient().ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
+				PageSize:    100,
+				StartKey:    startKey,
+				WithSecrets: rc.withSecrets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, v := range resp.Plugins {
+				plugins = append(plugins, v)
+			}
+			if resp.NextKey == "" {
+				break
+			}
+			startKey = resp.NextKey
+		}
+		return &pluginCollection{plugins: plugins}, nil
+	case types.KindAccessGraphSettings:
+		settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rec, err := clusterconfigrec.ProtoToResource(settings)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &accessGraphSettings{accessGraphSettings: rec}, nil
+	case types.KindBotInstance:
+		if rc.ref.Name != "" && rc.ref.SubKind != "" {
+			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
+			bi, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+				BotName:    rc.ref.SubKind,
+				InstanceId: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &botInstanceCollection{items: []*machineidv1pb.BotInstance{bi}}, nil
+		}
+
+		var instances []*machineidv1pb.BotInstance
+		startKey := ""
+
+		for {
+			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+				PageSize:  100,
+				PageToken: startKey,
+
+				// Note: empty filter lists all bot instances
+				FilterBotName: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			instances = append(instances, resp.BotInstances...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+
+			startKey = resp.NextPageToken
+		}
+
+		return &botInstanceCollection{items: instances}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3077,5 +3159,61 @@ func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Println("vnet_config has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	item := pluginResourceWrapper{PluginV1: types.PluginV1{}}
+	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	item := pluginResourceWrapper{
+		PluginV1: types.PluginV1{},
+	}
+	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
+		return trace.Wrap(err)
+	}
+	if !rc.IsForced() {
+		// Plugin needs to be installed before it can be updated.
+		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")
+	}
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("plugin %q has been updated\n", item.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ClusterConfigClient().UpsertAccessGraphSettings(ctx, &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("access_graph_settings has been upserted")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ClusterConfigClient().UpdateAccessGraphSettings(ctx, &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("access_graph_settings has been updated")
 	return nil
 }

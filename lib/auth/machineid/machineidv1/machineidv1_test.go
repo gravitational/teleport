@@ -340,7 +340,7 @@ func TestCreateBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 					),
 				)
@@ -353,7 +353,7 @@ func TestCreateBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -704,7 +704,7 @@ func TestUpdateBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 					),
 				)
@@ -716,7 +716,7 @@ func TestUpdateBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -1029,7 +1029,7 @@ func TestUpsertBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 					),
 				)
@@ -1041,7 +1041,7 @@ func TestUpsertBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})

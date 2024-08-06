@@ -327,16 +327,6 @@ func (r *RoleV6) SetSubKind(s string) {
 	r.SubKind = s
 }
 
-// GetResourceID returns resource ID
-func (r *RoleV6) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *RoleV6) SetResourceID(id int64) {
-	r.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (r *RoleV6) GetRevision() string {
 	return r.Metadata.GetRevision()
@@ -1839,7 +1829,10 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
 	case KindKubernetesCluster:
 		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
-	case KindApp:
+	case KindApp, KindSAMLIdPServiceProvider:
+		// app_labels will be applied to both app and saml_idp_service_provider resources.
+		// Access to the saml_idp_service_provider can be controlled by the both
+		// app_labels and verbs targeting saml_idp_service_provider resource.
 		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
 	case KindDatabase:
 		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
@@ -1877,7 +1870,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.KubernetesLabels = labelMatchers.Labels
 		cond.KubernetesLabelsExpression = labelMatchers.Expression
 		return nil
-	case KindApp:
+	case KindApp, KindSAMLIdPServiceProvider:
+		// app_labels will be applied to both app and saml_idp_service_provider resources.
+		// Access to the saml_idp_service_provider can be controlled by the both
+		// app_labels and verbs targeting saml_idp_service_provider resource.
 		cond.AppLabels = labelMatchers.Labels
 		cond.AppLabelsExpression = labelMatchers.Expression
 		return nil

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 // NewEngine creates a new Spanner engine.
@@ -108,7 +109,7 @@ func (e *Engine) SendError(err error) {
 	}
 	// the grpc server handles sending all errors, if an error is sent outside
 	// of that, just log it here.
-	e.Log.WithError(err).Debug("GCP Spanner connection error")
+	e.Log.DebugContext(e.Context, "GCP Spanner connection error", "error", err)
 }
 
 // HandleConnection processes the connection from the proxy coming over reverse
@@ -136,7 +137,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 	// this doesn't block, because the listener returns when Accept is called
 	// for a second time.
-	err := grpcServer.Serve(newSingleUseListener(e.clientConn))
+	err := grpcServer.Serve(listener.NewSingleUseListener(e.clientConn))
 	if err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}
@@ -163,7 +164,7 @@ func (e *Engine) unaryServerInterceptors() []grpc.UnaryServerInterceptor {
 	// intercept and log some info, then convert errors to gRPC codes.
 	return []grpc.UnaryServerInterceptor{
 		interceptors.GRPCServerUnaryErrorInterceptor,
-		unaryServerLoggingInterceptor(e.Log),
+		unaryServerLoggingInterceptor(e.Context, e.Log),
 	}
 }
 
@@ -171,6 +172,6 @@ func (e *Engine) streamServerInterceptors() []grpc.StreamServerInterceptor {
 	// intercept and log some info, then convert errors to gRPC codes.
 	return []grpc.StreamServerInterceptor{
 		interceptors.GRPCServerStreamErrorInterceptor,
-		streamServerLoggingInterceptor(e.Log),
+		streamServerLoggingInterceptor(e.Context, e.Log),
 	}
 }

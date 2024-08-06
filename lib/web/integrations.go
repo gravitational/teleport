@@ -152,7 +152,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 
 // integrationsDelete removes an Integration based on its name
 func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	integrationName := p.ByName("name")
+	integrationName := p.ByName("name_or_subkind")
 	if integrationName == "" {
 		return nil, trace.BadParameter("an integration name is required")
 	}

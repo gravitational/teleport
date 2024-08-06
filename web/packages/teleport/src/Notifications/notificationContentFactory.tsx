@@ -62,6 +62,7 @@ export function notificationContentFactory({
       };
       break;
     }
+
     default:
       return null;
   }
@@ -76,6 +77,8 @@ type NotificationContentBase = {
   type: 'success' | 'success-alt' | 'informational' | 'warning' | 'failure';
   /** icon is the icon to render for this notification. This should be an icon from `design/Icon`. */
   icon: React.FC<IconProps>;
+  /** hideDate is whether to not display how old the notification is in the top right corner of the notification. */
+  hideDate?: boolean;
 };
 
 /** For notifications that are clickable and redirect you to a page, and may also optionally include a quick action. */
@@ -87,7 +90,7 @@ type NotificationContentRedirect = NotificationContentBase & {
   QuickAction?: (props: QuickActionProps) => JSX.Element;
 };
 
-export type QuickActionProps = { markAsClicked: () => Promise<any> };
+export type QuickActionProps = { markAsClicked: () => void };
 
 /** For notifications that only contain text and are not interactive in any other way. This is used for user-created notifications. */
 type NotificationContentText = NotificationContentBase & {

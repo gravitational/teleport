@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -31,7 +31,10 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
-import { getBackgroundColor } from '../shared/getBackgroundColor';
+import {
+  BackgroundColorProps,
+  getBackgroundColor,
+} from '../shared/getBackgroundColor';
 
 export function ResourceListItem({
   name,
@@ -93,7 +96,7 @@ export function ResourceListItem({
           `}
           tipContent={selected ? 'Deselect' : 'Select'}
         >
-          <StyledCheckbox checked={selected} onChange={selectResource} />
+          <CheckboxInput checked={selected} onChange={selectResource} />
         </HoverTooltip>
 
         {/* pin button */}
@@ -275,12 +278,12 @@ const RowContainer = styled(Box)`
   transition: all 150ms;
   position: relative;
 
-  :hover {
+  &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    :after {
+    &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       content: '';
       position: absolute;
@@ -293,7 +296,7 @@ const RowContainer = styled(Box)`
   }
 `;
 
-const RowInnerContainer = styled(Flex)`
+const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   display: grid;
   grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
   column-gap: ${props => props.theme.space[3]}px;
@@ -312,7 +315,7 @@ const RowInnerContainer = styled(Flex)`
   border-bottom: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
 
-  :hover {
+  &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }

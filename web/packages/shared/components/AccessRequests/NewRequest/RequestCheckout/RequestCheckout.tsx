@@ -25,9 +25,12 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Image,
   Indicator,
   LabelInput,
+  P3,
+  Subtitle2,
   Text,
 } from 'design';
 import {
@@ -38,13 +41,14 @@ import {
   Cross,
 } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
-import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import { Danger } from 'design/Alert';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
+
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
@@ -61,10 +65,9 @@ import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
-export function RequestCheckoutWithSlider({
-  transitionState,
-  ...props
-}: RequestCheckoutWithSliderProps) {
+export function RequestCheckoutWithSlider<
+  T extends PendingListItem = PendingListItem,
+>({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
   const ref = useRef<HTMLDivElement>();
 
   // Listeners are attached to enable overflow on the parent container after
@@ -113,44 +116,46 @@ export function RequestCheckoutWithSlider({
       `}
     >
       <Dimmer className={transitionState} />
-      <SidePanel state={transitionState} className={transitionState}>
+      <SidePanel className={transitionState}>
         <RequestCheckout {...props} />
       </SidePanel>
     </div>
   );
 }
 
-export function RequestCheckout({
+export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
   onClose,
   reset,
   appsGrantedByUserGroup = [],
   userGroupFetchAttempt,
   clearAttempt,
-  reviewers,
   setSelectedReviewers,
   SuccessComponent,
   requireReason,
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
-  setMaxDuration,
-  setRequestTTL,
+  onMaxDurationChange,
+  maxDurationOptions,
+  setPendingRequestTtl,
+  pendingRequestTtlOptions,
   dryRunResponse,
   data,
+  showClusterNameColumn,
   createAttempt,
   fetchResourceRequestRolesAttempt,
   createRequest,
   selectedReviewers,
   maxDuration,
-  requestTTL,
+  pendingRequestTtl,
   resourceRequestRoles,
   isResourceRequest,
   selectedResourceRequestRoles,
   Header,
-}: RequestCheckoutProps) {
-  // Specifies the start date/time a requestor requested for.
-  const [start, setStart] = useState<Date>();
+  startTime,
+  onStartTimeChange,
+}: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
   function updateReason(reason: string) {
     setReason(reason);
@@ -165,8 +170,8 @@ export function RequestCheckout({
       reason,
       suggestedReviewers: selectedReviewers.map(r => r.value),
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
-      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
-      start: start,
+      requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
+      start: startTime,
     });
   }
 
@@ -192,9 +197,9 @@ export function RequestCheckout({
           style={{ cursor: 'pointer' }}
         />
         <Box>
-          <Text typography="h4" color="text.main" bold>
+          <H2>
             {data.length} {pluralize(data.length, 'Resource')} Selected
-          </Text>
+          </H2>
         </Box>
       </Flex>
     );
@@ -219,14 +224,12 @@ export function RequestCheckout({
           {createAttempt.status === 'success' ? (
             <>
               <Box>
-                <Box mt={2} mb={7} textAlign="center">
-                  <Text typography="h4" color="text.main" bold>
-                    Resources Requested Successfully
-                  </Text>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
+                <Box as="header" mt={2} mb={7} textAlign="center">
+                  <H2 mb={1}>Resources Requested Successfully</H2>
+                  <Subtitle2 color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
-                  </Text>
+                  </Subtitle2>
                 </Box>
                 <Flex justifyContent="center" mb={3}>
                   <Image src={shieldCheck} width="250px" height="179px" />
@@ -244,8 +247,16 @@ export function RequestCheckout({
                 data={data}
                 columns={[
                   {
+                    key: 'clusterName',
+                    headerText: 'Cluster Name',
+                    isNonRender: !showClusterNameColumn,
+                  },
+                  {
                     key: 'kind',
                     headerText: 'Type',
+                    render: item => (
+                      <Cell>{getPrettyResourceKind(item.kind)}</Cell>
+                    ),
                   },
                   {
                     key: 'name',
@@ -261,11 +272,7 @@ export function RequestCheckout({
                           p={2}
                           onClick={() => {
                             clearAttempt();
-                            toggleResource(
-                              resource.kind,
-                              resource.id,
-                              resource.name
-                            );
+                            toggleResource(resource);
                           }}
                           disabled={createAttempt.status === 'processing'}
                           css={`
@@ -275,7 +282,7 @@ export function RequestCheckout({
                               theme.colors.buttons.trashButton.default};
                             border-radius: 2px;
 
-                            :hover {
+                            &:hover {
                               background-color: ${({ theme }) =>
                                 theme.colors.buttons.trashButton.hover};
                             }
@@ -309,7 +316,7 @@ export function RequestCheckout({
               )}
               <Box mt={6} mb={1}>
                 <SelectReviewers
-                  reviewers={reviewers}
+                  reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
                   selectedReviewers={selectedReviewers}
                   setSelectedReviewers={setSelectedReviewers}
                 />
@@ -320,15 +327,14 @@ export function RequestCheckout({
                     {dryRunResponse && (
                       <Box mb={1}>
                         <AssumeStartTime
-                          start={start}
-                          onStartChange={setStart}
+                          start={startTime}
+                          onStartChange={onStartTimeChange}
                           accessRequest={dryRunResponse}
                         />
                         <AccessDurationRequest
-                          assumeStartTime={start}
                           maxDuration={maxDuration}
-                          setMaxDuration={setMaxDuration}
-                          accessRequest={dryRunResponse}
+                          onMaxDurationChange={onMaxDurationChange}
+                          maxDurationOptions={maxDurationOptions}
                         />
                       </Box>
                     )}
@@ -339,11 +345,11 @@ export function RequestCheckout({
                     />
                     {dryRunResponse && maxDuration && (
                       <AdditionalOptions
-                        selectedMaxDurationTimestamp={maxDuration?.value}
-                        maxDuration={maxDuration}
-                        setRequestTTL={setRequestTTL}
-                        requestTTL={requestTTL}
+                        selectedMaxDurationTimestamp={maxDuration.value}
+                        setPendingRequestTtl={setPendingRequestTtl}
+                        pendingRequestTtl={pendingRequestTtl}
                         dryRunResponse={dryRunResponse}
+                        pendingRequestTtlOptions={pendingRequestTtlOptions}
                       />
                     )}
                     <Flex
@@ -485,7 +491,7 @@ function ResourceRequestRoles({
             <LabelInput mb={0} style={{ cursor: 'pointer' }}>
               Roles
             </LabelInput>
-            <Text typography="subtitle2" mb={2}>
+            <Text typography="body4" mb={2}>
               {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
               selected
             </Text>
@@ -517,34 +523,20 @@ function ResourceRequestRoles({
       {fetchAttempt.status === 'success' && expanded && (
         <Box mt={2}>
           {roles.map((roleName, index) => {
-            const id = `${roleName}${index}`;
+            const checked = selectedRoles.includes(roleName);
             return (
-              <CheckboxWrapper
-                key={index}
-                css={`
-                  width: 100%;
-                  cursor: pointer;
-                  background: ${({ theme }) => theme.colors.levels.surface};
-
-                  &:hover {
-                    border-color: ${({ theme }) =>
-                      theme.colors.levels.elevated};
-                  }
-                `}
-                as="label"
-                htmlFor={id}
-              >
-                <CheckboxInput
-                  type="checkbox"
+              <RoleRowContainer checked={checked}>
+                <StyledFieldCheckbox
+                  key={index}
                   name={roleName}
-                  id={id}
                   onChange={e => {
                     onInputChange(roleName, e);
                   }}
-                  checked={selectedRoles.includes(roleName)}
+                  checked={checked}
+                  label={roleName}
+                  size="small"
                 />
-                {roleName}
-              </CheckboxWrapper>
+              </RoleRowContainer>
             );
           })}
           {selectedRoles.length < roles.length && (
@@ -561,10 +553,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <Text typography="subtitle2">
+              <P3>
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </Text>
+              </P3>
             </Flex>
           )}
         </Box>
@@ -572,6 +564,45 @@ function ResourceRequestRoles({
     </Box>
   );
 }
+
+const RoleRowContainer = styled.div<{ checked?: boolean }>`
+  transition: all 150ms;
+  position: relative;
+
+  // TODO(bl-nero): That's the third place where we're copying these
+  // definitions. We need to make them reusable.
+  &:hover {
+    background-color: ${props => props.theme.colors.levels.surface};
+
+    // We use a pseudo element for the shadow with position: absolute in order to prevent
+    // the shadow from increasing the size of the layout and causing scrollbar flicker.
+    &:after {
+      box-shadow: ${props => props.theme.boxShadow[3]};
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+    }
+  }
+`;
+
+const StyledFieldCheckbox = styled(FieldCheckbox)`
+  margin: 0;
+  padding: ${p => p.theme.space[2]}px;
+  background-color: ${props =>
+    props.checked
+      ? props.theme.colors.interactive.tonal.primary[2]
+      : 'transparent'};
+  border-bottom: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
+
+  & > label {
+    display: block; // make it full-width
+  }
+`;
 
 function TextBox({
   reason,
@@ -608,7 +639,7 @@ function TextBox({
           outline: none;
           background: transparent;
 
-          ::placeholder {
+          &::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
 
@@ -621,6 +652,32 @@ function TextBox({
       />
     </LabelInput>
   );
+}
+
+function getPrettyResourceKind(kind: ResourceKind): string {
+  switch (kind) {
+    case 'role':
+      return 'Role';
+    case 'app':
+      return 'Application';
+    case 'node':
+      return 'Server';
+    case 'resource':
+      return 'Resource';
+    case 'db':
+      return 'Database';
+    case 'kube_cluster':
+      return 'Kubernetes';
+    case 'user_group':
+      return 'User Group';
+    case 'windows_desktop':
+      return 'Desktop';
+    case 'saml_idp_service_provider':
+      return 'SAML Application';
+    default:
+      kind satisfies never;
+      return kind;
+  }
 }
 
 const requireText = (value: string, requireReason: boolean) => () => {
@@ -687,43 +744,55 @@ const StyledTable = styled(Table)`
   overflow: hidden;
 ` as typeof Table;
 
-export type RequestCheckoutWithSliderProps = {
+export type RequestCheckoutWithSliderProps<
+  T extends PendingListItem = PendingListItem,
+> = {
   transitionState: TransitionStatus;
-} & RequestCheckoutProps;
+} & RequestCheckoutProps<T>;
 
-export type RequestCheckoutProps = {
-  onClose(): void;
-  toggleResource: (
-    kind: ResourceKind,
-    resourceId: string,
-    resourceName?: string
-  ) => void;
-  appsGrantedByUserGroup?: string[];
-  userGroupFetchAttempt?: Attempt;
-  reset: () => void;
-  SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
-  isResourceRequest: boolean;
-  requireReason: boolean;
-  selectedReviewers: ReviewerOption[];
-  data: { kind: ResourceKind; name: string; id: string }[];
-  setRequestTTL: (value: Option<number>) => void;
-  createRequest: (req: CreateRequest) => void;
-  fetchStatus: 'loading' | 'loaded';
-  fetchResourceRequestRolesAttempt: Attempt;
-  requestTTL: Option<number>;
-  resourceRequestRoles: string[];
-  reviewers: string[];
-  setSelectedReviewers: (value: ReviewerOption[]) => void;
-  setMaxDuration: (value: Option<number>) => void;
-  clearAttempt: () => void;
-  createAttempt: Attempt;
-  setSelectedResourceRequestRoles: (value: string[]) => void;
-  numRequestedResources: number;
-  selectedResourceRequestRoles: string[];
-  dryRunResponse: AccessRequest;
-  maxDuration: Option<number>;
-  Header?: () => JSX.Element;
-};
+export interface PendingListItem {
+  kind: ResourceKind;
+  /** Name of the resource, for presentation purposes only. */
+  name: string;
+  /** Identifier of the resource. Should be sent in requests. */
+  id: string;
+  clusterName?: string;
+}
+
+export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
+  {
+    onClose(): void;
+    toggleResource: (resource: T) => void;
+    appsGrantedByUserGroup?: string[];
+    userGroupFetchAttempt?: Attempt;
+    reset: () => void;
+    SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
+    isResourceRequest: boolean;
+    requireReason: boolean;
+    selectedReviewers: ReviewerOption[];
+    data: T[];
+    showClusterNameColumn?: boolean;
+    createRequest: (req: CreateRequest) => void;
+    fetchStatus: 'loading' | 'loaded';
+    fetchResourceRequestRolesAttempt: Attempt;
+    pendingRequestTtl: Option<number>;
+    setPendingRequestTtl: (value: Option<number>) => void;
+    pendingRequestTtlOptions: Option<number>[];
+    resourceRequestRoles: string[];
+    maxDuration: Option<number>;
+    onMaxDurationChange: (value: Option<number>) => void;
+    maxDurationOptions: Option<number>[];
+    setSelectedReviewers: (value: ReviewerOption[]) => void;
+    clearAttempt: () => void;
+    createAttempt: Attempt;
+    setSelectedResourceRequestRoles: (value: string[]) => void;
+    numRequestedResources: number;
+    selectedResourceRequestRoles: string[];
+    dryRunResponse: AccessRequest;
+    Header?: () => JSX.Element;
+    startTime: Date;
+    onStartTimeChange(t?: Date): void;
+  };
 
 type SuccessComponentParams = {
   reset: () => void;

@@ -22,6 +22,9 @@ import { Platform } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
+// When adding a new config property, add it to the docs too
+// (teleport-connect.mdx#configuration).
+
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
@@ -54,6 +57,12 @@ export const createAppConfigSchema = (platform: Platform) => {
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
+    'terminal.windowsBackend': z
+      .enum(['auto', 'winpty'])
+      .default('auto')
+      .describe(
+        '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
+      ),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -122,7 +131,6 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
-    'feature.vnet': z.boolean().default(false).describe('Shows UI for VNet.'),
   });
 };
 
@@ -161,15 +169,15 @@ const getDefaultKeymap = (
         tab7: 'Ctrl+7',
         tab8: 'Ctrl+8',
         tab9: 'Ctrl+9',
-        closeTab: 'Ctrl+W',
-        newTab: 'Ctrl+T',
-        newTerminalTab: 'Ctrl+Shift+T',
+        closeTab: 'Ctrl+Shift+W',
+        newTab: 'Ctrl+Shift+T',
+        newTerminalTab: 'Ctrl+Shift+`',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openSearchBar: 'Ctrl+K',
-        openConnections: 'Ctrl+P',
-        openClusters: 'Ctrl+E',
-        openProfiles: 'Ctrl+I',
+        openSearchBar: 'Ctrl+Shift+K',
+        openConnections: 'Ctrl+Shift+P',
+        openClusters: 'Ctrl+Shift+E',
+        openProfiles: 'Ctrl+Shift+I',
       };
     case 'linux':
       return {
@@ -182,15 +190,15 @@ const getDefaultKeymap = (
         tab7: 'Alt+7',
         tab8: 'Alt+8',
         tab9: 'Alt+9',
-        closeTab: 'Ctrl+W',
-        newTab: 'Ctrl+T',
-        newTerminalTab: 'Ctrl+Shift+T',
+        closeTab: 'Ctrl+Shift+W',
+        newTab: 'Ctrl+Shift+T',
+        newTerminalTab: 'Ctrl+Shift+`',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openSearchBar: 'Ctrl+K',
-        openConnections: 'Ctrl+P',
-        openClusters: 'Ctrl+E',
-        openProfiles: 'Ctrl+I',
+        openSearchBar: 'Ctrl+Shift+K',
+        openConnections: 'Ctrl+Shift+P',
+        openClusters: 'Ctrl+Shift+E',
+        openProfiles: 'Ctrl+Shift+I',
       };
     case 'darwin':
       return {
@@ -205,7 +213,7 @@ const getDefaultKeymap = (
         tab9: 'Command+9',
         closeTab: 'Command+W',
         newTab: 'Command+T',
-        newTerminalTab: 'Shift+Command+T',
+        newTerminalTab: 'Control+Shift+`',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
         openSearchBar: 'Command+K',

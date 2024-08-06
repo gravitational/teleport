@@ -21,6 +21,8 @@ import styled from 'styled-components';
 import { typography } from 'design/system';
 import { Box } from 'design';
 
+import { TypographyProps } from 'design/system/typography';
+
 import { Document } from 'teleterm/ui/services/workspacesService';
 
 import { TabItem, NewTabItem } from './TabItem';
@@ -64,7 +66,7 @@ export function Tabs(props: Props) {
   );
 
   return (
-    <StyledTabs as="nav" typography="h5" bold {...styledProps}>
+    <StyledTabs as="nav" {...styledProps}>
       {$items}
       <NewTabItem tooltip={newTabTooltip} onClick={onNew} />
     </StyledTabs>
@@ -87,7 +89,8 @@ type Props = {
   [index: string]: any;
 };
 
-const StyledTabs = styled(Box)`
+// TODO(bl-nero): Typography should have a more restrictive type.
+const StyledTabs = styled(Box)<TypographyProps>`
   background-color: ${props => props.theme.colors.levels.surface};
   min-height: 32px;
   display: flex;

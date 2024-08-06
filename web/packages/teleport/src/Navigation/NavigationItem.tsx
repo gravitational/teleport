@@ -32,10 +32,10 @@ import {
 } from 'teleport/Navigation/common';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
+import { LocalNotificationKind } from 'teleport/services/notifications';
 import { useTeleport } from 'teleport';
 
 import { NavTitle, RecommendationStatus } from 'teleport/types';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import type {
   TeleportFeature,
@@ -63,7 +63,7 @@ const highlight = keyframes`
   }
 `;
 
-const Link = styled(NavLink)`
+const Link = styled(NavLink)<{ isHighlighted?: boolean }>`
   ${commonNavigationItemStyles};
   color: ${props => props.theme.colors.text.main};
   z-index: 1;
@@ -122,7 +122,7 @@ export function NavigationItem(props: NavigationItemProps) {
     params.get('highlight') === props.feature.highlightKey;
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLAnchorElement>) => {
       switch (event.key) {
         case 'ArrowDown':
           let nextSibling = event.currentTarget.nextSibling as HTMLDivElement;
@@ -196,7 +196,7 @@ export function NavigationItem(props: NavigationItemProps) {
   function renderHighlightFeature(featureName: NavTitle): JSX.Element {
     if (featureName === NavTitle.AccessLists) {
       const hasNotifications = ctx.storeNotifications.hasNotificationsByKind(
-        NotificationKind.AccessList
+        LocalNotificationKind.AccessList
       );
 
       if (hasNotifications) {
@@ -301,7 +301,7 @@ export function NavigationItem(props: NavigationItemProps) {
   );
 }
 
-const AttentionDot = styled.div.attrs(() => ({
+const AttentionDot = styled.div.attrs<{ 'data-testid'?: string }>(() => ({
   'data-testid': 'nav-item-attention-dot',
 }))`
   margin-left: 15px;

@@ -187,7 +187,12 @@ function ActionCell({
   if (!isAppAdded && !hasSelectedGroups) {
     return (
       <Cell align="right">
-        <ButtonBorder width="123px" size="small" onClick={toggleApp}>
+        <ButtonBorder
+          width="123px"
+          size="small"
+          onClick={toggleApp}
+          textTransform="none"
+        >
           + Add to request
         </ButtonBorder>
       </Cell>
@@ -197,7 +202,12 @@ function ActionCell({
   if (isAppAdded && agent.userGroups.length === 0) {
     return (
       <Cell align="right">
-        <ButtonPrimary width="123px" size="small" onClick={toggleApp}>
+        <ButtonPrimary
+          width="123px"
+          size="small"
+          onClick={toggleApp}
+          textTransform="none"
+        >
           Remove
         </ButtonPrimary>
       </Cell>
@@ -211,7 +221,12 @@ function ActionCell({
   return (
     <Cell align="right">
       {showRemoveButton && (
-        <ButtonPrimary width="123px" size="small" onClick={toggleApp}>
+        <ButtonPrimary
+          width="123px"
+          size="small"
+          onClick={toggleApp}
+          textTransform="none"
+        >
           Remove
         </ButtonPrimary>
       )}
@@ -249,6 +264,7 @@ function ActionCell({
 
 const StyledSelect = styled(BaseStyledSelect)`
   margin-left: 8px;
+
   input[type='checkbox'] {
     cursor: pointer;
   }
@@ -283,6 +299,7 @@ const StyledSelect = styled(BaseStyledSelect)`
     .react-select-container {
       background: ${p => p.theme.colors.buttons.primary.default};
     }
+
     .react-select__placeholder,
     .react-select__dropdown-indicator {
       color: ${p => p.theme.colors.buttons.primary.text};

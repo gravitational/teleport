@@ -342,10 +342,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
 		Logger:       log,
+		CloseContext: cf.Context,
 	})
 
 	localProxy, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, lpListener),
+		makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
 		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
 		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
@@ -388,7 +389,7 @@ func (k *kubeLocalProxy) Start(ctx context.Context) error {
 		errChan <- k.forwardProxy.Start()
 	}()
 	go func() {
-		errChan <- k.localProxy.StartHTTPAccessProxy(ctx)
+		errChan <- k.localProxy.Start(ctx)
 	}()
 
 	select {
@@ -506,8 +507,8 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	return certs, nil
 }
 
-func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.Key, error) {
-	kubeKeys := map[string]*client.Key{}
+func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.KeyRing, error) {
+	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
 		key, err := tc.LocalAgent().GetKey(teleportCluster, client.WithKubeCerts{})
 		if err != nil && !trace.IsNotFound(err) {
@@ -518,7 +519,7 @@ func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[str
 	return kubeKeys, nil
 }
 
-func kubeCertFromKey(key *client.Key, kubeCluster string) (tls.Certificate, error) {
+func kubeCertFromKey(key *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
 	x509cert, err := key.KubeX509Cert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -677,8 +678,8 @@ kubectl version
 var proxyKubeHeadlessTemplate = template.Must(template.New("").
 	Parse(fmt.Sprintf(`Started local proxy for Kubernetes Access in the background.
 
-%v Teleport will initiate a new shell configured with kubectl for local proxy access. 
-To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored, 
+%v Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
 the local proxy will be closed, and future access through this headless session won't be possible.
 
 {{ if .multipleContexts}} To work with different contexts use "kubectl --context", for example:

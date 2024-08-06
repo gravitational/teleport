@@ -18,7 +18,6 @@ package teleport.userpreferences.v1;
 
 import "google/protobuf/empty.proto";
 import "teleport/userpreferences/v1/access_graph.proto";
-import "teleport/userpreferences/v1/assist.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/onboard.proto";
 import "teleport/userpreferences/v1/theme.proto";
@@ -29,7 +28,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/userpref
 // UserPreferences is a collection of different user changeable preferences for the frontend.
 message UserPreferences {
   // assist is the preferences for the Teleport Assist.
-  v1.AssistUserPreferences assist = 1;
+  reserved 1;
+  reserved "assist";
   // theme is the theme of the frontend.
   Theme theme = 2;
   // onboard is the preferences from the onboarding questionnaire.

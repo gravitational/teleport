@@ -29,12 +29,12 @@ functionality without a net addition of an agent on your system.
 ## Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
-look at [Using OpenSSH Guide](./server-access/openssh/openssh.mdx).
+look at [Using OpenSSH Guide](./enroll-resources/server-access/openssh/openssh.mdx).
 
 ## Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters, see [Configure Trusted Clusters](./management/admin/trustedclusters.mdx).
+behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
 
 ## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
 (!docs/pages/includes/ent-vs-community-faq.mdx!)
@@ -45,7 +45,7 @@ Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
-Cluster](./agents/join-services-to-your-cluster/join-token.mdx).
+Cluster](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -56,7 +56,7 @@ multiplexing with that configuration.
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx),
+Yes, Teleport supports [Headless WebAuthn authentication](admin-guides/access-controls/guides/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
@@ -101,9 +101,9 @@ Here are the major versions of Teleport and their support windows:
 
 | Release | Release Date       | EOL            | Minimum `tsh` version |
 |---------|--------------------|----------------|-----------------------|
+| v16.0   | June 14, 2024      | June 2025      | v15.0.0               |
 | v15.0   | January 29, 2024   | January 2025   | v14.0.0               |
 | v14.0   | September 20, 2023 | September 2024 | v13.0.0               |
-| v13.0   | May 8, 2023        | May 2024       | v12.0.0               |
 
 ### Version compatibility
 
@@ -119,16 +119,16 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 
 ## Does Teleport support authentication via OIDC, SAML, or Active Directory?
 
-Teleport offers this feature for the [Enterprise Cloud](choose-an-edition/teleport-cloud/introduction.mdx) and [Enterprise](choose-an-edition/teleport-enterprise/introduction.mdx) versions of Teleport.
+Teleport offers this feature for the Enterprise (Cloud) and Enterprise
+(Self-Hosted) versions of Teleport.
 
 ## Does Teleport support provisioning users via SCIM?
 
 Teleport supports [SCIM](https://scim.cloud/) provisioning for Okta via the
-hosted Okta integration, available in the [Enterprise Cloud](choose-an-edition/teleport-cloud/introduction.mdx)
-and [Enterprise](choose-an-edition/teleport-enterprise/introduction.mdx) versions
-of Teleport.
+hosted Okta integration, available in the Enterprise (Cloud) and Enterprise
+(Self-Hosted) versions of Teleport.
 
-Refer to the [hosted Okta integration guide](./application-access/okta/hosted-guide.mdx)
+Refer to the [hosted Okta integration guide](./enroll-resources/application-access/okta/hosted-guide.mdx)
 for details on setting up and configuring SCIM support.
 
 ## Why do I see an alert that some agents are out of date?

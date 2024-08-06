@@ -28,8 +28,9 @@ import (
 
 // MockRecorderEmitter is a recorder and emitter that stores all events.
 type MockRecorderEmitter struct {
-	mu     sync.RWMutex
-	events []apievents.AuditEvent
+	mu             sync.RWMutex
+	events         []apievents.AuditEvent
+	recordedEvents []apievents.PreparedSessionEvent
 }
 
 func (e *MockRecorderEmitter) Write(_ []byte) (int, error) {
@@ -48,6 +49,7 @@ func (e *MockRecorderEmitter) EmitAuditEvent(ctx context.Context, event apievent
 func (e *MockRecorderEmitter) RecordEvent(ctx context.Context, event apievents.PreparedSessionEvent) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.recordedEvents = append(e.recordedEvents, event)
 	e.events = append(e.events, event.GetAuditEvent())
 	return nil
 }
@@ -69,6 +71,16 @@ func (e *MockRecorderEmitter) Events() []apievents.AuditEvent {
 
 	result := make([]apievents.AuditEvent, len(e.events))
 	copy(result, e.events)
+	return result
+}
+
+// RecordedEvents returns all the emitted events.
+func (e *MockRecorderEmitter) RecordedEvents() []apievents.PreparedSessionEvent {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	result := make([]apievents.PreparedSessionEvent, len(e.recordedEvents))
+	copy(result, e.recordedEvents)
 	return result
 }
 

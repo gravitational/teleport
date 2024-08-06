@@ -330,13 +330,6 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		s.Commands = []CommandLabel{
-			{
-				Name:    defaults.HostnameLabel,
-				Command: []string{"hostname"},
-				Period:  time.Minute,
-			},
-		}
 		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)
@@ -813,9 +806,6 @@ type Auth struct {
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
-
 	// AccessMonitoring is a set of options related to the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
 }
@@ -858,8 +848,7 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval ||
-		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
+		a.ProxyPingInterval != empty.ProxyPingInterval
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -894,13 +883,13 @@ type PKCS11 struct {
 	// SlotNumber is the slot number of the HSM token to use. Set this or
 	// TokenLabel to select a token.
 	SlotNumber *int `yaml:"slot_number,omitempty"`
-	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// PIN is the raw pin for connecting to the HSM. Set this or PINPath to set
 	// the pin.
-	Pin string `yaml:"pin,omitempty"`
-	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	PIN string `yaml:"pin,omitempty"`
+	// PINPath is a path to a file containing a pin for connecting to the HSM.
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
-	PinPath string `yaml:"pin_path,omitempty"`
+	PINPath string `yaml:"pin_path,omitempty"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
@@ -1285,31 +1274,6 @@ func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNum
 		Enabled:               enabled,
 		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
-}
-
-// AssistOptions is a set of options common to both Auth and Proxy related to the Teleport Assist feature.
-type AssistOptions struct {
-	// OpenAI is a set of options related to the OpenAI assist backend.
-	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
-}
-
-// ProxyAssistOptions is a set of proxy service options related to the Assist feature
-type ProxyAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-}
-
-// AuthAssistOptions is a set of auth service options related to the Assist feature
-type AuthAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-	// CommandExecutionWorkers determines the number of workers that will
-	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-	CommandExecutionWorkers int32 `yaml:"command_execution_workers,omitempty"`
-}
-
-// OpenAIOptions stores options related to the OpenAI assist backend.
-type OpenAIOptions struct {
-	// APITokenPath is the path to a file with OpenAI API key.
-	APITokenPath string `yaml:"api_token_path,omitempty"`
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -1698,6 +1662,8 @@ type AWSMatcher struct {
 	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
 	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
 	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
+	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+	SetupAccessForARN string `yaml:"setup_access_for_arn"`
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -1877,6 +1843,9 @@ type DatabaseTLS struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// CACertFile is an optional path to the database CA certificate.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	TrustSystemCertPool bool `yaml:"trust_system_cert_pool,omitempty"`
 }
 
 // DatabaseMySQL are an additional MySQL database options.
@@ -2128,9 +2097,6 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
-
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *ProxyAssistOptions `yaml:"assist,omitempty"`
 
 	// TrustXForwardedFor enables the service to take client source IPs from
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
@@ -2572,9 +2538,14 @@ type JamfService struct {
 	APIEndpoint string `yaml:"api_endpoint,omitempty"`
 	// Username is the Jamf Pro API username.
 	Username string `yaml:"username,omitempty"`
-	// PasswordFile is a file containing the  Jamf Pro API password.
+	// PasswordFile is a file containing the Jamf Pro API password.
 	// A single trailing newline is trimmed, anything else is taken literally.
 	PasswordFile string `yaml:"password_file,omitempty"`
+	// ClientID is the Jamf API Client ID.
+	ClientID string `yaml:"client_id,omitempty"`
+	// ClientSecretFile is a file containing the Jamf API client secret.
+	// A single trailing newline is trimmed, anything else is taken literally.
+	ClientSecretFile string `yaml:"client_secret_file,omitempty"`
 	// Inventory are the entries for inventory sync.
 	Inventory []*JamfInventoryEntry `yaml:"inventory,omitempty"`
 }
@@ -2605,22 +2576,16 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		return nil, trace.BadParameter("jamf_service is nil")
 	case j.ListenAddress != "":
 		return nil, trace.BadParameter("jamf listen_addr not supported")
-	case j.PasswordFile == "":
-		return nil, trace.BadParameter("jamf password_file required")
 	}
 
-	// Read password from file.
-	pwdBytes, err := os.ReadFile(j.PasswordFile)
+	// Read secrets.
+	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
 	if err != nil {
-		return nil, trace.BadParameter("jamf password_file: %v", err)
+		return nil, trace.Wrap(err)
 	}
-	pwd := string(pwdBytes)
-	if pwd == "" {
-		return nil, trace.BadParameter("jamf password_file is empty")
-	}
-	// Trim trailing \n?
-	if l := len(pwd); pwd[l-1] == '\n' {
-		pwd = pwd[:l-1]
+	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Assemble spec.
@@ -2635,13 +2600,15 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		}
 	}
 	spec := &types.JamfSpecV1{
-		Enabled:     j.Enabled(),
-		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
-		ApiEndpoint: j.APIEndpoint,
-		Username:    j.Username,
-		Password:    pwd,
-		Inventory:   inventory,
+		Enabled:      j.Enabled(),
+		Name:         j.Name,
+		SyncDelay:    types.Duration(j.SyncDelay),
+		ApiEndpoint:  j.APIEndpoint,
+		Username:     j.Username,
+		Password:     password,
+		Inventory:    inventory,
+		ClientId:     j.ClientID,
+		ClientSecret: clientSecret,
 	}
 
 	// Validate.
@@ -2650,4 +2617,25 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	}
 
 	return spec, nil
+}
+
+func readJamfPasswordFile(path, key string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	pwdBytes, err := os.ReadFile(path)
+	if err != nil {
+		return "", trace.BadParameter("jamf %v: %v", key, err)
+	}
+	pwd := string(pwdBytes)
+	if pwd == "" {
+		return "", trace.BadParameter("jamf %v is empty", key)
+	}
+	// Trim exactly one trailing \n, if present.
+	if l := len(pwd); pwd[l-1] == '\n' {
+		pwd = pwd[:l-1]
+	}
+
+	return pwd, nil
 }

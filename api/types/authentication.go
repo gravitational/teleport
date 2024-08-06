@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
@@ -170,8 +171,16 @@ type AuthPreference interface {
 	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
 	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
+	// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
+	// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+	SetSignatureAlgorithmSuite(SignatureAlgorithmSuite)
+
 	// String represents a human readable version of authentication settings.
 	String() string
+
+	// Clone makes a deep copy of the AuthPreference.
+	Clone() AuthPreference
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -238,16 +247,6 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 // GetMetadata returns object metadata.
 func (c *AuthPreferenceV2) GetMetadata() Metadata {
 	return c.Metadata
-}
-
-// GetResourceID returns resource ID.
-func (c *AuthPreferenceV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *AuthPreferenceV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -550,6 +549,16 @@ func (c *AuthPreferenceV2) setStaticFields() {
 	c.Metadata.Name = MetaNameClusterAuthPreference
 }
 
+// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite {
+	return c.Spec.SignatureAlgorithmSuite
+}
+
+// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+func (c *AuthPreferenceV2) SetSignatureAlgorithmSuite(suite SignatureAlgorithmSuite) {
+	c.Spec.SignatureAlgorithmSuite = suite
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -761,6 +770,11 @@ func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
 }
 
+// Clone returns a copy of the AuthPreference resource.
+func (c *AuthPreferenceV2) Clone() AuthPreference {
+	return utils.CloneProtoMsg(c)
+}
+
 func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
@@ -911,8 +925,6 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
-func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
 func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
 func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }

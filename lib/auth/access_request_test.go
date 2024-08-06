@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,8 +58,10 @@ type accessRequestTestPack struct {
 	clusterName string
 	roles       map[string]types.RoleSpecV6
 	users       map[string][]string
-	privKey     []byte
-	pubKey      []byte
+	tlsPrivKey  []byte
+	tlsPubKey   []byte
+	sshPrivKey  []byte
+	sshPubKey   []byte
 }
 
 func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestTestPack {
@@ -172,16 +174,16 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		require.NoError(t, err)
 	}
 
-	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
+	sshPrivKey, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	return &accessRequestTestPack{
 		tlsServer:   tlsServer,
 		clusterName: clusterName.GetClusterName(),
 		roles:       roles,
 		users:       users,
-		privKey:     privKey,
-		pubKey:      pubKey,
+		sshPrivKey:  sshPrivKey,
+		sshPubKey:   sshPubKey,
+		tlsPrivKey:  tlsPrivKey,
+		tlsPubKey:   tlsPubKey,
 	}
 }
 
@@ -873,7 +875,8 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			// one or more access-requests to the certificate.
 			generateCerts := func(reqIDs ...string) (*proto.Certs, error) {
 				return requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-					PublicKey:      testPack.pubKey,
+					SSHPublicKey:   testPack.sshPubKey,
+					TLSPublicKey:   testPack.tlsPubKey,
 					Username:       tc.requester,
 					Expires:        time.Now().Add(time.Hour).UTC(),
 					Format:         constants.CertificateFormatStandard,
@@ -955,7 +958,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 				[]string{req.GetName()},
 				requestResourceIDs)
 
-			elevatedCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
+			elevatedCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
 			require.NoError(t, err)
 			elevatedClient := testPack.tlsServer.NewClientWithCert(elevatedCert)
 
@@ -971,9 +974,10 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 			// renew elevated certs
 			newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey: testPack.pubKey,
-				Username:  tc.requester,
-				Expires:   time.Now().Add(time.Hour).UTC(),
+				SSHPublicKey: testPack.sshPubKey,
+				TLSPublicKey: testPack.tlsPubKey,
+				Username:     tc.requester,
+				Expires:      time.Now().Add(time.Hour).UTC(),
 				// no new access requests
 				AccessRequests: nil,
 			})
@@ -1010,9 +1014,10 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 			// ensure that identities with requests in the DENIED state can't reissue new certs.
 			_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey: testPack.pubKey,
-				Username:  tc.requester,
-				Expires:   time.Now().Add(time.Hour).UTC(),
+				SSHPublicKey: testPack.sshPubKey,
+				TLSPublicKey: testPack.tlsPubKey,
+				Username:     tc.requester,
+				Expires:      time.Now().Add(time.Hour).UTC(),
 				// no new access requests
 				AccessRequests: nil,
 			})
@@ -1055,15 +1060,15 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 	defer botClient.Close()
 	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		Username:  bot.Status.UserName,
-		PublicKey: testPack.pubKey,
-		Expires:   time.Now().Add(time.Hour),
+		Username:     bot.Status.UserName,
+		TLSPublicKey: testPack.tlsPubKey,
+		Expires:      time.Now().Add(time.Hour),
 
 		RoleRequests:    []string{"admins"},
 		UseRoleRequests: true,
 	})
 	require.NoError(t, err)
-	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.privKey)
+	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.tlsPrivKey)
 	require.NoError(t, err)
 	impersonatedBotClient := testPack.tlsServer.NewClientWithCert(tlsCert)
 	defer impersonatedBotClient.Close()
@@ -1144,14 +1149,15 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	updateClientWithNewAndDroppedRequests := func(newRequests, dropRequests []string) newClientFunc {
 		return func(t *testing.T, clt *authclient.Client, _ *proto.Certs) (*authclient.Client, *proto.Certs) {
 			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:          testPack.pubKey,
+				SSHPublicKey:       testPack.sshPubKey,
+				TLSPublicKey:       testPack.tlsPubKey,
 				Username:           username,
 				Expires:            time.Now().Add(time.Hour).UTC(),
 				AccessRequests:     newRequests,
 				DropAccessRequests: dropRequests,
 			})
 			require.NoError(t, err)
-			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
+			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
 			require.NoError(t, err)
 			return testPack.tlsServer.NewClientWithCert(tlsCert), certs
 		}
@@ -1166,7 +1172,8 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		return func(t *testing.T, clt *authclient.Client, certs *proto.Certs) (*authclient.Client, *proto.Certs) {
 			// assert that this request fails
 			_, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:      testPack.pubKey,
+				SSHPublicKey:   testPack.sshPubKey,
+				TLSPublicKey:   testPack.tlsPubKey,
 				Username:       username,
 				Expires:        time.Now().Add(time.Hour).UTC(),
 				AccessRequests: reqs,
@@ -1331,7 +1338,8 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	require.NoError(t, err)
 
 	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:          testPack.pubKey,
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
 		Username:           username,
 		Expires:            time.Now().Add(time.Hour).UTC(),
 		DropAccessRequests: []string{"bogus-request-id"},
@@ -1543,7 +1551,9 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
 		},
 	})
 

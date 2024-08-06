@@ -132,6 +132,14 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'entra-id',
+    details: '',
+    kind: 'entra-id',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [
@@ -141,17 +149,6 @@ export const integrations: Integration[] = [
     kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-  },
-  {
-    resourceType: 'integration',
-    name: 'aws',
-    kind: IntegrationKind.AwsOidc,
-    statusCode: IntegrationStatusCode.Running,
-    spec: {
-      roleArn: 'some-role-arn',
-      issuerS3Prefix: 'some-prefix',
-      issuerS3Bucket: 'some-bucket',
-    },
   },
 ];
 

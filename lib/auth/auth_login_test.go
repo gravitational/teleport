@@ -1765,10 +1765,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
-		name      string
-		timeout   time.Duration
-		update    func(*types.HeadlessAuthentication, *types.MFADevice)
-		expectErr bool
+		name        string
+		timeout     time.Duration
+		update      func(*types.HeadlessAuthentication, *types.MFADevice)
+		assertError require.ErrorAssertionFunc
 	}{
 		{
 			name:    "OK approved",
@@ -1777,25 +1777,31 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 				ha.MfaDevice = mfa
 			},
+			assertError: require.NoError,
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
-			expectErr: true,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
 		}, {
 			name:    "NOK denied",
 			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
-			expectErr: true,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
 		}, {
-			name:      "NOK timeout",
-			timeout:   100 * time.Millisecond,
-			update:    func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
-			expectErr: true,
+			name:    "NOK timeout",
+			timeout: 100 * time.Millisecond,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1811,20 +1817,6 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			mfa := configureForMFA(t, srv)
 			username := mfa.User
 
-			// Fail a login attempt so we have a non-empty list of attempts.
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-					Username:  username,
-					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
-					PublicKey: []byte(sshPubKey),
-				},
-				TTL: 24 * time.Hour,
-			})
-			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied", err)
-			attempts, err := srv.Auth().GetUserLoginAttempts(username)
-			require.NoError(t, err)
-			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
-
 			ctx, cancel := context.WithTimeout(ctx, tc.timeout)
 			defer cancel()
 
@@ -1832,6 +1824,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			errC := make(chan error)
 			go func() {
 				defer close(errC)
+
+				if tc.update == nil {
+					return
+				}
 
 				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
 				if err != nil {
@@ -1873,21 +1869,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			// Use assert so that we also output any test failures below.
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
-			if tc.expectErr {
-				require.Error(t, err)
-				// Verify login attempts unchanged. This is a proxy for various other user
-				// checks (locked, etc).
-				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
-				require.NoError(t, err)
-				require.Equal(t, attempts, updatedAttempts, "Login attempts unexpectedly changed")
-			} else {
-				require.NoError(t, err)
-				// Verify zeroed login attempts. This is a proxy for various other user
-				// checks (locked, etc).
-				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
-				require.NoError(t, err)
-				require.Empty(t, updatedAttempts, "Login attempts not reset")
-			}
+			tc.assertError(t, err)
 		})
 	}
 }

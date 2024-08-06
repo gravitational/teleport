@@ -198,7 +198,7 @@ func (m *mockMiddlewareCounter) onStateChange() {
 	}
 }
 
-func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	m.Lock()
 	defer m.Unlock()
 	m.connCount++
@@ -292,7 +292,7 @@ type mockCertRenewer struct {
 	cert tls.Certificate
 }
 
-func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
+func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy) error {
 	lp.SetCert(m.cert)
 	return nil
 }
@@ -428,7 +428,7 @@ func TestCheckDBCerts(t *testing.T) {
 type mockMiddlewareConnUnauth struct {
 }
 
-func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	return trace.AccessDenied("access denied.")
 }
 
@@ -504,8 +504,58 @@ func TestKubeMiddleware(t *testing.T) {
 	)
 
 	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return newCert, nil
+		select {
+		case <-ctx.Done():
+			return tls.Certificate{}, ctx.Err()
+		default:
+			return newCert, nil
+		}
 	}
+
+	t.Run("expired certificate is still reissued if request context expires", func(t *testing.T) {
+		req := &http.Request{
+			TLS: &tls.ConnectionState{
+				ServerName: "kube1",
+			},
+		}
+		// we set request context to a context that is already canceled, so handler function will start reissuing
+		// certificate goroutine and then will exit immediately.
+		reqCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+		req = req.WithContext(reqCtx)
+
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs:        KubeClientCerts{"kube1": kube1Cert},
+			CertReissuer: certReissuer,
+			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
+			CloseContext: context.Background(),
+		})
+		err := km.CheckAndSetDefaults()
+		require.NoError(t, err)
+
+		var rw *responsewriters.MemoryResponseWriter
+		// We use `require.Eventually` to avoid a very rare test flakiness case when reissue goroutine manages to
+		// successfully finish before the parent goroutine has a chance to check the context (and see that it's expired).
+		require.Eventually(t, func() bool {
+			rw = responsewriters.NewMemoryResponseWriter()
+			// HandleRequest will reissue certificate if needed.
+			km.HandleRequest(rw, req)
+
+			// request timed out.
+			return rw.Status() == http.StatusInternalServerError
+
+		}, 5*time.Second, 100*time.Millisecond)
+		require.Contains(t, rw.Buffer().String(), "context canceled")
+
+		// just let the reissuing goroutine some time to replace certs.
+		time.Sleep(10 * time.Millisecond)
+
+		// but certificate still was reissued.
+		certs, err := km.OverwriteClientCerts(req)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		require.Equal(t, newCert, certs[0], "certificate was not reissued")
+	})
 
 	testCases := []struct {
 		name            string
@@ -559,6 +609,7 @@ func TestKubeMiddleware(t *testing.T) {
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
 				Clock:        tt.clock,
+				CloseContext: context.Background(),
 			})
 
 			// HandleRequest will reissue certificate if needed
@@ -595,7 +646,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		hs.Close()
 	})
 	go func() {
-		err := lp.StartHTTPAccessProxy(context.Background())
+		err := lp.Start(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp

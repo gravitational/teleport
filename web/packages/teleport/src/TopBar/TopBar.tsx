@@ -203,10 +203,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
-          <UserMenuNav
-            username={ctx.storeUser.state.username}
-            iconSize={iconSize}
-          />
+          <UserMenuNav username={ctx.storeUser.state.username} />
         </Flex>
       )}
     </TopBarContainer>
@@ -261,7 +258,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           transition: background-color 0.1s linear;
           &:hover {
             background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[0]};
+              p.theme.colors.interactive.tonal.primary[0].background};
           }
           align-items: center;
         `}
@@ -312,7 +309,8 @@ const NavigationButton = ({
 }) => {
   const theme = useTheme();
   const selectedBorder = `2px solid ${theme.colors.brand}`;
-  const selectedBackground = theme.colors.interactive.tonal.neutral[0];
+  const selectedBackground =
+    theme.colors.interactive.tonal.neutral[0].background;
 
   return (
     <HoverTooltip

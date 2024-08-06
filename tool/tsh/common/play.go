@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -78,7 +80,7 @@ func playSession(cf *CLIConf) error {
 	isLocalFile := path.Ext(cf.SessionID) == ".tar"
 	if isLocalFile {
 		sid := sessionIDFromPath(cf.SessionID)
-		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed); err != nil {
+		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed, cf.NoWait); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -89,7 +91,7 @@ func playSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
+	if err := tc.Play(cf.Context, cf.SessionID, speed, cf.NoWait); err != nil {
 		if trace.IsNotFound(err) {
 			log.WithError(err).Debug("error playing session")
 			return trace.NotFound("Recording for session %s not found.", cf.SessionID)

@@ -341,7 +341,7 @@ func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter,
 func marshalServers(servers []types.Server, version string) (interface{}, error) {
 	items := make([]json.RawMessage, len(servers))
 	for i, server := range servers {
-		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -385,7 +385,7 @@ func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWrit
 	}
 	items := make([]json.RawMessage, len(reverseTunnels))
 	for i, tunnel := range reverseTunnels {
-		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -589,7 +589,7 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(
-			response.Session, services.WithVersion(version), services.PreserveResourceID())
+			response.Session, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -598,7 +598,7 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
 		data, err := services.MarshalCertAuthority(
-			ca, services.WithVersion(version), services.PreserveResourceID())
+			ca, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -818,7 +818,7 @@ func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
 }
 
 type setClusterNameReq struct {
@@ -874,7 +874,7 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 	}
 	items := make([]json.RawMessage, len(conns))
 	for i, conn := range conns {
-		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -891,7 +891,7 @@ func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.Respon
 	}
 	items := make([]json.RawMessage, len(conns))
 	for i, conn := range conns {
-		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -935,7 +935,7 @@ func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWrit
 	}
 	items := make([]json.RawMessage, len(clusters))
 	for i, cluster := range clusters {
-		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -950,7 +950,7 @@ func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWrite
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision()))
 }
 
 // deleteRemoteCluster deletes remote cluster by name

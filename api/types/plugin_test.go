@@ -855,7 +855,8 @@ func TestPluginEntraIDValidation(t *testing.T) {
 		return &PluginSpecV1_EntraId{
 			EntraId: &PluginEntraIDSettings{
 				SyncSettings: &PluginEntraIDSyncSettings{
-					DefaultOwners: []string{"admin"},
+					DefaultOwners:  []string{"admin"},
+					SsoConnectorId: "myconnector",
 				},
 			},
 		}
@@ -890,6 +891,13 @@ func TestPluginEntraIDValidation(t *testing.T) {
 				s.EntraId.SyncSettings.DefaultOwners = []string{}
 			},
 			assertErr: requireNamedBadParameterError("sync_settings.default_owners"),
+		},
+		{
+			name: "missing sso connector name",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SsoConnectorId = ""
+			},
+			assertErr: requireNamedBadParameterError("sync_settings.sso_connector_id"),
 		},
 	}
 

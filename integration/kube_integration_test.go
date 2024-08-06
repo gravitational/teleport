@@ -72,11 +72,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -328,7 +330,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 
 	// verify traffic capture and upload, wait for the upload to hit
 	var sessionID string
-	timeoutC := time.After(10 * time.Second)
+	timeoutC := time.After(20 * time.Second)
 loop:
 	for {
 		select {
@@ -763,7 +765,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	// verify traffic capture and upload, wait for the upload to hit
 	var sessionID string
-	timeoutC := time.After(10 * time.Second)
+	timeoutC := time.After(20 * time.Second)
 loop:
 	for {
 		select {
@@ -1037,7 +1039,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// verify traffic capture and upload, wait for the upload to hit
 	var sessionID string
-	timeoutC := time.After(10 * time.Second)
+	timeoutC := time.After(20 * time.Second)
 loop:
 	for {
 		select {
@@ -1344,7 +1346,9 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Kubernetes: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: {Enabled: true},
+			},
 		},
 	})
 
@@ -1675,25 +1679,44 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 	// Login and run the tests.
 	webPack := helpers.LoginWebClient(t, proxyAddr.String(), testUser, userPassword)
-	endpoint, err := url.JoinPath("sites", "$site", "kube", kubeClusterName, "connect/ws") // :site/kube/:clusterName/connect/ws
-	require.NoError(t, err)
+	endpoint := "sites/$site/kube/exec/ws"
 
 	openWebsocketAndReadSession := func(t *testing.T, endpoint string, req web.PodExecRequest) *websocket.Conn {
-		ws, resp, err := webPack.OpenWebsocket(t, endpoint, req)
+		termSize := struct {
+			Term session.TerminalParams `json:"term"`
+		}{
+			Term: session.TerminalParams{W: req.Term.W, H: req.Term.H},
+		}
+		ws, resp, err := webPack.OpenWebsocket(t, endpoint, termSize)
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 
-		_, data, err := ws.ReadMessage()
+		data, err := json.Marshal(req)
+		require.NoError(t, err)
+
+		reqEnvelope := &terminal.Envelope{
+			Version: defaults.WebsocketVersion,
+			Type:    defaults.WebsocketKubeExec,
+			Payload: string(data),
+		}
+
+		envelopeBytes, err := proto.Marshal(reqEnvelope)
+		require.NoError(t, err)
+
+		err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+		require.NoError(t, err)
+
+		_, data, err = ws.ReadMessage()
 		require.NoError(t, err)
 		require.Equal(t, `{"type":"create_session_response","status":"ok"}`+"\n", string(data))
 
 		execSocket := executionWebsocketReader{ws}
 
 		// First message: session metadata
-		envelope, err := execSocket.Read()
+		sessionEnvelope, err := execSocket.Read()
 		require.NoError(t, err)
 		var sessionMetadata sessionMetadataResponse
-		require.NoError(t, json.Unmarshal([]byte(envelope.Payload), &sessionMetadata))
+		require.NoError(t, json.Unmarshal([]byte(sessionEnvelope.Payload), &sessionMetadata))
 
 		return ws
 	}

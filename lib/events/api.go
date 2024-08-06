@@ -440,6 +440,9 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+	// DatabaseSessionCommandResult is emitted when a database returns a
+	// query/command result.
+	DatabaseSessionCommandResultEvent = "db.session.result"
 
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
@@ -754,6 +757,10 @@ const (
 
 	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
 	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+	// SPIFFEFederationCreateEvent is emitted when a SPIFFE federation is created.
+	SPIFFEFederationCreateEvent = "spiffe.federation.create"
+	// SPIFFEFederationDeleteEvent is emitted when a SPIFFE federation is deleted.
+	SPIFFEFederationDeleteEvent = "spiffe.federation.delete"
 
 	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
 	AuthPreferenceUpdateEvent = "auth_preference.update"
@@ -761,11 +768,34 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+	// AccessGraphSettingsUpdateEvent is emitted when a user updates the access graph settings configuration.
+	AccessGraphSettingsUpdateEvent = "access_graph_settings.update"
 
-	// AccessGraphAccessPathChanged is emitted when an access path is changed in the access graph
+	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
 	// and an identity/resource is affected.
-	AccessGraphAccessPathChanged = "access_graph.access_path_changed"
+	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
+	// TODO(jakule): Remove once e is updated to the new name.
+	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
+
+	// DiscoveryConfigCreatedEvent is emitted when a discovery config is created.
+	DiscoveryConfigCreateEvent = "discovery_config.create"
+	// DiscoveryConfigUpdatedEvent is emitted when a discovery config is updated.
+	DiscoveryConfigUpdateEvent = "discovery_config.update"
+	// DiscoveryConfigDeletedEvent is emitted when a discovery config is deleted.
+	DiscoveryConfigDeleteEvent = "discovery_config.delete"
+	// DiscoveryConfigDeletedAllEvent is emitted when all discovery configs are deleted.
+	DiscoveryConfigDeleteAllEvent = "discovery_config.delete_all"
+
+	// IntegrationCreateEvent is emitted when an integration resource is created.
+	IntegrationCreateEvent = "integration.create"
+	//IntegrationUpdateEvent is emitted when an integration resource is updated.
+	IntegrationUpdateEvent = "integration.update"
+	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
+	IntegrationDeleteEvent = "integration.delete"
 )
+
+// Add an entry to eventsMap in lib/events/events_test.go when you add
+// a new event name here.
 
 const (
 	// MaxChunkBytes defines the maximum size of a session stream chunk that
@@ -784,6 +814,16 @@ const (
 	// at the end of the session, so it skips writing session event index
 	// on the fly
 	V3 = 3
+)
+
+var (
+	// SessionRecordingEvents is a list of events that are related to session
+	// recorings.
+	SessionRecordingEvents = []string{
+		SessionEndEvent,
+		WindowsDesktopSessionEndEvent,
+		DatabaseSessionEndEvent,
+	}
 )
 
 // ServerMetadataGetter represents interface
@@ -844,6 +884,9 @@ type StreamPart struct {
 	Number int64
 	// ETag is a part e-tag
 	ETag string
+	// LastModified is the time of last modification of this part (if
+	// available).
+	LastModified time.Time
 }
 
 // StreamUpload represents stream multipart upload
@@ -957,9 +1000,13 @@ type SessionStreamer interface {
 	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
 
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	// StreamSessionEvents streams all events from a given session recording. An
+	// error is returned on the first channel if one is encountered. Otherwise
+	// the event channel is closed when the stream ends. The event channel is
+	// not closed on error to prevent race conditions in downstream select
+	// statements. Both returned channels must be driven until the event channel
+	// is exhausted or the error channel reports an error, or until the context
+	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 

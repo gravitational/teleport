@@ -1,16 +1,20 @@
-// Copyright 2024 Gravitational, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package notifications
 
@@ -22,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -47,6 +52,8 @@ type ServiceConfig struct {
 	// GlobalNotificationCache is a custom cache for user-specific notifications,
 	// this is to allow fetching notifications by date in descending order.
 	GlobalNotificationCache *services.GlobalNotificationCache
+
+	Clock clockwork.Clock
 }
 
 // Backend contains the getters required for notification states and user last seen notifications,
@@ -70,6 +77,7 @@ type Service struct {
 	backend                 Backend
 	userNotificationCache   *services.UserNotificationCache
 	globalNotificationCache *services.GlobalNotificationCache
+	clock                   clockwork.Clock
 }
 
 // NewService returns a new notifications gRPC service.
@@ -83,6 +91,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("user notification cache is required")
 	case cfg.GlobalNotificationCache == nil:
 		return nil, trace.BadParameter("global notification cache is required")
+	case cfg.Clock == nil:
+		cfg.Clock = clockwork.NewRealClock()
 	}
 
 	return &Service{
@@ -90,6 +100,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		backend:                 cfg.Backend,
 		userNotificationCache:   cfg.UserNotificationCache,
 		globalNotificationCache: cfg.GlobalNotificationCache,
+		clock:                   cfg.Clock,
 	}, nil
 }
 
@@ -120,6 +131,12 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		startKey = nextKey
 	}
 
+	currentTime := s.clock.Now()
+	var hasNotificationExpired = func(n *notificationsv1.Notification) bool {
+		notificationExpiryTime := n.GetMetadata().GetExpires().AsTime()
+		return currentTime.After(notificationExpiryTime)
+	}
+
 	var userNotifMatchFn = func(n *notificationsv1.Notification) bool {
 		// Return true if the user hasn't dismissed this notification
 		return notificationStatesMap[n.GetMetadata().GetName()] != notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED
@@ -134,6 +151,11 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		userNotifsStream = stream.FilterMap(
 			s.userNotificationCache.StreamUserNotifications(ctx, username, userKey),
 			func(n *notificationsv1.Notification) (*notificationsv1.Notification, bool) {
+				// If the notification is expired, return false right away.
+				if hasNotificationExpired(n) {
+					return nil, false
+				}
+
 				if !userNotifMatchFn(n) {
 					return nil, false
 				}
@@ -145,6 +167,11 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		globalNotifsStream = stream.FilterMap(
 			s.globalNotificationCache.StreamGlobalNotifications(ctx, globalKey),
 			func(gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, bool) {
+				// If the notification is expired, return false right away.
+				if hasNotificationExpired(gn.GetSpec().GetNotification()) {
+					return nil, false
+				}
+
 				if !s.matchGlobalNotification(ctx, authCtx, gn, notificationStatesMap) {
 					return nil, false
 				}
@@ -176,7 +203,12 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			// If the last item in this page (ie. the current item in the stream) was a user-specific notification, then the userNotificationsNextKey should be the next item in the userNotifsStream, and
 			// the globalNotificationsNextKey should be the current (and unconsumed) item in the globalNotifsStream. And vice-versa.
 			if item.GetMetadata().GetLabels()[types.NotificationScope] == "user" {
-				nextGlobalKey = globalNotifsStream.Item().GetMetadata().GetName()
+				// If the provided globalKey was "", then return that as the nextGlobalKey again.
+				if globalKey != "" || !found {
+					nextGlobalKey = globalNotifsStream.Item().GetMetadata().GetName()
+				} else {
+					nextGlobalKey = ""
+				}
 				// Advance to the next user-specific notification.
 				ok := userNotifsStream.Next()
 				if ok {
@@ -186,7 +218,12 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 					nextUserKey = ""
 				}
 			} else {
-				nextUserKey = userNotifsStream.Item().GetMetadata().GetName()
+				// If the provided userKey was "", then return that as the nextUserKey again.
+				if userKey != "" || !found {
+					nextUserKey = userNotifsStream.Item().GetMetadata().GetName()
+				} else {
+					nextUserKey = ""
+				}
 				// Advance to the next global notification.
 				ok := globalNotifsStream.Next()
 				if ok {

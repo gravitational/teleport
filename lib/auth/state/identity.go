@@ -17,7 +17,6 @@
 package state
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -337,15 +336,4 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		KeySigner:   certSigner,
 		Cert:        cert,
 	}, nil
-}
-
-// ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
-// key storage (dataDir).
-func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
-	storage, err := NewProcessStorage(context.TODO(), dataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer storage.Close()
-	return storage.ReadIdentity(IdentityCurrent, id.Role)
 }

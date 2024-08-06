@@ -26,9 +26,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -58,12 +59,12 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 
 	tableName := aws.String(b.TableName)
 
-	var txnItems []*dynamodb.TransactWriteItem
+	var txnItems []types.TransactWriteItem
 	var includesPut bool
 
 	for _, ca := range condacts {
 		var condExpr *string
-		var exprAttrValues map[string]*dynamodb.AttributeValue
+		var exprAttrValues map[string]types.AttributeValue
 
 		switch ca.Condition.Kind {
 		case backend.KindWhatever:
@@ -83,8 +84,8 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			default:
 				// revision is expected to be present and well-defined
 				condExpr = &revisionExpr
-				exprAttrValues = map[string]*dynamodb.AttributeValue{
-					":rev": {S: aws.String(ca.Condition.Revision)},
+				exprAttrValues = map[string]types.AttributeValue{
+					":rev": &types.AttributeValueMemberS{Value: ca.Condition.Revision},
 				}
 			}
 		default:
@@ -93,11 +94,11 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 
 		fullPath := prependPrefix(ca.Key)
 
-		var txnItem dynamodb.TransactWriteItem
+		var txnItem types.TransactWriteItem
 
 		switch ca.Action.Kind {
 		case backend.KindNop:
-			av, err := dynamodbattribute.MarshalMap(keyLookup{
+			av, err := attributevalue.MarshalMap(keyLookup{
 				HashKey:  hashKey,
 				FullPath: fullPath,
 			})
@@ -105,7 +106,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.ConditionCheck = &dynamodb.ConditionCheck{
+			txnItem.ConditionCheck = &types.ConditionCheck{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Key:                       av,
@@ -119,26 +120,25 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				FullPath:  fullPath,
 				Value:     ca.Action.Item.Value,
 				Timestamp: time.Now().UTC().Unix(),
-				ID:        time.Now().UTC().UnixNano(),
 				Revision:  revision,
 			}
 			if !ca.Action.Item.Expires.IsZero() {
 				r.Expires = aws.Int64(ca.Action.Item.Expires.UTC().Unix())
 			}
 
-			av, err := dynamodbattribute.MarshalMap(r)
+			av, err := attributevalue.MarshalMap(r)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.Put = &dynamodb.Put{
+			txnItem.Put = &types.Put{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Item:                      av,
 				TableName:                 tableName,
 			}
 		case backend.KindDelete:
-			av, err := dynamodbattribute.MarshalMap(keyLookup{
+			av, err := attributevalue.MarshalMap(keyLookup{
 				HashKey:  hashKey,
 				FullPath: fullPath,
 			})
@@ -146,7 +146,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.Delete = &dynamodb.Delete{
+			txnItem.Delete = &types.Delete{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Key:                       av,
@@ -157,7 +157,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %q", ca.Action.Kind, ca.Key)
 		}
 
-		txnItems = append(txnItems, &txnItem)
+		txnItems = append(txnItems, txnItem)
 	}
 
 	// dynamo cancels overlapping transactions without evaluating their conditions. the AtomicWrite API is expected to only fail
@@ -194,12 +194,16 @@ TxnLoop:
 		}
 
 		// execute the transaction
-		_, err = b.svc.TransactWriteItemsWithContext(ctx, &dynamodb.TransactWriteItemsInput{
+		_, err = b.svc.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
 			TransactItems: txnItems,
 		})
 		if err != nil {
-			txnErr := &dynamodb.TransactionCanceledException{}
+			var txnErr *types.TransactionCanceledException
 			if !errors.As(err, &txnErr) {
+				if s := err.Error(); strings.Contains(s, "AccessDenied") && strings.Contains(s, "dynamodb:ConditionCheckItem") {
+					b.Warnf("AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.  Original error: %v", err)
+					return "", trace.Errorf("teleport is missing required AWS permission dynamodb:ConditionCheckItem, please contact your administrator to update permissions")
+				}
 				return "", trace.Errorf("unexpected error during atomic write: %v", err)
 			}
 
@@ -210,15 +214,14 @@ TxnLoop:
 			var conditionFailed bool
 			var txnConflict bool
 			for _, reason := range txnErr.CancellationReasons {
-				if reason.Code == nil {
-					continue
-				}
-
-				switch *reason.Code {
-				case dynamodb.BatchStatementErrorCodeEnumConditionalCheckFailed:
+				code := aws.ToString(reason.Code)
+				switch types.BatchStatementErrorCodeEnum(code) {
+				case types.BatchStatementErrorCodeEnumConditionalCheckFailed:
 					conditionFailed = true
-				case dynamodb.BatchStatementErrorCodeEnumTransactionConflict:
+				case types.BatchStatementErrorCodeEnumTransactionConflict:
 					txnConflict = true
+				case "":
+					continue
 				}
 			}
 

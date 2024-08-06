@@ -69,7 +69,7 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
           >
             {assumedRolesText}
           </Box>
-          <Text typography="body" color="text.primaryInverse">
+          <Text color="text.primaryInverse">
             {hasExpired ? expirationText : durationText}
           </Text>
         </Flex>
