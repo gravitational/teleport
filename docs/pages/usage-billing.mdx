@@ -19,7 +19,7 @@ This information contains the following:
   with infrastructure resources enrolled in your Teleport cluster.
 
 Self-hosted Teleport deployments aggregate interaction data before it reaches
-Teleport Cloud. Teleport Cloud accounts provide this information as an
+Teleport Enterprise. Teleport Enterprise accounts provide this information as an
 anonymized log, which Teleport aggregates over the billing period.
 
 The count of interactions includes the following:
@@ -34,7 +34,7 @@ The count of interactions includes the following:
 - SFTP actions
 
 The anonymization is done by passing names and IDs through HMAC-SHA-256.
-Teleport Cloud clusters use an HMAC key that's randomly generated when
+Teleport Enterprise clusters use an HMAC key that's randomly generated when
 the cluster is initialized. Self-hosted Teleport deployments use an
 anonymization key that's generated and embedded in the license file at
 download time and never shared with us. This makes it infeasible for anyone
@@ -42,7 +42,7 @@ without access to the cluster to deanonymize the data we store.
 
 Each cluster in a [Trusted Clusters](reference/architecture/trustedclusters.mdx) setup
 is responsible for reporting about the interactions with its own resources;
-therefore, all clusters will periodically reach out to Teleport Cloud to report
+therefore, all clusters will periodically reach out to Teleport Enterprise to report
 usage, and should all be using the same license file for correct aggregate
 measurement.
 

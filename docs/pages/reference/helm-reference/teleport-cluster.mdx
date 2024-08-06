@@ -4,7 +4,7 @@ description: Values that can be set using the teleport-cluster Helm chart
 ---
 
 The `teleport-cluster` Helm chart deploys a Teleport cluster on Kubernetes.
-This includes deploying proxies, auth servers, and [kubernetes-access](../../enroll-resources/kubernetes-access/introduction.mdx).
+This includes deploying proxies, Auth Services, and [kubernetes-access](../../enroll-resources/kubernetes-access/introduction.mdx).
 See the [Teleport HA Architecture page](../../admin-guides/deploy-a-cluster/high-availability.mdx)
 for more details.
 
@@ -305,7 +305,7 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 |----------|---------------|-----------|---------------------------------------------|
 | `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
 
-`authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+`authentication.secondFactor` controls the multi-factor used for local user authentication. Possible values supported by this chart
 are `on`, `otp`, and `webauthn`.
 
 When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
@@ -326,12 +326,12 @@ RP ID must be both a valid domain, and part of the full domain users are connect
 For example, if users are accessing the cluster with the domain
 "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
 
-Changing the RP ID will invalidate all already registered webauthn second factors.
+Changing the RP ID will invalidate all already registered webauthn multi-factors.
 </Admonition>
 
 ### `authentication.webauthn`
 
-See [Second Factor - WebAuthn](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
+See [multi-factor - WebAuthn](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
 
 #### `authentication.webauthn.attestationAllowedCas`
 
@@ -463,7 +463,7 @@ RP ID must be both a valid domain, and part of the full domain users are connect
 For example, if users are accessing the cluster with the domain
 "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
 
-Changing the RP ID will invalidate all already registered webauthn second factors.
+Changing the RP ID will invalidate all already registered webauthn multi-factors.
 </Admonition>
 
 `values.yaml` example:

@@ -179,7 +179,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 - Change `apps[0].name` and `apps[0].uri` if you're configuring access to a different 
 web application.
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
 ```code
@@ -204,7 +204,7 @@ $ tctl users add --roles=access alice
 ```
 
 The command generates an invitation URL for the new user. You can use the URL to choose 
-a password, set up a second factor for authentication, and sign in to the Teleport Web UI.
+a password, set up a multi-factor for authentication, and sign in to the Teleport Web UI.
 
 ## Step 5/5. Access the application
 

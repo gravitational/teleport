@@ -60,7 +60,7 @@ Optional:
 - `acr_values` (String) ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.
 - `allow_unverified_email` (Boolean) AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a dynamic mapping from claims to roles. (see [below for nested schema](#nested-schema-for-specclaims_to_roles))
-- `client_id` (String) ClientID is the id of the authentication client (Teleport Auth server).
+- `client_id` (String) ClientID is the id of the authentication client (Teleport Auth Service).
 - `client_redirect_settings` (Attributes) ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones. (see [below for nested schema](#nested-schema-for-specclient_redirect_settings))
 - `client_secret` (String, Sensitive) ClientSecret is used to authenticate the client.
 - `display` (String) Display is the friendly name for this provider.

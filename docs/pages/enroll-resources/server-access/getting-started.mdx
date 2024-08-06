@@ -104,7 +104,7 @@ $ sudo teleport node configure \
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
- Change `mytenant.teleport.sh` to your Teleport Cloud tenant address. Assign the
+ Change `mytenant.teleport.sh` to your Teleport Enterprise tenant address. Assign the
  `--token` flag to the path where you saved `token.file`.
 
 ```code
@@ -176,7 +176,7 @@ $ tsh login --proxy=tele.example.com --user=myuser
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 On your local machine, log in to your cluster through `tsh`, assigning the
-`--proxy` flag to the address of your Teleport Cloud tenant:
+`--proxy` flag to the address of your Teleport Enterprise tenant:
 
 ```code
 # Log in through tsh
@@ -187,7 +187,7 @@ $ tsh login --proxy=mytenant.teleport.sh:443 --user=myuser
 
 </Tabs>
 
-You'll be prompted to supply the password and second factor we set up
+You'll be prompted to supply the password and multi-factor we set up
 previously.
 
 `myuser` will now see something similar to:

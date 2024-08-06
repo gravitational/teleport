@@ -22,7 +22,7 @@ Enterprise cluster:
 1. Retrieve dynamic Teleport resources from the Auth Service backend on the
    self-hosted cluster and apply them against the Auth Service backend on the
    cloud-hosted cluster.
-1. Reconfigure Teleport agents and plugins to connect to the cloud-hosted
+1. Reconfigure Teleport Agents and plugins to connect to the cloud-hosted
    Teleport cluster.
 1. Verify that the migration has succeeded.
 
@@ -150,11 +150,11 @@ Enterprise tenant.
 
 ## Step 3/4. Migrate Teleport services and plugins
 
-To migrate services such as Teleport agents, Machine ID Bots, and plugins, start
+To migrate services such as Teleport Agents, Machine ID Bots, and plugins, start
 by cataloging the various services you're managing with Teleport. The following
 resources should be considered for migration:
 
- - Teleport agents 
+ - Teleport Agents 
  - Machine ID Bots
  - Access Request plugins
  - The Teleport Event Handler
@@ -167,9 +167,9 @@ business requirements. If running Teleport at scale, you'll generally want to
 use a configuration management tool to automate and streamline the process of
 carrying out the actions involved in migrating agent configurations. 
 
-### Migrate Teleport agents
+### Migrate Teleport Agents
 
-To migrate Teleport agents:
+To migrate Teleport Agents:
 
 1. For each agent and Machine ID bot, obtain a valid join token. We recommend
    using a [delegated join

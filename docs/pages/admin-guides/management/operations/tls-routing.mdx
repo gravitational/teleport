@@ -30,8 +30,8 @@ Cloud.
 Support for TLS routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
 proxies is available starting from Teleport `13.0`.
 
-If you use Teleport Cloud, see which ports and networking settings the Proxy
-Service is configured to use in your Teleport Cloud tenant. Run the following
+If you use Teleport Enterprise, see which ports and networking settings the Proxy
+Service is configured to use in your Teleport Enterprise tenant. Run the following
 command, replacing `mytenant.teleport.sh` with your tenant address:
 
 ```code
@@ -47,7 +47,7 @@ as well as `tsh` client.
 
 ## Step 2/7. Enable proxy multiplexing
 
-Update your root cluster auth server's configuration to set proxy listener mode
+Update your root cluster Auth Service's configuration to set proxy listener mode
 to "multiplex":
 
 ```yaml
@@ -128,7 +128,7 @@ proxy_service:
 ```
 
 Config version `v2` will prevent other listeners from being created unless
-they are explicitly set in the proxy service configuration.
+they are explicitly set in the Proxy Service configuration.
 
 ## Rollback
 
@@ -136,7 +136,7 @@ To go back to the legacy separate listeners mode, perform the following steps:
 
 1. Set `version: v1` in the proxy configuration and restart the proxy to make
    it create legacy listeners.
-1. Set `proxy_listener_mode: separate` in auth service configuration to make
+1. Set `proxy_listener_mode: separate` in Auth Service configuration to make
    clients connect to the legacy listeners.
 1. Reconnect all clients (trusted clusters, reverse tunnel agents, `tsh`) as
    described above.

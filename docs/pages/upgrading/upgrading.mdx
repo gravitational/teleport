@@ -10,7 +10,7 @@ non-standard situations.
 To ensure that your Teleport cluster remains up to date with the lowest amount
 of manual overhead, we recommend [signing up](https://goteleport.com/signup) for
 a cloud-hosted Teleport Enterprise account and following [Enroll Agents in
-Automatic Upgrades](./automatic-agent-updates.mdx). 
+Automatic Updates](./automatic-agent-updates.mdx). 
 
 If your infrastructure does not support automatic agent updates, follow this
 guide to determine the best approach for keeping your Teleport cluster up to
@@ -31,13 +31,13 @@ server, the updater is an executable script called `teleport-upgrade`.
 ### `teleport-upgrade` commands
 
 The `teleport-upgrade` tool provides some basic commands to verify and perform an
-update of the Teleport agent.
+update of the Teleport Agent.
 
 ```code
 $ teleport-upgrade help
 USAGE: /usr/sbin/teleport-upgrade <command>
 
-Tool for automatic upgrades of Teleport agents.
+Tool for automatic updates of Teleport Agents.
 
 Commands:
   run           check for and potentially apply a teleport upgrade.
@@ -252,11 +252,11 @@ spec
 
 This section shows you how to upgrade Teleport manually. You can perform manual
 upgrades on Teleport Auth Service and Proxy Service instances running in
-self-hosted clusters, as well as all Teleport agents.
+self-hosted clusters, as well as all Teleport Agents.
 
-### Teleport agents
+### Teleport Agents
 
-1. Identify the latest compatible Teleport agent version by querying the
+1. Identify the latest compatible Teleport Agent version by querying the
    `webapi` endpoint of the Teleport Proxy Service:
 
    ```code
@@ -386,7 +386,7 @@ your `teleport-cluster` release is called `teleport-cluster`.
 1. Once you have completed this guide and upgraded the cluster, you can
    configure your cluster for high availability again.
 
-### Teleport agents running on Kubernetes
+### Teleport Agents running on Kubernetes
 
 The instructions in this section assume that you have configured the
 `teleport-kube-agent` Helm chart with a values file called `values.yaml`, and

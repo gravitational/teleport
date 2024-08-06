@@ -87,7 +87,7 @@ $ tctl bots add jenkins --roles=api-workers
 ```
 </TabItem>
 <TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
+Connect to the Teleport Auth Service and use `tctl` to examine what roles exist on
 your system.
 
 ```code
@@ -135,7 +135,7 @@ First create a configuration file for Machine ID at `/etc/tbot.yaml`.
 ```yaml
 version: v2
 # Replace "example.teleport.sh:443" with the address of your Teleport Proxy or
-# Teleport Cloud tenant.
+# Teleport Enterprise tenant.
 proxy_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"

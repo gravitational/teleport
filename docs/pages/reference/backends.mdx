@@ -276,7 +276,7 @@ To configure Teleport to use PostgreSQL:
   `storage` section of `teleport.yaml` as shown below.
 - Deploy several Auth Service instances connected to the PostgreSQL storage backend.
 - Deploy several Proxy Service nodes.
-- Make sure that the Proxy Service instances and all Teleport agent services that
+- Make sure that the Proxy Service instances and all Teleport Agent services that
   connect directly to the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.
@@ -840,10 +840,10 @@ access to DynamoDB.
 
 To configure Teleport to use DynamoDB:
 
-- Configure all Teleport Auth servers to use DynamoDB backend in the "storage"
+- Configure all Teleport Auth Services to use DynamoDB backend in the "storage"
   section of `teleport.yaml` as shown below.
-- Auth servers must be able to reach DynamoDB and DynamoDB Streams endpoints.
-- Deploy up to two auth servers connected to DynamoDB storage backend.
+- Auth Services must be able to reach DynamoDB and DynamoDB Streams endpoints.
+- Deploy up to two Auth Services connected to DynamoDB storage backend.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
   populated with the addresses of your cluster's Auth Service instances.
@@ -1285,9 +1285,9 @@ Firestore cannot store the recorded sessions. You are advised to use Google
 Cloud Storage (GCS) for that as shown above. To configure Teleport to use
 Firestore:
 
-- Configure all Teleport Auth servers to use Firestore backend in the "storage"
+- Configure all Teleport Auth Services to use Firestore backend in the "storage"
   section of `teleport.yaml` as shown below.
-- Deploy several auth servers connected to Firestore storage backend.
+- Deploy several Auth Services connected to Firestore storage backend.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers`
   configuration setting populated with the addresses of your cluster's Auth
@@ -1488,7 +1488,7 @@ To configure Teleport to use CockroachDB as a storage backend:
   `storage` section of `teleport.yaml` as shown below.
 - Deploy several Auth Service instances connected to the CockroachDB storage backend.
 - Deploy several Proxy Service instances.
-- Make sure that the Proxy Service instances and all Teleport agent services that
+- Make sure that the Proxy Service instances and all Teleport Agent services that
   connect directly to to the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.

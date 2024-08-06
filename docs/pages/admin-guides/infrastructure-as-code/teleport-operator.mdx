@@ -15,7 +15,7 @@ Since Teleport version 15, the operator can be deployed both:
 - alongside self-hosted Teleport clusters deployed with the `teleport-cluster` Helm chart.
   This deployment method differs from version 14. In version 15 and above, the operator
   is no longer deployed as a sidecar. An operator outage cannot affect Teleport's availability.
-- against a remote Teleport instance (such as Teleport Cloud or deployed with Terraform)
+- against a remote Teleport instance (such as Teleport Enterprise or deployed with Terraform)
 
 The operator supports multiple replicas within a single cluster by electing a
 leader with a Kubernetes lease.
@@ -42,7 +42,7 @@ Currently supported Teleport resources are:
 If you are self-hosting Teleport using the `teleport-cluster` Helm chart,
 follow [the guide for Helm-deployed clusters](./teleport-operator-helm.mdx).
 
-If you are hosting Teleport out of Kubernetes (Teleport Cloud, Terraform, ...),
+If you are hosting Teleport out of Kubernetes (Teleport Enterprise, Terraform, ...),
 follow [the standalone operator guide](./teleport-operator-standalone.mdx).
 
 ### Control reconciliation with annotations

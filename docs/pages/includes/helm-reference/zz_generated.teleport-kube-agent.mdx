@@ -36,7 +36,7 @@ Here are a few examples:
 | Deployment method             | Example `proxy_service.public_addr` |
 |-------------------------------|-------------------------------------|
 | On-prem Teleport cluster      | `teleport.example.com:3080`         |
-| Teleport Cloud cluster        | `example.teleport.sh:443`           |
+| Teleport Enterprise cluster        | `example.teleport.sh:443`           |
 | `teleport-cluster` Helm chart | `teleport.example.com:443`          |
 
 ## `enterprise`
@@ -46,8 +46,8 @@ Here are a few examples:
 | `bool` | `false` |
 
 `enterprise` controls if the `teleport-kube-agent` chart should deploy
-the OSS version or the enterprise version of the container image.
-This must be set to `true` when connecting to Teleport Cloud or self-hosted
+the Teleport Community Edition version or the enterprise version of the container image.
+This must be set to `true` when connecting to Teleport Enterprise or self-hosted
 Teleport Enterprise clusters to allow the agent to leverage enterprise features.
 
 ## `authToken`
@@ -75,7 +75,7 @@ roles `App` and `Kube`.
 
 ## `joinParams`
 
-`joinParams` controls how the Teleport agent joins the Teleport cluster.
+`joinParams` controls how the Teleport Agent joins the Teleport cluster.
 These sub-values must be configured for the agent to connect to a cluster.
 
 This value serves the same purpose as [`authToken`](#authToken) but supports
@@ -129,7 +129,7 @@ is provided through an existing Kubernetes Secret, see
 | `string` | `""` |
 
 `kubeClusterName` sets the name used for the Kubernetes cluster proxied by
-the Teleport agent. This name will be shown to Teleport users connecting to
+the Teleport Agent. This name will be shown to Teleport users connecting to
 the cluster.
 
 This setting is required if the chart `roles` contains `kube`.
@@ -703,7 +703,7 @@ below.
 `updater.enabled` Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
 You can enable this when:
 
-- using Teleport Cloud and your tenant is enrolled into automatic updates.
+- using Teleport Enterprise and your tenant is enrolled into automatic updates.
   (You can check this through the web UI, choose `Add Kubernetes` and
   `Enroll New Resource of type Kubernetes`, and check if the value is turned
   on.)
@@ -711,7 +711,7 @@ You can enable this when:
 
 You must not enable this when:
 
-- you are a Teleport Cloud customer not enrolled in automatic updates.
+- you are a Teleport Enterprise customer not enrolled in automatic updates.
 - you are a self-hosted Teleport user and have not set up your Teleport cluster to
   support automatic updates.
 
@@ -727,9 +727,9 @@ concatenating [`versionServer`](#updaterversionserver) and [`releaseChannel`
 ](#updaterreleasechannel).
 This field supports gotemplate.
 
-You must set this if the updater is enabled, and you are not a Teleport Cloud user.
+You must set this if the updater is enabled, and you are not a Teleport Enterprise user.
 
-You must not change the default values if you are a Teleport Cloud user.
+You must not change the default values if you are a Teleport Enterprise user.
 
 ### `updater.releaseChannel`
 
@@ -742,7 +742,7 @@ subscribes to.
 
 The complete version endpoint is built by concatenating
 [`versionServer`](#updaterversionserver) and [`releaseChannel`](#updaterreleasechannel).
-You must not change the default value if you are a Teleport Cloud user unless
+You must not change the default value if you are a Teleport Enterprise user unless
 instructed by Teleport support.
 
 You can change this value if the updater is enabled, you are not a Teleport
@@ -900,7 +900,7 @@ labels:
 ## `highAvailability`
 
 `highAvailability` contains settings controlling the availability of the
-Teleport agent deployed by the chart.
+Teleport Agent deployed by the chart.
 
 The availability can be increased by:
 - running more replicas with `replicaCount`
@@ -1095,7 +1095,7 @@ cluster role binding.
 |------|---------|
 | `string` | `"public.ecr.aws/gravitational/teleport-distroless"` |
 
-`image` sets the container image used for Teleport OSS agent pods
+`image` sets the container image used for Teleport Community Edition agent pods
 created by the chart.
 
 You can override this to use your own Teleport image rather than a Teleport-published image.
@@ -1106,7 +1106,7 @@ You can override this to use your own Teleport image rather than a Teleport-publ
   to pull the image.
 
   For this reason, it is strongly discouraged to set a custom image when
-  using automatic updates. Teleport Cloud uses automatic updates by default.
+  using automatic updates. Teleport Enterprise uses automatic updates by default.
 </Admonition>
 
 Since version 13, hardened distroless images are used by default.
@@ -1136,7 +1136,7 @@ Teleport-published image.
   to pull the image.
 
   For this reason, it is strongly discouraged to set a custom image when
-  using automatic updates. Teleport Cloud uses automatic updates by default.
+  using automatic updates. Teleport Enterprise uses automatic updates by default.
 </Admonition>
 
 Since version 13, hardened distroless images are used by default.

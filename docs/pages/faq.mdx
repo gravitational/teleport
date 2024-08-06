@@ -41,7 +41,7 @@ behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/manageme
 
 ## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
-Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
+Yes. When running a Teleport Agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
@@ -167,7 +167,7 @@ anonymized information, depending on the license purchased. This information
 contains the following:
 
 - Teleport license identifier;
-- anonymized cluster name and Teleport auth server host ID;
+- anonymized cluster name and Teleport Auth Service host ID;
 - for each Teleport user, the anonymized user name and a per-protocol count of
   interactions - Teleport logins, SSH and Kubernetes exec sessions, Application
   access web sessions and TCP connections, SSH port forwards, Kubernetes API

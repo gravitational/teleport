@@ -407,7 +407,7 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-# Log in to your Teleport Cloud cluster so you can use tctl locally.
+# Log in to your Teleport Enterprise cluster so you can use tctl locally.
 $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
 $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
@@ -717,7 +717,7 @@ $ tsh --proxy=work clusters
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
-Assuming the Teleport Cloud tenant called `mytenant.teleport.sh` is configured with a few trusted
+Assuming the Teleport Enterprise tenant called `mytenant.teleport.sh` is configured with a few trusted
 clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
 
 ```code
@@ -788,7 +788,7 @@ $ tsh --proxy=mytenant.teleport.sh ssh --cluster=production db-1
 
 This is possible even if Nodes in the `production` cluster are located behind a
 firewall without open ports. This works because the `production` cluster
-establishes a reverse SSH tunnel back into your Teleport Cloud tenant's Proxy
+establishes a reverse SSH tunnel back into your Teleport Enterprise tenant's Proxy
 Service, and this tunnel is used to establish inbound SSH connections.
 
 </TabItem>

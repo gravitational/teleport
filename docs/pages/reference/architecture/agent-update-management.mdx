@@ -1,6 +1,6 @@
 ---
 title: Agent Update Management 
-description: This chapter explains how Teleport agent automatic update is working.
+description: This chapter explains how Teleport Agent automatic update is working.
 ---
 
 While many Teleport resources [support agentless
@@ -59,22 +59,22 @@ ones. To upgrade Auth and Proxy, follow [the Teleport Cluster upgrade guide
 ](../../upgrading.mdx).
 
 For this reason, all updaters must subscribe to a release channel targeting
-versions that are compatible with their Teleport cluster. Teleport Cloud users
-must use the Teleport Cloud version server with the `stable/cloud` release
+versions that are compatible with their Teleport cluster. Teleport Enterprise users
+must use the Teleport Enterprise version server with the `stable/cloud` release
 channel. Self-hosted Teleport users must host their own version server and
 either update their release channel each time they update their Auth and Proxy
 instances, or use the `stable/rolling` channel.
 
-### Teleport Cloud
+### Teleport Enterprise
 
-Teleport Cloud users can use Teleport Cloud's version server only if their
+Teleport Enterprise users can use Teleport Enterprise's version server only if their
 instance is enrolled in automatic updates. This version server will always
 target the best version from a feature, compatibility, security and stability
 point of view.
 
-Teleport Cloud users whose control plane is not automatically updated must not use
+Teleport Enterprise users whose control plane is not automatically updated must not use
 automatic agent updates. This is because their Teleport instance version might
-differ from the other Teleport Cloud instances and might not yet support the
+differ from the other Teleport Enterprise instances and might not yet support the
 latest agent version.
 
 ### Self-hosted Teleport

@@ -1,6 +1,6 @@
 ---
 title: Teleport Enterprise Cloud FAQ
-description: Teleport cloud frequently asked questions.
+description: Teleport Enterprise frequently asked questions.
 tocDepth: 3
 ---
 
@@ -138,7 +138,7 @@ described in [Teleport Upcoming Releases](../upcoming-releases.mdx).
 - Major version updates for the Teleport Auth Service and Teleport Proxy Service typically occur
   one month after new major versions are released.
 - Minor updates and patches typically occur between one day and a week after a release.
-- Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport cloud accounts
+- Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport Enterprise accounts
   during your scheduled maintenance window.
 - The Teleport Auth Service and Proxy Service will not be automatically upgraded to the next
    major version with Teleport Agents on older major versions. 
@@ -172,7 +172,7 @@ connected agents?](#how-can-i-find-version-information-on-connected-agents) for 
 Yes, Teleport provides a scheduled maintenance time window for updates and you can set
 the start time for the maintenance window that works best for your organization. The
 scheduled maintenance windows applies for all updates, including patches and agent updates
-for all Teleport Cloud accounts. Updates for your cluster won't start earlier than the
+for all Teleport Enterprise accounts. Updates for your cluster won't start earlier than the
 maintenance window start time you set.
 
 To set the maintenance window start time, select your username in the Teleport Web UI,
@@ -180,20 +180,20 @@ then click **Help & Support**. Under Scheduled Upgrades, you can see the current
 maintenance window start time. Click **Edit** to set a different start time for
 scheduled maintenance.
 
-Teleport recommends you check the status of Teleport Cloud at
+Teleport recommends you check the status of Teleport Enterprise at
 [status.teleport.sh](https://status.teleport.sh). From the status page, click
-**Subscribe to Updates** to get email notifications whenever Teleport Cloud creates,
+**Subscribe to Updates** to get email notifications whenever Teleport Enterprise creates,
 updates, or resolves an incident and stay informed about scheduled maintenance and
 new releases.
 
 ### When are agents automatically updated?
 
 Teleport Enterprise Cloud must be set to receive automatic updates to use the
-Teleport Cloud version server for automatic agent updates. With automatic agent
+Teleport Enterprise version server for automatic agent updates. With automatic agent
 updates, agents periodically check the version server for new releases and
 update the software when new versions are found.
 
-If you enroll in automatic agent updates, Teleport agents are automatically
+If you enroll in automatic agent updates, Teleport Agents are automatically
 updated after your Teleport cluster is updated during your scheduled maintenance
 period. For more information, read the [Automatic Agent
 Updates](../upgrading/automatic-agent-updates.mdx) guide.
@@ -268,7 +268,7 @@ certificate or use a custom domain name.
 
 ### Where does Teleport Enterprise Cloud run?
 
-Teleport Cloud runs on Amazon Web Services (AWS). We run proxies in a variety 
+Teleport Enterprise runs on Amazon Web Services (AWS). We run proxies in a variety 
 of regions all over the world, and allow customers to [select the region](architecture/teleport-cloud-architecture.mdx) where the data is stored.
 
 ### Are you using AWS-managed encryption keys, or CMKs via KMS?
@@ -322,7 +322,7 @@ We currently don't expose any metrics interfaces for a tenant.
 For our own metrics collection, we're rolling out mTLS, so that only authorized internal clients may collect or scrape metrics from the running instances.
 This design does not include a mechanism to issue mTLS certificates to external clients, while maintaining isolation guarantees that one tenant cannot interact with another tenant.
 
-Teleport cloud tenants are made up of a cluster of processes, with designated processes sitting behind a load balancer. To scrape the entire cluster would require each component of
+Teleport Enterprise tenants are made up of a cluster of processes, with designated processes sitting behind a load balancer. To scrape the entire cluster would require each component of
 the Teleport cluster to be individually addressable and accessible from external sources. This could allow individual components to be selectively attacked, if an adversary is able to
 address traffic to any individual software instance within the cluster.
 

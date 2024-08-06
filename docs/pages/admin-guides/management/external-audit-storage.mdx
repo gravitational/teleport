@@ -151,7 +151,7 @@ support your AWS environment:
 
 Once External Audit Storage is enabled, all new audit events and session
 recordings will be stored in your S3 bucket, and they will *not* be stored in
-the Teleport Cloud infrastructure.
+the Teleport Enterprise infrastructure.
 
 If you currently use the
 [Event Handler](export-audit-events.mdx) plugin to export
@@ -167,6 +167,6 @@ infrastructure will not be touched and all audit events and session recordings
 will remain in your S3 bucket.
 
 If you use the Event Handler plugin, it will continue to export new events. All
-new events will be stored on Teleport Cloud infrastructure. While External Audit
-Storage is disabled, only events stored in the Teleport Cloud infrastructure
+new events will be stored on Teleport Enterprise infrastructure. While External Audit
+Storage is disabled, only events stored in the Teleport Enterprise infrastructure
 will be visible in the Teleport UI or accessible to Teleport clients.

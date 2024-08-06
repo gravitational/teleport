@@ -254,7 +254,7 @@ Edit the `module "agents"` block in `main.tf` as follows:
 <Tabs>
 <TabItem label="AWS">
 
-1. Assign `region` to the AWS region where you plan to deploy Teleport agents,
+1. Assign `region` to the AWS region where you plan to deploy Teleport Agents,
    such as `us-east-1`.
 1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
    agents.
@@ -265,20 +265,20 @@ Edit the `module "agents"` block in `main.tf` as follows:
 1. Assign `google_project` to the name of your Google Cloud project and
    `gcp_zone` to the zone where you will deploy agents, such as `us-east1-b`.
 1. For `subnet_id`, include the name or URI of the Google Cloud subnet where you
-   will deploy the Teleport agents.
+   will deploy the Teleport Agents.
 
 </TabItem>
 <TabItem label="Azure">
 
 1. Assign `azure_resource_group` to the name of the Azure resource group where
-   you are deploying Teleport agents.
+   you are deploying Teleport Agents.
 
 1. The module uses `public_key_path` to pass validation, as Azure VMs must
    include an RSA public key with at least 2048 bits. Once the module deploys
    the VMs, a cloud-init script removes the public key and disables OpenSSH. Set
    this input to the path to a valid public SSH key.
 
-1. Assign `region` to the Azure region where you plan to deploy Teleport agents,
+1. Assign `region` to the Azure region where you plan to deploy Teleport Agents,
    such as `East US`.
 
 1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
@@ -562,7 +562,7 @@ deploy a virtual machine instance on your cloud provider:
 <TabItem label="AWS">
 
 `ec2-instance.tf` declares a data source for an Amazon Linux 2023 machine image
-and uses it to launch EC2 instances that run Teleport agents with the
+and uses it to launch EC2 instances that run Teleport Agents with the
 `teleport_provision_token` resource:
 
 ```hcl
@@ -573,7 +573,7 @@ and uses it to launch EC2 instances that run Teleport agents with the
 <TabItem label="Google Cloud">
 
 `gcp-instance.tf` declares Google Compute Engine instances that use the
-`teleport_provision_token` to run Teleport agents:
+`teleport_provision_token` to run Teleport Agents:
 
 ```hcl
 (!examples/agent-pool-terraform/gcp/gcp-instance.tf!)

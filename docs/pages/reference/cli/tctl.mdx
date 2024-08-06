@@ -386,7 +386,7 @@ $ tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
-# Exports an identity from the Auth Server in preparation for remote
+# Exports an identity from the Auth Service in preparation for remote
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
 ```
@@ -965,7 +965,7 @@ These flags are available for all commands `--debug, --config`. Run
 # Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
 $ tctl nodes add
 # Generates a token that can be used to add an SSH node to the cluster.
-# The node will run both the proxy service and the node (ssh) service.
+# The node will run both the Proxy Service and the node (ssh) service.
 # This token can be used within an hour.
 $ tctl nodes add --roles=node,proxy --ttl=1h
 ```
@@ -1602,7 +1602,7 @@ $ tctl users ls [<flags>]
 
 ## tctl users reset
 
-Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
+Reset local user account password and any associated multi-factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
 
 ### Arguments
 
@@ -1620,7 +1620,7 @@ Reset local user account password and any associated second factor with expiring
 $ tctl users reset jeff
 # User jeff has been reset. Share this URL with the user to complete password reset, the link is valid for 8h0m0s:
 # https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
-# Resets jeff's password and any associated second factor.  Jeff populates the password and confirms the token with the link.
+# Resets jeff's password and any associated multi-factor.  Jeff populates the password and confirms the token with the link.
 ```
 
 ## tctl users rm

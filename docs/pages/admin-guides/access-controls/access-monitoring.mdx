@@ -281,7 +281,7 @@ FROM
 WHERE identity_user = 'admin-annie'
 ```
 
-- Show access requests and their reviews:
+- Show Access Requests and their reviews:
 ```sql
 SELECT
   *
@@ -313,7 +313,7 @@ The report allows to identify the following weak security events:
 ### Database sessions with weak security
 
 The following query identifies database sessions with weak security
-such as as sessions with missing access requests, MFA, impersonation, and trusted device identification.
+such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -340,12 +340,12 @@ ORDER BY
 ![privileged access report](../../../img/access-monitoring/privileged_access_report.png)
 
 
-**Suggestion:**  Set up access requests, device trust and per-session MFA.
+**Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### SSH sessions with weak security
 
 The following query identifies SSH sessions with weak security,
-such as as sessions with missing access requests, MFA, impersonation, and trusted device identification.
+such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -372,12 +372,12 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Set up access requests, device trust and per-session MFA.
+**Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### Kubernetes API calls with weak security
 
 The following query identifies Kubernetes sessions with weak security,
-such as sessions with missing access requests, MFA, impersonation, and trusted device identification.
+such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -401,7 +401,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Set up access requests, device trust and per-session MFA.
+**Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### Privileged Postgres sessions
 

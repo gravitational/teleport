@@ -183,7 +183,7 @@ using database proxies.
 | `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
 | `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect.                            |
 | `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
 | `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
 | `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
@@ -205,7 +205,7 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 | `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
 | `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect.                            |
 | `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
 | `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
 | `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |

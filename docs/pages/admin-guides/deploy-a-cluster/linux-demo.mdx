@@ -117,7 +117,7 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 On your Linux host, run the following command:
 
 ```code
-# tctl is an administrative tool that is used to configure Teleport's auth service.
+# tctl is an administrative tool that is used to configure Teleport's Auth Service.
 $ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
@@ -203,6 +203,6 @@ databases, Kubernetes clusters, cloud provider APIs, and Windows desktops.
 
 Step 4 showed you how to install agents manually, and you can also launch agents
 and enroll resources with them using infrastructure-as-code tools. For example,
-you can use Terraform to declare a pool of Teleport agents and configure them to
+you can use Terraform to declare a pool of Teleport Agents and configure them to
 proxy your infrastructure. Read [Deploy Teleport Agents with
 Terraform](../../enroll-resources/agents/deploy-agents-terraform.mdx) to get started.

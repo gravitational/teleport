@@ -59,7 +59,7 @@ identity to the public key with a certificate authority's signature.
 </Figure>
 
 Teleport uses x.509 certificates for Kubernetes, databases, web services and its own internal
-components - proxies, auth services to establish mutually authenticated TLS connections - mTLS.
+components - proxies, Auth Services to establish mutually authenticated TLS connections - mTLS.
 
 ### OpenSSH certificates
 
@@ -155,7 +155,7 @@ Take a look at the [Certificate Rotation Guide](../../admin-guides/management/op
 learn how to do certificate rotation in practice.
 
 <Notice type="tip">
-To quickly lock out the node, proxy or auth service that may be compromised without rotating the entire
+To quickly lock out the node, proxy or Auth Service that may be compromised without rotating the entire
 cluster certificates, use node [session and identity locking](../../admin-guides/access-controls/guides/locking.mdx).
 </Notice>
 

@@ -113,7 +113,7 @@ Terraform plan later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by the Terraform provider to
-authenticate with the Teleport Auth Server.
+authenticate with the Teleport Auth Service.
 
 ## Step 3/3. Use Terraform with the identity output
 
@@ -147,7 +147,7 @@ terraform {
 }
 
 provider "teleport" {
-  # Replace with the address of your Teleport Proxy or Auth Server.
+  # Replace with the address of your Teleport Proxy or Auth Service.
   addr               = "teleport.example.com:443"
   # Replace with the directory configured in the identity output in the
   # previous step.
@@ -172,7 +172,7 @@ resource "teleport_role" "terraform-test" {
 ```
 
 Replace `teleport.example.com:443` with the address of your Teleport Proxy or
-Auth Server. If you modified the destination directory from `/opt/machine-id`,
+Auth Service. If you modified the destination directory from `/opt/machine-id`,
 then this should also be replaced.
 
 Now, execute Terraform to test the configuration:
