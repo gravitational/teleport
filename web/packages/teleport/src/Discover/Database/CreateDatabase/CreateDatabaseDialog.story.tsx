@@ -17,11 +17,13 @@
  */
 
 import React from 'react';
+import { Info } from 'design/Alert';
 
 import {
   CreateDatabaseDialog,
   CreateDatabaseDialogProps,
 } from './CreateDatabaseDialog';
+import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
 
 export default {
   title: 'Teleport/Discover/Database/CreateDatabase/Dialog',
@@ -40,11 +42,30 @@ export const Success = () => (
   <CreateDatabaseDialog {...props} attempt={{ status: 'success' }} />
 );
 
+export const AllowSkipOnTimeout = () => (
+  <>
+    <Info>Devs: it should be same state as success</Info>
+    <CreateDatabaseDialog
+      {...props}
+      attempt={{ status: 'failed', statusText: timeoutErrorMsg }}
+    />
+  </>
+);
+
+export const AllowOverwrite = () => (
+  <CreateDatabaseDialog
+    {...props}
+    attempt={{ status: 'failed', statusText: dbWithoutDbServerExistsErrorMsg }}
+  />
+);
+
 const props: CreateDatabaseDialogProps = {
   pollTimeout: 8080000000,
   attempt: { status: 'processing' },
   retry: () => null,
   close: () => null,
   next: () => null,
+  onOverwrite: () => null,
+  onTimeout: () => null,
   dbName: 'db-name',
 };
