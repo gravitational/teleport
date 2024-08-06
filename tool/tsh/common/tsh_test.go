@@ -566,7 +566,7 @@ func TestLoginIdentityOut(t *testing.T) {
 		{
 			name: "write identity out",
 			validationFunc: func(t *testing.T, identityPath string) {
-				_, err := identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
+				_, err := identityfile.KeyRingFromIdentityFile(identityPath, "proxy.example.com", "")
 				require.NoError(t, err)
 			},
 		},
@@ -5546,7 +5546,7 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, onLogin(&conf))
 
 	// Test setup: validate we got a valid identity
-	_, err = identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
+	_, err = identityfile.KeyRingFromIdentityFile(identityPath, "proxy.example.com", "")
 	require.NoError(t, err)
 
 	// Test execution: flatten the identity previously obtained in a new home.

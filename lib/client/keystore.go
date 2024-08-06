@@ -68,8 +68,8 @@ type KeyStore interface {
 	// DeleteKey deletes the user's key with all its certs.
 	DeleteKey(idx KeyIndex) error
 
-	// DeleteUserCerts deletes only the specified certs of the user's key,
-	// keeping the private key intact.
+	// DeleteUserCerts deletes only the specified parts of the user's keyring,
+	// keeping the rest intact.
 	DeleteUserCerts(idx KeyIndex, opts ...CertOption) error
 
 	// DeleteKeys removes all session keys.
@@ -142,6 +142,11 @@ func (fs *FSKeyStore) appCertPath(idx KeyIndex, appname string) string {
 	return keypaths.AppCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
 
+// appKeyPath returns the private key path for the given KeyIndex and app name.
+func (fs *FSKeyStore) appKeyPath(idx KeyIndex, appname string) string {
+	return keypaths.AppKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
+}
+
 // databaseCertPath returns the TLS certificate path for the given KeyIndex and database name.
 func (fs *FSKeyStore) databaseCertPath(idx KeyIndex, dbname string) string {
 	return keypaths.DatabaseCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
@@ -212,9 +217,14 @@ func (fs *FSKeyStore) AddKey(key *KeyRing) error {
 			return trace.Wrap(err)
 		}
 	}
-	for app, cert := range key.AppTLSCerts {
-		path := fs.appCertPath(key.KeyIndex, filepath.Clean(app))
-		if err := fs.writeBytes(cert, path); err != nil {
+	for app, cred := range key.AppTLSCredentials {
+		app = filepath.Clean(app)
+		certPath := fs.appCertPath(key.KeyIndex, app)
+		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
+			return trace.Wrap(err)
+		}
+		keyPath := fs.appKeyPath(key.KeyIndex, app)
+		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -260,16 +270,19 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 	return fs.DeleteUserCerts(idx, WithAllCerts...)
 }
 
-// DeleteUserCerts deletes only the specified certs of the user's key,
-// keeping the private key intact.
+// DeleteUserCerts deletes only the specified parts of the user's keyring,
+// keeping the rest intact.
 // Empty clusterName indicates to delete the certs for all clusters.
 //
 // Useful when needing to log out of a specific service, like a particular
 // database proxy.
 func (fs *FSKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
+	var pathsToDelete []string
 	for _, o := range opts {
-		certPath := o.certPath(fs.KeyDir, idx)
-		if err := utils.RemoveAllSecure(certPath); err != nil {
+		pathsToDelete = append(pathsToDelete, o.pathsToDelete(fs.KeyDir, idx)...)
+	}
+	for _, path := range pathsToDelete {
+		if err := utils.RemoveAllSecure(path); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
@@ -330,12 +343,12 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error)
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	key := NewKey(priv)
+	key := NewKeyRing(priv)
 	key.KeyIndex = idx
 	key.TLSCert = tlsCert
 
 	for _, o := range opts {
-		if err := fs.updateKeyWithCerts(o, key); err != nil && !trace.IsNotFound(err) {
+		if err := fs.updateKeyRingWithCerts(o, key); err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -347,39 +360,8 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error)
 	return key, nil
 }
 
-func (fs *FSKeyStore) updateKeyWithCerts(o CertOption, key *KeyRing) error {
-	certPath := o.certPath(fs.KeyDir, key.KeyIndex)
-	info, err := os.Stat(certPath)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	fs.log.Debugf("Reading certificates from path %q.", certPath)
-
-	if info.IsDir() {
-		certDataMap := map[string][]byte{}
-		certFiles, err := os.ReadDir(certPath)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		for _, certFile := range certFiles {
-			name := keypaths.TrimCertPathSuffix(certFile.Name())
-			if isCert := name != certFile.Name(); isCert {
-				data, err := os.ReadFile(filepath.Join(certPath, certFile.Name()))
-				if err != nil {
-					return trace.ConvertSystemError(err)
-				}
-				certDataMap[name] = data
-			}
-		}
-		return o.updateKeyWithMap(key, certDataMap)
-	}
-
-	certBytes, err := os.ReadFile(certPath)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return o.updateKeyWithBytes(key, certBytes)
+func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, keyRing *KeyRing) error {
+	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyIndex, keyRing))
 }
 
 // GetSSHCertificates gets all certificates signed for the given user and proxy.
@@ -406,17 +388,76 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	return sshCerts, nil
 }
 
+func getCertsByName(certDir string) (map[string][]byte, error) {
+	certsByName := make(map[string][]byte)
+	certFiles, err := os.ReadDir(certDir)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	for _, certFile := range certFiles {
+		name := keypaths.TrimCertPathSuffix(certFile.Name())
+		if isCert := name != certFile.Name(); isCert {
+			data, err := os.ReadFile(filepath.Join(certDir, certFile.Name()))
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+			certsByName[name] = data
+		}
+	}
+	return certsByName, nil
+}
+
+func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
+	credsByName := make(map[string]TLSCredential)
+	files, err := os.ReadDir(credentialDir)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	for _, file := range files {
+		if certName := keypaths.TrimCertPathSuffix(file.Name()); certName != file.Name() {
+			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+			cred := credsByName[certName]
+			cred.Cert = data
+			credsByName[certName] = cred
+		}
+		if keyName := keypaths.TrimKeyPathSuffix(file.Name()); keyName != file.Name() {
+			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+			privKey, err := keys.ParsePrivateKey(data)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cred := credsByName[keyName]
+			cred.PrivateKey = privKey
+			credsByName[keyName] = cred
+		}
+	}
+	for name, creds := range credsByName {
+		if creds.Cert == nil || creds.PrivateKey == nil {
+			// Found a cert with no key or vice-versa, this may have been
+			// written by an older version or partially deleted, treat it as
+			// missing and a cert re-issue should solve it.
+			delete(credsByName, name)
+		}
+	}
+	return credsByName, nil
+}
+
 // CertOption is an additional step to run when loading/deleting user certificates.
 type CertOption interface {
-	// certPath returns a path to the cert (or to a dir holding the certs)
-	// within the given key dir. For use with FSLocalKeyStore.
-	certPath(keyDir string, idx KeyIndex) string
-	// updateKeyWithBytes adds the cert bytes to the key and performs related checks.
-	updateKeyWithBytes(key *KeyRing, certBytes []byte) error
-	// updateKeyWithMap adds the cert data map to the key and performs related checks.
-	updateKeyWithMap(key *KeyRing, certMap map[string][]byte) error
-	// deleteFromKey deletes the cert data from the key.
-	deleteFromKey(key *KeyRing)
+	// updateKeyRing is used by [FSKeyStore] to add the relevant credentials
+	// loaded from disk to [keyRing].
+	updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error
+	// pathsToDelete is used by [FSKeyStore] to get all the paths (files and/or
+	// directories) that should be deleted by [DeleteUserCerts].
+	pathsToDelete(keyDir string, idx KeyIndex) []string
+	// deleteFromKeyRing deletes the credential data from the [KeyRing].
+	deleteFromKeyRing(*KeyRing)
 }
 
 // WithAllCerts lists all known CertOptions.
@@ -425,46 +466,48 @@ var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
 
-func (o WithSSHCerts) certPath(keyDir string, idx KeyIndex) string {
-	if idx.ClusterName == "" {
-		return keypaths.SSHDir(keyDir, idx.ProxyHost, idx.Username)
+func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
+	certPath := keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	cert, err := os.ReadFile(certPath)
+	if err != nil {
+		return trace.ConvertSystemError(err)
 	}
-	return keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-}
-
-func (o WithSSHCerts) updateKeyWithBytes(key *KeyRing, certBytes []byte) error {
-	key.Cert = certBytes
+	keyRing.Cert = cert
 	return nil
 }
 
-func (o WithSSHCerts) updateKeyWithMap(key *KeyRing, certMap map[string][]byte) error {
-	return trace.NotImplemented("WithSSHCerts does not implement updateKeyWithMap")
+func (o WithSSHCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.SSHDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	return []string{keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 }
 
-func (o WithSSHCerts) deleteFromKey(key *KeyRing) {
+func (o WithSSHCerts) deleteFromKeyRing(key *KeyRing) {
 	key.Cert = nil
 }
 
 // WithKubeCerts is a CertOption for handling kubernetes certificates.
 type WithKubeCerts struct{}
 
-func (o WithKubeCerts) certPath(keyDir string, idx KeyIndex) string {
-	if idx.ClusterName == "" {
-		return keypaths.KubeDir(keyDir, idx.ProxyHost, idx.Username)
+func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
+	certDir := keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	certsByName, err := getCertsByName(certDir)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-}
-
-func (o WithKubeCerts) updateKeyWithBytes(key *KeyRing, certBytes []byte) error {
-	return trace.NotImplemented("WithKubeCerts does not implement updateKeyWithBytes")
-}
-
-func (o WithKubeCerts) updateKeyWithMap(key *KeyRing, certMap map[string][]byte) error {
-	key.KubeTLSCerts = certMap
+	keyRing.KubeTLSCerts = certsByName
 	return nil
 }
 
-func (o WithKubeCerts) deleteFromKey(key *KeyRing) {
+func (o WithKubeCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.KubeDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	return []string{keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+}
+
+func (o WithKubeCerts) deleteFromKeyRing(key *KeyRing) {
 	key.KubeTLSCerts = make(map[string][]byte)
 }
 
@@ -473,26 +516,27 @@ type WithDBCerts struct {
 	dbName string
 }
 
-func (o WithDBCerts) certPath(keyDir string, idx KeyIndex) string {
-	if idx.ClusterName == "" {
-		return keypaths.DatabaseDir(keyDir, idx.ProxyHost, idx.Username)
+func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
+	certDir := keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	certsByName, err := getCertsByName(certDir)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if o.dbName == "" {
-		return keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	}
-	return keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName)
-}
-
-func (o WithDBCerts) updateKeyWithBytes(key *KeyRing, certBytes []byte) error {
-	return trace.NotImplemented("WithDBCerts does not implement updateKeyWithBytes")
-}
-
-func (o WithDBCerts) updateKeyWithMap(key *KeyRing, certMap map[string][]byte) error {
-	key.DBTLSCerts = certMap
+	keyRing.DBTLSCerts = certsByName
 	return nil
 }
 
-func (o WithDBCerts) deleteFromKey(key *KeyRing) {
+func (o WithDBCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.DatabaseDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	if o.dbName == "" {
+		return []string{keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	}
+	return []string{keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName)}
+}
+
+func (o WithDBCerts) deleteFromKeyRing(key *KeyRing) {
 	key.DBTLSCerts = make(map[string][]byte)
 }
 
@@ -501,27 +545,31 @@ type WithAppCerts struct {
 	appName string
 }
 
-func (o WithAppCerts) certPath(keyDir string, idx KeyIndex) string {
-	if idx.ClusterName == "" {
-		return keypaths.AppDir(keyDir, idx.ProxyHost, idx.Username)
+func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
+	credentialDir := keypaths.AppCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if o.appName == "" {
-		return keypaths.AppCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	}
-	return keypaths.AppCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName)
-}
-
-func (o WithAppCerts) updateKeyWithBytes(key *KeyRing, certBytes []byte) error {
-	return trace.NotImplemented("WithAppCerts does not implement updateKeyWithBytes")
-}
-
-func (o WithAppCerts) updateKeyWithMap(key *KeyRing, certMap map[string][]byte) error {
-	key.AppTLSCerts = certMap
+	keyRing.AppTLSCredentials = credsByName
 	return nil
 }
 
-func (o WithAppCerts) deleteFromKey(key *KeyRing) {
-	key.AppTLSCerts = make(map[string][]byte)
+func (o WithAppCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.AppDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	if o.appName == "" {
+		return []string{keypaths.AppCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	}
+	return []string{
+		keypaths.AppCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
+		keypaths.AppKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
+	}
+}
+
+func (o WithAppCerts) deleteFromKeyRing(key *KeyRing) {
+	key.AppTLSCredentials = make(map[string]TLSCredential)
 }
 
 type MemKeyStore struct {
@@ -589,7 +637,7 @@ func (ms *MemKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error
 		return nil, trace.NotFound("key for %+v not found", idx)
 	}
 
-	retKey := NewKey(key.PrivateKey)
+	retKey := NewKeyRing(key.PrivateKey)
 	retKey.KeyIndex = idx
 	retKey.TLSCert = key.TLSCert
 	for _, o := range opts {
@@ -601,7 +649,7 @@ func (ms *MemKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error
 		case WithDBCerts:
 			retKey.DBTLSCerts = key.DBTLSCerts
 		case WithAppCerts:
-			retKey.AppTLSCerts = key.AppTLSCerts
+			retKey.AppTLSCredentials = key.AppTLSCredentials
 		}
 	}
 
@@ -623,8 +671,8 @@ func (ms *MemKeyStore) DeleteKeys() error {
 	return nil
 }
 
-// DeleteUserCerts deletes only the specified certs of the user's key,
-// keeping the private key intact.
+// DeleteUserCerts deletes only the specified parts of the user's keyring,
+// keeping the rest intact.
 // Empty clusterName indicates to delete the certs for all clusters.
 //
 // Useful when needing to log out of a specific service, like a particular
@@ -646,7 +694,7 @@ func (ms *MemKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 
 	for _, key := range keys {
 		for _, o := range opts {
-			o.deleteFromKey(key)
+			o.deleteFromKeyRing(key)
 		}
 	}
 	return nil

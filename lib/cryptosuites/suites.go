@@ -305,10 +305,24 @@ func GenerateUserSSHAndTLSKey(ctx context.Context, authPrefGetter AuthPreference
 	return sshKey, tlsKey, nil
 }
 
-// AlgorithmForKey generates a new cryptographic keypair for the given purpose, with a signature algorithm
-// chosen based on the currently configured algorithm suite.
+// AlgorithmForKey generates a new cryptographic keypair for the given [purpose],
+// with a signature algorithm chosen based on the algorithm suite currently
+// configured in the cluster auth preference.
 func GenerateKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (crypto.Signer, error) {
 	alg, err := AlgorithmForKey(ctx, authPrefGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return GenerateKeyWithAlgorithm(alg)
+}
+
+// GenerateKeyWithSuite generates a new cryptographic keypair for the given
+// [purpose], with a signature algorithm chosen from [suite].
+func GenerateKeyWithSuite(ctx context.Context, suite types.SignatureAlgorithmSuite, purpose KeyPurpose) (crypto.Signer, error) {
+	if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
+		suite = defaultSuite
+	}
+	alg, err := algorithmForKey(suite, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -493,16 +493,31 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt
 func (p *ProfileStatus) AppCertPath(cluster, name string) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
-	if path, ok := p.virtualPathFromEnv(VirtualPathApp, VirtualPathAppParams(name)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathAppCert, VirtualPathAppCertParams(name)); ok {
 		return path
 	}
 
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, cluster, name)
+}
+
+// AppKeyPath returns path to the specified app access private key for this
+// profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key
+func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
+	if cluster == "" {
+		cluster = p.Cluster
+	}
+	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathAppKeyParams(name)); ok {
+		return path
+	}
+
+	return keypaths.AppKeyPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // AppLocalCAPath returns the specified app's self-signed localhost CA path for
