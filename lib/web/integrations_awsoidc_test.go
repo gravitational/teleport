@@ -1022,7 +1022,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
-					PublicAddr:  "my-integration." + proxyPublicAddr,
+					PublicAddr:  "https://my-integration." + proxyPublicAddr,
 				},
 			},
 		},
@@ -1040,4 +1040,20 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	appServers, err = env.server.Auth().GetApplicationServers(ctx, "default")
 	require.NoError(t, err)
 	require.Empty(t, appServers)
+
+	t.Run("using the account id as name works as expected", func(t *testing.T) {
+		// Creating an Integration using the account id as name should not return an error if the proxy is listening at the default HTTPS port
+		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
+			Name: "123456789012",
+		}, &types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "some-arn-role",
+		})
+		require.NoError(t, err)
+
+		_, err = env.server.Auth().CreateIntegration(ctx, myIntegrationWithAccountID)
+		require.NoError(t, err)
+		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "123456789012", "aws-app-access")
+		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
+		require.NoError(t, err)
+	})
 }
