@@ -38,12 +38,13 @@ type webUserOpts struct {
 	webID            []byte
 	devices          []*types.MFADevice
 	credentialIDOnly bool
+	currentFlags     *credentialFlags
 }
 
 func newWebUser(opts webUserOpts) *webUser {
 	var credentials []wan.Credential
 	for _, dev := range opts.devices {
-		c, ok := deviceToCredential(dev, opts.credentialIDOnly)
+		c, ok := deviceToCredential(dev, opts.credentialIDOnly, opts.currentFlags)
 		if ok {
 			credentials = append(credentials, c)
 		}

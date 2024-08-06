@@ -1032,6 +1032,18 @@ func TestCredentialBackupFlags(t *testing.T) {
 	webConfig := &types.Webauthn{RPID: "example.com"}
 	ctx := context.Background()
 
+	assertBackupFlags := func(t *testing.T, mfaDev *types.MFADevice, wantBE, wantBS bool) {
+		t.Helper()
+
+		be := mfaDev.GetWebauthn().CredentialBackupEligible
+		require.NotNil(t, be, "CredentialBackupEligible is nil")
+		bs := mfaDev.GetWebauthn().CredentialBackedUp
+		require.NotNil(t, bs, "CredentialBackedUp is nil")
+
+		assert.Equal(t, wantBE, be.Value, "CredentialBackupEligible mismatch")
+		assert.Equal(t, wantBS, bs.Value, "CredentialBackedUp mismatch")
+	}
+
 	t.Run("register", func(t *testing.T) {
 		rf := &wanlib.RegistrationFlow{
 			Webauthn: webConfig,
@@ -1041,13 +1053,16 @@ func TestCredentialBackupFlags(t *testing.T) {
 		require.NoError(t, err, "Begin failed")
 		ccr, err := key.SignCredentialCreation(origin, cc)
 		require.NoError(t, err, "SignCredentialCreation failed")
-		_, err = rf.Finish(ctx, wanlib.RegisterResponse{
+		mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
 			User:             user,
 			DeviceName:       "mydevice",
 			CreationResponse: ccr,
 			Passwordless:     true,
 		})
 		require.NoError(t, err, "SignCredentialCreation failed")
+
+		// Assert backup flags after registration.
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
 	})
 
 	// Erase BE/BS from storage device. Simulates a legacy device.
@@ -1081,8 +1096,25 @@ func TestCredentialBackupFlags(t *testing.T) {
 			ad.Flags.HasBackupEligible(),
 			ad.Flags.HasBackupState())
 
-		_, err = lf.Finish(ctx, assertionResp)
+		loginData, err := lf.Finish(ctx, assertionResp)
 		require.NoError(t, err, "Finish failed")
+
+		// Assert backfill.
+		mfaDev := loginData.Device
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+
+	t.Run("login with BE/BS=1", func(t *testing.T) {
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backup flags unchanged.
+		mfaDev := loginData.Device
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
 	})
 }
 

@@ -29,6 +29,7 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -160,7 +161,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 			continue
 		}
 
-		cred, ok := deviceToCredential(dev, true /* idOnly */)
+		cred, ok := deviceToCredential(dev, true /* idOnly */, nil /* currentFlags */)
 		if !ok {
 			continue
 		}
@@ -348,6 +349,12 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
 			ResidentKey:       req.Passwordless,
 			CredentialRpId:    f.Webauthn.RPID,
+			CredentialBackupEligible: &gogotypes.BoolValue{
+				Value: credential.Flags.BackupEligible,
+			},
+			CredentialBackedUp: &gogotypes.BoolValue{
+				Value: credential.Flags.BackupState,
+			},
 		},
 	}
 	// We delegate a few checks to identity, including:
