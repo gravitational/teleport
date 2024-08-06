@@ -22,6 +22,10 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
+import Logger from 'teleterm/logger';
+
+import { Shell } from 'teleterm/mainProcess/shell';
+
 import {
   PtyCommand,
   PtyProcessCreationStatus,
@@ -48,7 +52,27 @@ export async function buildPtyOptions(
   processOptions: PtyProcessOptions;
   creationStatus: PtyProcessCreationStatus;
 }> {
-  return resolveShellEnvCached(settings.defaultShell)
+  const logger = new Logger('buildPtyOptions');
+  let shell: Shell;
+  // Get the full shell object by the shell ID.
+  // We wouldn't have to do it if we sent a shell bin path from the renderer,
+  // but it's better to validate inputs that come from that process.
+  if (cmd.kind === 'pty.shell') {
+    shell = settings.availableShells.find(s => s.id === cmd.shellId);
+    if (!shell) {
+      logger.warn(
+        `Attempted to open a shell ${cmd.shellId}, but it is not available in: [${settings.availableShells.map(({ id }) => id).join(', ')}].`
+      );
+    }
+  }
+
+  if (!shell) {
+    shell = settings.availableShells.find(
+      s => s.id === settings.defaultOsShellId
+    );
+  }
+
+  return resolveShellEnvCached(shell.binPath)
     .then(resolvedEnv => ({
       shellEnv: resolvedEnv,
       creationStatus: PtyProcessCreationStatus.Ok,
@@ -74,23 +98,31 @@ export async function buildPtyOptions(
       };
 
       return {
-        processOptions: getPtyProcessOptions(
-          settings,
-          options,
-          cmd,
-          combinedEnv
-        ),
+        processOptions: getPtyProcessOptions({
+          settings: settings,
+          options: options,
+          cmd: cmd,
+          env: combinedEnv,
+          shellBinPath: shell.binPath,
+        }),
         creationStatus,
       };
     });
 }
 
-export function getPtyProcessOptions(
-  settings: RuntimeSettings,
-  options: PtyOptions,
-  cmd: PtyCommand,
-  env: typeof process.env
-): PtyProcessOptions {
+export function getPtyProcessOptions({
+  settings,
+  options,
+  cmd,
+  env,
+  shellBinPath,
+}: {
+  settings: RuntimeSettings;
+  options: PtyOptions;
+  cmd: PtyCommand;
+  env: typeof process.env;
+  shellBinPath: string;
+}): PtyProcessOptions {
   const useConpty = options.windowsPty?.useConpty;
 
   switch (cmd.kind) {
@@ -109,7 +141,7 @@ export function getPtyProcessOptions(
       }
 
       return {
-        path: settings.defaultShell,
+        path: shellBinPath,
         args: [],
         cwd: cmd.cwd,
         env: { ...env, ...cmd.env },
@@ -137,7 +169,7 @@ export function getPtyProcessOptions(
       const bashCommandArgs = ['-c', `${kubeLoginCommand};$SHELL`];
       const powershellCommandArgs = ['-NoExit', '-c', kubeLoginCommand];
       return {
-        path: settings.defaultShell,
+        path: shellBinPath,
         args: isWindows ? powershellCommandArgs : bashCommandArgs,
         env: { ...env, KUBECONFIG: getKubeConfigFilePath(cmd, settings) },
         useConpty,

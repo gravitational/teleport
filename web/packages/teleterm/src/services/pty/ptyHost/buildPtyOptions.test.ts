@@ -45,12 +45,16 @@ describe('getPtyProcessOptions', () => {
         },
       };
 
-      const { env } = getPtyProcessOptions(
-        makeRuntimeSettings(),
-        { ssh: { noResume: false }, windowsPty: { useConpty: true } },
-        cmd,
-        processEnv
-      );
+      const { env } = getPtyProcessOptions({
+        settings: makeRuntimeSettings(),
+        options: {
+          ssh: { noResume: false },
+          windowsPty: { useConpty: true },
+        },
+        cmd: cmd,
+        env: processEnv,
+        shellBinPath: '/bin/zsh',
+      });
 
       expect(env.processExclusive).toBe('process');
       expect(env.cmdExclusive).toBe('cmd');
@@ -68,18 +72,23 @@ describe('getPtyProcessOptions', () => {
         kind: 'pty.shell',
         clusterName: 'bar',
         proxyHost: 'baz',
+        shellId: 'zsh',
         env: {
           cmdExclusive: 'cmd',
           shared: 'fromCmd',
         },
       };
 
-      const { env } = getPtyProcessOptions(
-        makeRuntimeSettings(),
-        { ssh: { noResume: false }, windowsPty: { useConpty: true } },
-        cmd,
-        processEnv
-      );
+      const { env } = getPtyProcessOptions({
+        settings: makeRuntimeSettings(),
+        options: {
+          ssh: { noResume: false },
+          windowsPty: { useConpty: true },
+        },
+        cmd: cmd,
+        env: processEnv,
+        shellBinPath: '/bin/zsh',
+      });
 
       expect(env.processExclusive).toBe('process');
       expect(env.cmdExclusive).toBe('cmd');
@@ -101,12 +110,13 @@ describe('getPtyProcessOptions', () => {
         leafClusterId: undefined,
       };
 
-      const { args } = getPtyProcessOptions(
-        makeRuntimeSettings(),
-        { ssh: { noResume: true }, windowsPty: { useConpty: true } },
-        cmd,
-        processEnv
-      );
+      const { args } = getPtyProcessOptions({
+        settings: makeRuntimeSettings(),
+        options: { ssh: { noResume: true }, windowsPty: { useConpty: true } },
+        cmd: cmd,
+        env: processEnv,
+        shellBinPath: '/bin/zsh',
+      });
 
       expect(args).toContain('--no-resume');
     });
