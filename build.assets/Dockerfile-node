@@ -21,6 +21,8 @@ FROM node:${NODE_VERSION}-buster AS buildbox
 ARG BUILDARCH
 
 RUN corepack enable pnpm
+# Call pnpm to trigger corepack to download pnpm.
+RUN pnpm -v
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
