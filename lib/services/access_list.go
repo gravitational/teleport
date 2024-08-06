@@ -286,7 +286,7 @@ func getAccessListDynamicMembers(ctx context.Context, clt AccessListsAndMembersG
 		}
 
 		for _, member := range members {
-			if member.Spec.Kind == accesslist.MemberKindList {
+			if member.Spec.MembershipKind == accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String() {
 				dynamicMembers = append(dynamicMembers, member.GetName())
 			}
 		}
@@ -351,7 +351,7 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 	seen := map[string]struct{}{}
 	var queue []string
 	for _, owner := range accessList.GetOwners() {
-		if owner.Kind == accesslist.MemberKindList {
+		if owner.MembershipKind == accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String() {
 			queue = append(queue, owner.Name)
 		}
 	}

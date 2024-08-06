@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
@@ -63,7 +64,7 @@ type AccessListMemberSpec struct {
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
 	// origin of the member, either "member", or "dynamic"
-	Kind string `json:"kind" yaml:"kind"`
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // NewAccessListMember will create a new access listm member.
@@ -80,11 +81,6 @@ func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*
 	return member, nil
 }
 
-const (
-	MemberKindUser = "user"
-	MemberKindList = "list"
-)
-
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessListMember) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessListMember)
@@ -94,8 +90,8 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if a.Spec.Kind == "" {
-		a.Spec.Kind = MemberKindUser
+	if a.Spec.MembershipKind == "" {
+		a.Spec.MembershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
 	}
 
 	if a.Spec.AccessList == "" {

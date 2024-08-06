@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -397,8 +398,8 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: append(
 				newAccessListMembers(t, clock, "3", "user"),
-				newAccessListMemberWithKind(t, clock, "2", accesslist.MemberKindList, "3"),
-				newAccessListMemberWithKind(t, clock, "1", accesslist.MemberKindList, "2")),
+				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "3"),
+				newAccessListMemberWithKind(t, clock, "1", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2")),
 			roles:   []string{"role1", "role2"},
 			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
@@ -426,10 +427,10 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: append(
 				newAccessListMembers(t, clock, "1", "user"),
-				newAccessListMemberWithKind(t, clock, "2", accesslist.MemberKindList, "1"),
-				newAccessListMemberWithKind(t, clock, "3", accesslist.MemberKindList, "1"),
-				newAccessListMemberWithKind(t, clock, "4", accesslist.MemberKindList, "3"),
-				newAccessListMemberWithKind(t, clock, "4", accesslist.MemberKindList, "2"),
+				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "1"),
+				newAccessListMemberWithKind(t, clock, "3", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "1"),
+				newAccessListMemberWithKind(t, clock, "4", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "3"),
+				newAccessListMemberWithKind(t, clock, "4", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2"),
 			),
 			roles:   nil,
 			wantErr: require.NoError,
@@ -612,13 +613,13 @@ func newAccessListMemberWithKind(t *testing.T, clock clockwork.Clock, accessList
 	res, err := accesslist.NewAccessListMember(header.Metadata{
 		Name: member,
 	}, accesslist.AccessListMemberSpec{
-		AccessList: accessList,
-		Name:       member,
-		Joined:     clock.Now(),
-		Expires:    clock.Now().Add(24 * time.Hour),
-		Reason:     "added",
-		AddedBy:    ownerUser,
-		Kind:       kind,
+		AccessList:     accessList,
+		Name:           member,
+		Joined:         clock.Now(),
+		Expires:        clock.Now().Add(24 * time.Hour),
+		Reason:         "added",
+		AddedBy:        ownerUser,
+		MembershipKind: kind,
 	})
 	require.NoError(t, err)
 

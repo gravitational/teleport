@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
@@ -169,7 +170,7 @@ type Owner struct {
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
 	// Kind is the kind of owner, either list or user
-	Kind string `json:"kind" yaml:"kind"`
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -302,8 +303,8 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
 		}
-		if owner.Kind == "" {
-			owner.Kind = MemberKindUser
+		if owner.MembershipKind == "" {
+			owner.MembershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
 		}
 
 		if _, ok := ownerMap[owner.Name]; ok {
