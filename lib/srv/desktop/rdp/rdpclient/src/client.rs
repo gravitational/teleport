@@ -214,7 +214,7 @@ impl Client {
         // Frame the stream again for use by connect_finalize
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
-        let mut network_client = crate::network_client::ReqwestNetworkClient::new();
+        let mut network_client = crate::network_client::NetworkClient::new();
         let kerberos_config = params
             .kdc_addr
             .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))

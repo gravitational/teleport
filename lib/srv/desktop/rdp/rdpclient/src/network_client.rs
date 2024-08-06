@@ -17,24 +17,20 @@
  */
 
 use std::future::Future;
-use std::net::{IpAddr, Ipv4Addr};
 use std::pin::Pin;
 
 use ironrdp_connector::sspi::generator::NetworkRequest;
 use ironrdp_connector::sspi::network_client::NetworkProtocol;
-use ironrdp_connector::{custom_err, ConnectorResult};
+use ironrdp_connector::{custom_err, general_err, ConnectorResult};
 use ironrdp_tokio::AsyncNetworkClient;
-use reqwest::Client;
 use sspi::{Error, ErrorKind};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::net::TcpStream;
 use url::Url;
 
-pub(crate) struct ReqwestNetworkClient {
-    client: Option<Client>,
-}
+pub(crate) struct NetworkClient;
 
-impl AsyncNetworkClient for ReqwestNetworkClient {
+impl AsyncNetworkClient for NetworkClient {
     fn send<'a>(
         &'a mut self,
         request: &'a NetworkRequest,
@@ -42,32 +38,28 @@ impl AsyncNetworkClient for ReqwestNetworkClient {
         Box::pin(async move {
             match &request.protocol {
                 NetworkProtocol::Tcp => self.send_tcp(&request.url, &request.data).await,
-                NetworkProtocol::Udp => self.send_udp(&request.url, &request.data).await,
-                NetworkProtocol::Http | NetworkProtocol::Https => {
-                    self.send_http(&request.url, &request.data).await
-                }
+                NetworkProtocol::Udp => Err(general_err!("UDP is not supported")),
+                NetworkProtocol::Http => Err(general_err!("HTTP is not supported")),
+                NetworkProtocol::Https => Err(general_err!("HTTPS is not supported")),
             }
         })
     }
 }
 
-impl ReqwestNetworkClient {
+impl NetworkClient {
     pub(crate) fn new() -> Self {
-        Self { client: None }
+        Self
     }
 }
 
-// 65535 bytes: maximum allowed token len in Windows
-// See note in https://learn.microsoft.com/en-us/troubleshoot/windows-server/group-policy/group-policy-add-maxtokensize-registry-entry
-const MAX_TOKEN_LENGTH: usize = 65536;
 const DEFAULT_KERBEROS_PORT: u16 = 88;
 
-impl ReqwestNetworkClient {
+impl NetworkClient {
     async fn send_tcp(&self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
         let addr = format!(
             "{}:{}",
             url.host_str().unwrap_or_default(),
-            url.port().unwrap_or(88)
+            url.port().unwrap_or(DEFAULT_KERBEROS_PORT)
         );
 
         let mut stream = TcpStream::connect(addr)
@@ -97,58 +89,5 @@ impl ReqwestNetworkClient {
             .map_err(|e| custom_err!("failed to send KDC response over TCP", e))?;
 
         Ok(buf)
-    }
-
-    async fn send_udp(&self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
-        let udp_socket = UdpSocket::bind((IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
-            .await
-            .map_err(|e| custom_err!("cannot bind UDP socket", e))?;
-
-        let addr = format!(
-            "{}:{}",
-            url.host_str().unwrap_or_default(),
-            url.port().unwrap_or(DEFAULT_KERBEROS_PORT)
-        );
-
-        udp_socket
-            .send_to(data, addr)
-            .await
-            .map_err(|e| custom_err!("failed to send UDP request", e))?;
-
-        let mut buf = vec![0; MAX_TOKEN_LENGTH];
-
-        let n = udp_socket
-            .recv(&mut buf)
-            .await
-            .map_err(|e| custom_err!("failed to receive UDP request", e))?;
-
-        let mut reply_buf = Vec::with_capacity(n + 4);
-        reply_buf.extend_from_slice(&(n as u32).to_be_bytes());
-        reply_buf.extend_from_slice(&buf[0..n]);
-
-        Ok(reply_buf)
-    }
-
-    async fn send_http(&mut self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
-        let client = self.client.get_or_insert_with(Client::new);
-
-        let response = client
-            .post(url.clone())
-            .body(data.to_vec())
-            .send()
-            .await
-            .map_err(|e| custom_err!("failed to send KDC request over proxy", e))?
-            .error_for_status()
-            .map_err(|e| custom_err!("KdcProxy", e))?;
-
-        let body = response
-            .bytes()
-            .await
-            .map_err(|e| custom_err!("failed to receive KDC response", e))?;
-
-        // The type bytes::Bytes has a special From implementation for Vec<u8>.
-        let body = Vec::from(body);
-
-        Ok(body)
     }
 }
