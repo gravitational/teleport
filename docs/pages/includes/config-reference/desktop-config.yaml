@@ -70,6 +70,13 @@ windows_desktop_service:
   # to users and computers in a child domain.
   pki_domain: root.example.com
 
+  # (optional) When AD support is used, this field allow you to specify
+  # address of Key Distribution Center that is required for Network
+  # Level Authentication support.
+  # Usually, this address will use port 88, like: kdc.example.com:88.
+  # If not specified, LDAP address will be used with port 88.
+  kdc_addr: '$KDC_SERVER_ADDRESS'
+
   # (optional) static_hosts is a list of hosts to register as WindowsDesktop
   # objects in Teleport. You can define host name and labels directly.
   static_hosts:

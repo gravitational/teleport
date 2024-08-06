@@ -56,7 +56,9 @@ pub(crate) async fn upgrade(
             .peer_certificate()
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "peer certificate is missing"))?;
         let public_key = cert.public_key()?;
-        let bytes = public_key.public_key_to_der()?;
+        let mut bytes: Vec<u8> = public_key.public_key_to_der()?;
+        //boring uses additional DER element before raw key data compared to rustls, so we have to skip it
+        bytes.drain(0..24);
         Ok((tls_stream, bytes))
     }
     #[cfg(not(feature = "fips"))]
