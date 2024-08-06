@@ -275,19 +275,9 @@ async function setUpPtyProcess(
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
-    // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
-    // moving title-updating logic to DocumentsService. The logic behind
-    // updating the title should be encapsulated in a single place, so that
-    // useDocumentTerminal doesn't need to know the details behind the title of
-    // each document kind.
-    if (doc.kind !== 'doc.terminal_shell') {
-      return;
-    }
-
-    const cwd = await ptyProcess.getCwd();
-    documentsService.update(doc.uri, {
-      cwd,
-      title: `${cwd || 'Terminal'} · ${getClusterName()}`,
+    documentsService.refreshPtyTitle(doc.uri, {
+      cwd: await ptyProcess.getCwd(),
+      clusterName: getClusterName(),
     });
   };
 

@@ -373,6 +373,36 @@ export class DocumentsService {
     });
   }
 
+  refreshPtyTitle(
+    uri: DocumentUri,
+    {
+      cwd,
+      clusterName,
+    }: {
+      cwd: string;
+      clusterName: string;
+    }
+  ) {
+    const doc = this.getDocument(uri);
+    if (!doc) {
+      return;
+    }
+    if (doc.kind === 'doc.terminal_shell') {
+      this.update(doc.uri, {
+        cwd,
+        title: [doc.shellId, cwd, clusterName].filter(Boolean).join(' · '),
+      });
+      return;
+    }
+
+    if (doc.kind === 'doc.gateway_kube') {
+      const { params } = routing.parseKubeUri(doc.targetUri);
+      this.update(doc.uri, {
+        title: [doc.shellId, cwd, params.kubeId].filter(Boolean).join(' · '),
+      });
+    }
+  }
+
   replace(uri: DocumentUri, document: Document): void {
     const documentToCloseIndex = this.getDocuments().findIndex(
       doc => doc.uri === uri
