@@ -144,11 +144,17 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
 			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
 		}
+
+		var kind accesslistv1.MembershipKind
+		if enumVal, ok := accesslistv1.MembershipKind_value[owner.MembershipKind]; ok {
+			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		}
+
 		owners[i] = &accesslistv1.AccessListOwner{
 			Name:             owner.Name,
 			Description:      owner.Description,
 			IneligibleStatus: ineligibleStatus,
-			Kind:             owner.Kind,
+			MembershipKind:   kind,
 		}
 	}
 

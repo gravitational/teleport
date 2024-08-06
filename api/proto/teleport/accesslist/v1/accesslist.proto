@@ -86,9 +86,8 @@ message AccessListOwner {
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
 
-  // Kind is the type of owner, either a user or from a dynamic list,
-  // options `user` and `list`
-  string kind = 4;
+  // membership_kind is the type of owner, either a user or from a dynamic list,
+  MembershipKind membership_kind = 4;
 }
 
 // AccessListAudit describes the audit configuration for an access list.
@@ -202,8 +201,20 @@ message MemberSpec {
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
 
-  // kind of the member, either "user", or "list"
-  string kind = 9;
+  // membership_kind is the kind of the member, either "user", or "list"
+  MembershipKind membership_kind = 9;
+}
+
+//.MembershipKind represents the different kinds of list membership
+enum MembershipKind {
+  // MEMBERSHIP_KIND_USER represents list members that are of
+  // unknown membership kind, defaulting to _USER
+  MEMBERSHIP_KIND_UNSPECIFIED = 0;
+  // MEMBERSHIP_KIND_USER represents list members that are normal
+  // users
+  MEMBERSHIP_KIND_USER = 1;
+  // MEMBERSHIP_KIND_LIST represetns a list member that is another list
+  MEMBERSHIP_KIND_LIST = 2;
 }
 
 // IneligibleStatus describes how the user is ineligible.
