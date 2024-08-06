@@ -24,12 +24,18 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   H2,
+  ButtonWarning,
 } from 'design';
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
 import { Timeout } from 'teleport/Discover/Shared/Timeout';
 import { TextIcon } from 'teleport/Discover/Shared';
+
+import {
+  dbWithoutDbServerExistsErrorMsg as dbExistsWithoutDbServerErrorMsg,
+  timeoutErrorMsg,
+} from './const';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -39,6 +45,8 @@ export type CreateDatabaseDialogProps = {
   retry(): void;
   close(): void;
   next(): void;
+  onOverwrite(): void;
+  onTimeout(): void;
   dbName: string;
 };
 
@@ -49,21 +57,42 @@ export function CreateDatabaseDialog({
   close,
   next,
   dbName,
+  onOverwrite,
+  onTimeout,
 }: CreateDatabaseDialogProps) {
+  /**
+   * Most likely cause of timeout is when we found a matching db_service
+   * but no db_server heartbeats. Most likely cause is because db_service
+   * has been stopped but is not removed from teleport yet (there is some
+   * minutes delay on expiry)
+   */
+  const skipOnTimeout =
+    attempt.status === 'failed' && attempt.statusText === timeoutErrorMsg;
+
   let content: JSX.Element;
-  if (attempt.status === 'failed') {
+  if (attempt.status === 'failed' && !skipOnTimeout) {
+    // Only allow overwriting if the database error
+    // states that it's a existing database without a db_server.
+    const canOverwriteDb = attempt.statusText.includes(
+      dbExistsWithoutDbServerErrorMsg
+    );
+
     // TODO(bl-nero): Migrate this to alert boxes.
     content = (
       <>
         <Flex mb={5} alignItems="center">
-          {' '}
           <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
           <Text>{attempt.statusText}</Text>
         </Flex>
-        <Flex>
-          <ButtonPrimary mr={3} width="50%" onClick={retry}>
+        <Flex gap={3}>
+          <ButtonPrimary width="50%" onClick={retry}>
             Retry
           </ButtonPrimary>
+          {canOverwriteDb && (
+            <ButtonWarning width="50%" onClick={onOverwrite}>
+              Overwrite
+            </ButtonWarning>
+          )}
           <ButtonSecondary width="50%" onClick={close}>
             Close
           </ButtonSecondary>
@@ -100,7 +129,7 @@ export function CreateDatabaseDialog({
           <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           Database "{dbName}" successfully registered
         </Text>
-        <ButtonPrimary width="100%" onClick={next}>
+        <ButtonPrimary width="100%" onClick={skipOnTimeout ? onTimeout : next}>
           Next
         </ButtonPrimary>
       </>

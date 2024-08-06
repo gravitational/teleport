@@ -78,6 +78,7 @@ export function useMutualTls({ ctx, props }: Props) {
     run(() =>
       ctx.databaseService
         .updateDatabase(clusterId, {
+          kind: 'partial-update',
           name: meta.db.name,
           caCert,
         })

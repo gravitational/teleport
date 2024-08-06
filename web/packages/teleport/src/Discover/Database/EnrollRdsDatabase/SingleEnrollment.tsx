@@ -81,9 +81,10 @@ export function SingleEnrollment({
     pollTimeout,
     registerDatabase,
     attempt,
-    clearAttempt, // TODO
+    clearAttempt,
     nextStep,
     fetchDatabaseServers,
+    handleOnTimeout,
   } = useCreateDatabase();
 
   const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
@@ -175,7 +176,10 @@ export function SingleEnrollment({
     }
   }
 
-  function handleOnProceed() {
+  function handleOnProceed({ overwriteDb = false } = {}) {
+    // Corner case where if registering db fails a user can:
+    //   1) change region, which will list new databases or
+    //   2) select a different database before re-trying.
     const isNewDb = selectedDb.name !== createdDb?.name;
     registerDatabase(
       {
@@ -187,10 +191,7 @@ export function SingleEnrollment({
         awsRegion: region,
         awsVpcId: vpc.id,
       },
-      // Corner case where if registering db fails a user can:
-      //   1) change region, which will list new databases or
-      //   2) select a different database before re-trying.
-      isNewDb
+      { newDb: isNewDb, overwriteDb }
     );
   }
 
@@ -222,6 +223,8 @@ export function SingleEnrollment({
           next={nextStep}
           close={clearAttempt}
           retry={handleOnProceed}
+          onTimeout={handleOnTimeout}
+          onOverwrite={() => handleOnProceed({ overwriteDb: true })}
           dbName={selectedDb.name}
         />
       )}

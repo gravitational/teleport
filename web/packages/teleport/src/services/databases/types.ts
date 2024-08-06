@@ -56,12 +56,12 @@ export type DatabasesResponse = {
   totalCount?: number;
 };
 
-export type UpdateDatabaseRequest = Omit<
-  Partial<CreateDatabaseRequest>,
-  'protocol'
-> & {
-  caCert?: string;
-};
+export type UpdateDatabaseRequest =
+  | (Omit<Partial<CreateDatabaseRequest>, 'protocol'> & {
+      kind: 'partial-update';
+      caCert?: string;
+    })
+  | { kind: 'overwrite-update'; dbOverwrite: CreateDatabaseRequest };
 
 export type CreateDatabaseRequest = {
   name: string;
