@@ -32,7 +32,7 @@
 // signed multiple times and this does not affect its digest.
 // At the time of writing, cosign supports both static key signing and
 // "keyless" (short-lived certificates) signing through the Fulcio CA.
-// Keyless singing is still experimental and we don't use it yet, support might
+// Keyless Signing is still experimental and we don't use it yet, support might
 // be added in the future.
 //
 // The Cosign validator delegates all validation logic to the upstream cosign
