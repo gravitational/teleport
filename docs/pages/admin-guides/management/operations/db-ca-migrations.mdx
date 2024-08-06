@@ -177,8 +177,6 @@ need to rotate the `db` CA twice.
 If you need to rotate the `host` CA, we recommend completing that rotation
 before starting either of the `db` or `db_client` CA rotations: do not rotate
 other CAs in parallel with a `host` CA rotation.
-For information about `host` CA rotation, refer to the 
-[CA Rotation Guide](./ca-rotation.mdx).
 
 Database CA rotations are a little different, because they involve configuring
 external resources (self-hosted databases) with new certificates during the
@@ -186,8 +184,8 @@ rotation.
 You can (and should) rotate the `db` and `db_client` CAs at the same time to
 avoid repeating the database certificate reconfiguration steps.
 
-For details on rotating the `db` or `db_client` CA, refer to the
-[Database CA Rotation Guide](./db-ca-rotation.mdx).
+For information about CA rotation, refer to the 
+[CA Rotation Guide](./ca-rotation.mdx).
 
 ## Further reading
 
