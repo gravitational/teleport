@@ -121,6 +121,12 @@ func TestAppCommands(t *testing.T) {
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
+	cap, err := rootAuthServer.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	cap.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
+	_, err = rootAuthServer.UpdateAuthPreference(ctx, cap)
+	require.NoError(t, err)
+
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(accessUser),
 		testserver.WithClusterName(t, "leaf"),
@@ -316,7 +322,7 @@ func TestAppCommands(t *testing.T) {
 									assert.Equal(t, http.StatusOK, resp.StatusCode)
 									assert.Equal(t, app.name, resp.Header.Get("Server"))
 									resp.Body.Close()
-								}, 10*time.Second, time.Second)
+								}, 10*time.Second, 20*time.Millisecond)
 
 								proxyCancel()
 								assert.NoError(t, <-errC)
