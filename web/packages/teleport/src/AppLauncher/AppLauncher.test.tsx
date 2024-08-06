@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { render, waitFor } from 'design/utils/testing';
+import { render, waitFor, screen } from 'design/utils/testing';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 
@@ -102,13 +102,8 @@ describe('app launcher path is properly formed', () => {
   test.each(launcherPathTestCases)(
     '$name',
     async ({ path: query, expectedPath }) => {
-      const launcherPath = `/web/launch/grafana.localhost${query}`;
-      const mockHistory = createMemoryHistory({
-        initialEntries: [launcherPath],
-      });
-
       render(
-        <Router history={mockHistory}>
+        <Router history={createMockHistory(`grafana.localhost${query}`)}>
           <Route path={cfg.routes.appLauncher}>
             <AppLauncher />
           </Route>
@@ -120,6 +115,7 @@ describe('app launcher path is properly formed', () => {
           `https://grafana.localhost/${expectedPath}`
         )
       );
+      expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
     }
   );
 });
@@ -254,7 +250,7 @@ const appSessionTestCases: {
   },
 ];
 
-describe('app session request is properly formed', () => {
+describe('fqdn is matched', () => {
   const realLocation = window.location;
   const assignMock = jest.fn();
 
@@ -286,13 +282,8 @@ describe('app session request is properly formed', () => {
       });
       jest.spyOn(service, 'createAppSession');
 
-      const launcherPath = `/web/launch/${path}`;
-      const mockHistory = createMemoryHistory({
-        initialEntries: [launcherPath],
-      });
-
       render(
-        <Router history={mockHistory}>
+        <Router history={createMockHistory(path)}>
           <Route path={cfg.routes.appLauncher}>
             <AppLauncher />
           </Route>
@@ -307,6 +298,68 @@ describe('app session request is properly formed', () => {
           arn: expectedArn,
         });
       });
+
+      await waitFor(() => expect(window.location.replace).toHaveBeenCalled());
+      expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
     }
   );
+
+  test('not matching fqdns throws error', async () => {
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'different.fqdn',
+    });
+
+    render(
+      <Router
+        history={createMockHistory(
+          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
+        )}
+      >
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
+
+    await screen.findByText(/access denied/i);
+    expect(
+      screen.getByText(
+        /failed to match applications with FQDN "test-app.test.teleport:443"/i
+      )
+    ).toBeInTheDocument();
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  test('invalid url when constructing a new URL with a malformed fqdn', async () => {
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'invalid.fqdn:3080:3090',
+    });
+
+    render(
+      <Router
+        history={createMockHistory(
+          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
+        )}
+      >
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
+
+    await screen.findByText(/access denied/i);
+    expect(
+      screen.getByText(
+        /failed to match applications with FQDN "invalid.fqdn:3080:3090"/i
+      )
+    ).toBeInTheDocument();
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
 });
+
+function createMockHistory(path: string) {
+  const launcherPath = `/web/launch/${path}`;
+  return createMemoryHistory({
+    initialEntries: [launcherPath],
+  });
+}

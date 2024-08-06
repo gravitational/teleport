@@ -57,7 +57,7 @@ export function AppLauncher() {
       // the attacker can't control what domain is redirected to this has
       // a low risk factor.
       if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
-        throw Error(`Failed to match applications with FQDN ${params.fqdn}`);
+        throwFailedToMatchFqdnError(params.fqdn);
       }
 
       let path = '';
@@ -151,11 +151,15 @@ export function AppLauncherAccessDenied(props: AppLauncherAccessDeniedProps) {
 // create apps that do. The FQDN is also lowercased to prevent
 // issues with case sensitivity.
 function prepareFqdn(fqdn: string) {
-  const fqdnUrl = new URL('https://' + fqdn);
-  fqdnUrl.port = '';
-  // The returned FQDN will have a scheme added to it, but that's
-  // fine because we're just using it to compare the FQDNs.
-  return fqdnUrl.toString().toLowerCase();
+  try {
+    const fqdnUrl = new URL('https://' + fqdn);
+    fqdnUrl.port = '';
+    // The returned FQDN will have a scheme added to it, but that's
+    // fine because we're just using it to compare the FQDNs.
+    return fqdnUrl.toString().toLowerCase();
+  } catch (e) {
+    throwFailedToMatchFqdnError(fqdn);
+  }
 }
 
 function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
@@ -214,4 +218,8 @@ function initiateNewAuthExchange({
   }
 
   window.location.replace(url.toString());
+}
+
+function throwFailedToMatchFqdnError(fqdn: string) {
+  throw Error(`Failed to match applications with FQDN "${fqdn}"`);
 }
