@@ -20,7 +20,6 @@ import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
 import ConnectDialog, { Props } from './ConnectDialog';
-import { ConnectWithRequestId } from './ConnectDialog.story';
 
 test('correct connect command generated for postgres db', () => {
   render(<ConnectDialog {...props} dbProtocol="postgres" />);
