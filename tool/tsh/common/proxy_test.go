@@ -943,9 +943,6 @@ func TestList(t *testing.T) {
 func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Helper()
 
-	currentUser, err := user.Current()
-	require.NoError(t, err)
-
 	sockDir := "test"
 	sockName := "agent.sock"
 
@@ -957,7 +954,7 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	})
 
 	// Start the SSH agent.
-	err = teleAgent.ListenUnixSocket(sockDir, sockName, currentUser)
+	err := teleAgent.ListenUnixSocket(sockDir, sockName, nil)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
