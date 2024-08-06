@@ -142,21 +142,8 @@ const Passwordless = ({
   const ref = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
-  // Firefox currently does not support passwordless and when
-  // logging in, it will return an ambigugous error.
-  // We display a soft warning because firefox may provide
-  // support in the near future: https://github.com/gravitational/webapps/pull/876
-  const isFirefox = window.navigator?.userAgent
-    ?.toLowerCase()
-    .includes('firefox');
   return (
     <Box px={5} pt={2} data-testid="passwordless" pb={1}>
-      {isFirefox && (
-        <Alerts.Info mt={3}>
-          Firefox may not support passwordless login. Please try Chrome or
-          Safari.
-        </Alerts.Info>
-      )}
       <StyledPaswordlessBtn
         setRef={ref}
         mt={3}
