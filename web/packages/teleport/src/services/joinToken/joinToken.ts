@@ -24,7 +24,10 @@ import { makeLabelMapOfStrArrs } from '../agents/make';
 import makeJoinToken from './makeJoinToken';
 import { JoinToken, JoinRule, JoinTokenRequest } from './types';
 
+const TeleportTokenNameHeader = 'X-Teleport-TokenName';
+
 class JoinTokenService {
+  // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinToken(
     req: JoinTokenRequest,
     signal: AbortSignal = null
@@ -43,6 +46,44 @@ class JoinTokenService {
         signal
       )
       .then(makeJoinToken);
+  }
+
+  upsertJoinTokenYAML(
+    req: JoinTokenRequest,
+    tokenName: string
+  ): Promise<JoinToken> {
+    return api
+      .putWithHeaders(
+        cfg.getJoinTokenYamlUrl(),
+        {
+          content: req.content,
+        },
+        {
+          [TeleportTokenNameHeader]: tokenName,
+          'Content-Type': 'application/json',
+        }
+      )
+      .then(makeJoinToken);
+  }
+
+  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  }
+
+  fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
+    return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
+      return {
+        items: resp.items.map(makeJoinToken),
+      };
+    });
+  }
+
+  deleteJoinToken(id: string, signal: AbortSignal = null) {
+    return api.deleteWithHeaders(
+      cfg.getJoinTokensUrl(),
+      { [TeleportTokenNameHeader]: id },
+      signal
+    );
   }
 }
 

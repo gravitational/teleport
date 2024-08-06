@@ -120,6 +120,31 @@ describe('api.fetch', () => {
       },
     });
   });
+
+  const customContentType = {
+    ...customOpts,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'multipart/form-data',
+    },
+  };
+
+  test('with customOptions including custom content-type', async () => {
+    await api.fetch('/something', customContentType, null);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    const firstCall = mockedFetch.mock.calls[0];
+    const [, actualRequestOptions] = firstCall;
+
+    expect(actualRequestOptions).toStrictEqual({
+      ...defaultRequestOptions,
+      ...customOpts,
+      headers: {
+        ...customContentType.headers,
+        ...getAuthHeaders(),
+      },
+    });
+  });
 });
 
 // The code below should guard us from changes to api.fetchJson which would cause it to lose type

@@ -32,6 +32,7 @@ export const HoverTooltip: React.FC<
     className?: string;
     anchorOrigin?: OriginProps;
     transformOrigin?: OriginProps;
+    justifyContentProps?: { justifyContent: string };
   }>
 > = ({
   tipContent,
@@ -40,6 +41,7 @@ export const HoverTooltip: React.FC<
   className,
   anchorOrigin = { vertical: 'top', horizontal: 'center' },
   transformOrigin = { vertical: 'bottom', horizontal: 'center' },
+  justifyContentProps = {},
 }) => {
   const [anchorEl, setAnchorEl] = useState<Element | undefined>();
   const open = Boolean(anchorEl);
@@ -77,6 +79,7 @@ export const HoverTooltip: React.FC<
       onMouseEnter={handlePopoverOpen}
       onMouseLeave={handlePopoverClose}
       className={className}
+      {...justifyContentProps}
     >
       {children}
       <Popover

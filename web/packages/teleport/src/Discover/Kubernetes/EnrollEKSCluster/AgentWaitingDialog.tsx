@@ -56,6 +56,11 @@ export function AgentWaitingDialog({
     // These are not used by usePingTeleport
     // todo(anton): Refactor usePingTeleport to not require full join token.
     expiry: undefined,
+    safeName: '',
+    isStatic: false,
+    method: 'kubernetes',
+    roles: [],
+    content: '',
     expiryText: '',
     id: '',
     suggestedLabels: [],
