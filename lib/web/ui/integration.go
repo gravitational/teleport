@@ -187,6 +187,8 @@ type AWSOIDCDeployServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	VPCID string `json:"vpcId"`
+
 	// AccountID is the AWS Account ID.
 	// Optional. sts.GetCallerIdentity is used if the value is not provided.
 	AccountID string `json:"accountId"`
