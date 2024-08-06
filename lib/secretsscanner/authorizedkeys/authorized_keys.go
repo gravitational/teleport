@@ -88,7 +88,9 @@ type WatcherConfig struct {
 // Returns [ErrUnsupportedPlatform] if the operating system is not supported.
 func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 
-	if platform := getOS(config); platform != constants.LinuxOS && platform != constants.DarwinOS {
+	switch platform := getOS(config); platform {
+	case constants.LinuxOS, constants.DarwinOS:
+	default:
 		return nil, trace.Wrap(ErrUnsupportedPlatform)
 	}
 
