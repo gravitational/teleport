@@ -257,9 +257,9 @@ type profileOptions struct {
 	SAMLSingleLogoutEnabled bool
 }
 
-// profileFromkey returns a ProfileStatus for the given key and options.
-func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, error) {
-	sshCert, err := key.SSHCert()
+// profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
+func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileStatus, error) {
+	sshCert, err := keyRing.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,7 +319,7 @@ func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, er
 	}
 	sort.Strings(extensions)
 
-	tlsCert, err := key.TeleportTLSCertificate()
+	tlsCert, err := keyRing.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,12 +328,12 @@ func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, er
 		return nil, trace.Wrap(err)
 	}
 
-	databases, err := findActiveDatabases(key)
+	databases, err := findActiveDatabases(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appCerts, err := key.AppTLSCertificates()
+	appCerts, err := keyRing.AppTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -571,18 +571,18 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		return p.Databases, nil
 	}
 
-	idx := KeyIndex{
+	idx := KeyRingIndex{
 		ProxyHost:   p.Name,
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
 
 	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, WithDBCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return findActiveDatabases(key)
+	return findActiveDatabases(keyRing)
 }
 
 // AppsForCluster returns a list of apps for this profile, for the
@@ -592,18 +592,18 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		return p.Apps, nil
 	}
 
-	idx := KeyIndex{
+	idx := KeyRingIndex{
 		ProxyHost:   p.Name,
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
 
 	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, WithAppCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return findActiveApps(key)
+	return findActiveApps(keyRing)
 }
 
 // AppNames returns a list of app names this profile is logged into.

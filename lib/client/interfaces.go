@@ -48,10 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// KeyIndex identifies a KeyRing in the store.
-// TODO(nklaassen): rename to KeyRingIndex because it identifies an entire
-// KeyRing in a KeyStore.
-type KeyIndex struct {
+// KeyRingIndex identifies a KeyRing in the store.
+type KeyRingIndex struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
 	ProxyHost string
 	// Username is the username that a key is associated with.
@@ -60,9 +58,9 @@ type KeyIndex struct {
 	ClusterName string
 }
 
-// Check verifies the KeyIndex is fully specified.
-func (idx KeyIndex) Check() error {
-	missingField := "key index field %s is not set"
+// Check verifies the KeyRingIndex is fully specified.
+func (idx KeyRingIndex) Check() error {
+	missingField := "keyring index field %s is not set"
 	if idx.ProxyHost == "" {
 		return trace.BadParameter(missingField, "ProxyHost")
 	}
@@ -75,13 +73,13 @@ func (idx KeyIndex) Check() error {
 	return nil
 }
 
-// Match compares this key index to the given matchKey index.
+// Match compares this KeyRingIndex to the given matchKeyRing index.
 // It will be considered a match if all non-zero elements of
-// the matchKey are matched by this key index.
-func (idx KeyIndex) Match(matchKey KeyIndex) bool {
-	return (matchKey.ProxyHost == "" || matchKey.ProxyHost == idx.ProxyHost) &&
-		(matchKey.ClusterName == "" || matchKey.ClusterName == idx.ClusterName) &&
-		(matchKey.Username == "" || matchKey.Username == idx.Username)
+// the matchKeyRing are matched by this KeyRingIndex.
+func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
+	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
+		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
+		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
 }
 
 // TLSCredential holds a signed TLS certificate and matching private key.
@@ -99,7 +97,7 @@ func (c *TLSCredential) TLSCertificate() (tls.Certificate, error) {
 
 // KeyRing describes a set of client keys and certificates for a specific cluster.
 type KeyRing struct {
-	KeyIndex
+	KeyRingIndex
 
 	// PrivateKey used to represent the single cryptographic key associated with all
 	// certificates in the KeyRing. This is in the process of being deprecated
@@ -166,8 +164,8 @@ func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose c
 	return priv, nil
 }
 
-// GenerateRSAKey generates a new unsigned key.
-func GenerateRSAKey() (*KeyRing, error) {
+// GenerateRSAKeyRing generates a new unsigned key ring.
+func GenerateRSAKeyRing() (*KeyRing, error) {
 	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,7 +208,7 @@ func (k *KeyRing) RootClusterCAs() ([][]byte, error) {
 	return nil, trace.NotFound("failed to find TLS CA for %q root cluster", rootClusterName)
 }
 
-// TLSCAs returns all TLS CA certificates from this key
+// TLSCAs returns all TLS CA certificates from this KeyRing.
 func (k *KeyRing) TLSCAs() (result [][]byte) {
 	for _, ca := range k.TrustedCerts {
 		result = append(result, ca.TLSCertificates...)
@@ -237,9 +235,9 @@ func (k *KeyRing) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName str
 }
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
-// keys/certs against SSH CAs in the Key.
+// keys/certs against SSH CAs in the KeyRing.
 //
-// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
+// If not CAs are present in the KeyRing, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
 func (k *KeyRing) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, error) {
@@ -250,7 +248,7 @@ func (k *KeyRing) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, err
 	return sshutils.HostKeyCallback(trustedHostKeys, true)
 }
 
-// authorizedHostKeys returns all authorized host keys from this key. If any host
+// authorizedHostKeys returns all authorized host keys from this KeyRing. If any host
 // names are provided, only matching host keys will be returned.
 func (k *KeyRing) authorizedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 	var hostKeys []ssh.PublicKey
@@ -324,7 +322,7 @@ func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
-// Key and HostKeyCallback matching SSH CAs in the Key.
+// KeyRing and HostKeyCallback matching SSH CAs in the KeyRing.
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
@@ -390,7 +388,7 @@ const (
 
 // teleportAgentKeyComment returns a teleport agent key comment
 // like "teleport:<proxyHost>:<userName>:<clusterName>".
-func teleportAgentKeyComment(k KeyIndex) string {
+func teleportAgentKeyComment(k KeyRingIndex) string {
 	return strings.Join([]string{
 		agentKeyCommentPrefix,
 		k.ProxyHost,
@@ -400,14 +398,14 @@ func teleportAgentKeyComment(k KeyIndex) string {
 }
 
 // parseTeleportAgentKeyComment parses an agent key comment into
-// its associated KeyIndex.
-func parseTeleportAgentKeyComment(comment string) (KeyIndex, bool) {
+// its associated KeyRingIndex.
+func parseTeleportAgentKeyComment(comment string) (KeyRingIndex, bool) {
 	parts := strings.Split(comment, agentKeyCommentSeparator)
 	if len(parts) != 4 || parts[0] != agentKeyCommentPrefix {
-		return KeyIndex{}, false
+		return KeyRingIndex{}, false
 	}
 
-	return KeyIndex{
+	return KeyRingIndex{
 		ProxyHost:   parts[1],
 		ClusterName: parts[2],
 		Username:    parts[3],
@@ -420,8 +418,8 @@ func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }
 
-// AsAgentKey converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
-// can be added to a local agent (keyring), nut non-standard keys cannot be added
+// AsAgentKey converts client.KeyRing struct to an agent.AddedKey. Any agent.AddedKey
+// can be added to a local agent (keyring), but non-standard keys cannot be added
 // to an SSH system agent through the ssh agent protocol. Check canAddToSystemAgent
 // before adding this key to an SSH system agent.
 func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
@@ -433,7 +431,7 @@ func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
 	return agent.AddedKey{
 		PrivateKey:       k.PrivateKey.Signer,
 		Certificate:      sshCert,
-		Comment:          teleportAgentKeyComment(k.KeyIndex),
+		Comment:          teleportAgentKeyComment(k.KeyRingIndex),
 		LifetimeSecs:     0,
 		ConfirmBeforeUse: false,
 	}, nil

@@ -181,7 +181,7 @@ func (s *DatabaseOutputService) render(
 	)
 	defer span.End()
 
-	key, err := NewClientKey(routedIdentity, hostCAs)
+	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -190,7 +190,7 @@ func (s *DatabaseOutputService) render(
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, key, s.cfg.Destination); err != nil {
+	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -214,7 +214,7 @@ func (s *DatabaseOutputService) render(
 		}
 	case config.TLSDatabaseFormat:
 		if err := writeIdentityFileTLS(
-			ctx, s.log, key, s.cfg.Destination,
+			ctx, s.log, keyRing, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing tls database format files")
 		}
@@ -237,7 +237,7 @@ func writeCockroachDatabaseFiles(
 	defer span.End()
 
 	// Cockroach format specifically uses database CAs rather than hostCAs
-	key, err := NewClientKey(routedIdentity, databaseCAs)
+	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,7 +245,7 @@ func writeCockroachDatabaseFiles(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultCockroachDirName,
 		Writer:     newBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatCockroach,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -275,7 +275,7 @@ func writeMongoDatabaseFiles(
 	defer span.End()
 
 	// Mongo format specifically uses database CAs rather than hostCAs
-	key, err := NewClientKey(routedIdentity, databaseCAs)
+	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -283,7 +283,7 @@ func writeMongoDatabaseFiles(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultMongoPrefix,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatMongo,
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,

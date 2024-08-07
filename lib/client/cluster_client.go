@@ -168,7 +168,7 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	return trace.Wrap(c.tc.localAgent.AddKey(keyRing))
+	return trace.Wrap(c.tc.localAgent.AddKeyRing(keyRing))
 }
 
 func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*KeyRing, error) {
@@ -190,7 +190,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			certOptions = WithAllCerts
 		}
 
-		keyRing, err = c.tc.localAgent.GetKey(params.RouteToCluster, certOptions...)
+		keyRing, err = c.tc.localAgent.GetKeyRing(params.RouteToCluster, certOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -266,14 +266,14 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		return sshConfig, nil
 	}
 
-	key, err := c.tc.localAgent.GetKey(target.Cluster, WithAllCerts...)
+	keyRing, err := c.tc.localAgent.GetKeyRing(target.Cluster, WithAllCerts...)
 	if err != nil {
 		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
-	rootClusterName, err := key.RootClusterName()
+	rootClusterName, err := keyRing.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
@@ -303,14 +303,14 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	key, err = c.performMFACeremony(ctx,
+	keyRing, err = c.performMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(targetNode{addr: target.Addr}),
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
-		key,
+		keyRing,
 		c.tc.NewMFAPrompt(),
 	)
 	if err != nil {
@@ -318,7 +318,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.Debug("Issued single-use user certificate after an MFA check.")
-	am, err := key.AsAuthMethod()
+	am, err := keyRing.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
@@ -434,7 +434,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	keyRing := params.ExistingCreds
 	if keyRing == nil {
 		var err error
-		keyRing, err = c.tc.localAgent.GetKey(params.RouteToCluster, WithAllCerts...)
+		keyRing, err = c.tc.localAgent.GetKeyRing(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
 			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
 		}

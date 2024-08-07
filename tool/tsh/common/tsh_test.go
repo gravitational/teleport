@@ -2976,7 +2976,7 @@ func TestEnvFlags(t *testing.T) {
 func TestKubeConfigUpdate(t *testing.T) {
 	t.Parallel()
 	// don't need real creds for this test, just something to compare against
-	creds := &client.KeyRing{KeyIndex: client.KeyIndex{ProxyHost: "a.example.com"}}
+	creds := &client.KeyRing{KeyRingIndex: client.KeyRingIndex{ProxyHost: "a.example.com"}}
 	tests := []struct {
 		desc           string
 		cf             *CLIConf
@@ -5369,8 +5369,8 @@ func TestLogout(t *testing.T) {
 	require.NoError(t, err)
 	privateKey, err := keys.NewPrivateKey(key, privPEM)
 	require.NoError(t, err)
-	clientKey := &client.KeyRing{
-		KeyIndex: client.KeyIndex{
+	clientKeyRing := &client.KeyRing{
+		KeyRingIndex: client.KeyRingIndex{
 			ProxyHost:   "proxy",
 			Username:    "user",
 			ClusterName: "cluster",
@@ -5378,9 +5378,9 @@ func TestLogout(t *testing.T) {
 		PrivateKey: privateKey,
 	}
 	profile := &profile.Profile{
-		WebProxyAddr: clientKey.ProxyHost,
-		Username:     clientKey.Username,
-		SiteName:     clientKey.ClusterName,
+		WebProxyAddr: clientKeyRing.ProxyHost,
+		Username:     clientKeyRing.Username,
+		SiteName:     clientKeyRing.ClusterName,
 	}
 
 	for _, tt := range []struct {
@@ -5393,13 +5393,13 @@ func TestLogout(t *testing.T) {
 		}, {
 			name: "public key missing",
 			modifyKeyDir: func(t *testing.T, homePath string) {
-				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
 				require.NoError(t, os.Remove(pubKeyPath))
 			},
 		}, {
 			name: "private key missing",
 			modifyKeyDir: func(t *testing.T, homePath string) {
-				privKeyPath := keypaths.UserKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				privKeyPath := keypaths.UserKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
 				require.NoError(t, os.Remove(privKeyPath))
 			},
 		}, {
@@ -5410,7 +5410,7 @@ func TestLogout(t *testing.T) {
 				sshPub, err := ssh.NewPublicKey(newKey.Public())
 				require.NoError(t, err)
 
-				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
 				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0o600)
 				require.NoError(t, err)
 			},
@@ -5420,7 +5420,7 @@ func TestLogout(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
 			store := client.NewFSClientStore(tmpHomePath)
-			err = store.AddKey(clientKey)
+			err = store.AddKeyRing(clientKeyRing)
 			require.NoError(t, err)
 			store.SaveProfile(profile, true)
 
