@@ -16,6 +16,7 @@ ssh_service:
   enabled: true
   labels:
     role: agent-pool
+    ${extra_labels}
 EOF
 
 systemctl restart teleport;

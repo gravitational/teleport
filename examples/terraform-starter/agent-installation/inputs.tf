@@ -3,6 +3,11 @@ variable "agent_count" {
   description = "Number of agents to deploy"
 }
 
+variable "agent_labels" {
+  type        = map(string)
+  description = "labels to apply to each Agent in addition to \"role:agent-pool\""
+}
+
 variable "proxy_service_address" {
   type        = string
   description = "Host and HTTPS port of the Teleport Proxy Service"
