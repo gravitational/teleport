@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, req *http.Request, clock clockwork.Clock) error {
@@ -59,7 +59,7 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 	if err := rewriteAssumeRoleQuery(req, withAssumeRoleQueryDuration(query, identityTTL)); err != nil {
 		return trace.Wrap(err)
 	}
-	w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is lowered to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires))
+	w.Header().Add(app.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is lowered to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires))
 	return nil
 }
 

@@ -20,18 +20,14 @@ package servicecfg
 
 import (
 	"fmt"
-	"net"
-	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 // AppsConfig configures application proxy service.
@@ -101,42 +97,23 @@ func (a *App) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
 	}
-	// Check if the application name is a valid subdomain. Don't allow names that
-	// are invalid subdomains because for trusted clusters the name is used to
-	// construct the domain that the application will be available at.
-	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", a.Name)
-	}
-	// Parse and validate URL.
-	if _, err := url.Parse(a.URI); err != nil {
-		return trace.BadParameter("application %q URI invalid: %v", a.Name, err)
-	}
-	// If a port was specified or an IP address was provided for the public
-	// address, return an error.
-	if a.PublicAddr != "" {
-		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
-			return trace.BadParameter("application %q public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.Name, a.PublicAddr)
-		}
-		if net.ParseIP(a.PublicAddr) != nil {
-			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
+
+	var headerNames []string
+	if a.Rewrite != nil {
+		for _, h := range a.Rewrite.Headers {
+			headerNames = append(headerNames, h.Name)
 		}
 	}
+	if err := app.ValidateApplication(a.Name, a.URI, a.PublicAddr, headerNames); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Mark the app as coming from the static configuration.
 	if a.StaticLabels == nil {
 		a.StaticLabels = make(map[string]string)
 	}
 	a.StaticLabels[types.OriginLabel] = types.OriginConfigFile
-	// Make sure there are no reserved headers in the rewrite configuration.
-	// They wouldn't be rewritten even if we allowed them here but catch it
-	// early and let the user know.
-	if a.Rewrite != nil {
-		for _, h := range a.Rewrite.Headers {
-			if common.IsReservedHeader(h.Name) {
-				return trace.BadParameter("invalid application %q header rewrite configuration: header %q is reserved and can't be rewritten",
-					a.Name, http.CanonicalHeaderKey(h.Name))
-			}
-		}
-	}
+
 	return nil
 }
 

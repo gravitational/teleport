@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 // AppService manages application resources in the backend.
@@ -79,6 +80,9 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := validateApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	value, err := services.MarshalApp(app)
 	if err != nil {
 		return trace.Wrap(err)
@@ -102,6 +106,9 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 // UpdateApp updates an existing application resource.
 func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := services.CheckAndSetDefaults(app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateApp(app); err != nil {
 		return trace.Wrap(err)
 	}
 	rev := app.GetRevision()
@@ -146,6 +153,16 @@ func (s *AppService) DeleteAllApps(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func validateApp(a types.Application) error {
+	var headerNames []string
+	if rewrite := a.GetRewrite(); rewrite != nil {
+		for _, h := range rewrite.Headers {
+			headerNames = append(headerNames, h.Name)
+		}
+	}
+	return trace.Wrap(app.ValidateApplication(a.GetName(), a.GetURI(), a.GetPublicAddr(), headerNames))
 }
 
 const (

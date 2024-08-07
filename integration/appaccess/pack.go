@@ -57,8 +57,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	apputils "github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -759,7 +759,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-app-jwt-header",
 						},
 						{
-							Name:  common.TeleportAPIErrorHeader,
+							Name:  apputils.TeleportAPIErrorHeader,
 							Value: "rewritten-x-teleport-api-error",
 						},
 						{
@@ -779,7 +779,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-x-forwarded-server-header",
 						},
 						{
-							Name:  common.XForwardedSSL,
+							Name:  apputils.XForwardedSSL,
 							Value: "rewritten-x-forwarded-ssl-header",
 						},
 						{
@@ -898,7 +898,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-app-jwt-header",
 						},
 						{
-							Name:  common.TeleportAPIErrorHeader,
+							Name:  apputils.TeleportAPIErrorHeader,
 							Value: "rewritten-x-teleport-api-error",
 						},
 						{
@@ -918,7 +918,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-x-forwarded-server-header",
 						},
 						{
-							Name:  common.XForwardedSSL,
+							Name:  apputils.XForwardedSSL,
 							Value: "rewritten-x-forwarded-ssl-header",
 						},
 						{

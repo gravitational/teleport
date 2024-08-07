@@ -25,7 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	apputils "github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -101,7 +101,7 @@ type MakeAppsConfig struct {
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
-	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+	fqdn := apputils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
@@ -182,7 +182,7 @@ func MakeApps(c MakeAppsConfig) []App {
 	for _, appOrSP := range c.AppServersAndSAMLIdPServiceProviders {
 		if appOrSP.IsAppServer() {
 			app := appOrSP.GetAppServer().GetApp()
-			fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+			fqdn := apputils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 			labels := makeLabels(app.GetAllLabels())
 
 			userGroups := c.AppsToUserGroups[app.GetName()]

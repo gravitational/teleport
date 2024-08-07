@@ -66,8 +66,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -749,7 +749,7 @@ func mustNewCloudImporter(t *testing.T, config *labels.CloudConfig) labels.Impor
 func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(_ *Suite, r *http.Request) {
-			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
+			require.Equal(t, "on", r.Header.Get(app.XForwardedSSL))
 			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
 		},
 	})
@@ -766,7 +766,7 @@ func TestHandleConnection(t *testing.T) {
 func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(s *Suite, r *http.Request) {
-			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
+			require.Equal(t, "on", r.Header.Get(app.XForwardedSSL))
 			// The port is not rewritten for WebSocket requests because it uses
 			// the same port as the original request.
 			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))

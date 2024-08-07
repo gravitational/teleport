@@ -22,6 +22,7 @@ import (
 	"net/http/httputil"
 
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 const (
@@ -50,8 +51,8 @@ func (hr *HeaderRewriter) Rewrite(req *httputil.ProxyRequest) {
 	}
 
 	if req.Out.TLS != nil {
-		req.Out.Header.Set(XForwardedSSL, sslOn)
+		req.Out.Header.Set(app.XForwardedSSL, sslOn)
 	} else {
-		req.Out.Header.Set(XForwardedSSL, sslOff)
+		req.Out.Header.Set(app.XForwardedSSL, sslOff)
 	}
 }

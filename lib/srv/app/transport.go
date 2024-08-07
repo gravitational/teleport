@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -184,7 +185,7 @@ func rewriteHeaders(r *http.Request, c *transportConfig) {
 		return
 	}
 	for _, header := range c.app.GetRewrite().Headers {
-		if common.IsReservedHeader(header.Name) {
+		if app.IsReservedHeader(header.Name) {
 			c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
 			continue
 		}

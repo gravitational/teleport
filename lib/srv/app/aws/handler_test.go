@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/app"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -162,8 +163,8 @@ func (r requestByAssumedRoleTransport) RoundTrip(req *http.Request) (*http.Respo
 	// Simulate how a request by an assumed role is modified by "tsh".
 	req.Host = r.xForwardedHost
 	req.Header.Add("X-Forwarded-Host", r.xForwardedHost)
-	req.Header.Add(common.TeleportAWSAssumedRole, fakeAssumedRoleARN)
-	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, common.TeleportAWSAssumedRoleAuthorization)
+	req.Header.Add(app.TeleportAWSAssumedRole, fakeAssumedRoleARN)
+	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, app.TeleportAWSAssumedRoleAuthorization)
 	return http.DefaultTransport.RoundTrip(req)
 }
 

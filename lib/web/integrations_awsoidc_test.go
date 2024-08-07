@@ -974,7 +974,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	proxy := env.proxies[0]
-	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
+	proxyPublicAddr := proxy.handler.handler.proxyDNSName()
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
