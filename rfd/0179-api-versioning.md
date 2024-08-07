@@ -6,7 +6,7 @@ state: draft
 
 ## What
 
-Discussion around viable options to help version and type our evolving web API
+Discussion around viable options to help version our evolving web API
 
 ## Why
 
@@ -15,11 +15,6 @@ service. While that is somewhat true due to the fact that the proxy serves the
 web client, there are scenarios where multiple versions of the proxy can exist
 in a cluster. This means that the web api should be thought of as a separate
 "component" when discussing our [backward compatibility promise](https://goteleport.com/docs/upgrading/overview/#component-compatibility).
-Also, the types for our api are completely opaque between the client code and
-the server code. This leads to guessing json responses, unnecessary type
-conversions on the client and server, and lack of guardrails around the changing
-of request/response types. It is not only bad ergonomics for developers, but
-leaves the door wide open for breaking backward compatibility.  
 
 ## Example
 We recently updated a few resources to be paginated in the web UI instead of
