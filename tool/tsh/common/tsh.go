@@ -31,7 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
@@ -596,7 +596,7 @@ func Main() {
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
-	switch path.Base(os.Args[0]) {
+	switch filepath.Base(os.Args[0]) {
 	case "ssh":
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
@@ -4402,7 +4402,7 @@ func flattenIdentity(cf *CLIConf) error {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
-	key, err := identityfile.KeyFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
+	key, err := identityfile.KeyRingFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5172,10 +5172,10 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 func setEnvFlags(cf *CLIConf) {
 	// these can only be set with env vars.
 	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
+		cf.HomePath = filepath.Clean(homeDir)
 	}
 	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = path.Clean(configPath)
+		cf.GlobalTshConfigPath = filepath.Clean(configPath)
 	}
 
 	// prioritize CLI input for the rest.

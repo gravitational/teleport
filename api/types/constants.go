@@ -67,6 +67,8 @@ const (
 	KindBot = "bot"
 	// KindBotInstance is an instance of a Machine ID bot
 	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -534,6 +536,9 @@ const (
 
 	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
 	KindAccessGraphSettings = "access_graph_settings"
+
+	// KindStaticHostUser is a host user to be created on matching SSH nodes.
+	KindStaticHostUser = "static_host_user"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
@@ -1196,6 +1201,7 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

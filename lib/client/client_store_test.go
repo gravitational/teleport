@@ -101,7 +101,7 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	})
 	require.NoError(t, err)
 
-	key := NewKey(priv)
+	key := NewKeyRing(priv)
 	key.KeyIndex = idx
 	key.PrivateKey = priv
 	key.Cert = cert

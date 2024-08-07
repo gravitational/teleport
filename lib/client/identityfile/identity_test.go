@@ -115,7 +115,7 @@ func newClientKey(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.KeyR
 	})
 	require.NoError(t, err)
 
-	key := client.NewKey(privateKey)
+	key := client.NewKeyRing(privateKey)
 	key.KeyIndex = client.KeyIndex{
 		ProxyHost:   "localhost",
 		Username:    "testuser",
@@ -312,7 +312,7 @@ func TestIdentityRead(t *testing.T) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, err := KeyFromIdentityFile(fixturePath(fmt.Sprintf("certs/identities/%s", id)), "proxy.example.com", "")
+		k, err := KeyRingFromIdentityFile(fixturePath(fmt.Sprintf("certs/identities/%s", id)), "proxy.example.com", "")
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
@@ -321,12 +321,12 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, am)
 	}
-	k, err := KeyFromIdentityFile(fixturePath("certs/identities/lonekey"), "proxy.example.com", "")
+	k, err := KeyRingFromIdentityFile(fixturePath("certs/identities/lonekey"), "proxy.example.com", "")
 	require.Nil(t, k)
 	require.Error(t, err)
 
 	// lets read an identity which includes a CA cert
-	k, err = KeyFromIdentityFile(fixturePath("certs/identities/key-cert-ca.pem"), "proxy.example.com", "")
+	k, err = KeyRingFromIdentityFile(fixturePath("certs/identities/key-cert-ca.pem"), "proxy.example.com", "")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
@@ -344,7 +344,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
-	k, err = KeyFromIdentityFile(fixturePath("certs/identities/tls.pem"), "proxy.example.com", "")
+	k, err = KeyRingFromIdentityFile(fixturePath("certs/identities/tls.pem"), "proxy.example.com", "")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 	require.NotNil(t, k.TLSCert)
@@ -379,7 +379,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 
 	t.Run("parsed key unchanged when both proxy and cluster provided", func(t *testing.T) {
 		// parsed key is unchanged from original with proxy and cluster provided.
-		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+		parsedKey, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, cluster)
 		key.ClusterName = cluster
 		key.ProxyHost = proxyHost
 		require.NoError(t, err)
@@ -388,7 +388,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 
 	t.Run("cluster name defaults if not provided", func(t *testing.T) {
 		// Identity file's cluster name defaults to root cluster name.
-		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, "")
+		parsedKey, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, "")
 		key.ClusterName = "root"
 		require.NoError(t, err)
 		require.Equal(t, key, parsedKey)
@@ -396,7 +396,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 
 	t.Run("proxy host not provided", func(t *testing.T) {
 		// Returns error if proxy host is not provided.
-		_, err = KeyFromIdentityFile(identityFilePath, "", "")
+		_, err = KeyRingFromIdentityFile(identityFilePath, "", "")
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 	})
@@ -414,7 +414,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 			OverwriteDestination: true,
 		})
 		require.NoError(t, err)
-		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+		parsedKey, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, cluster)
 		require.NoError(t, err)
 		require.NotNil(t, parsedKey.KubeTLSCerts[k8sCluster])
 		require.Equal(t, key.TLSCert, parsedKey.KubeTLSCerts[k8sCluster])

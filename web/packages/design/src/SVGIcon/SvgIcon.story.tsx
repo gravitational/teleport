@@ -71,7 +71,7 @@ const IconBox = ({ children, text }) => {
       <Flex justifyContent="center" p={2}>
         {children}
       </Flex>
-      <Text typography="paragraph2" mt={2}>
+      <Text typography="body3" mt={2}>
         {text}
       </Text>
     </Flex>

@@ -55,21 +55,25 @@ func TestAccessGraphAuthorizedKeys(t *testing.T) {
 			HostId:         "host1",
 			HostUser:       "user1",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
+			KeyType:        "ssh-rsa",
 		},
 		{
 			HostId:         "host1",
 			HostUser:       "user2",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
+			KeyType:        "ssh-rsa",
 		},
 		{
 			HostId:         "host2",
 			HostUser:       "user1",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
+			KeyType:        "ssh-rsa",
 		},
 		{
 			HostId:         "host2",
 			HostUser:       "user2",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
+			KeyType:        "ssh-rsa",
 		},
 	}
 	var authKeys []*accessgraphsecretspb.AuthorizedKey

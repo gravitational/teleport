@@ -832,11 +832,21 @@ func TestVirtualPathNames(t *testing.T) {
 		},
 		{
 			name:   "app",
-			kind:   VirtualPathApp,
-			params: VirtualPathAppParams("foo"),
+			kind:   VirtualPathAppCert,
+			params: VirtualPathAppCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_APP_FOO",
 				"TSH_VIRTUAL_PATH_APP",
+			},
+		},
+		{
+			name:   "app key",
+			kind:   VirtualPathKey,
+			params: VirtualPathAppKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_APP_FOO",
+				"TSH_VIRTUAL_PATH_KEY_APP",
+				"TSH_VIRTUAL_PATH_KEY",
 			},
 		},
 		{

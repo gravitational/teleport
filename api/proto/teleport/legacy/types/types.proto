@@ -18,6 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -3496,6 +3497,13 @@ message UserSpecV2 {
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 
   // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+  //
+  // Note that SSO users are transient and thus may contain an empty
+  // TrustedDeviceIDs field, even though the user->device association exists
+  // under the Device Trust subsystem. Do not rely on this field to determine
+  // device associations or ownership, it exists for legacy/informative purposes
+  // only.
+  //
   // Managed by the Device Trust subsystem, avoid manual edits.
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
@@ -3658,6 +3666,14 @@ message WebauthnDevice {
   // If an RPID change does happen, this helps Teleport detect it and react
   // accordingly.
   string credential_rp_id = 8;
+  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-be
+  google.protobuf.BoolValue credential_backup_eligible = 9;
+  // Authenticator Backup State (BS) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-bs
+  google.protobuf.BoolValue credential_backed_up = 10;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -3933,9 +3949,6 @@ message WebSessionSpecV2 {
   //
   // If during login a device is required and DeviceWebToken is nil, then it's
   // likely the user needs to enroll their device to avoid impacting access.
-  //
-  // Transient, only set in certain situations (such as the initial session
-  // returned during login).
   TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
@@ -4442,6 +4455,8 @@ message MaxAge {
 message SSOClientRedirectSettings {
   // a list of hostnames allowed for https client redirect URLs
   repeated string allowed_https_hostnames = 1;
+  // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+  repeated string insecure_allowed_cidr_ranges = 2;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4788,6 +4803,9 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+  // ClientUserAgent is the user agent of the Web browser, used for issuing
+  // a DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5288,6 +5306,11 @@ message RegisterUsingTokenRequest {
   // service and is ignored otherwise; bots should otherwise rejoin with their
   // existing client certificate to prove their instance identity.
   string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

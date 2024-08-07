@@ -2,7 +2,7 @@
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://goteleport.com/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 16.1.0
+TELEPORT_VERSION ?= 16.1.3
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007

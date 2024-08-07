@@ -15,7 +15,7 @@ The Teleport Web UI allows you to list and join active SSH sessions using a web-
 You can view the active SSH sessions that you are allowed to list by clicking **Active Sessions** in the navigation sidebar. 
 You can only see active sessions if you are assigned a role with `list` access for the `ssh_session` resource. 
 For more information about role permissions and access to resources, see [Teleport Access Controls 
-Reference](../access-controls/reference.mdx).
+Reference](../reference/access-controls/roles.mdx).
 
 From the active sessions list, click **Join** and select a participant mode to join the session: 
 
@@ -29,7 +29,7 @@ From the active sessions list, click **Join** and select a participant mode to j
 
 You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode. 
 For information about how to configure the `join_sessions` allow policy and participant modes for a role, see 
-[Configure an allow policy](../access-controls/guides/moderated-sessions.mdx#configure-an-allow-policy).
+[Configure an allow policy](../admin-guides/access-controls/guides/moderated-sessions.mdx).
 
 ## Idle timeout
 
