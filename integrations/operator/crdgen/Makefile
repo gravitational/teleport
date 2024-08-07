@@ -3,7 +3,7 @@ PROTOS = \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
-libfiles := $(wildcard lib/*.go)
+libfiles := $(wildcard *.go)
 
 build: build/protoc-gen-crd
 build-docs: build/protoc-gen-crd-docs
