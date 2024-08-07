@@ -90,6 +90,7 @@ RUN make -f crosstoolng.mk install-crosstoolng && \
 
 FROM crosstoolng AS compilers
 
+# crosstool-NG
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
 	make -f crosstoolng.mk crosstoolng-build ARCH=amd64 && \
 	rm -rf ${THIRDPARTY_DIR}/amd64/crosstoolng
@@ -102,6 +103,13 @@ RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/
 RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
 	make -f crosstoolng.mk crosstoolng-build ARCH=arm && \
 	rm -rf ${THIRDPARTY_DIR}/arm/crosstoolng
+
+COPY clang.mk .
+
+# clang (for FIPS builds of boringssl and for bpf)
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f clang.mk install-clang && \
+	rm -rf ${THIRDPARTY_DIR}/host/src
 
 # -----------------------------------------------------------------------------
 # Build the third-party C libraries for the four architectures

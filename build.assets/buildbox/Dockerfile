@@ -113,12 +113,12 @@ RUN apt-get update && apt-get install -y \
     automake \
     autopoint \
     bison \
-    clang-12 \
     cmake \
     flex \
     gettext \
     git \
     libtool \
+    llvm-12 \
     make \
     ninja-build \
     pkg-config \
