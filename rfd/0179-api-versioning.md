@@ -2,7 +2,7 @@ authors: Michael Myers (michael.myers@goteleport.com)
 state: draft
 ---
 
-# RFD 179 - Web API backward compatibility and typing system
+# RFD 179 - Web API backward compatibility guidelines
 
 ## What
 
