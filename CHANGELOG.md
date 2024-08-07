@@ -1,5 +1,11 @@
 # Changelog
 
+## 16.1.4 (08/07/24)
+
+* Improved `tsh ssh` performance for concurrent execs. [#45162](https://github.com/gravitational/teleport/pull/45162)
+* Fixed issue with loading cluster features when agents are upgraded prior to auth. [#45226](https://github.com/gravitational/teleport/pull/45226)
+* Updated Go to `1.22.6`. [#45194](https://github.com/gravitational/teleport/pull/45194)
+
 ## 16.1.3 (08/06/24)
 
 * Fixed an issue where `tsh aws` may display extra text in addition to the original command output. [#45168](https://github.com/gravitational/teleport/pull/45168)

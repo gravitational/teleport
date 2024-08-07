@@ -1,4 +1,4 @@
-.version: &version "16.1.3"
+.version: &version "16.1.4"
 
 apiVersion: v2
 name: teleport-plugin-email
