@@ -885,8 +885,9 @@ endif
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
 test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
+test-go-bench: BENCHMARK_PATTERN = "[^(?:(?:BenchmarkRoot|BenchmarkMux_ProxyV2Signature).*)].*"
 test-go-bench:
-	go test -run ^$$ -bench . -benchtime 1x $(PACKAGES) \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -benchtime 1x $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
