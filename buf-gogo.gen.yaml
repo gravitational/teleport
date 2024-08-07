@@ -2,4 +2,6 @@ version: v1
 plugins:
   - name: gogofast
     out: ./gogogen
-    opt: plugins=grpc
+    opt:
+      - plugins=grpc
+      - Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types
