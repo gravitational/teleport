@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os/user"
 	"regexp"
 	"strings"
@@ -229,20 +230,20 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
 	}
 
-	groups := make([]string, 0, len(ui.Groups))
+	groupsToAdd := make([]string, 0, len(ui.Groups))
 	for _, group := range ui.Groups {
 		if group == name {
 			// this causes an error as useradd expects the group with the same name as the user to be available
 			log.Debugf("Skipping group creation with name the same as login user (%q, %q).", name, group)
 			continue
 		}
-		groups = append(groups, group)
+		groupsToAdd = append(groupsToAdd, group)
 	}
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-		groups = append(groups, types.TeleportServiceGroup)
+		groupsToAdd = append(groupsToAdd, types.TeleportServiceGroup)
 	}
 	var errs []error
-	for _, group := range groups {
+	for _, group := range groupsToAdd {
 		if err := u.createGroupIfNotExist(group); err != nil {
 			errs = append(errs, err)
 			continue
@@ -259,13 +260,12 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 
 	if tempUser != nil {
 		// Collect actions that need to be done together under a lock on the user.
-		actionsUnderLock := []func() error{
-			func() error {
-				// If the user exists, set user groups again as they might have changed.
-				return trace.Wrap(u.backend.SetUserGroups(name, groups))
-			},
-		}
+		actionsUnderLock := make([]func() error, 0, 2)
 		doWithUserLock := func() error {
+			if len(actionsUnderLock) == 0 {
+				return nil
+			}
+
 			return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
 				for _, action := range actionsUnderLock {
 					if err := action(); err != nil {
@@ -274,6 +274,38 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 				}
 				return nil
 			}))
+		}
+
+		// Get the user's current groups.
+		currentGroups := make(map[string]struct{}, len(groupsToAdd))
+		groupIds, err := u.backend.UserGIDs(tempUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, groupId := range groupIds {
+			group, err := u.backend.LookupGroupByID(groupId)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			currentGroups[group.Name] = struct{}{}
+		}
+
+		// Get the groups that the user should end up with, including the primary group.
+		finalGroups := make(map[string]struct{}, len(groupsToAdd)+1)
+		for _, group := range groupsToAdd {
+			finalGroups[group] = struct{}{}
+		}
+		primaryGroup, err := u.backend.LookupGroupByID(tempUser.Gid)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		finalGroups[primaryGroup.Name] = struct{}{}
+
+		// Check if the user's groups need to be updated.
+		if !maps.Equal(currentGroups, finalGroups) {
+			actionsUnderLock = append(actionsUnderLock, func() error {
+				return trace.Wrap(u.backend.SetUserGroups(name, groupsToAdd))
+			})
 		}
 
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
@@ -339,7 +371,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 			}
 		}
 
-		err = u.backend.CreateUser(name, groups, home, ui.UID, ui.GID)
+		err = u.backend.CreateUser(name, groupsToAdd, home, ui.UID, ui.GID)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
