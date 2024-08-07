@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @russjones && @bernardjkim
+* Engineering: @russjones
 * Product: @klizhentas || @xinding33 
 * Security: Doyensec
 
@@ -18,9 +18,10 @@ This RFD proposes a new mechanism for Teleport agents to automatically update to
 All agent installations are in-scope for this proposal, including agents installed on Linux servers and Kubernetes.
 
 The following anti-goals are out-of-scope for this proposal, but will be addressed in future RFDs:
-- Signing of agent artifacts via TUF
+- Signing of agent artifacts (e.g., via TUF)
 - Teleport Cloud APIs for updating agents
 - Improvements to the local functionality of the Kubernetes agent for better compatibility with FluxCD and ArgoCD.
+- Support for progressive rollouts to different groups of ephemeral or auto-scaling agents (see: Version Promotion).
 
 This RFD proposes a specific implementation of several sections in https://github.com/gravitational/teleport/pull/39217.
 
@@ -31,13 +32,13 @@ Additionally, this RFD parallels the auto-update functionality for client tools 
 The existing mechanism for automatic agent updates does not provide a hands-off experience for all Teleport users.
 
 1. The use of system package management leads to interactions with `apt upgrade`, `yum upgrade`, etc. that can result in unintentional upgrades.
-2. The use of system package management requires complex logic for each target distribution.
+2. The use of system package management requires logic that varies significantly by target distribution.
 3. The installation mechanism requires 4-5 commands, includes manually installing multiple packages, and varies depending on your version and edition of Teleport.
 4. The use of bash to implement the updater makes changes difficult and prone to error.
 5. The existing auto-updater has limited automated testing.
 6. The use of GPG keys in system package managers has key management implications that we would prefer to solve with TUF in the future.
 7. The desired agent version cannot be set via Teleport's operator-targeted CLI (tctl).
-8. The rollout plan for the new agent version is not fully-configurable using tctl.
+8. The rollout plan for new agent versions is not fully-configurable using tctl.
 9. Agent installation logic is spread between the auto-updater script, install script, auto-discovery script, and documentation.
 10. Teleport contains logic that is specific to Teleport Cloud upgrade workflows.
 11. The existing auto-updater is not self-updating.
@@ -51,7 +52,7 @@ Teleport will be updated to serve the desired agent version and edition from `/v
 The version and edition served from that endpoint will be configured using the `cluster_maintenance_config` and `autoupdate_version` resources.
 Whether the updater querying the endpoint is instructed to upgrade (via `agent_auto_update`) is dependent on the `host=[uuid]` parameter sent to `/v1/webapi/find`.
 
-To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to the `/v1/webapi/find`.
+To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
 Teleport proxies use their access to heartbeat data to drive the rollout and modulate the `/v1/webapi/find` response given the host UUID.
 
 Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier.
@@ -70,46 +71,85 @@ Group rollouts may be retried with `tctl autoupdate run`.
 
 ### Scalability
 
-Instance heartbeats will now be cached at both the auth server and the proxy.
+#### Window Capture
+
+Instance heartbeats will be cached by auth servers using a dedicated cache.
+This cache is updated using rate-limited backend reads that occur in the background, to avoid mass-reads of instance heartbeats.
+The rate is modulated by the total number of instance heartbeats.
+The cache is considered healthy when all instance heartbeats present on the backend have been read in a time period that is also modulated by the total number of heartbeats.
+
+At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
+This plan is protected by optimistic locking, and contains the following data:
+
+Data key: `/autoupdate/[name of group]/[scheduled type](/[page-id])` (e.g., `/autoupdate/staging/critical/8745823`)
+
+Data value JSON:
+- `start_time`: timestamp of current window start time
+- `version`: version for which this rollout is valid
+- `hosts`: list of UUIDs in randomized order
+- `next_page`: additional UUIDs, if list is greater than 100,000 UUIDs
+- `expiry`: 2 weeks
+
+At a fixed interval, auth servers will check the plan to determine if a new plan is needed by comparing `start_time` to the current time and the desired window.
+If a new plan is needed, auth servers will query their cache of instance heartbeats and attempt to write the new plan.
+The first auth server to write the plan wins; others will be rejected by the optimistic lock.
+Auth servers will only write the plan if their instance heartbeat cache is healthy.
+
+If the list is greater than 100,000 UUIDs, auth servers will first write pages with a randomly generated suffix, in a linked-link, before the atomic non-suffixed write.
+If the non-suffixed write fails, the auth server is responsible for cleaning up the unusable pages.
+If cleanup fails, the unusable pages will expire after 2 weeks.
+
+```
+Winning auth:
+  WRITE: /autoupdate/staging/critical/4324234 | next_page: null
+  WRITE: /autoupdate/staging/critical/8745823 | next_page: 4324234
+  WRITE: /autoupdate/staging/critical | next_page: 8745823
+
+Losing auth:
+  WRITE: /autoupdate/staging/critical/2342343 | next_page: null
+  WRITE: /autoupdate/staging/critical/7678686 | next_page: 2342343
+  WRITE CONFLICT: /autoupdate/staging/critical | next_page: 7678686
+  DELETE: /autoupdate/staging/critical/7678686
+  DELETE: /autoupdate/staging/critical/2342343
+```
+
+#### Rollout
 
 The rollout logic is progressed by instance heartbeat backend writes, as changes can only occur on these events.
 
 The following data related to the rollout are stored in each instance heartbeat:
 - `agent_upgrade_start_time`: timestamp of individual agent's upgrade time
-- `agent_upgrade_group_name`: name of auto-update group
+- `agent_upgrade_version`: current agent version
+- `expiry`: expiration time of the heartbeat (extended to 24 hours at `agent_upgrade_start_time`)
 
-At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
-This plan is protected by optimistic locking, and contains the following data:
+Additionally, an in-memory data structure is maintained based on the cache, and kept up-to-date by a background process.
+This data structure contains the number of unfinished (pending and ongoing) upgrades preceding each instance heartbeat in the rollout plan.
+Instance heartbeats are considered completed when either `agent_upgrade_version` matches the plan version, or `agent_upgrade_start_time` is past the expiration time.
+```
+upgrading := make(map[Rollout][UUID]int)
+```
 
-Data key: `[name of group]@[scheduled type]` (e.g., `staging@critical`)
+On each instance heartbeat write, the auth server looks at the data structure to determine if the associated agent should begin upgrading.
+This determination is made by comparing the stored number of unfinished upgrades to `max_in_flight % x len(hosts)`.
+If the stored number is fewer, `agent_upgrade_start_time` is updated to the current time when the heartbeat is written.
 
-Data value JSON:
-- `group_start_time`: timestamp of current window start time
-- `group_end_time`: timestamp of current window start time
-- `host_order`: list of UUIDs in randomized order
+The auth server writes the index of the last host that is allowed to upgrade to `/autoupdate/[name of group]/[scheduled type]/progress` (e.g., `/autoupdate/staging/critical/progress`).
+Writes are rate-limited such that the progress is only updated every 10 seconds.
 
-At a fixed interval, auth servers will check the plan to determine if a new plan is needed by comparing `group_start_time` to the current time and the desired window.
-If a new plan is needed, auth servers will query their cache of instance heartbeats and attempt to write the new plan.
-The first auth server to write the plan wins; others will be rejected by the optimistic lock.
-Auth servers will only write the plan if their instance heartbeat cache is initialized and recently updated.
+Proxies read all groups and maintain an in-memory map of host UUID to upgrading status:
+```
+upgrading := make(map[UUID]bool)
+```
+Proxies watch for changes to `/progress` and update the map accordingly.
 
-On each instance heartbeat write, the auth server looks at instance heartbeats in cache and determines if additional agents should be upgrading.
-If they should, additional instance heartbeats are marked as upgrading by setting `agent_upgrade_start_time` to the current time.
-When `agent_upgrade_start_time` is in the group's window, the proxy serves `agent_auto_upgrade: true` when queried via `/v1/webapi/find`.
-
+When the updater queries the proxy via `/v1/webapi/find?host=[host_uuid]`, the proxies query the map to determine the value of `agent_auto_upgrade: true`.
 
 The predetermined ordering of hosts avoids cache synchronization issues between auth servers.
-Two concurrent heartbeat writes to by auth servers may temporarily result in fewer upgrading instances than desired, but this should be resolved on the next write.
+Two concurrent heartbeat writes may temporarily result in fewer upgrading instances than desired, but this will eventually be resolved by cache propagation.
 
-Upgrading all agents generates the following write load:
-- One write of plan.
-- One write of `agent_upgrade_start_time` field per agent.
-
-All reads are from cache.
-Each instance heartbeat write will trigger an eventually consistent cache update on all auth servers and proxies, but not agents.
-If the cache is unhealthy, `agent_auto_update` is still served based on the last available value in cache.
-This is safe because `agent_upgrade_start_time` is only written once during the upgrade.
-However, this means that timeout thresholds should account for possible cache init time if initialization occurs right after `agent_upgrade_start_time` is written.
+Upgrading all agents generates the following additional backend write load:
+- One write per page of the rollout plan per upgrade group.
+- One write per auth server every 10 seconds, during rollouts.
 
 ### Endpoints
 
@@ -185,6 +225,9 @@ spec:
 Cycles and dependency chains longer than a week will be rejected.
 Otherwise, updates could take up to 7 weeks to propagate.
 
+The updater will receive `agent_auto_update: true` from the time is it designated for upgrade until the version changes in `autoupdate_version`.
+After 24 hours, the upgrade is halted in-place, and the group is considered failed if unfinished.
+
 Changing the version or schedule completely resets progress.
 Releasing new client versions multiple times a week has the potential to starve dependent groups from updates.
 
@@ -228,7 +271,7 @@ $ tctl autoupdate update--set-agent-auto-update=off
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --schedule regular --group staging-group --set-start-hour=3
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --schedule regular --group staging-group --set-jitter-seconds=600
+$ tctl autoupdate update --schedule regular --group staging-group --set-jitter-seconds=60
 Automatic updates configuration has been updated.
 $ tctl autoupdate reset
 Automatic updates configuration has been reset to defaults.
@@ -289,7 +332,7 @@ This could lead to a production outage, as the latest Teleport version may not r
 
 To solve this in the future, we can add an additional `--group` flag to `teleport-update`:
 ```shell
-$ teleport-update enable --proxy example.teleport.sh --group staging
+$ teleport-update enable --proxy example.teleport.sh --group staging-group
 ```
 
 This group name could be provided as a parameter to `/v1/webapi/find`, so that newly added resources may install at the group's designated version.
@@ -313,6 +356,11 @@ $ teleport-update enable --proxy example.teleport.sh
 
 # if not enabled already, configure teleport and:
 $ systemctl enable teleport
+```
+
+For air-gapped Teleport installs, the agent may be configured with a custom tarball path template:
+```shell
+$ teleport-update enable --proxy example.teleport.sh --template 'https://example.com/teleport-{{ .Edition }}-{{ .Version }}-{{ .Arch }}.tgz'
 ```
 
 ### Filesystem
