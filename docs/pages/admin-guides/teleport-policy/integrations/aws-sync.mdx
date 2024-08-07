@@ -26,11 +26,10 @@ Access Graph options can be found under the Permission Management section.
 
 ## How TAG discovers AWS access patterns
 
-Teleport Access Graph synchronizes various AWS resources,
-including IAM Policies, Groups, Users, User Groups, EC2 instances, 
-EKS clusters, and RDS databases. These resources are then visualized
-using the graph representation detailed in the
-[Access Graph page](../../../admin-guides/access-controls/access-graph/access-graph.mdx).
+Access Graph discovers AWS access patterns, synchronizes various AWS resources,
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases. 
+These resources are then visualized using the graph representation detailed in the
+[Teleport Policy usage page](../teleport-policy.mdx).
 
 The importing process involves two primary steps:
 
@@ -66,9 +65,9 @@ graphical representation thereof.
 
 - A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
-- For self-hosted clusters, a running Teleport Access Graph node v1.17.0 or later. 
-Check [Access Graph page](self-hosted.mdx) for details on
-how to setup Teleport Access Graph.
+- For self-hosted clusters, a running Access Graph node v1.17.0 or later. 
+Check [Access Graph page](../teleport-policy.mdx) for details on
+how to set up Access Graph.
 - The node running the Access Graph service must be reachable
 from Teleport Auth Service and Discovery Service. 
 
