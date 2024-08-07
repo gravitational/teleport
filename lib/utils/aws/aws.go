@@ -70,6 +70,7 @@ const (
 	AmzJSON1_1 = "application/x-amz-json-1.1"
 
 	// MaxRoleSessionName is the maximum length of the role session name used by the AssumeRole call.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
 	MaxRoleSessionName = 64
 )
 
