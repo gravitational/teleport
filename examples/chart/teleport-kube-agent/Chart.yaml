@@ -1,4 +1,4 @@
-.version: &version "15.4.12-dev.atburke.1"
+.version: &version "15.4.12-dev.atburke.2"
 
 name: teleport-kube-agent
 apiVersion: v2
