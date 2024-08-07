@@ -93,7 +93,7 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		protoc \
 			-I=../../api/proto \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./crdgen/protoc-gen-crd \
+			--plugin=./crdgen/build/protoc-gen-crd \
 			--crd_out=:./config/crd/bases \
 			"$${proto}"; \
 	done
@@ -116,7 +116,7 @@ crd-docs: build-docs-plugin ## Generate CRD reference docs.
 		protoc \
 			-I=../../api/proto \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./crdgen/protoc-gen-crd-docs \
+			--plugin=./crdgen/build/protoc-gen-crd-docs \
 			--crd-docs_out=../../docs/pages/reference/operator-resources/ \
 			"$${proto}"; \
 	done
