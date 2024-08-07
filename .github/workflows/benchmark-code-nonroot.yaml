@@ -61,10 +61,10 @@ jobs:
       - name: Run Benchmarks Once
         timeout-minutes: 5
         shell: bash # Overriding default shell which is `sh -e`
-        run: make test-go-bench | tee bench.json | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
+        run: make test-go-bench | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
 
       - name: Construct Summary
         shell: bash
         run: |
-          go install golang.org/x/perf/cmd/benchstat@latest
-          benchstat test-logs/bench.txt | sed -E -e 's/^pkg:\s+(github.*)/## \1\n\n```/' -e 's/^(geomean.*)/\1\n```/' >> "$GITHUB_STEP_SUMMARY"
+          go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
+          | sed -E -e 's/^pkg:\s+(github.*)/## \1\n\n```/' -e 's/^(geomean.*)/\1\n```/' >> "$GITHUB_STEP_SUMMARY"
