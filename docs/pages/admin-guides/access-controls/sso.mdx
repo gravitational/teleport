@@ -60,7 +60,7 @@ $ tctl get users/<username>
 
 ```code
 # Log in to your cluster with tsh so you can use tctl remotely
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tsh login --proxy=example.teleport.sh --user=myuser
 $ tctl get users
 ```
 
@@ -302,7 +302,7 @@ create a `cluster_auth_preference` resource.
 
   ```code
   # Log in to your cluster with tsh so you can run tctl commands.
-  $ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=myuser
+  $ tsh login --proxy=<Var name="example.teleport.sh" /> --user=myuser
   $ tctl create -f cap.yaml
   ```
 

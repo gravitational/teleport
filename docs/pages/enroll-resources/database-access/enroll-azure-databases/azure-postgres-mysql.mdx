@@ -51,7 +51,7 @@ Create the Database Service configuration.
 - Specify the region for your database(s) in `--azure-postgres-discovery`.
 
 - Replace the `--proxy` value with your Teleport proxy address or Teleport Enterprise
-  URI (e.g. `mytenant.teleport.sh:443`):
+  URI (e.g. `example.teleport.sh:443`):
 
   ```code
   $ sudo teleport db configure create \
@@ -67,7 +67,7 @@ Create the Database Service configuration.
 - Specify the region for your database(s) in `--azure-mysql-discovery`.
 
 - Replace the `--proxy` value with your Teleport proxy address or Teleport Enterprise
-  URI (e.g. `mytenant.teleport.sh:443`):
+  URI (e.g. `example.teleport.sh:443`):
 
   ```code
   $ sudo teleport db configure create \
@@ -387,7 +387,7 @@ $ tsh db ls
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 $ tsh db ls
 # Name     Description         Labels
 # -------- ------------------- -------

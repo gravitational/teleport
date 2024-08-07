@@ -32,10 +32,10 @@ proxies is available starting from Teleport `13.0`.
 
 If you use Teleport Enterprise, see which ports and networking settings the Proxy
 Service is configured to use in your Teleport Enterprise tenant. Run the following
-command, replacing `mytenant.teleport.sh` with your tenant address:
+command, replacing `example.teleport.sh` with your tenant address:
 
 ```code
-$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+$ curl example.teleport.sh/webapi/ping | jq '.proxy'
 ```
 
 ## Step 1/7. Upgrade Teleport

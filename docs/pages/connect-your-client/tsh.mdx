@@ -53,8 +53,8 @@ $ tsh logout
 
 ```code
 # Login into a Teleport cluster. This command retrieves the user's certificates
-# and saves them into ~/.tsh/mytenant.teleport.sh
-$ tsh login --proxy=mytenant.teleport.sh
+# and saves them into ~/.tsh/example.teleport.sh
+$ tsh login --proxy=example.teleport.sh
 
 # SSH into a Node as usual
 $ tsh ssh user@node
@@ -95,7 +95,7 @@ To find the version number, either:
   cluster under **CLUSTER INFORMATION**.
 
 - Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
-  with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
+  with your Proxy Service address (e.g. `example.teleport.sh` for Teleport
   Enterprise Cloud):
 
   ```code
@@ -131,7 +131,7 @@ $ tsh ssh --proxy=work.example.com --user=joe root@node
 ```code
 # Authenticate against the "work" cluster as joe and then
 # log into the node as root:
-$ tsh ssh --proxy=mytenant.teleport.sh --user=joe root@node
+$ tsh ssh --proxy=example.teleport.sh --user=joe root@node
 ```
 
 </TabItem>
@@ -165,7 +165,7 @@ $ tsh login --proxy=work.example.com:5000
 # Full form:
 $ tsh login --proxy=proxy_host:<https_proxy_port>
 
-$ tsh login --proxy=mytenant.teleport.sh
+$ tsh login --proxy=example.teleport.sh
 ```
 
 </TabItem>
@@ -208,10 +208,10 @@ $ tsh --proxy=proxy.example.com --auth=github login
 
 ```code
 # Log in using the local Teleport 'admin' user:
-$ tsh --proxy=mytenant.teleport.sh --auth=local --user=admin login
+$ tsh --proxy=example.teleport.sh --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=mytenant.teleport.sh --auth=github login
+$ tsh --proxy=example.teleport.sh --auth=github login
 ```
 
 </TabItem>
@@ -236,7 +236,7 @@ $ tsh login --proxy=work.example.com --browser=none
 
 ```code
 # Don't open the system default browser when logging in
-$ tsh login --proxy=mytenant.teleport.sh --browser=none
+$ tsh login --proxy=example.teleport.sh --browser=none
 ```
 
 </TabItem>
@@ -275,9 +275,9 @@ $ tsh status
 ```code
 $ tsh status
 
-# > Profile URL:  https://mytenant.teleport.sh:443
+# > Profile URL:  example.teleport.sh:443
 #   Logged in as: johndoe
-#  Cluster:      mytenant.teleport.sh
+#  Cluster:      example.teleport.sh
 #   Roles:        access, editor, auditor
 #   Logins:       root, admin, guest
 #   Kubernetes:   enabled
@@ -329,12 +329,12 @@ $ tsh ssh --proxy=proxy.example.com -i joe joe@db
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-# Authenticate the user against mytenant.teleport.sh and save the user
+# Authenticate the user against example.teleport.sh and save the user
 # certificate to joe.pem
-$ tsh login --proxy=mytenant.teleport.sh --out=joe
+$ tsh login --proxy=example.teleport.sh --out=joe
 
 # Use joe.pem to log in to the server 'db'
-$ tsh ssh --proxy=mytenant.teleport.sh -i joe joe@db
+$ tsh ssh --proxy=example.teleport.sh -i joe joe@db
 ```
 
 </TabItem>
@@ -362,7 +362,7 @@ $ ls -lh
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --out=joe --format=openssh
+$ tsh login --proxy=example.teleport.sh --out=joe --format=openssh
 $ ls -lh
 
 # total 8.0K
@@ -496,7 +496,7 @@ $ ssh -o AddKeysToAgent=yes user@node
 $ alias ssh="/usr/local/bin/tsh ssh"
 
 # Login in to a cluster and retrieve your SSH certificate:
-$ tsh --proxy=mytenant.teleport.sh login
+$ tsh --proxy=example.teleport.sh login
 
 # These commands execute `tsh ssh` under the hood:
 $ ssh user@node
@@ -577,7 +577,7 @@ $ tsh ssh -J proxy.example.com telenode
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh ssh -J mytenant.teleport.sh telenode
+$ tsh ssh -J example.teleport.sh telenode
 ```
 
 </TabItem>
@@ -717,11 +717,11 @@ $ tsh --proxy=work clusters
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
-Assuming the Teleport Enterprise tenant called `mytenant.teleport.sh` is configured with a few trusted
+Assuming the Teleport Enterprise tenant called `example.teleport.sh` is configured with a few trusted
 clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
 
 ```code
-$ tsh --proxy=mytenant.teleport.sh clusters
+$ tsh --proxy=example.teleport.sh clusters
 
 # Cluster Name     Status
 # ------------     ------
@@ -753,7 +753,7 @@ $ tsh --proxy=work ls --cluster=production
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh --proxy=mytenant.teleport.sh ls --cluster=production
+$ tsh --proxy=example.teleport.sh ls --cluster=production
 
 # Node Name     Node ID       Address            Labels
 # ---------     -------       -------            ------
@@ -783,7 +783,7 @@ this tunnel is used to establish inbound SSH connections.
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh --proxy=mytenant.teleport.sh ssh --cluster=production db-1
+$ tsh --proxy=example.teleport.sh ssh --cluster=production db-1
 ```
 
 This is possible even if Nodes in the `production` cluster are located behind a

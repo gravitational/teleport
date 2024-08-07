@@ -30,7 +30,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace teleport-agent \
   --set roles=db \
-  --set proxyAddr=mytenant.teleport.sh:443 \
+  --set proxyAddr=example.teleport.sh:443 \
   --set authToken=${JOIN_TOKEN?} \
   --set "databases[0].name={{ dbName }}" \
   --set "databases[0].uri={{ databaseAddress }}" \

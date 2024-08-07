@@ -185,11 +185,11 @@ In those cases, they can set up separate listeners in the config file.
 
 Cloud-hosted Teleport deployments allocate a different set of ports to each
 tenant's Proxy Service. To see which ports are available for your Teleport
-tenant, run a command similar to the following, replacing `mytenant.teleport.sh`
+tenant, run a command similar to the following, replacing `example.teleport.sh`
 with your tenant domain:
 
 ```code
-$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+$ curl example.teleport.sh/webapi/ping | jq '.proxy'
 ```
 
 The output should resemble the following, including the unique ports assigned to
@@ -199,20 +199,20 @@ your tenant:
 {
   "kube": {
     "enabled": true,
-    "public_addr": "mytenant.teleport.sh:11107",
+    "public_addr": "example.teleport.sh:11107",
     "listen_addr": "0.0.0.0:3026"
   },
   "ssh": {
     "listen_addr": "[::]:3023",
     "tunnel_listen_addr": "0.0.0.0:3024",
-    "public_addr": "mytenant.teleport.sh:443",
-    "ssh_public_addr": "mytenant.teleport.sh:11105",
-    "ssh_tunnel_public_addr": "mytenant.teleport.sh:11106"
+    "public_addr": "example.teleport.sh:443",
+    "ssh_public_addr": "example.teleport.sh:11105",
+    "ssh_tunnel_public_addr": "example.teleport.sh:11106"
   },
   "db": {
-    "postgres_public_addr": "mytenant.teleport.sh:11109",
+    "postgres_public_addr": "example.teleport.sh:11109",
     "mysql_listen_addr": "0.0.0.0:3036",
-    "mysql_public_addr": "mytenant.teleport.sh:11108"
+    "mysql_public_addr": "example.teleport.sh:11108"
   },
   "tls_routing_enabled": true
 }
@@ -224,7 +224,7 @@ SSH Service) are routed through the Proxy Service's public web address, rather
 than through a port allocated to that service.
 
 In this case, you can see that TLS routing is enabled, and that the Proxy
-Service's public web address (`ssh.public_addr`) is `mytenant.teleport.sh:443`.
+Service's public web address (`ssh.public_addr`) is `example.teleport.sh:443`.
 
 Read more in our [TLS Routing](architecture/tls-routing.mdx) guide.
 

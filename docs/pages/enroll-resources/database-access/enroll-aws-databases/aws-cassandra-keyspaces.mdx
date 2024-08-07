@@ -64,7 +64,7 @@ Create a configuration for the Teleport Database Service, pointing the
 $ sudo teleport db configure create \
    -o file \
   --token=/tmp/token \
-  --proxy=mytenant.teleport.sh:443 \
+  --proxy=example.teleport.sh:443 \
   --name=keyspaces \
   --protocol=cassandra \
   --aws-account-id=12345678912 \
@@ -149,7 +149,7 @@ databases:
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
   ```code
-  $ tsh login --proxy=mytenant.teleport.sh --user=alice
+  $ tsh login --proxy=example.teleport.sh --user=alice
   $ tsh db ls
   # Name      Description Allowed Users Labels  Connect
   # --------- ----------- ------------- ------- -------

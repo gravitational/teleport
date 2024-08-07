@@ -39,10 +39,10 @@ $ teleport db start \
 ```code
 $ teleport db start \
     --token=/path/to/token \
-    --auth-server=mytenant.teleport.sh:443 \
+    --auth-server=example.teleport.sh:443 \
     --name=example \
     --protocol=postgres \
-    --uri=postgres.mytenant.teleport.sh:5432
+    --uri=postgres.example.teleport.sh:5432
 ```
 
 </TabItem>
@@ -94,10 +94,10 @@ $ teleport db configure create \
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
 $ teleport db configure create \
   --token=/tmp/token \
-  --proxy=mytenant.teleport.sh:443 \
+  --proxy=example.teleport.sh:443 \
   --name=example \
   --protocol=postgres \
-  --uri=postgres://postgres.mytenant.teleport.sh:5432 \
+  --uri=postgres://postgres.example.teleport.sh:5432 \
   --labels=env=prod
 ```
 

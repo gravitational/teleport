@@ -73,11 +73,11 @@ proxy_service:
   # MySQL proxy is listening on a separate port.
   mysql_listen_addr: "0.0.0.0:3036"
   # Database clients will connect to the Proxy Service over this hostname.
-  public_addr: "mytenant.teleport.sh:443"
+  public_addr: "example.teleport.sh:443"
   # Address advertised to MySQL clients.
-  mysql_public_addr: "mytenant.teleport.sh:3036"
+  mysql_public_addr: "example.teleport.sh:3036"
   # Address advertised to PostgreSQL clients.
-  postgres_public_addr: "mytenant.teleport.sh:443"
+  postgres_public_addr: "example.teleport.sh:443"
   # Address advertised to Mongo clients. If not set, public_addr is used.
   mongo_public_addr: "mongo.teleport.example.com:443
 ```
@@ -233,7 +233,7 @@ $ tctl create -f db.yaml
 
 ```code
 # Log in to your Teleport cluster so you can use tctl from your local machine.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tsh login --proxy=example.teleport.sh --user=myuser
 # Create the resource
 $ tctl create -f db.yaml
 ```

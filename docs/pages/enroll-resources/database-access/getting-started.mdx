@@ -126,7 +126,7 @@ address of your Teleport Enterprise tenant.
 $ sudo teleport db configure create \
   --token=/tmp/token \
   --name=<Var name="aurora" /> \
-  --proxy=<Var name="mytenant.teleport.sh" />:443 \
+  --proxy=<Var name="example.teleport.sh" />:443 \
   --protocol=postgres \
   --uri=<Var name="postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com"/>:5432 \
   --aws-region=<Var name="us-west-1" /> \
@@ -207,7 +207,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="alice"
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=<Var name="alice" />
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="alice" />
 ```
 
 </TabItem>

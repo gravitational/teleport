@@ -246,7 +246,7 @@ endpoint.
   $ sudo teleport db configure create \
     -o file \
     --token=/tmp/token \
-    --proxy=mytenant.teleport.sh:443 \
+    --proxy=example.teleport.sh:443 \
     --name=sqlserver \
     --protocol=sqlserver \
     --uri=sqlserver.example.com:1433 \
@@ -336,7 +336,7 @@ $ tsh db ls
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 $ tsh db ls
 # Name      Description         Labels
 # --------- ------------------- -------

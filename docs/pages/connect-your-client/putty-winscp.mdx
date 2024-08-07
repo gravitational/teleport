@@ -95,7 +95,7 @@ You can also use `tsh puttyconfig user@host:22` if you prefer.
 1. Sign into a Teleport cluster using the `tsh login` command:
 
 ```bash
-C:\Users\gus>tsh login --proxy=mytenant.teleport.sh
+C:\Users\gus>tsh login --proxy=example.teleport.sh
 ```
 
 This command retrieves your user certificates and saves them in a local file in the `%USERPROFILE%/.tsh` directory.
@@ -117,7 +117,7 @@ registry by running the following command:
 
 ```bash
 C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
-Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:mytenant.teleport.sh]
+Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:example.teleport.sh]
 ```
 
 If you don't provide a login to this command, your local Windows username is used instead.

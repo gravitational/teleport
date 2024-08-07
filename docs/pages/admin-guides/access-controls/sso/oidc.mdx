@@ -50,8 +50,8 @@ authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
 The redirect URL for OIDC authentication in Teleport is <nobr><Var
-name="mytenant.teleport.sh" description="Your Teleport Enterprise tenant or Proxy
-Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
+name="example.teleport.sh" description="Your Teleport Enterprise tenant or Proxy
+Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `example.teleport.sh`
 with your Teleport Enterprise tenant or Proxy Service address.
 
 ## OIDC connector configuration
@@ -179,7 +179,7 @@ spec:
   issuer_url: "https://oidc.example.com"
   client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
-  redirect_url: "https://mytenant.teleport.sh/v1/webapi/oidc/callback"
+  redirect_url: "example.teleport.sh/v1/webapi/oidc/callback"
   display: "Login with Example"
   acr_values: "foo/bar"
   provider: netiq

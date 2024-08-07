@@ -2,11 +2,11 @@
 <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh` with the DNS name of your Teleport Enterprise
+`example.teleport.sh` with the DNS name of your Teleport Enterprise
 tenant:
 
 ```code
-$ teleport-event-handler configure . mytenant.teleport.sh:443
+$ teleport-event-handler configure . example.teleport.sh:443
 ```
 
 </TabItem>
@@ -28,7 +28,7 @@ Run the `configure` command to generate a sample configuration. Assign
 Service or Proxy Service:
 
 ```code
-$ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
+$ TELEPORT_CLUSTER_ADDRESS=example.teleport.sh:443
 $ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 

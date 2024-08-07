@@ -144,7 +144,7 @@ with a command similar to the following:
    ```
      
    - Set the `--proxy` command-line option to the address for your Teleport cluster
-(for example, `teleport.example.com` or `mytenant.teleport.sh`).
+(for example, `teleport.example.com` or `example.teleport.sh`).
    - Set the `--token` command-line option to the file location on the Application 
 Service host where you saved the invitation token that you generated earlier.
    - Change the `--app-name` and `--app-uri` command-line options if you're configuring 
@@ -174,7 +174,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 ```
 
 - Set `proxyAddr` to the address for your Teleport cluster (for example, 
-`teleport.example.com` or `mytenant.teleport.sh`).
+`teleport.example.com` or `example.teleport.sh`).
 - Set `-authToken` to the invitation token that you previously generated.
 - Change `apps[0].name` and `apps[0].uri` if you're configuring access to a different 
 web application.
@@ -215,7 +215,7 @@ All available applications are displayed on the Applications tab.
 Click **Launch** on the Grafana application tile to access it.
 
 Alternatively, you can call the application directly with its name as the subdomain, for example, 
-`https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`. 
+`https://grafana.teleport.example.com` or `https://grafana.example.teleport.sh`. 
 You are prompted to sign in if you haven't already been authenticated.
 
 ## Next steps

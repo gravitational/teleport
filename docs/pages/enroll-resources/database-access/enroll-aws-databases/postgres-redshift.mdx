@@ -68,7 +68,7 @@ $ sudo teleport db configure create \
 $ sudo teleport db configure create \
    -o file \
    --name="redshift-postgres" \
-   --proxy=mytenant.teleport.sh:443 \
+   --proxy=example.teleport.sh:443 \
    --protocol=postgres \
    --token=/tmp/token \
    --uri=${CLUSTER_URI?}
@@ -171,7 +171,7 @@ registered databases. Replace `--proxy` with the address of your Teleport Enterp
 tenant.
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 $ tsh db ls
 # Name        Description                    Labels
 # ----------- ------------------------------ --------

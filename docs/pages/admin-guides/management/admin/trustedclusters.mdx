@@ -802,17 +802,17 @@ In this scenario, users usually log in using the following commands:
 
 ```code
 # Log in to the root cluster
-$ tsh --proxy=mytenant.teleport.sh login
+$ tsh --proxy=example.teleport.sh login
 
 # Receive a certificate for "east"
-$ tsh --proxy=mytenant.teleport.sh login east
+$ tsh --proxy=example.teleport.sh login east
 
 # Log in to the Kubernetes cluster called "east" in the Teleport cluster with
 # the same name
-$ tsh kube login --proxy=mytenant.teleport.sh --cluster=east east
+$ tsh kube login --proxy=example.teleport.sh --cluster=east east
 
 # The user's kubeconfig now contains the entry for the "east" Kubernetes
-# endpoint, i.e. east.mytenant.teleport.sh
+# endpoint, i.e. east.example.teleport.sh
 ```
 
 ## Remove a trusted leaf cluster

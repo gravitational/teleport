@@ -339,7 +339,7 @@ Switched to context "minikube".
 
 Install the Teleport Kubernetes Service in your cluster, assigning <Var
 name="proxy-address" /> to the host **and port** of your Teleport Proxy Service
-(e.g., `mytenant.teleport.sh:443`) and <Var name="token" /> to the token you
+(e.g., `example.teleport.sh:443`) and <Var name="token" /> to the token you
 requested earlier:
 
 ```code
@@ -488,7 +488,7 @@ want to change later, including:
 
 |Constant|Description|
 |---|---|
-|`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `mytenant.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port:** <Var name="proxy-address" /> |
+|`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `example.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port:** <Var name="proxy-address" /> |
 |`initTimeout`|The timeout for connecting to the Teleport cluster. We have defined this as 30 seconds.|
 |`identityFilePath`|The path to the Teleport identity file you created earlier.|
 |`clusterName`|The name of the Kubernetes cluster you will fetch RBAC resources from. In this guide, the cluster's name is `minikube`.|
@@ -790,7 +790,7 @@ Make sure that:
 - The identity file you exported earlier does not have an expired TTL
 - The value you supplied to the `Addrs` field in `teleport.Config` includes both
   the host **and** the web port of your Teleport Proxy Service, e.g.,
-  `mytenant.teleport.sh:443`
+  `example.teleport.sh:443`
 
 </Admonition>
 

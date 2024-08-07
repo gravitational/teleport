@@ -265,7 +265,7 @@ want to change later, including:
 
 |Constant|Description|
 |---|---|
-|`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `mytenant.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port.**|
+|`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `example.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port.**|
 |`teleportImage`|The name of the Teleport container image, which the program will use to run instances of the Teleport Application Service.|
 |`initTimeout`|The timeout for connecting to the Teleport cluster (30 seconds).|
 |`updateInterval`|How often the program will wait between reconciling Application Service instances and application containers (5 seconds).|
@@ -838,7 +838,7 @@ Make sure that:
 - The identity file you exported earlier does not have an expired TTL
 - The value you supplied to the `Addrs` field in `teleport.Config` includes both
   the host **and** the web port of your Teleport Proxy Service, e.g.,
-  `mytenant.teleport.sh:443`
+  `example.teleport.sh:443`
 
 </Admonition>
 
