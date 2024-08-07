@@ -57,6 +57,14 @@ func ToCrownJewel(cj *crownjewelv1.CrownJewel) *CrownJewel {
 	}
 }
 
+func ToCrownJewels(crownJewels []*crownjewelv1.CrownJewel) []*CrownJewel {
+	var result []*CrownJewel
+	for _, cj := range crownJewels {
+		result = append(result, ToCrownJewel(cj))
+	}
+	return result
+}
+
 // ToAWSMatchers converts a list of AWS matchers to a UI representation.
 func ToAWSMatchers(matchers []*crownjewelv1.AWSMatcher) []AWSMatcher {
 	var result []AWSMatcher

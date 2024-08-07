@@ -1,7 +1,9 @@
 package web
 
 import (
+	"encoding/base64"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -25,6 +27,66 @@ func (c *createCrownJewelRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("at least one matcher must be set")
 	}
 	return nil
+}
+
+type listCrownJewelsResponse struct {
+	CrownJewels []*ui.CrownJewel `json:"crown_jewels"`
+	NextToken   string           `json:"next_token"`
+}
+
+func (*Plugin) listCrownJewels(_ http.ResponseWriter, r *http.Request, p httprouter.Params, webCtx *web.SessionContext) (any, error) {
+	authClient, err := webCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx := r.Context()
+
+	limit := int64(0) /* default limit */
+	if l := r.URL.Query().Get("limit"); l != "" {
+		limit, err = strconv.ParseInt(l, 10, 64)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if limit < 0 {
+			return nil, trace.BadParameter("limit must be greater than or equal to 0")
+		}
+		if limit > 1000 {
+			return nil, trace.BadParameter("limit must be less than or equal to 1000")
+		}
+	}
+
+	lastToken := ""
+	if t := r.URL.Query().Get("next_token"); t != "" {
+		token, err := base64.RawURLEncoding.DecodeString(t)
+		if err != nil {
+			return nil, trace.Wrap(err, "invalid next token")
+		}
+		lastToken = string(token)
+	}
+
+	crownJewels := make([]*crownjewelv1.CrownJewel, 0, limit)
+	for i := int64(0); i < limit || limit == 0; {
+		batch, nextToken, err := authClient.CrownJewelServiceClient().ListCrownJewels(ctx, limit, lastToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "unable to get access lists")
+		}
+		crownJewels = append(crownJewels, batch...)
+
+		lastToken = nextToken
+		if nextToken == "" || len(batch) == 0 {
+			break
+		}
+		i += int64(len(batch))
+	}
+
+	// Convert the next token to base64
+	lastTokenB64 := base64.RawURLEncoding.EncodeToString([]byte(lastToken))
+
+	return &listCrownJewelsResponse{
+		CrownJewels: ui.ToCrownJewels(crownJewels),
+		NextToken:   lastTokenB64,
+	}, nil
 }
 
 func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {

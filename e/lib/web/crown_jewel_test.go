@@ -3,7 +3,10 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 func TestCreateCrownJewel(t *testing.T) {
@@ -98,4 +102,112 @@ func TestDeleteCrownJewel(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, authResp)
+}
+
+func TestListCrownJewels(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	ctx := context.Background()
+	createCrownJewel(t, ctx, authClient, 0)
+
+	webPack := s.newAuthWebPack(t, "foo")
+	listEndpoint := webPack.clt.Endpoint("enterprise", "crownjewels")
+	resp, err := webPack.clt.Get(ctx, listEndpoint, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// Read the response
+	var respPayload listCrownJewelsResponse
+	err = json.Unmarshal(resp.Bytes(), &respPayload)
+	require.NoError(t, err)
+
+	cjs := respPayload.CrownJewels
+	require.Len(t, cjs, 1)
+	require.Equal(t, "test-0", cjs[0].Name)
+	require.Len(t, cjs[0].Spec.TeleportMatchers, 1)
+	require.Equal(t, ui.TeleportMatcher{
+		Kinds:  []string{"node"},
+		Names:  []string{"test"},
+		Labels: map[string][]string{},
+	}, cjs[0].Spec.TeleportMatchers[0])
+}
+
+func TestListCrownJewelsIter(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	ctx := context.Background()
+	for i := 0; i < 10; i++ {
+		createCrownJewel(t, ctx, authClient, i)
+	}
+
+	webPack := s.newAuthWebPack(t, "foo")
+
+	nextToken := verifyCrownJewelsRange(t, ctx, webPack, "", 0, 5) // last index is exclusive
+	nextToken = verifyCrownJewelsRange(t, ctx, webPack, nextToken, 5, 10)
+	require.Empty(t, nextToken)
+}
+
+func verifyCrownJewelsRange(t *testing.T, ctx context.Context, webPack *authWebPack, nextToken string, start, end int) string {
+	listEndpoint := webPack.clt.Endpoint("enterprise", "crownjewels")
+
+	limit := end - start
+	queryParams := url.Values{"limit": []string{strconv.Itoa(limit)}}
+	if nextToken != "" {
+		queryParams["next_token"] = []string{nextToken}
+	}
+	resp, err := webPack.clt.Get(ctx, listEndpoint, queryParams)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// Read the response
+	var respPayload listCrownJewelsResponse
+	err = json.Unmarshal(resp.Bytes(), &respPayload)
+	require.NoError(t, err)
+
+	cjs := respPayload.CrownJewels
+	require.Len(t, cjs, limit)
+	for i := start; i < end; i++ {
+		require.Equal(t, fmt.Sprintf("test-%d", i), cjs[i-start].Name)
+		require.Len(t, cjs[i-start].Spec.TeleportMatchers, 1)
+		require.Equal(t, ui.TeleportMatcher{
+			Kinds:  []string{"node"},
+			Names:  []string{"test"},
+			Labels: map[string][]string{},
+		}, cjs[i-start].Spec.TeleportMatchers[0])
+	}
+
+	return respPayload.NextToken
+}
+
+func createCrownJewel(t *testing.T, ctx context.Context, authClient authclient.ClientI, number int) {
+	_, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, &crownjewelv1.CrownJewel{
+		Metadata: &headerv1.Metadata{
+			Name: fmt.Sprintf("test-%d", number),
+		},
+		Spec: &crownjewelv1.CrownJewelSpec{
+			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
+				{
+					Kinds: []string{"node"},
+					Names: []string{"test"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
 }
