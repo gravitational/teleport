@@ -1650,3 +1650,33 @@ func (c *pluginCollection) writeText(w io.Writer, verbose bool) error {
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
+
+type botInstanceCollection struct {
+	items []*machineidv1pb.BotInstance
+}
+
+func (c *botInstanceCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *botInstanceCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Bot Name", "Instance ID"}
+
+	// TODO: consider adding additional (possibly verbose) fields showing
+	// last heartbeat, last auth, etc.
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
