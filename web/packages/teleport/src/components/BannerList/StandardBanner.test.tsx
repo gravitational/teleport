@@ -17,19 +17,19 @@
  */
 
 import React from 'react';
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { fireEvent, render, screen, theme } from 'design/utils/testing';
 
-import { Banner } from './Banner';
+import { StandardBanner } from './StandardBanner';
 
-describe('components/BannerList/Banner', () => {
+describe('StandardBanner', () => {
   it('displays the supplied message', () => {
     const msg = 'I am a banner';
     render(
-      <Banner
+      <StandardBanner
         message={msg}
         severity="info"
         id="test-banner"
-        onClose={() => {}}
+        onDismiss={() => {}}
       />
     );
     expect(screen.getByText(msg)).toBeInTheDocument();
@@ -37,52 +37,61 @@ describe('components/BannerList/Banner', () => {
 
   it('renders an info banner', () => {
     const { container } = render(
-      <Banner
+      <StandardBanner
         message="I am steve banner"
         severity="info"
         id="test-banner"
-        onClose={() => {}}
+        onDismiss={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-info');
-    expect(container.firstChild).toHaveStyle('background-color: #039be5');
+    expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-info');
+    expect(container.firstChild).toHaveStyle({
+      backgroundColor:
+        theme.colors.interactive.tonal.informational[2].background,
+    });
   });
 
   it('renders a warning banner', () => {
     const { container } = render(
-      <Banner
+      <StandardBanner
         message="I am steve banner"
         severity="warning"
         id="test-banner"
-        onClose={() => {}}
+        onDismiss={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-info');
-    expect(container.firstChild).toHaveStyle('background-color: #FFAB00');
+    expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-warning');
+    expect(container.firstChild).toHaveStyle({
+      backgroundColor: theme.colors.interactive.tonal.alert[2].background,
+    });
   });
 
   it('renders a danger banner', () => {
     const { container } = render(
-      <Banner
+      <StandardBanner
         message="I am steve banner"
         severity="danger"
         id="test-banner"
-        onClose={() => {}}
+        onDismiss={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-warning');
-    expect(container.firstChild).toHaveStyle('background-color: #FF6257');
+    expect(screen.getByRole('graphics-symbol')).toHaveClass(
+      'icon-warningcircle'
+    );
+    expect(container.firstChild).toHaveStyle({
+      backgroundColor: theme.colors.interactive.tonal.danger[2].background,
+    });
   });
 
   it('calls onClose when the X is clicked', () => {
     const id = 'test-banner';
     const onClose = jest.fn();
     render(
-      <Banner
+      <StandardBanner
         message="I am steve banner"
         severity="info"
         id={id}
-        onClose={onClose}
+        onDismiss={onClose}
       />
     );
 
@@ -95,12 +104,12 @@ describe('components/BannerList/Banner', () => {
     it('renders valid URLs as links', () => {
       const message = 'some-message-with-valid-URL';
       render(
-        <Banner
+        <StandardBanner
           message={message}
           severity="info"
           id="some-id"
           link="https://goteleport.com/docs"
-          onClose={() => {}}
+          onDismiss={() => {}}
         />
       );
       expect(screen.getByText(message)).toBeInTheDocument();
@@ -113,12 +122,12 @@ describe('components/BannerList/Banner', () => {
     it('renders invalid URLs as text', () => {
       const message = 'some-message';
       render(
-        <Banner
+        <StandardBanner
           message={message}
           severity="info"
           id="some-id"
           link="{https://goteleport.com/docs"
-          onClose={() => {}}
+          onDismiss={() => {}}
         />
       );
       expect(screen.getByText(message)).toBeInTheDocument();
@@ -130,12 +139,12 @@ describe('components/BannerList/Banner', () => {
     it('renders non-teleport URL as text', () => {
       const message = 'message';
       render(
-        <Banner
+        <StandardBanner
           message={message}
           severity="info"
           id="some-id"
           link="https://www.google.com/"
-          onClose={() => {}}
+          onDismiss={() => {}}
         />
       );
       expect(screen.getByText(message)).toBeInTheDocument();
