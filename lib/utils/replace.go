@@ -149,14 +149,14 @@ const (
 // input is the resource we are checking for access.
 // resources is a list of resources that the user has access to - collected from
 // their roles that match the Kubernetes cluster where the resource is defined.
-func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
+// cond is the deny or allow condition of the role that we are evaluating.
+func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
 	// isClusterWideResource is true if the resource is cluster-wide, e.g. a
 	// namespace resource or a clusterrole.
 	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
-
 	verb := input.Verbs[0]
 	// If the user is list/read/watch a namespace, they should be able to see the
 	// namespace they have resources defined for.
@@ -191,7 +191,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
-		case targetsReadOnlyNamespace && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
+		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
 			// This means that if the user has access to pods in the "foo" namespace,

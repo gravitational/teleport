@@ -40,6 +40,7 @@ import {
   DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import {
   ActionButtons,
@@ -100,9 +101,13 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         dbMeta.autoDiscovery.requiredVpcsAndSubnets;
       const vpcIds = Object.keys(requiredVpcsAndSubnets);
 
+      const { awsAccountId } = splitAwsIamArn(
+        agentMeta.awsIntegration.spec.roleArn
+      );
       integrationService
         .deployDatabaseServices(integrationName, {
           region: dbMeta.awsRegion,
+          accountId: awsAccountId,
           taskRoleArn,
           deployments: vpcIds.map(vpcId => ({
             vpcId,
@@ -373,24 +378,21 @@ const CreateAccessRole = ({
     <StyledBox mb={5}>
       <Text bold>Step 1</Text>
       <Text mb={2}>
-        Name a Task Role ARN for this Database Service and generate a configure
-        command. This command will configure the required permissions in your
-        AWS account.
+        Name an IAM role for the Teleport Database Service and generate a
+        configuration command. The generated command will create the role and
+        configure permissions for it in your AWS account.
       </Text>
       <FieldInput
         mb={4}
         disabled={disabled}
         rule={requiredIamRoleName}
-        label="Name a Task Role ARN"
+        label="Name an IAM role"
         autoFocus
         value={taskRoleArn}
         placeholder="TeleportDatabaseAccess"
         width="440px"
         mr="3"
         onChange={e => setTaskRoleArn(e.target.value)}
-        toolTipContent={`Amazon Resource Names (ARNs) uniquely identify AWS \
-        resources. In this case you will naming an IAM role that this \
-        deployed service will be using`}
       />
       <ButtonSecondary mb={3} onClick={generateAutoConfigScript}>
         {scriptUrl ? 'Regenerate Command' : 'Generate Command'}

@@ -194,8 +194,9 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 			h.PublicProxyAddr(),
 			iamTokenName,
 			types.Labels{
-				types.DiscoveryLabelVPCID:  []string{d.VPCID},
-				types.DiscoveryLabelRegion: []string{req.Region},
+				types.DiscoveryLabelVPCID:     []string{d.VPCID},
+				types.DiscoveryLabelRegion:    []string{req.Region},
+				types.DiscoveryLabelAccountID: []string{req.AccountID},
 			},
 		)
 		if err != nil {
