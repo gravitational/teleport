@@ -1446,19 +1446,22 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	// Create host user.
-	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-	created, err := s.termHandlers.SessionRegistry.TryCreateHostUser(scx)
+	created, userCloser, err := s.termHandlers.SessionRegistry.TryCreateHostUser(s, identityContext)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 	// Indicate that the user was created by Teleport.
 	ccx.UserCreatedByTeleport = created
+	if userCloser != nil {
+		ccx.AddCloser(userCloser)
+	}
 
-	if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(scx); err != nil {
+	sudoersCloser, err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(s, identityContext)
+	if err != nil {
 		return ctx, trace.Wrap(err)
+	}
+	if sudoersCloser != nil {
+		ccx.AddCloser(sudoersCloser)
 	}
 
 	return ctx, nil
