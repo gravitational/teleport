@@ -176,6 +176,12 @@ function getRequiredProperties({
       resource: { uri: resource.uri, hostname: resource.hostname },
     };
   }
+  if (kind === 'app') {
+    return {
+      kind,
+      resource: { uri: resource.uri, samlApp: resource.samlApp },
+    };
+  }
   return {
     kind,
     resource: { uri: resource.uri },
@@ -231,12 +237,7 @@ export type ResourceRequest =
       kind: 'app';
       resource: {
         uri: AppUri;
-      };
-    }
-  | {
-      kind: 'saml_idp_service_provider';
-      resource: {
-        uri: AppUri;
+        samlApp: boolean;
       };
     };
 
@@ -267,6 +268,9 @@ export function extractResourceRequestProperties({
   switch (kind) {
     case 'app': {
       const { appId } = routing.parseAppUri(resource.uri).params;
+      if (resource.samlApp) {
+        return { kind: 'saml_idp_service_provider', id: appId, name: appId };
+      }
       return { kind: 'app', id: appId, name: appId };
     }
     case 'server': {
@@ -280,10 +284,6 @@ export function extractResourceRequestProperties({
     case 'kube': {
       const { kubeId } = routing.parseKubeUri(resource.uri).params;
       return { kind: 'kube_cluster', id: kubeId, name: kubeId };
-    }
-    case 'saml_idp_service_provider': {
-      const { appId } = routing.parseAppUri(resource.uri).params;
-      return { kind: 'saml_idp_service_provider', id: appId, name: appId };
     }
     default:
       kind satisfies never;
@@ -318,6 +318,19 @@ export function toResourceRequest({
             leafClusterId,
             appId: resourceId,
           }),
+          samlApp: false,
+        },
+        kind: 'app',
+      };
+    case 'saml_idp_service_provider':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: true,
         },
         kind: 'app',
       };
@@ -354,17 +367,6 @@ export function toResourceRequest({
           }),
         },
         kind: 'kube',
-      };
-    case 'saml_idp_service_provider':
-      return {
-        resource: {
-          uri: routing.getAppUri({
-            rootClusterId,
-            leafClusterId,
-            appId: resourceId,
-          }),
-        },
-        kind: 'saml_idp_service_provider',
       };
     default:
       kind satisfies never;

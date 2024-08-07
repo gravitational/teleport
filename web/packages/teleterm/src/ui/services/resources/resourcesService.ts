@@ -142,14 +142,6 @@ export class ResourcesService {
             },
           };
         }
-        if (r.kind === 'saml_idp_service_provider') {
-          /**
-           * saml_idp_service_provider is ignored here because this kind exists in
-           * UnifiedResourceResponse only to support resource access request.
-           */
-          return;
-        }
-        return r;
       });
     } catch (err) {
       throw new ResourceSearchError(clusterUri, err);
@@ -306,9 +298,4 @@ export type UnifiedResourceResponse =
       requiresRequest: boolean;
     }
   | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
-  | { kind: 'app'; resource: types.App; requiresRequest: boolean }
-  | {
-      kind: 'saml_idp_service_provider';
-      resource: types.App;
-      requiresRequest: boolean;
-    };
+  | { kind: 'app'; resource: types.App; requiresRequest: boolean };

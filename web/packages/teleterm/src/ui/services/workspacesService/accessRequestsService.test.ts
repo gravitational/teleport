@@ -40,6 +40,7 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
   const samlApp = makeApp({
     uri: `${rootClusterUri}/samlapp`,
     name: 'samlapp',
+    samlApp: true,
   });
   const kube = makeKube();
   const database = makeDatabase();
@@ -52,7 +53,7 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
       [app2.uri, { kind: 'app', resource: app2 }],
       [kube.uri, { kind: 'kube', resource: kube }],
       [database.uri, { kind: 'database', resource: database }],
-      [samlApp.uri, { kind: 'saml_idp_service_provider', resource: samlApp }],
+      [samlApp.uri, { kind: 'app', resource: samlApp }],
     ]),
   };
 }
