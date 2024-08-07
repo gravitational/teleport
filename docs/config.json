@@ -896,7 +896,7 @@
     },
     {
       "source": "/access-graph/",
-      "destination": "/admin-guides/access-controls/access-graph/access-graph/",
+      "destination": "/admin-guides/teleport-policy/teleport-policy/",
       "permanent": true
     },
     {
