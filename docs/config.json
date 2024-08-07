@@ -1238,7 +1238,7 @@
     },
     {
       "source": "/server-access/openssh/openssh/",
-      "destination": "/enroll-resources/server-access/openssh/openssh/",
+      "destination": "/enroll-resources/server-access/openssh/openssh-agentless/",
       "permanent": true
     },
     {
