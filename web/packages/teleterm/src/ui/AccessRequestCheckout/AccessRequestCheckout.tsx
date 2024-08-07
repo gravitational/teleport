@@ -161,6 +161,9 @@ export function AccessRequestCheckout() {
                         break;
                       case 'role':
                         break;
+                      case 'saml_idp_service_provider':
+                        resource.Icon = Icon.Application;
+                        break;
                       default:
                         c satisfies never;
                     }

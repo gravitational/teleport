@@ -232,9 +232,20 @@ export type ResourceRequest =
       resource: {
         uri: AppUri;
       };
+    }
+  | {
+      kind: 'saml_idp_service_provider';
+      resource: {
+        uri: AppUri;
+      };
     };
 
-type SharedResourceAccessRequestKind = 'app' | 'db' | 'node' | 'kube_cluster';
+type SharedResourceAccessRequestKind =
+  | 'app'
+  | 'db'
+  | 'node'
+  | 'kube_cluster'
+  | 'saml_idp_service_provider';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -269,6 +280,10 @@ export function extractResourceRequestProperties({
     case 'kube': {
       const { kubeId } = routing.parseKubeUri(resource.uri).params;
       return { kind: 'kube_cluster', id: kubeId, name: kubeId };
+    }
+    case 'saml_idp_service_provider': {
+      const { appId } = routing.parseAppUri(resource.uri).params;
+      return { kind: 'saml_idp_service_provider', id: appId, name: appId };
     }
     default:
       kind satisfies never;
@@ -339,6 +354,17 @@ export function toResourceRequest({
           }),
         },
         kind: 'kube',
+      };
+    case 'saml_idp_service_provider':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+        },
+        kind: 'saml_idp_service_provider',
       };
     default:
       kind satisfies never;

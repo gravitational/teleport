@@ -193,6 +193,12 @@ export function UnifiedResources(props: {
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
 
+      const resourceToRequest: UnifiedResourceResponse = resource;
+      if (resource.kind == 'app' && resource.resource.samlApp) {
+        resourceToRequest.kind = 'saml_idp_service_provider';
+        resourceToRequest.requiresRequest = resource.requiresRequest;
+        resourceToRequest.resource = resource.resource;
+      }
       const showRequestButton =
         integratedAccessRequests.supported === 'yes' &&
         (integratedAccessRequests.availabilityFilter.mode === 'requestable' ||
@@ -206,7 +212,9 @@ export function UnifiedResources(props: {
           <AccessRequestButton
             isResourceAdded={isResourceAdded}
             requestStarted={requestStarted}
-            onClick={() => accessRequestsService.addOrRemoveResource(resource)}
+            onClick={() =>
+              accessRequestsService.addOrRemoveResource(resourceToRequest)
+            }
           />
         );
       }
@@ -453,6 +461,27 @@ const mapToSharedResource = (
       };
     }
     case 'app': {
+      const { resource: app } = resource;
+
+      return {
+        resource: {
+          kind: 'app' as const,
+          labels: app.labels,
+          name: app.name,
+          id: app.name,
+          addrWithProtocol: getAppAddrWithProtocol(app),
+          awsConsole: app.awsConsole,
+          description: app.desc,
+          friendlyName: app.friendlyName,
+          samlApp: app.samlApp,
+          requiresRequest: resource.requiresRequest,
+        },
+        ui: {
+          ActionButton: <ConnectAppActionButton app={app} />,
+        },
+      };
+    }
+    case 'saml_idp_service_provider': {
       const { resource: app } = resource;
 
       return {
