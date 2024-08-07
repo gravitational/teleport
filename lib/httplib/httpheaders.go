@@ -234,10 +234,10 @@ func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
 		return cspString
 	}
 
-	cspString := getContentSecurityPolicyString(
+	cspString := GetContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
-		cspMap{
+		CSPMap{
 			"connect-src": {"'self'", applicationURL},
 		},
 	)
