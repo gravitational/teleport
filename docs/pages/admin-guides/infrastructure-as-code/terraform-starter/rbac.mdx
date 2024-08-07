@@ -8,11 +8,10 @@ description: Explains how to manage Teleport roles and authentication connectors
 [overview](../terraform-starter.mdx) for the scope and purpose of the Terraform
 starter guide.*
 
-In [Part One](./deploy-agents-terraform.mdx) of this series, we showed you
-how to use Terraform to deploy Teleport Agents in order to enroll infrastructure
-resources with your Teleport cluster. While configuring Agents, you labeled them
-based on their environment, with some falling under `dev` and others under
-`prod`. 
+In [Part One](enroll-resources.mdx) of this series, we showed you how to use
+Terraform to deploy Teleport Agents in order to enroll infrastructure resources
+with your Teleport cluster. While configuring Agents, you labeled them based on
+their environment, with some falling under `dev` and others under `prod`. 
 
 In this guide, you will configure your Teleport cluster to manage access to
 resources with the `dev` and `prod` labels in order to implement the principle
@@ -28,7 +27,7 @@ This guide shows you how to create:
   identity provider and automatically gain access to `dev` resources. 
 
 In this setup, the only way to access `prod` resources is with an Access
-Request, meaning that there are no standing credentiasl for accessing `prod`
+Request, meaning that there are no standing credentials for accessing `prod`
 resources that an attacker can compromise.
 
 ## Prerequisites
@@ -202,7 +201,7 @@ three Teleport roles:
 When Teleport users connect to resources in your infrastructure, they assume a
 principal, such as an operating system login or Kubernetes user, in order to
 interact with those resources. In this step, you will configure the `prod_role`
-and `dev_role` modules to grant access to principals in your infrastructre.
+and `dev_role` modules to grant access to principals in your infrastructure.
 
 In `rbac.tf`, edit the `prod_role` and `dev_role` blocks so that the
 `principals` field contains a mapping, similar to the example below. Use the
@@ -269,14 +268,14 @@ declared in Step 1 by following the instructions.
    guides assume you are using `tctl` instead of Terraform to manage
    authentication connectors:
 
-   - [AD FS](../../../access-controls/sso/adfs.mdx#step-13-configure-adfs)
-   - [GitLab](../../../access-controls/sso/gitlab.mdx#step-13-configure-gitlab)
+   - [AD FS](../../../admin-guides/access-controls/sso/adfs.mdx#step-13-configure-adfs)
+   - [GitLab](../../../admin-guides/access-controls/sso/gitlab.mdx#configure-gitlab)
    - [Google
-     Workspace](../../../access-controls/sso/google-workspace.mdx#step-14-configure-google-workspace)
-   - [OneLogin](../../../access-controls/sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
+     Workspace](../../../admin-guides/access-controls/sso/google-workspace.mdx#step-14-configure-google-workspace)
+   - [OneLogin](../../../admin-guides/access-controls/sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
    - [Azure
-     AD](../../../access-controls/sso/azuread.mdx#step-13-configure-azure-ad)
-   - [Okta](../../../access-controls/sso/okta.mdx#step-24-configure-okta)
+     AD](../../../admin-guides/access-controls/sso/azuread.mdx#step-13-configure-azure-ad)
+   - [Okta](../../../admin-guides/access-controls/sso/okta.mdx#step-24-configure-okta)
 
 1. Configure the redirect URL (for OIDC) or assertion consumer service (for SAML):
 

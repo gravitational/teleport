@@ -8,7 +8,7 @@ resource "teleport_provision_token" "agent" {
   count   = var.agent_count
   version = "v2"
   spec = {
-    roles = var.agent_roles
+    roles = ["Node"]
   }
   metadata = {
     name    = random_string.token[count.index].result
