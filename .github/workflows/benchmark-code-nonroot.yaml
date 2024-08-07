@@ -2,33 +2,41 @@ name: Benchmarks (Go)
 run-name: Benchmarks (Go) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
-    paths:
-      - '.github/workflows/benchmark-code.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+
   merge_group:
-    paths:
-      - '.github/workflows/benchmark-code.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/benchmark-code-nonroot.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   test:
     name: Benchmarks (Go)
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-32core
 
     permissions:
@@ -37,25 +45,8 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport17
       env:
-        TELEPORT_ETCD_TEST: yes
-        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
-        TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
-      options: --cap-add=SYS_ADMIN --privileged
-
-    services:
-      etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
-        options: >-
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --add-host etcd0:127.0.0.1
-        ports:
-          - 2379:2379
-          - 2380:2380
-          - 3379:3379
 
     steps:
       - name: Checkout Teleport

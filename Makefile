@@ -890,6 +890,12 @@ test-go-bench:
 	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -benchtime 1x $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
+test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
+test-go-bench-root:
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
+
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
 test-go-vnet-daemon: FLAGS ?= -race -shuffle on
