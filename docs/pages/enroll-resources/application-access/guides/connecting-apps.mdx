@@ -327,7 +327,7 @@ rewritten:
 - Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as
-[role templates](../../../access-controls/guides/role-templates.mdx). In the
+[role templates](../../../admin-guides/access-controls/guides/role-templates.mdx). In the
 example above, `X-Internal-Trait` header will be populated with the value of
 internal user trait `logins` and `X-External-Trait` header will get the value of
 the user's external `env` trait coming from the identity provider.
@@ -338,7 +338,7 @@ a JWT token signed by Teleport that contains user identity information. See
 
 For full details on configuring Teleport roles, including how Teleport
 populates the `external` and `internal` traits, see the [Teleport Access
-Controls Reference](../../../access-controls/reference.mdx).
+Controls Reference](../../../reference/access-controls/roles.mdx).
 
 ### Configuring the JWT token
 
