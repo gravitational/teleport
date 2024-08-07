@@ -179,6 +179,10 @@ type Instance interface {
 	// so appends do not need to be performed in any particular order.
 	AppendControlLog(entries ...InstanceControlLogEntry)
 
+	// GetSystemClockDifference stores information about the system clock difference compared
+	// to the auth service with this instance.
+	GetSystemClockDifference() time.Duration
+
 	// Clone performs a deep copy on this instance.
 	Clone() Instance
 }
@@ -297,6 +301,10 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) int {
 		return a.Time.Compare(b.Time)
 	})
+}
+
+func (i *InstanceV1) GetSystemClockDifference() time.Duration {
+	return i.Spec.SystemClockDifference
 }
 
 // expireControlLog removes expired entries from the control log relative to the supplied

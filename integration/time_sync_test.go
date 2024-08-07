@@ -103,6 +103,9 @@ func TestTimeReconciliation(t *testing.T) {
 	authService, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
 
+	_, err = authService.WaitForEventTimeout(20*time.Second, service.InstanceReady)
+	require.NoError(t, err, "timeout waiting for Teleport readiness")
+
 	// Start the agent service with Node and WindowsDesktop capabilities.
 	agentClock := clockwork.NewFakeClockAt(time.Now())
 	agentCfg := servicecfg.MakeDefaultConfig()
@@ -145,10 +148,13 @@ func TestTimeReconciliation(t *testing.T) {
 	require.NoError(t, err, "timeout waiting for Teleport readiness")
 
 	// Must trigger the monitor watch logic to create the global notification.
-	agentClock.Advance(15 * time.Minute)
+	agentClock.Advance(18 * time.Minute)
 	authClock.Advance(10 * time.Minute)
 
 	err = retryutils.RetryStaticFor(20*time.Second, time.Second, func() error {
+		agentClock.Advance(20 * time.Minute)
+		authClock.Advance(20 * time.Minute)
+
 		notifications, _, err := authService.GetAuthServer().ListGlobalNotifications(ctx, 100, "")
 		if err != nil {
 			return trace.Wrap(err)

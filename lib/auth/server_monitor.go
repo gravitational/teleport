@@ -22,19 +22,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math/rand/v2"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -68,12 +64,32 @@ func (a *Server) MonitorSystemTime(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-checkInterval.Next():
-			var servers []string
-			a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-				servers = append(servers, handle.Hello().ServerID)
-			})
+			var messages []string
+			ins := a.GetInstances(ctx, types.InstanceFilter{})
+			for ins.Next() {
+				item := ins.Item()
+				diff := item.GetSystemClockDifference()
+				if (diff > 0 && diff > systemClockThreshold) || (diff < 0 && -diff > systemClockThreshold) {
+					slog.WarnContext(ctx, "server time difference detected",
+						"server", item.GetName(),
+						"services", item.GetServices(),
+						"difference", durationText(diff),
+					)
+					messages = append(messages, fmt.Sprintf(
+						" - %s[%s] is %s",
+						item.GetName(),
+						types.SystemRoles(item.GetServices()).String(),
+						durationText(diff),
+					))
+				}
+				if len(messages) >= systemClockMessagesLimit {
+					if err := ins.Done(); err != nil {
+						slog.ErrorContext(ctx, "an error occurred during instance iteration", "error", err)
+					}
+					break
+				}
+			}
 
-			messages := runSystemClockCheck(ctx, a.GetClock(), a.inventory, servers)
 			if len(messages) > 0 {
 				err := upsertGlobalNotification(ctx, a.Services, generateNotificationMessage(messages))
 				if err != nil {
@@ -83,75 +99,6 @@ func (a *Server) MonitorSystemTime(ctx context.Context) error {
 			}
 		}
 	}
-}
-
-// runSystemClockCheck executes system clock checks in parallel by batch, with a reported limitation.
-func runSystemClockCheck(
-	ctx context.Context,
-	clock clockwork.Clock,
-	controller *inventory.Controller,
-	servers []string,
-) []string {
-	var (
-		messages []string
-		wg       sync.WaitGroup
-		mu       sync.Mutex
-	)
-	for iter := 0; iter < len(servers) && len(messages) < systemClockMessagesLimit; {
-		for limit := 0; iter < len(servers) && limit < systemClockMessagesLimit; iter++ {
-			handle, ok := controller.GetControlStream(servers[iter])
-			if !ok {
-				continue
-			}
-			limit++
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if msg := checkInventory(ctx, clock, handle); msg != "" {
-					mu.Lock()
-					messages = append(messages, msg)
-					mu.Unlock()
-				}
-			}()
-		}
-		wg.Wait()
-	}
-	if len(messages) > systemClockMessagesLimit {
-		return messages[:systemClockMessagesLimit]
-	}
-
-	return messages
-}
-
-// checkInventory makes a ping request to the downstream to collect the system clock and request duration,
-// if the clock difference exceeds the required threshold, a warning message should be generated.
-func checkInventory(ctx context.Context, clock clockwork.Clock, handle inventory.UpstreamHandle) string {
-	info := handle.Hello()
-	systemClock, reqDuration, err := handle.SystemClock(ctx, rand.Uint64())
-	if err != nil {
-		slog.ErrorContext(ctx, "error getting time reconciliation")
-		return ""
-	}
-	// systemClock might be zero only when the downstream node doesn't support clock checking.
-	if systemClock.IsZero() {
-		return ""
-	}
-
-	diff := clock.Since(systemClock) - reqDuration/2
-	if (diff > 0 && diff > systemClockThreshold) || (diff < 0 && -diff > systemClockThreshold) {
-		slog.WarnContext(ctx, "server time difference detected",
-			"server", info.GetServerID(),
-			"services", info.GetServices(),
-			"difference", durationText(diff),
-		)
-		return fmt.Sprintf(
-			" - %s[%s] is %s",
-			info.GetServerID(),
-			types.SystemRoles(info.GetServices()).String(),
-			durationText(diff),
-		)
-	}
-	return ""
 }
 
 // upsertGlobalNotification sets predefined global notification for notifying the issues with the cluster

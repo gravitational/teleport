@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -968,10 +969,14 @@ func TestTimeReconciliation(t *testing.T) {
 		expectAddr: wantAddr,
 	}
 
+	clock := clockwork.NewRealClock()
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTimeReconciliationInterval(time.Millisecond*100),
 		withTestEventsChannel(events),
+		WithClock(clock),
 	)
 	t.Cleanup(func() {
 		require.NoError(t, controller.Close())
@@ -986,28 +991,37 @@ func TestTimeReconciliation(t *testing.T) {
 		Services: []types.SystemRole{types.RoleNode},
 	})
 
-	handle, ok := controller.GetControlStream(serverID)
-	require.True(t, ok)
-
 	// Launch goroutine to respond to clock request.
 	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID:          msg.(proto.DownstreamInventoryPing).ID,
-				SystemClock: time.Now().Add(time.Minute).UTC(),
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				switch m := msg.(type) {
+				case proto.DownstreamInventoryPing:
+					downstream.Send(ctx, proto.UpstreamInventoryPong{
+						ID:          m.ID,
+						SystemClock: time.Now().Add(-time.Minute).UTC(),
+					})
+				}
+			case <-downstream.Done():
+			case <-ctx.Done():
+			}
 		}
 	}()
 
-	clockCtx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
+	_, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
 
-	systemClock, d, err := handle.SystemClock(clockCtx, 1)
-	require.NoError(t, err)
-	require.WithinDuration(t, time.Now().Add(time.Minute).Add(-d/2), systemClock, time.Millisecond)
+	// verify that instance heartbeat succeeds at least 2 times to propagate the system clock.
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+	require.InDelta(t, time.Minute, auth.lastInstance.GetSystemClockDifference(), float64(time.Millisecond))
 }
 
 type eventOpts struct {

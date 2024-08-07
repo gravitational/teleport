@@ -20,6 +20,7 @@ package inventory
 
 import (
 	"context"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"time"
@@ -90,9 +91,10 @@ type intervalKey int
 const (
 	instanceHeartbeatKey intervalKey = 1 + iota
 	serverKeepAliveKey
+	instanceTimeReconciliation
 )
 
-// instanceHBStepSize is the step size used for the variable instance hearbteat duration. This value is
+// instanceHBStepSize is the step size used for the variable instance heartbeat duration. This value is
 // basically arbitrary. It was selected because it produces a scaling curve that makes a fairly reasonable
 // tradeoff between heartbeat availability and load scaling. See test coverage in the 'interval' package
 // for a demonstration of the relationship between step sizes and interval/duration scaling.
@@ -101,6 +103,7 @@ const instanceHBStepSize = 1024
 type controllerOptions struct {
 	serverKeepAlive    time.Duration
 	instanceHBInterval time.Duration
+	timeReconciliation time.Duration
 	testEvents         chan testEvent
 	maxKeepAliveErrs   int
 	authID             string
@@ -119,6 +122,10 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.instanceHBInterval == 0 {
 		options.instanceHBInterval = apidefaults.MinInstanceHeartbeatInterval()
+	}
+
+	if options.timeReconciliation == 0 {
+		options.timeReconciliation = baseKeepAlive
 	}
 
 	if options.maxKeepAliveErrs == 0 {
@@ -182,6 +189,12 @@ func withInstanceHBInterval(d time.Duration) ControllerOption {
 	}
 }
 
+func withTimeReconciliationInterval(d time.Duration) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.timeReconciliation = d
+	}
+}
+
 func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.testEvents = ch
@@ -206,6 +219,7 @@ type Controller struct {
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
+	timeReconciliationInterval time.Duration
 	instanceHBEnabled          bool
 	instanceHBVariableDuration *interval.VariableDuration
 	maxKeepAliveErrs           int
@@ -252,6 +266,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
+		timeReconciliationInterval: options.timeReconciliation,
 		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
 		instanceHBVariableDuration: instanceHBVariableDuration,
 		maxKeepAliveErrs:           options.maxKeepAliveErrs,
@@ -277,11 +292,15 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
 	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
 	// service.
-	ticker := interval.NewMulti(interval.SubInterval[intervalKey]{
+	ticker := interval.NewMulti(c.clock, interval.SubInterval[intervalKey]{
 		Key:              instanceHeartbeatKey,
 		VariableDuration: c.instanceHBVariableDuration,
 		FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
 		Jitter:           seventhJitter,
+	}, interval.SubInterval[intervalKey]{
+		Key:      instanceTimeReconciliation,
+		Duration: c.timeReconciliationInterval,
+		Jitter:   seventhJitter,
 	})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
@@ -415,6 +434,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
+			case instanceTimeReconciliation:
+				if err := c.timeReconciliation(handle, tick.Time); err != nil {
+					handle.CloseWithError(err)
+					return
+				}
 			default:
 				log.Warnf("Unexpected sub-interval key '%v' in control stream handler of server %q (this is a bug).", tick.Key, handle.Hello().ServerID)
 			}
@@ -431,6 +455,31 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
+}
+
+func (c *Controller) timeReconciliation(handle *upstreamHandle, now time.Time) error {
+	id := rand.Uint64()
+	if err := handle.Send(c.closeContext, proto.DownstreamInventoryPing{ID: id}); err != nil {
+		return trace.Wrap(err)
+	}
+	rspC := make(chan pingResponse, 1)
+	handle.pings[id] = pendingPing{
+		start: now,
+		rspC:  rspC,
+	}
+	tracker := &handle.stateTracker
+	go func() {
+		select {
+		case <-c.closeContext.Done():
+			return
+		case pong := <-rspC:
+			tracker.mu.Lock()
+			tracker.systemClockDifference = c.clock.Since(pong.systemClock) - pong.reqDuration/2
+			tracker.mu.Unlock()
+		}
+	}()
+
+	return nil
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {

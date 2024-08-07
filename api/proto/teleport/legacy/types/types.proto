@@ -707,6 +707,12 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
+
+  // SystemClockDifference stores information about the system clock difference with auth service.
+  int64 SystemClockDifference = 9 [
+    (gogoproto.jsontag) = "system_clock_difference,omitempty",
+    (gogoproto.casttype) = "time.Duration"
+  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of

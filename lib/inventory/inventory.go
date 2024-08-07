@@ -456,6 +456,10 @@ type instanceStateTracker struct {
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
 
+	// systemClockDifference is the last observed clock difference for this instance, might be used for
+	// next heartbeat for result propagation and caching.
+	systemClockDifference time.Duration
+
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
 	retryHeartbeat bool
@@ -530,6 +534,7 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
+		SystemClockDifference:   i.systemClockDifference,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
