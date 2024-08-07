@@ -20,8 +20,8 @@ All agent installations are in-scope for this proposal, including agents install
 The following anti-goals are out-of-scope for this proposal, but will be addressed in future RFDs:
 - Signing of agent artifacts (e.g., via TUF)
 - Teleport Cloud APIs for updating agents
-- Improvements to the local functionality of the Kubernetes agent for better compatibility with FluxCD and ArgoCD.
-- Support for progressive rollouts to different groups of ephemeral or auto-scaling agents (see: Version Promotion).
+- Improvements to the local functionality of the Kubernetes agent for better compatibility with FluxCD and ArgoCD
+- Support for progressive rollouts to different groups of ephemeral or auto-scaling agents (see: Version Promotion)
 
 This RFD proposes a specific implementation of several sections in https://github.com/gravitational/teleport/pull/39217.
 
@@ -44,20 +44,18 @@ The existing mechanism for automatic agent updates does not provide a hands-off 
 11. The existing auto-updater is not self-updating.
 12. It is difficult and undocumented to automate agent upgrades with custom automation (e.g., with JamF). 
 
-We must provide a seamless, hands-off experience for auto-updates that is easy to maintain.
+We must provide a seamless, hands-off experience for auto-updates of Teleport Agents that is easy to maintain.
 
 ## Details - Teleport API
 
-Teleport will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
-The version and edition served from that endpoint will be configured using the `cluster_maintenance_config` and `autoupdate_version` resources.
-Whether the updater querying the endpoint is instructed to upgrade (via `agent_auto_update`) is dependent on the `host=[uuid]` parameter sent to `/v1/webapi/find`.
+Teleport proxies will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
+The version and edition served from that endpoint will be configured using new `cluster_maintenance_config` and `autoupdate_version` resources.
+Whether the Teleport updater querying the endpoint is instructed to upgrade (via `agent_auto_update`) is dependent on the `host=[uuid]` parameter sent to `/v1/webapi/find`.
 
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
-Teleport proxies use their access to heartbeat data to drive the rollout and modulate the `/v1/webapi/find` response given the host UUID.
+Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID.
 
 Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier.
-A host is eligible to upgrade if the upgrade group identifier matches, set in teleport.yaml:
-
 ```
 teleport:
   upgrade_group: staging
@@ -75,7 +73,7 @@ Group rollouts may be retried with `tctl autoupdate run`.
 
 Instance heartbeats will be cached by auth servers using a dedicated cache.
 This cache is updated using rate-limited backend reads that occur in the background, to avoid mass-reads of instance heartbeats.
-The rate is modulated by the total number of instance heartbeats.
+The rate is modulated by the total number of instance heartbeats, to avoid putting too much load on the backend on large clusters.
 The cache is considered healthy when all instance heartbeats present on the backend have been read in a time period that is also modulated by the total number of heartbeats.
 
 At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
@@ -86,7 +84,7 @@ Data key: `/autoupdate/[name of group]/[scheduled type](/[page-id])` (e.g., `/au
 Data value JSON:
 - `start_time`: timestamp of current window start time
 - `version`: version for which this rollout is valid
-- `hosts`: list of UUIDs in randomized order
+- `hosts`: list of host UUIDs in randomized order
 - `next_page`: additional UUIDs, if list is greater than 100,000 UUIDs
 - `expiry`: 2 weeks
 
@@ -125,8 +123,8 @@ The following data related to the rollout are stored in each instance heartbeat:
 Additionally, an in-memory data structure is maintained based on the cache, and kept up-to-date by a background process.
 This data structure contains the number of unfinished (pending and ongoing) upgrades preceding each instance heartbeat in the rollout plan.
 Instance heartbeats are considered completed when either `agent_upgrade_version` matches the plan version, or `agent_upgrade_start_time` is past the expiration time.
-```
-upgrading := make(map[Rollout][UUID]int)
+```golang
+unfinished := make(map[Rollout][UUID]int)
 ```
 
 On each instance heartbeat write, the auth server looks at the data structure to determine if the associated agent should begin upgrading.
@@ -137,7 +135,7 @@ The auth server writes the index of the last host that is allowed to upgrade to 
 Writes are rate-limited such that the progress is only updated every 10 seconds.
 
 Proxies read all groups and maintain an in-memory map of host UUID to upgrading status:
-```
+```golang
 upgrading := make(map[UUID]bool)
 ```
 Proxies watch for changes to `/progress` and update the map accordingly.
@@ -163,7 +161,6 @@ Upgrading all agents generates the following additional backend write load:
 }
 ```
 Notes:
-- The Teleport proxy uses `cluster_maintenance_config` and `autoupdate_config` (below) to determine the time when the served `agent_auto_update` is `true` for the provided host UUID.
 - Agents will only upgrade if `agent_auto_update` is `true`, but new installations will use `agent_version` regardless of the value in `agent_auto_update`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
 - The host UUID is ready from `/var/lib/teleport` by the updater.
@@ -222,7 +219,8 @@ spec:
   # ...
 ```
 
-Cycles and dependency chains longer than a week will be rejected.
+Dependency cycles are rejected.
+Dependency chains longer than a week will be rejected.
 Otherwise, updates could take up to 7 weeks to propagate.
 
 The updater will receive `agent_auto_update: true` from the time is it designated for upgrade until the version changes in `autoupdate_version`.
@@ -328,7 +326,8 @@ Notes:
 
 Maintaining the version of different groups of agents is out-of-scope for this RFD.
 This means that groups which employ auto-scaling or ephemeral resources will slowly converge to the latest Teleport version.
-This could lead to a production outage, as the latest Teleport version may not receive any validation before it is advertised to newly provisioned resources in production.
+
+**This could lead to a production outage, as the latest Teleport version may not receive any validation before it is advertised to newly provisioned resources in production.**
 
 To solve this in the future, we can add an additional `--group` flag to `teleport-update`:
 ```shell
