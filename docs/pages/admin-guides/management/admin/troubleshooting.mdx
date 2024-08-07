@@ -207,7 +207,7 @@ purposes and seeing it within your logs is not necessarily an indication that
 anything is incorrect.
 
 Firstly, Teleport uses this value within certificates (as a DNS Subject
-Alternative Name) issued to the Auth and Proxy Service. Teleport clients can
+Alternative Name) issued to the Auth Service and Proxy Service Service. Teleport clients can
 then use this value to validate the service's certificates during the TLS
 handshake regardless of the service address as long as the client already has a
 copy of the cluster's certificate authorities. This is important as there are

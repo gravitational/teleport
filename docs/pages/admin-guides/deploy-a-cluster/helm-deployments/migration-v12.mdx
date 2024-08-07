@@ -13,7 +13,7 @@ and how to upgrade existing releases from version 11 to version 12.
 The main changes in version 12 of the `teleport-cluster` chart are:
 
 - PodSecurityPolicy has been removed on Kubernetes 1.23 and 1.24
-- Teleport now deploys its Auth and Proxy Services as separate pods.
+- Teleport now deploys its Auth Service and Proxy Service Services as separate pods.
   Running Teleport with this new topology allows it to be more resilient to
   disruptions and scale better.
 - Proxies are now deployed as stateless workloads. The `proxy` session recording
