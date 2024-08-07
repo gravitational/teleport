@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -203,4 +204,7 @@ type Presence interface {
 type PresenceInternal interface {
 	Presence
 	InventoryInternal
+
+	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
+	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
 }
