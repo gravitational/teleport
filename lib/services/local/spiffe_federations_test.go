@@ -176,7 +176,30 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 }
 
 func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
+	ctx, service := setupSPIFFEFederationTest(t)
 
+	t.Run("ok", func(t *testing.T) {
+		_, err := service.CreateSPIFFEFederation(
+			ctx,
+			newSPIFFEFederation("example.com"),
+		)
+		require.NoError(t, err)
+
+		_, err = service.GetSPIFFEFederation(ctx, "example.com")
+		require.NoError(t, err)
+
+		err = service.DeleteSPIFFEFederation(ctx, "example.com")
+		require.NoError(t, err)
+
+		_, err = service.GetSPIFFEFederation(ctx, "example.com")
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
+	t.Run("not found", func(t *testing.T) {
+		_, err := service.GetSPIFFEFederation(ctx, "foo.example.com")
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
 }
 
 func TestSPIFFEFederationService_DeleteAllSPIFFEFederation(t *testing.T) {
