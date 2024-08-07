@@ -176,7 +176,7 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 	require.NoError(s.T(), err)
 	privateKey, err := keys.NewPrivateKey(signer, privateKeyPEM)
 	require.NoError(s.T(), err)
-	keyRing := libclient.NewKey(privateKey)
+	keyRing := libclient.NewKeyRing(privateKey)
 
 	certs, err := s.client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: publicKeyPEM,

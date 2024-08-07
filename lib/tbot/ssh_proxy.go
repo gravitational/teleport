@@ -256,7 +256,7 @@ func resolveTargetHostWithClient(
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
 	identityPath := filepath.Join(destPath, config.IdentityFilePath)
-	key, err := identityfile.KeyFromIdentityFile(identityPath, proxy, cluster)
+	key, err := identityfile.KeyRingFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

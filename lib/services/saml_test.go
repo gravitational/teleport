@@ -179,7 +179,7 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 		assertResult  require.ValueAssertionFunc
 	}{
 		{
-			name:          "should read singing key from existing connector with matching cert",
+			name:          "should read signing key from existing connector with matching cert",
 			connectorName: existingConnectorName,
 			connectorSpec: types.SAMLConnectorSpecV2{
 				SigningKeyPair: &types.AsymmetricKeyPair{

@@ -74,14 +74,14 @@ func TestAzure(t *testing.T) {
 
 	// Log into the "azure-api" app.
 	// Verify `tsh az login ...` gets called.
-	run([]string{"app", "login", "--azure-identity", "dummy_azure_identity", "azure-api"},
+	run([]string{"app", "login", "--insecure", "--azure-identity", "dummy_azure_identity", "azure-api"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
 		}))
 
 	// Log into the "azure-api" app -- now with --debug flag.
-	run([]string{"app", "login", "azure-api", "--debug"},
+	run([]string{"app", "login", "--insecure", "azure-api", "--debug"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"--debug", "az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil

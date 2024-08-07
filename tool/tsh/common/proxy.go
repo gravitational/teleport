@@ -397,6 +397,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
+	if cf.LocalProxyPort == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
+
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
 			log.WithError(err).Error("Failed to close app proxy.")
@@ -568,12 +573,12 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 }
 
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
+	keyRing, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := key.AppTLSCert(appName)
+	appCert, err := keyRing.AppTLSCert(appName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {
