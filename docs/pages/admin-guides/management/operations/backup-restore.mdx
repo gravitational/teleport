@@ -49,7 +49,7 @@ Teleport audit logs, logged events have a TTL of 1 year.
 </TabItem>
 <TabItem label="Cloud-Hosted">
 
-Teleport Enterprise Cloud manages all Auth Service and Proxy Service backups.
+Teleport Enterprise manages all Auth Service and Proxy Service backups.
 
 While Teleport Nodes are stateless, you should ensure that you can restore their
 configuration files.
@@ -110,7 +110,7 @@ Using `tctl get all --with-secrets` will retrieve the below items:
   - OIDC
 - Roles
 
-When migrating backends, you should back up your Auth Service's
+When migrating backends, you should back up your Auth Service instances
 `data_dir/storage` directly.
 
 ### Example of backing up and restoring a cluster
@@ -155,7 +155,7 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
   - Some user authentication mechanisms (e.g. WebAuthn) require that the public
     endpoint of the Web UI remains the same. This cannot be caught by Teleport,
     so be careful!
-  - Any Node whose invite token is defined in the Auth Service's configuration
+  - Any Node whose invite token is defined in the Auth Service instances configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
 
@@ -174,7 +174,7 @@ Using `tctl get all --with-secrets` will retrieve the below items:
 - GitHub Connectors
 - Roles
 
-When migrating backends, you should back up your Auth Service's
+When migrating backends, you should back up your Auth Service instances
 `data_dir/storage` directly.
 
 ### Example of backing up and restoring a cluster
@@ -219,14 +219,14 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
   - Some user authentication mechanisms (e.g. WebAuthn) require that the public
     endpoint of the Web UI remains the same. This cannot be caught by Teleport,
     so be careful!
-  - Any Node whose invite token is defined in the Auth Service's configuration
+  - Any Node whose invite token is defined in the Auth Service instances configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
 
 </TabItem>
-<TabItem label="Teleport Enterprise Cloud">
+<TabItem label="Teleport Enterprise">
 
-In Teleport Enterprise Cloud, backend data is managed for you automatically. 
+In Teleport Enterprise, backend data is managed for you automatically. 
 
 If you would like to migrate configuration resources to a self-hosted Teleport
 cluster, follow our recommended backup practice of storing configuration

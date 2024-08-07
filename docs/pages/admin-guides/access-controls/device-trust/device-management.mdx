@@ -146,7 +146,7 @@ integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 Enable auto-enrollment in your cluster settings:
 
 <Tabs dropDownCaption="Teleport Deployment">
-<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
+<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise" >
 Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
 
 ```diff
@@ -163,7 +163,7 @@ spec:
 
 </TabItem>
 <TabItem label="Static Config" options="Self-Hosted">
-Edit the Auth Service's `teleport.yaml` file:
+Edit the Auth Service instances `teleport.yaml` file:
 
 ```diff
 auth_service:
@@ -304,7 +304,7 @@ configuring `ekcert_allowed_cas`:
   clusters and is the most flexible.
 
 <Tabs dropDownCaption="Teleport Deployment">
-<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
+<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise" >
 Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
 
 ```diff
@@ -326,7 +326,7 @@ spec:
 
 </TabItem>
 <TabItem label="Static Config" options="Self-Hosted">
-Edit the Auth Service's `teleport.yaml` file and restart:
+Edit the Auth Service instances `teleport.yaml` file and restart:
 
 ```diff
 auth_service:

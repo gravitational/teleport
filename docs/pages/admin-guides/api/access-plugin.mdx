@@ -73,7 +73,7 @@ a particular workflow.
 ## Step 2/5. Set up the Google Sheets API
 
 Access Request plugins typically communicate with two APIs. They receive Access
-Request events from the Teleport Auth Service's gRPC API, and use the data to
+Request events from the Teleport Auth Service instances gRPC API, and use the data to
 interact with the API of your chosen messaging or collaboration tool.
 
 In this section, we will enable the Google Sheets API, create a Google Cloud
@@ -171,13 +171,13 @@ $ tctl auth sign --user=access-plugin --out=auth.pem
 ```
 
 Teleport's Access Request plugins listen for new and updated Access Requests by
-connecting to the Teleport Auth Service's gRPC endpoint over TLS.
+connecting to the Teleport Auth Service instances gRPC endpoint over TLS.
 
 The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
 Access Request plugin uses the SSH credentials to connect to the Proxy Service,
 which establishes a reverse tunnel connection to the Auth Service. The plugin
 uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
+Auth Service instances gRPC endpoint.
 
 You will refer to this file later when configuring the plugin.
 
@@ -210,7 +210,7 @@ The plugin imports the following third-party code:
 
 |Package|Description|
 |---|---|
-|`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service's gRPC API and making requests.|
+|`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service instances gRPC API and making requests.|
 |`github.com/gravitational/teleport/api/types`|Types used in the Auth Service API, e.g., Access Requests.|
 |`github.com/gravitational/trace`|Presenting errors with more useful detail than the standard library provides.|
 |`google.golang.org/api/option`|Settings for configuring Google API clients.|
@@ -226,7 +226,7 @@ First, we declare two constants that you need to configure for your environment:
 ```
 
 `proxyAddr` indicates the hostname and port of your Teleport Proxy Service or
-Teleport Enterprise Cloud tenant. Assign it to the address of your own Proxy
+Teleport Enterprise tenant. Assign it to the address of your own Proxy
 Service, e.g., `mytenant.teleport.sh:443`.
 
 Assign `spreadSheetID` to the ID of the spreadsheet you created earlier. To find

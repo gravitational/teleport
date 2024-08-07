@@ -147,7 +147,7 @@ To complete the steps in this guide, verify your environment meets the following
 
 - The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
   
-  For Teleport Enterprise and Teleport Enterprise cloud, you should have the
+  For Teleport Enterprise and Teleport Enterprise, you should have the
   Enterprise version of `tctl` and `tsh` installed.  You can verify the tools
   you have installed by running the following commands:
 
@@ -898,7 +898,7 @@ command to start the teleport service:
 teleport start --debug`
 ```
 
-You can also enable verbose output by updating the configuration file for both Auth Services.
+You can also enable verbose output by updating the configuration file for both Auth Service instances.
 Open the `/etc/teleport.yaml` configuration file and add `DEBUG` to the `log` configuration section:
 
 ```yaml

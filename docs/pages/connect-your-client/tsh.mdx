@@ -49,7 +49,7 @@ $ tsh logout
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Login into a Teleport cluster. This command retrieves the user's certificates
@@ -126,7 +126,7 @@ $ tsh ssh --proxy=work.example.com --user=joe root@node
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Authenticate against the "work" cluster as joe and then
@@ -159,7 +159,7 @@ $ tsh login --proxy=work.example.com:5000
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Full form:
@@ -204,7 +204,7 @@ $ tsh --proxy=proxy.example.com --auth=github login
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Log in using the local Teleport 'admin' user:
@@ -232,7 +232,7 @@ $ tsh login --proxy=work.example.com --browser=none
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Don't open the system default browser when logging in
@@ -270,7 +270,7 @@ $ tsh status
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh status
@@ -326,7 +326,7 @@ $ tsh ssh --proxy=proxy.example.com -i joe joe@db
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Authenticate the user against mytenant.teleport.sh and save the user
@@ -359,7 +359,7 @@ $ ls -lh
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --out=joe --format=openssh
@@ -404,7 +404,7 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Log in to your Teleport Enterprise cluster so you can use tctl locally.
@@ -489,7 +489,7 @@ $ ssh -o AddKeysToAgent=yes user@node
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Have this alias configured, perhaps via ~/.bashrc
@@ -574,7 +574,7 @@ $ tsh ssh -J proxy.example.com telenode
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh ssh -J mytenant.teleport.sh telenode
@@ -715,7 +715,7 @@ $ tsh --proxy=work clusters
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 Assuming the Teleport Enterprise tenant called `mytenant.teleport.sh` is configured with a few trusted
 clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
@@ -750,7 +750,7 @@ $ tsh --proxy=work ls --cluster=production
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh --proxy=mytenant.teleport.sh ls --cluster=production
@@ -780,7 +780,7 @@ establishes a reverse SSH tunnel back into the Proxy Service called `work`, and
 this tunnel is used to establish inbound SSH connections.
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh --proxy=mytenant.teleport.sh ssh --cluster=production db-1

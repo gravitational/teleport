@@ -49,7 +49,7 @@ assign to it. You can use the `tctl` command below to examine what roles exist
 on your system.
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 On your client machine, log in to Teleport using `tsh`, then use `tctl` to examine
 what roles exist on your system.
 </TabItem>
@@ -179,7 +179,7 @@ this by omitting this.
 Replace the following fields with values from your own cluster.
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
@@ -262,7 +262,7 @@ with your proxy address.
 $ tsh ssh --proxy=teleport.example.com -i /opt/machine-id/identity root@node-name
 ```
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 ```code
 $ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
 ```

@@ -840,10 +840,10 @@ access to DynamoDB.
 
 To configure Teleport to use DynamoDB:
 
-- Configure all Teleport Auth Services to use DynamoDB backend in the "storage"
+- Configure all Teleport Auth Service instances to use DynamoDB backend in the "storage"
   section of `teleport.yaml` as shown below.
-- Auth Services must be able to reach DynamoDB and DynamoDB Streams endpoints.
-- Deploy up to two Auth Services connected to DynamoDB storage backend.
+- Auth Service instances must be able to reach DynamoDB and DynamoDB Streams endpoints.
+- Deploy up to two Auth Service instances connected to DynamoDB storage backend.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
   populated with the addresses of your cluster's Auth Service instances.
@@ -928,7 +928,7 @@ mode. This helps prevent any DynamoDB throttling due to underestimated usage or 
 
 ### Configuring AWS FIPS endpoints
 
-This config option applies to [AWS S3](#s3) and [AWS DynamoDB](#dynamodb).
+This config option applies to [AWS S3](#s3) and [Amazon DynamoDB](#dynamodb).
 
 Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used.
 If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.
@@ -1285,9 +1285,9 @@ Firestore cannot store the recorded sessions. You are advised to use Google
 Cloud Storage (GCS) for that as shown above. To configure Teleport to use
 Firestore:
 
-- Configure all Teleport Auth Services to use Firestore backend in the "storage"
+- Configure all Teleport Auth Service instances to use Firestore backend in the "storage"
   section of `teleport.yaml` as shown below.
-- Deploy several Auth Services connected to Firestore storage backend.
+- Deploy several Auth Service instances connected to Firestore storage backend.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers`
   configuration setting populated with the addresses of your cluster's Auth
@@ -1399,7 +1399,7 @@ storage section in the Teleport configuration file, or when `type` is set to
 it's not capable of serving the needs of Teleport's High Availability configurations.
 
 If you are planning to use SQLite as your backend, scale your cluster slowly and
-monitor the number of warning messages in the Auth Service's logs that say
+monitor the number of warning messages in the Auth Service instances logs that say
 `SLOW TRANSACTION`, as that's a sign that the cluster has outgrown the capabilities
 of the SQLite backend.
 

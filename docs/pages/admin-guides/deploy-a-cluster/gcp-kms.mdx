@@ -9,7 +9,7 @@ Cloud Key Management Service (KMS) to store and handle the CA private key
 material used to sign all certificates issued by your Teleport cluster.
 
 Teleport generates private key material for its internal Certificate Authorities
-(CAs) during the first Auth Service's initial startup.
+(CAs) during the first Auth Service instances initial startup.
 These CAs are used to sign all certificates issued to clients and hosts in the
 Teleport cluster.
 When configured to use Google Cloud KMS, all private key material for these CAs
@@ -40,7 +40,7 @@ higher.
 
 Each Teleport Auth Service will need to be configured to use a GCP key ring
 which will hold all keys generated and used by that Auth Service.
-If running a High-Availability Teleport cluster with two or more Auth Services,
+If running a High-Availability Teleport cluster with two or more Auth Service instances,
 every Auth Service can be configured to use the same key ring, or if desired each
 can be configured to use a unique key ring in a different region (for redundancy
 or to decrease latency).
@@ -49,7 +49,7 @@ It is recommended to create a dedicated key ring for use by Teleport to logicall
 separate it from any other keys in your cloud account.
 Choose a supported
 [KMS location](https://cloud.google.com/kms/docs/locations)
-for the key ring which is geographically near to your Teleport Auth Services.
+for the key ring which is geographically near to your Teleport Auth Service instances.
 
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
 tool. Follow
@@ -144,7 +144,7 @@ to learn how to provide them for your preferred environment.
 <Details title="Manually checking permissions">
 
 To make sure the credentials have been configured correctly, you can run the
-`gcloud` CLI tool from your Teleport Auth Service's environment. Some example
+`gcloud` CLI tool from your Teleport Auth Service instances environment. Some example
 commands you could use to debug are listed here:
 
 ```code

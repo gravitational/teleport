@@ -17,7 +17,7 @@ authenticates to Azure as a principal with permissions to manage the database.
 ![Teleport Database Access Azure Cache for Redis Self-Hosted](../../../../img/database-access/guides/azure/redis-self-hosted.png)
 </TabItem>
 
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 ![Teleport Database Access Azure Cache for Redis Cloud](../../../../img/database-access/guides/azure/redis-cloud.png)
 </TabItem>
 
@@ -59,7 +59,7 @@ $ sudo teleport db configure create \
   --azure-redis-discovery=eastus
 ```
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ sudo teleport db configure create \
@@ -176,7 +176,7 @@ my-azure-redis-enterprise Azure Redis Enterprise server in East US [*]          
 
 </TabItem>
 
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice

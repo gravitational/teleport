@@ -1,5 +1,5 @@
 ---
-title: Teleport Enterprise Cloud FAQ
+title: Teleport Enterprise FAQ
 description: Teleport Enterprise frequently asked questions.
 tocDepth: 3
 ---
@@ -10,17 +10,17 @@ tocDepth: 3
 
 Please [reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
 
-### Can a customer deploy multiple clusters in Teleport Enterprise Cloud?
+### Can a customer deploy multiple clusters in Teleport Enterprise?
 
 [Reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
 
-### If I start with Teleport Enterprise Cloud, can I move to Teleport Enterprise or Teleport Community Edition, or do I need to start again?
+### If I start with Teleport Enterprise, can I move to Teleport Enterprise or Teleport Community Edition, or do I need to start again?
 
 If you plan to use S3 and DynamoDB as storage backends, we can provide data for you to import. But you should reach out to us first. If you use a different backend, you will need to start over.
 
 ## Security
 
-### How long will Teleport Enterprise Cloud retain my data?
+### How long will Teleport Enterprise retain my data?
 
 See our documentation on [data retention](architecture/teleport-cloud-architecture.mdx).
 
@@ -29,7 +29,7 @@ See our documentation on [data retention](architecture/teleport-cloud-architectu
 Security audits by independent third-parties are performed at least annually. You can request audit results and other
 related information on the [Teleport Trust Portal](https://trust.goteleport.com).
 
-### Does your SOC 2 report include Teleport Enterprise Cloud?
+### Does your SOC 2 report include Teleport Enterprise?
 
 (!docs/pages/includes/soc2.mdx!)
 
@@ -39,14 +39,14 @@ Password hashes are generated using [bcrypt](https://pkg.go.dev/golang.org/x/cry
 
 ### Do you encrypt data at rest?
 
-Each deployment is using at-rest encryption using AWS DynamoDB and S3 at-rest encryption
+Each deployment is using at-rest encryption using Amazon DynamoDB and S3 at-rest encryption
 for customer data including session recordings and user records.
 
 ### Can I get a list of IP addresses to configure a firewall?
 
 See the [Public IP Address Allowlist](../ips.mdx) for the list of IP addresses.
 
-### Can I configure an allowlist of inbound IP addresses to Teleport Enterprise Cloud?
+### Can I configure an allowlist of inbound IP addresses to Teleport Enterprise?
 
 We do not have plans to offer support for inbound connection IP allowlists.
 
@@ -63,7 +63,7 @@ Teleport components communicate with themselves using mTLS, with a separate cert
 S3, are established using encryption provided by AWS, both at rest and in transit. Each tenant has its own credentials that isolate it to interacting with only its own data.
 ## Connecting resources
 
-### How do I add resources to Teleport Enterprise Cloud?
+### How do I add resources to Teleport Enterprise?
 
 You can connect servers, Kubernetes clusters, databases, desktops, and
 applications using [reverse
@@ -80,7 +80,7 @@ If you plan on connecting more than 10,000 nodes or agents, please contact your 
 
 ### Are dynamic node tokens available?
 
-After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Enterprise Cloud, users can generate
+After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Enterprise, users can generate
 [dynamic tokens](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx):
 
 ```code
@@ -111,9 +111,9 @@ $ tctl tokens add --type=node
 
 ## Audit events and session recordings
 
-### Is there a way to forward Teleport Enterprise Cloud audit events to my company's internal Security Information and Event Management (SIEM)?
+### Is there a way to forward Teleport Enterprise audit events to my company's internal Security Information and Event Management (SIEM)?
 
-Yes. We recommend Teleport's [event handler plugin](../admin-guides/management/export-audit-events/fluentd.mdx) to export Teleport Enterprise Cloud audit events.
+Yes. We recommend Teleport's [event handler plugin](../admin-guides/management/export-audit-events/fluentd.mdx) to export Teleport Enterprise audit events.
 
 ### Is it possible to store audit logs and session recordings in my own S3 bucket?
 
@@ -167,7 +167,7 @@ You can check the status of your Teleport Agent versions from the `tctl inventor
 services are those managed by Teleport. See [How can I find version information on
 connected agents?](#how-can-i-find-version-information-on-connected-agents) for further detail.
 
-### Are updates times configurable for Teleport Enterprise Cloud?
+### Are updates times configurable for Teleport Enterprise?
 
 Yes, Teleport provides a scheduled maintenance time window for updates and you can set
 the start time for the maintenance window that works best for your organization. The
@@ -188,7 +188,7 @@ new releases.
 
 ### When are agents automatically updated?
 
-Teleport Enterprise Cloud must be set to receive automatic updates to use the
+Teleport Enterprise must be set to receive automatic updates to use the
 Teleport Enterprise version server for automatic agent updates. With automatic agent
 updates, agents periodically check the version server for new releases and
 update the software when new versions are found.
@@ -214,10 +214,10 @@ Server ID                            Hostname              Services        Agent
 
 ## Architecture and networking
 
-### Which Proxy Service ports are open on my Teleport Enterprise Cloud tenant?
+### Which Proxy Service ports are open on my Teleport Enterprise tenant?
 
-Teleport Enterprise Cloud allocates a different set of ports to each tenant. To see which
-ports are available for your Teleport Enterprise Cloud tenant, run a command similar to the
+Teleport Enterprise allocates a different set of ports to each tenant. To see which
+ports are available for your Teleport Enterprise tenant, run a command similar to the
 following, replacing `example.teleport.sh` with your tenant domain:
 
 ```code
@@ -266,7 +266,7 @@ Teleport uses [letsencrypt.org](https://letsencrypt.org/) to issue
 certificates for every customer. It is not possible to upload a custom
 certificate or use a custom domain name.
 
-### Where does Teleport Enterprise Cloud run?
+### Where does Teleport Enterprise run?
 
 Teleport Enterprise runs on Amazon Web Services (AWS). We run proxies in a variety 
 of regions all over the world, and allow customers to [select the region](architecture/teleport-cloud-architecture.mdx) where the data is stored.
@@ -282,9 +282,9 @@ It's a Teleport-managed S3 bucket with AWS-managed keys by default.
 Configuring [External Audit Storage](../admin-guides/management/external-audit-storage.mdx) will allow
 you to use your own S3 bucket.
 
-### Is IPv6 Supported for connections to Teleport Enterprise Cloud?
+### Is IPv6 Supported for connections to Teleport Enterprise?
 
-We don't currently support IPv6 connections to Teleport Enterprise Cloud.
+We don't currently support IPv6 connections to Teleport Enterprise.
 
 ### Can I change the domain name of my Cloud instance after it's been created?
 
@@ -292,18 +292,18 @@ We're currently researching whether this can be done, so please contact support 
 
 ### Is FIPS mode an option?
 
-FIPS is not currently an option for Teleport Enterprise Cloud clusters.
+FIPS is not currently an option for Teleport Enterprise clusters.
 
 
 ## Performance and reliability
 
-### Can I use Teleport Enterprise Cloud in production?
+### Can I use Teleport Enterprise in production?
 
-Yes. Large organizations leverage Teleport Enterprise Cloud to manage the vast number of resources in their organization. Teleport Enterprise Cloud is audited regularly to ensure the most reliable and secure service possible is available to our customers.
+Yes. Large organizations leverage Teleport Enterprise to manage the vast number of resources in their organization. Teleport Enterprise is audited regularly to ensure the most reliable and secure service possible is available to our customers.
 
 ### What is the Cloud SLA?
 
-Teleport Enterprise Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
+Teleport Enterprise commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
 a maximum of (=cloud.sla.monthly_downtime=) of downtime per month. While we routinely exceed this SLA,
 this number reflects risks in our architecture that we will improve over time.
 
@@ -311,9 +311,9 @@ this number reflects risks in our architecture that we will improve over time.
 
 [status.teleport.sh](https://status.teleport.sh)
 
-### Can I get push notifications of Teleport Enterprise Cloud downtime?
+### Can I get push notifications of Teleport Enterprise downtime?
 
-Yes. Customers can subscribe to Teleport Enterprise Cloud updates at [status.teleport.sh](https://status.teleport.sh).
+Yes. Customers can subscribe to Teleport Enterprise updates at [status.teleport.sh](https://status.teleport.sh).
 
 ### Can I retrieve diagnostics from my hosted cluster?
 

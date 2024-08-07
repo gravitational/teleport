@@ -9,7 +9,7 @@ description: Getting started with Teleport database access and AWS Aurora Postgr
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
 </TabItem>
 
@@ -115,7 +115,7 @@ $ sudo teleport db configure create \
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 On the node where you will run the Teleport Database Service, configure Teleport and
 point it to your Aurora database instance. Make sure to update the database
@@ -204,7 +204,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="alice"
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 $ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=<Var name="alice" />

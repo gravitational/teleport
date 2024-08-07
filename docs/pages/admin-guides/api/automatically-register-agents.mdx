@@ -179,7 +179,7 @@ The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
 client application uses the SSH credentials to connect to the Proxy Service,
 which establishes a reverse tunnel connection to the Auth Service. The plugin
 uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
+Auth Service instances gRPC endpoint.
 
 ## Step 4/5. Write the client application
 
@@ -234,7 +234,7 @@ The client imports the following third-party code:
 |`github.com/docker/docker/api/types/filters`|Types used for filtering containers in the Docker daemon API.|
 |`github.com/docker/docker/api/types/strslice`|A utility package for working with slices of strings in Docker's API client library. (In Go, slices are similar to arrays, but with variable lengths and capacities. Arrays have a fixed size.)|
 |`github.com/docker/docker/client`|The Docker API client library, aliased as `docker` here.|
-|`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service's gRPC API and making requests, aliased as `teleport`.|
+|`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service instances gRPC API and making requests, aliased as `teleport`.|
 |`github.com/gravitational/api/client/proto`|Teleport's protocol buffer API specification.|
 |`github.com/gravitational/teleport/api/types`|Types used in the Auth Service API, e.g., Application Service records.|
 |`github.com/gravitational/trace`|Presents errors with more useful detail than the standard library provides.|

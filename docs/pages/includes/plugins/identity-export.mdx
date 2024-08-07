@@ -12,13 +12,13 @@ directory:
 $ tctl auth sign --user={{ user }} --out=identity
 ```
 
-The {{ client }} connects to the Teleport Auth Service's gRPC endpoint over TLS.
+The {{ client }} connects to the Teleport Auth Service instances gRPC endpoint over TLS.
 
 The identity file, `identity`, includes both TLS and SSH credentials. The
 {{ client }} uses the SSH credentials to connect to the Proxy Service, which
 establishes a reverse tunnel connection to the Auth Service. The {{ client }}
 uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
+Auth Service instances gRPC endpoint.
 
 <Details
   title="Certificate Lifetime"

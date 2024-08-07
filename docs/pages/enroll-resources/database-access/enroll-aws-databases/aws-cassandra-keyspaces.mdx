@@ -13,7 +13,7 @@ description: How to configure Teleport database access with Amazon Keyspaces (Ap
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Self-Hosted](../../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 ![Teleport Database Access Redis Cloud](../../../../img/database-access/guides/cassandra_keyspaces_cloud.png)
 </TabItem>
 
@@ -55,7 +55,7 @@ $ sudo teleport db configure create \
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -146,7 +146,7 @@ databases:
   ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
   ```code
   $ tsh login --proxy=mytenant.teleport.sh --user=alice

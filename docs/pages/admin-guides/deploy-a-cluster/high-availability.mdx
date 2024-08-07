@@ -25,7 +25,7 @@ Infrastructure components include:
 - A **public Layer 4 load balancer** to direct traffic from users and services
   to an available Proxy Service instance.
 - A **private Layer 4 load balancer** to direct traffic from the Proxy Service
-  to the Auth Service's gRPC API, which is how Teleport manages the Auth
+  to the Auth Service instances gRPC API, which is how Teleport manages the Auth
   Service's backend state and provides credentials to users and services in your
   cluster.
 - A **cluster state backend**. This is a key-value store for cluster state and
@@ -56,7 +56,7 @@ High-availability Teleport clusters require two load balancers:
   from users and services in a variety of application-layer protocols.
 - **Auth Service load balancer:** A load balancer to forward traffic from a
   Proxy Service instance to an available Auth Service instance. This handles TLS
-  traffic to the Auth Service's gRPC endpoint.
+  traffic to the Auth Service instances gRPC endpoint.
 
 Both load balancers must transparently forward the TCP traffic they receive,
 without terminating TLS. In other words, these must be Layer 4 load balancers,
@@ -130,7 +130,7 @@ services:
 
 ### Configuring the Auth Service load balancer
 
-The Auth Service load balancer must forward traffic to the Auth Service's gRPC
+The Auth Service load balancer must forward traffic to the Auth Service instances gRPC
 port. In this guide, we are assuming that you have configured the Auth Service
 load balancer to forward traffic from port `3025` to port `3025` on an available
 Auth Service instance.

@@ -1,6 +1,6 @@
 ---
 title: External Audit Storage
-description: Store audit logs and session recordings on your own infrastructure with Teleport Enterprise Cloud.
+description: Store audit logs and session recordings on your own infrastructure with Teleport Enterprise.
 ---
 
 External Audit Storage is a feature of Teleport in which the Auth Service stores
@@ -18,12 +18,12 @@ audit events right where they are stored.
 External Audit Storage is based on Teleport's
 [Athena](../../reference/backends.mdx#athena) backend for audit events and the
 [S3](../../reference/backends.mdx#s3) backend for session recordings. It is only
-available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
+available on Teleport Enterprise clusters running Teleport v14.2.1 or
 above.
 
 ## Prerequisites
 
-1. A Teleport Enterprise Cloud account. If you do not have one, [sign
+1. A Teleport Enterprise account. If you do not have one, [sign
    up](https://goteleport.com/signup/) for a free trial.
 1. To store and query audit events and session recordings, you need to set up
    the following four components in an AWS account of your choosing. The
@@ -72,7 +72,7 @@ the Teleport Web UI:
 
 ![Screenshot of External Audit Storage integration tile](../../../img/externalauditstorage/integration.png)
 
-With External Audit Storage enabled, your Teleport Enterprise Cloud cluster acts
+With External Audit Storage enabled, your Teleport Enterprise cluster acts
 as an OpenID Connect (OIDC) identity provider to authenticate to your
 organization's AWS account.
 

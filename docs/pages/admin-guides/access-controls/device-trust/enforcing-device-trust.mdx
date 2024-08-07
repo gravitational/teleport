@@ -96,7 +96,7 @@ accesses.
 To enable device mode `required` update your configuration as follows:
 
 <Tabs dropDownCaption="Teleport Deployment">
-<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
+<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise" >
 Create a `cap.yaml` file or get the existing configuration using
 `tctl get cluster_auth_preference`:
 
@@ -129,7 +129,7 @@ $ tctl edit cluster_auth_preference
 
 </TabItem>
 <TabItem label="Static Config" options="Self-Hosted">
-Edit the Auth Service's `teleport.yaml` file and restart all Auth Services:
+Edit the Auth Service instances `teleport.yaml` file and restart all Auth Service instances:
 
 ```diff
 auth_service:

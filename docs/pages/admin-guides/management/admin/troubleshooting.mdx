@@ -219,7 +219,7 @@ HTTP requests to the Teleport API. This is because the Teleport API client uses
 special logic to open the connection to the Auth Service to make the request,
 rather than connecting to a single address as a typical client may do. This
 special logic is necessary for the client to be able to support connecting to a
-list of Auth Services or to be able to connect to the Auth Service through a
+list of Auth Service instances or to be able to connect to the Auth Service through a
 tunnel via the Proxy Service. This means that `teleport.cluster.local` appears
 in log messages that show the URL of a request made to the Auth Service, and
 does not explicitly indicate that something is misconfigured.

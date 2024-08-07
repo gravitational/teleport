@@ -4,7 +4,7 @@ description: How to securely configure PROXY protocol usage with Teleport
 ---
 <Admonition type="note" scope={["cloud", "team"]}>
 Users of Teleport Enterprise don't need to manage PROXY protocol setting manually. It's set to `on` automatically 
-and can't be changed, since cloud Proxy/Auth services managed by Teleport run behind a L4 load balancer with PROXY protocol configured. 
+and can't be changed, since cloud Proxy/Auth Service instances managed by Teleport run behind a L4 load balancer with PROXY protocol configured. 
 </Admonition>
 
 ## What is PROXY protocol
@@ -78,7 +78,7 @@ attackers can't spoof their IP address or bypass IP Pinning restrictions by conn
 Teleport only allows one PROXY protocol header for an incoming connection - it will reject requests that include multiple PROXY lines to prevent attacks when `proxy_protocol: on`.
 
 PROXY protocol behavior is controlled separately for Auth service and Proxy service. So you should ensure both have the correct 
-setting. If there's a PROXY-enabled L4 load balancer between your Proxy and Auth services, you should set `proxy_protocol: on` on the Auth,
+setting. If there's a PROXY-enabled L4 load balancer between your Proxy and Auth Service instances, you should set `proxy_protocol: on` on the Auth,
 otherwise set it to `off`.
 
 You can also have Teleport Proxies have different PROXY protocol settings, if you run some of them behind a load balancer and some not, for

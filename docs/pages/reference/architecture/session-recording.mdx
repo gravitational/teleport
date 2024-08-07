@@ -214,8 +214,8 @@ written to the storage backend.
 
 In synchronous recording modes, Teleport's Auth Service is streaming the recording directly
 to storage. If the Auth Service goes down during a session, the uncompleted upload will sit
-as a series of parts (in cloud storage or on the Auth Service's disk) and it is the
-responsibility of the Auth Service's upload completer to detect the abandoned upload and
+as a series of parts (in cloud storage or on the Auth Service instances disk) and it is the
+responsibility of the Auth Service instances upload completer to detect the abandoned upload and
 complete it.
 
 ## Related reading
