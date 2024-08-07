@@ -130,8 +130,8 @@ export function Table<T>({
       rows.push(
         <tr
           key={rowIdx}
-          onClick={row?.onClick ? () => row.onClick(item) : undefined}
-          style={row?.onStyle ? row.onStyle(item) : undefined}
+          onClick={() => row?.onClick?.(item)}
+          style={row?.getStyle?.(item)}
         >
           {cells}
         </tr>

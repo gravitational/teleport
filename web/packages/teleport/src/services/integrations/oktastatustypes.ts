@@ -16,16 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// OktaPluginSyncStatusCode indicates the possible states of an Okta
-// synchronization service.
+/**
+ * OktaPluginSyncStatusCode indicates the possible states of an Okta
+ * synchronization service.
+ */
 export enum PluginOktaSyncStatusCode {
-  // is the status code zero value,
-  // indicating that the service has not yet reported a status code.
-  Unspecified,
-  // indicates that the service is running without error
-  Success,
-  // indicates that the service is currently in an error state.
-  Error,
+  /**
+   * is the status code zero value,
+   * indicating that the service has not yet reported a status code.
+   */
+  Unspecified = 0,
+  /**
+   * indicates that the service is running without error
+   */
+  Success = 1,
+  /**
+   * indicates that the service is currently in an error state.
+   */
+  Error = 2,
 }
 
 export type PluginStatusOkta = {
@@ -85,6 +93,10 @@ export type OktaAccessListSyncDetails = {
   appFilters: string[];
   groupFilters: string[];
   defaultOwners: string[];
+  /**
+   * Error contains a textual description of the reason the last synchronization
+   * failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+   */
   error: string;
 };
 

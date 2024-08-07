@@ -62,7 +62,7 @@ export type TableProps<T> = {
     /**
      * conditionally style a row (eg: cursor: pointer, disabled)
      */
-    onStyle?(row: T): React.CSSProperties;
+    getStyle?(row: T): React.CSSProperties;
   };
 };
 
