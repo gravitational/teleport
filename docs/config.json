@@ -1638,27 +1638,27 @@
     },
     {
       "source": "/access-controls/access-graph/aws-sync/",
-      "destination": "/admin-guides/access-controls/access-graph/aws-sync/",
+      "destination": "/admin-guides/teleport-policy/integrations/aws-sync/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/entra-id/",
-      "destination": "/admin-guides/access-controls/access-graph/entra-id/",
+      "destination": "/admin-guides/teleport-policy/integrations/entra-id/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/gitlab/",
-      "destination": "/admin-guides/access-controls/access-graph/gitlab/",
+      "destination": "/admin-guides/teleport-policy/integrations/gitlab/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/self-hosted-helm/",
-      "destination": "/admin-guides/access-controls/access-graph/self-hosted-helm/",
+      "destination": "/admin-guides/deploy-a-cluster/access-graph/self-hosted-helm/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/self-hosted/",
-      "destination": "/admin-guides/access-controls/access-graph/self-hosted/",
+      "destination": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
       "permanent": true
     },
     {
@@ -1983,22 +1983,22 @@
     },
     {
       "source": "/access-controls/teleport-policy/getting-started-policy/",
-      "destination": "/admin-guides/access-controls/teleport-policy/getting-started-policy/",
+      "destination": "/admin-guides/teleport-policy/teleport-policy/",
       "permanent": true
     },
     {
       "source": "/access-controls/teleport-policy/policy-connections/",
-      "destination": "/admin-guides/access-controls/teleport-policy/policy-connections/",
+      "destination": "/admin-guides/teleport-policy/policy-connections/",
       "permanent": true
     },
     {
       "source": "/access-controls/teleport-policy/policy-how-to-use/",
-      "destination": "/admin-guides/access-controls/teleport-policy/policy-how-to-use/",
+      "destination": "/admin-guides/teleport-policy/policy-how-to-use/",
       "permanent": true
     },
     {
       "source": "/access-controls/teleport-policy/policy-integrations/",
-      "destination": "/admin-guides/access-controls/teleport-policy/policy-integrations/",
+      "destination": "/admin-guides/teleport-policy/integrations/integrations/",
       "permanent": true
     },
     {
