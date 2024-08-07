@@ -371,7 +371,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	// Update last used timestamp and device counter.
-	if err := updateCredentialAndTimestamps(dev, credential); err != nil {
+	if err := updateCredentialAndTimestamps(dev, credential, discoverableLogin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Retroactively write the credential RPID, now that it cleared authn.
@@ -434,13 +434,24 @@ func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bo
 	return nil, false
 }
 
-func updateCredentialAndTimestamps(dest *types.MFADevice, credential *wan.Credential) error {
+func updateCredentialAndTimestamps(
+	dest *types.MFADevice,
+	credential *wan.Credential,
+	discoverableLogin bool,
+) error {
 	switch d := dest.Device.(type) {
 	case *types.MFADevice_U2F:
 		d.U2F.Counter = credential.Authenticator.SignCount
 
 	case *types.MFADevice_Webauthn:
 		d.Webauthn.SignatureCounter = credential.Authenticator.SignCount
+
+		// Backfill ResidentKey field.
+		// This may happen if an authenticator created for "MFA" was actually
+		// resident all along (eg, Safari/Touch ID registrations).
+		if discoverableLogin && !d.Webauthn.ResidentKey {
+			d.Webauthn.ResidentKey = true
+		}
 
 		// Backfill BE/BS bits.
 		if d.Webauthn.CredentialBackupEligible == nil {
