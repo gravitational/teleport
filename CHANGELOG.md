@@ -23,6 +23,7 @@
 Enterprise:
 * Fixed a redirection issue with the SAML IdP authentication middleware which prevented users from signing into the service provider when an SAML authentication request was made with an HTTP-POST binding protocol, and user's didn't already have an active session with Teleport. [#4806](https://github.com/gravitational/teleport.e/pull/4806)
 * SAML applications can now be deleted from the Web UI. [#4778](https://github.com/gravitational/teleport.e/pull/4778)
+* Fixed an issue introduced in v16.0.3 and v15.4.6 where `tbot` FIPS builds fail to start due to a missing boringcrypto dependency. [#4757](https://github.com/gravitational/teleport.e/pull/4757)
 
 ## 16.1.1 (07/31/24)
 
