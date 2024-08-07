@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,37 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { FileStorage } from 'teleterm/services/fileStorage';
+package authorizedkeys
 
-export function createMockFileStorage(opts?: {
-  filePath: string;
-}): FileStorage {
-  let state = {};
-  return {
-    put(key: string, json: any) {
-      state[key] = json;
-    },
+/*
+#cgo CFLAGS: -D_POSIX_PTHREAD_SEMANTICS
+#include <pwd.h>
+*/
+import "C"
 
-    get<T>(key?: string): T {
-      return key ? state[key] : (state as T);
-    },
+import (
+	"os/user"
+)
 
-    async write() {},
+// getHostUsers returns a list of all users on the host
+// from local /etc/passwd file, LDAP, or other user databases.
+func getHostUsers() (results []user.User, _ error) {
+	C.setpwent()
+	var result *C.struct_passwd
+	for {
+		result = C.getpwent() /* on darwin, getpwent() is reentrant */
+		if result == nil {
+			break
+		}
+		results = append(results, passwdC2Go(result))
+	}
 
-    replace(json: any) {
-      state = json;
-    },
+	C.endpwent()
 
-    getFilePath() {
-      return opts?.filePath || '';
-    },
-
-    getFileName() {
-      return opts?.filePath.split('/').at(-1) || '';
-    },
-
-    getFileLoadingError() {
-      return undefined;
-    },
-  };
+	return results, nil
 }
