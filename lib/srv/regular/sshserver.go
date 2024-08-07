@@ -66,7 +66,6 @@ import (
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -211,7 +210,7 @@ type Server struct {
 	// creation
 	createHostUser bool
 
-	storage *local.PresenceService
+	storage services.PresenceInternal
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
@@ -616,7 +615,7 @@ func SetCreateHostUser(createUser bool) ServerOption {
 }
 
 // SetStoragePresenceService configures host user creation on a server
-func SetStoragePresenceService(service *local.PresenceService) ServerOption {
+func SetStoragePresenceService(service services.PresenceInternal) ServerOption {
 	return func(s *Server) error {
 		s.storage = service
 		return nil

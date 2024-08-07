@@ -25,11 +25,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// spiffeFederationReader is an interface that defines the methods for getting
+// SPIFFEFederationReader is an interface that defines the methods for getting
 // SPIFFE federations. This is returned as the reader for the SPIFFEFederations
 // collection but is also used by the executor to read the full list of
 // SPIFFE Federations on initialization.
-type spiffeFederationReader interface {
+type SPIFFEFederationReader interface {
 	ListSPIFFEFederations(ctx context.Context, pageSize int, nextToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 }
@@ -37,7 +37,7 @@ type spiffeFederationReader interface {
 // spiffeFederationCacher is used for storing and retrieving SPIFFE federations
 // from the cache's local backend.
 type spiffeFederationCacher interface {
-	spiffeFederationReader
+	SPIFFEFederationReader
 	UpsertSPIFFEFederation(ctx context.Context, federation *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error)
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
 	DeleteAllSPIFFEFederations(ctx context.Context) error
@@ -45,7 +45,7 @@ type spiffeFederationCacher interface {
 
 type spiffeFederationExecutor struct{}
 
-var _ executor[*machineidv1.SPIFFEFederation, spiffeFederationReader] = spiffeFederationExecutor{}
+var _ executor[*machineidv1.SPIFFEFederation, SPIFFEFederationReader] = spiffeFederationExecutor{}
 
 func (spiffeFederationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*machineidv1.SPIFFEFederation, error) {
 	var out []*machineidv1.SPIFFEFederation
@@ -81,7 +81,7 @@ func (spiffeFederationExecutor) delete(ctx context.Context, cache *Cache, resour
 
 func (spiffeFederationExecutor) isSingleton() bool { return false }
 
-func (spiffeFederationExecutor) getReader(cache *Cache, cacheOK bool) spiffeFederationReader {
+func (spiffeFederationExecutor) getReader(cache *Cache, cacheOK bool) SPIFFEFederationReader {
 	if cacheOK {
 		return cache.spiffeFederationCache
 	}

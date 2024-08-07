@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package authorizedkeys
 
-import { render, screen } from 'design/utils/testing';
+/*
+#cgo CFLAGS: -D_POSIX_PTHREAD_SEMANTICS
+#include <pwd.h>
+*/
+import "C"
 
-import { Loaded, Failed, Processing, Approved } from './RequestDelete.story';
+import (
+	"os/user"
+)
 
-test('loaded state', () => {
-  render(<Loaded />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
+// getHostUsers returns a list of all users on the host
+// from local /etc/passwd file, LDAP, or other user databases.
+func getHostUsers() (results []user.User, _ error) {
+	C.setpwent()
+	var result *C.struct_passwd
+	for {
+		result = C.getpwent() /* on darwin, getpwent() is reentrant */
+		if result == nil {
+			break
+		}
+		results = append(results, passwdC2Go(result))
+	}
 
-test('failed state', () => {
-  render(<Failed />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
+	C.endpwent()
 
-test('processing state', () => {
-  render(<Processing />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
-
-test('approved role escalation', () => {
-  render(<Approved />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
+	return results, nil
+}

@@ -11,7 +11,7 @@
     "build-term": "pnpm --filter=@gravitational/teleterm build",
     "start-term": "pnpm --filter=@gravitational/teleterm start",
     "package-term": "pnpm --filter=@gravitational/teleterm package",
-    "storybook": "if test -f web/certs/server.crt; then storybook dev -p 9002 -c web/.storybook --https --ssl-cert=web/certs/server.crt --ssl-key=web/certs/server.key; else echo \"Could not find SSL certificates. Please follow web/README.md to generate certificates.\" && false; fi",
+    "storybook": "./web/scripts/run-storybook.sh",
     "storybook-smoke-test": "storybook dev -p 9002 -c web/.storybook --ci --smoke-test",
     "test": "jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
@@ -82,7 +82,7 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@9.5.0",
+  "packageManager": "pnpm@9.6.0",
   "msw": {
     "workerDirectory": [
       "web/.storybook/public"

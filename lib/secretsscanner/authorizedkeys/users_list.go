@@ -1,6 +1,8 @@
+//go:build !windows
+
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,13 +18,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package authorizedkeys
 
-import { render } from 'design/utils/testing';
+/*
+#cgo CFLAGS: -D_POSIX_PTHREAD_SEMANTICS
+#include <pwd.h>
+*/
+import "C"
 
-import { Basic } from './Dialog.story';
+import (
+	"os/user"
+	"strconv"
+)
 
-test('rendering of Dialog* components', () => {
-  const { container } = render(<Basic />);
-  expect(container.firstChild).toMatchSnapshot();
-});
+// passwdC2Go converts `passwd` struct from C to golang native struct
+func passwdC2Go(passwdC *C.struct_passwd) user.User {
+	return user.User{
+		Name:     C.GoString(passwdC.pw_name),
+		Username: C.GoString(passwdC.pw_name),
+		Uid:      strconv.FormatUint(uint64(passwdC.pw_uid), 10),
+		Gid:      strconv.FormatUint(uint64(passwdC.pw_gid), 10),
+		HomeDir:  C.GoString(passwdC.pw_dir),
+	}
+}

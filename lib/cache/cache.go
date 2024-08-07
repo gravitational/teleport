@@ -694,7 +694,7 @@ type Config struct {
 	// AccessMonitoringRules is the access monitoring rules service.
 	AccessMonitoringRules services.AccessMonitoringRules
 	// SPIFFEFederations is the SPIFFE federations service.
-	SPIFFEFederations spiffeFederationReader
+	SPIFFEFederations SPIFFEFederationReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
