@@ -262,25 +262,25 @@ func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
 	return nil
 }
 
-func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
+func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (created bool, err error) {
 	if !ctx.srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
-		return nil // not an error to not be able to create host users
+		return false, nil // not an error to not be able to create host users
 	}
 
 	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			log.Warnf("Unable to create host users: %v", err)
-			return nil
+			return false, nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
 	existsErr := s.users.UserExists(ctx.Identity.Login)
 	if trace.IsAccessDenied(err) && existsErr != nil {
-		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+		return false, trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
 	userCloser, err := s.users.UpsertUser(ctx.Identity.Login, ui)
 	if userCloser != nil {
@@ -288,13 +288,10 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	}
 	if err != nil && !trace.IsAlreadyExists(err) {
 		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
-	// Indicate that the user was created by Teleport.
-	ctx.UserCreatedByTeleport = true
-
-	return nil
+	return true, nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.

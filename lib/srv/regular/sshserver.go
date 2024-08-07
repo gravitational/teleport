@@ -1450,9 +1450,13 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
-	if err := s.termHandlers.SessionRegistry.TryCreateHostUser(scx); err != nil {
+	created, err := s.termHandlers.SessionRegistry.TryCreateHostUser(scx)
+	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
+	// Indicate that the user was created by Teleport.
+	ccx.UserCreatedByTeleport = created
+
 	if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(scx); err != nil {
 		return ctx, trace.Wrap(err)
 	}
