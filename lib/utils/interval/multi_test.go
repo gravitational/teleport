@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-
 	"github.com/stretchr/testify/require"
 )
 

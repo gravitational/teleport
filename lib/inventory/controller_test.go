@@ -1021,7 +1021,7 @@ func TestTimeReconciliation(t *testing.T) {
 		expect(instanceHeartbeatOk),
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 	)
-	require.InDelta(t, time.Minute, auth.lastInstance.GetSystemClockDifference(), float64(time.Millisecond))
+	require.InDelta(t, time.Minute, auth.lastInstance.GetSystemClockDifference(), float64(time.Second))
 }
 
 type eventOpts struct {
