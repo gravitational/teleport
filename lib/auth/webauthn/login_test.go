@@ -1059,7 +1059,7 @@ func TestCredentialBackupFlags(t *testing.T) {
 			CreationResponse: ccr,
 			Passwordless:     true,
 		})
-		require.NoError(t, err, "SignCredentialCreation failed")
+		require.NoError(t, err, "Finish failed")
 
 		// Assert backup flags after registration.
 		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
