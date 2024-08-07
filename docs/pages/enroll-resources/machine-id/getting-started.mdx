@@ -49,12 +49,12 @@ assign to it. You can use the `tctl` command below to examine what roles exist
 on your system.
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 On your client machine, log in to Teleport using `tsh`, then use `tctl` to examine
 what roles exist on your system.
 </TabItem>
 <TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
+Connect to the Teleport Auth Service and use `tctl` to examine what roles exist on
 your system.
 </TabItem>
 
@@ -179,12 +179,12 @@ this by omitting this.
 Replace the following fields with values from your own cluster.
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
+- `auth-server` is the address of your Teleport Enterprise Proxy Server, for example `example.teleport.sh:443`.
 
 </TabItem>
 <TabItem scope={["oss","enterprise"]} label="Self-Hosted">
@@ -195,7 +195,7 @@ Replace the following fields with values from your own cluster.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is typically the address of your Teleport Proxy Server
    (`teleport.example.com:443`), but can also be the address of the
-   Auth Server is direct connectivity is available.
+   Auth Service is direct connectivity is available.
   `teleport.example.com:443`.
 
 </TabItem>
@@ -262,9 +262,9 @@ with your proxy address.
 $ tsh ssh --proxy=teleport.example.com -i /opt/machine-id/identity root@node-name
 ```
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 ```code
-$ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
+$ tsh ssh --proxy=example.teleport.sh -i /opt/machine-id/identity root@node-name
 ```
 </TabItem>
 

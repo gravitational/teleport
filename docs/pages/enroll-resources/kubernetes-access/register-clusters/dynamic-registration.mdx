@@ -69,7 +69,7 @@ Install the Teleport Kubernetes Service on your Linux host:
 On the host where you will run the Teleport Kubernetes Service, run the
 following command to create a base configuration for your Teleport instance,
 assigning `PROXY_SERVICE` to the host and port of your Teleport Proxy Service or
-Teleport Cloud tenant and `TOKEN` to the join token we created earlier:
+Teleport Enterprise tenant and `TOKEN` to the join token we created earlier:
 
 ```code
 # e.g., teleport.example.com:443
@@ -390,7 +390,7 @@ $ tctl get kube_clusters
 ### Update a Kubernetes cluster resource
 
 To update the `kube_cluster` resource you created earlier, execute the following
-command to retrieve the resource as it exists on the Auth Service's backend:
+command to retrieve the resource as it exists on the Auth Service instances backend:
 
 ```code
 $ tctl get kube_clusters/mycluster > kube_cluster.yaml

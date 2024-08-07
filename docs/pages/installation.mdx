@@ -62,7 +62,7 @@ archives containing Teleport binaries. All installations include `teleport`,
 
 If you are starting out with Teleport, we recommend beginning with a [Teleport
 Cloud](https://goteleport.com/signup/) account. From there, the only Teleport
-components you need to deploy yourself are Teleport agents. You can deploy
+components you need to deploy yourself are Teleport Agents. You can deploy
 agents by:
 - Following the instructions in the Teleport Web UI at `/web/discover`, where
   you can select a resource to enroll in your Teleport cluster and retrieve an
@@ -70,7 +70,7 @@ agents by:
 - Using the example Terraform module for deploying agents in [Deploy Agents with
   Terraform](enroll-resources/agents/deploy-agents-terraform.mdx).
 - Running the [one-line installation script](#one-line-installation-script) on
-  each Linux server where you want to install a Teleport agent.
+  each Linux server where you want to install a Teleport Agent.
 
 If you are running a self-hosted Teleport Enterprise cluster, read our guidance
 in [Deploying a High-Availability Teleport
@@ -94,7 +94,7 @@ First, assign environment variables based on your edition:
 <TabItem label="Teleport Enterprise (Managed)">
 
 The following commands show you how to determine the Teleport version to install
-by querying your Teleport Cloud account. This way, the Teleport installation has
+by querying your Teleport Enterprise account. This way, the Teleport installation has
 the same major version as the service that manages automatic updates:
 
 ```code
@@ -146,9 +146,9 @@ repositories.
    <Tabs>
    <TabItem label="Teleport Enterprise (Managed)">
 
-   Teleport Cloud installations must include the automatic agent updater. The
+   Teleport Enterprise installations must include the automatic agent updater. The
    following commands show you how to determine the Teleport version to install
-   by querying your Teleport Cloud account. This way, the Teleport installation
+   by querying your Teleport Enterprise account. This way, the Teleport installation
    has the same major version as the service that conducts automatic updates:
 
    ```code
@@ -323,7 +323,7 @@ Linux-compatible binaries at `https://cdn.teleport.dev`. This section explains
 the Teleport TAR archives and how to use them.
 
 It is not possible to install the automatic agent updater using TAR archives.
-Teleport Cloud customers must use the [one-line installation
+Teleport Enterprise customers must use the [one-line installation
 script](#one-line-installation-script) or manually install Teleport from a
 [package repository](#package-repositories) in order to install the updater.
 
@@ -732,8 +732,8 @@ table below), and are tagged for easier searching.
 
 | Image name | Edition | Architecture | FIPS support | AMI Tags |
 | - | - | - | - | - |
-| `teleport-oss-(=teleport.version=)-x86_64-$TIMESTAMP` | OSS | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
-| `teleport-oss-(=teleport.version=)-arm64-$TIMESTAMP` | OSS | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-oss-(=teleport.version=)-x86_64-$TIMESTAMP` | Teleport Community Edition | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-oss-(=teleport.version=)-arm64-$TIMESTAMP` | Teleport Community Edition | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
 | `teleport-ent-(=teleport.version=)-x86_64-$TIMESTAMP` | Enterprise | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
 | `teleport-ent-(=teleport.version=)-arm64-$TIMESTAMP` | Enterprise | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
 | `teleport-ent-(=teleport.version=)-x86_64-fips-$TIMESTAMP` | Enterprise | amd64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |

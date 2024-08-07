@@ -15,8 +15,8 @@ ERROR: renewable cert generation mismatch: stored=3, presented=2
 
 Subsequent connection attempts by the bot may see errors like the following:
 ```text
-ERROR: failed direct dial to auth server: auth API: access denied [00]
-"\tauth API: access denied [00], failed dial to auth server through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
+ERROR: failed direct dial to Auth Service: auth API: access denied [00]
+"\tauth API: access denied [00], failed dial to Auth Service through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
 "\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
 ```
 
@@ -37,7 +37,7 @@ renewable certificate, the Auth Service increments the counter, stores it on the
 backend, and embeds a copy of the counter in the certificate.
 
 If the counter embedded in your bot certificate doesn't match the counter
-stored in Teleport's Auth Server, the renewal will fail and the bot user will
+stored in Teleport's Auth Service, the renewal will fail and the bot user will
 be automatically [locked](../../admin-guides/access-controls/guides/locking.mdx).
 
 Renewable certificates are exclusively stored in the bot's internal data
@@ -110,8 +110,8 @@ ERRO [TBOT]      Identity has expired. The renewal is likely to fail. (expires: 
 WARN [TBOT]      Note: onboarding config ignored as identity was loaded from persistent storage tbot/tbot.go:288
 ERRO [TBOT]      Failed to resolve tunnel address Get "https://auth.example.com:3025/webapi/find": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs reversetunnel/transport.go:90
 ERRO [TBOT]      Failed to resolve tunnel address Get "https://auth.example.com:3025/webapi/find": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs reversetunnel/transport.go:90
-ERROR: failed direct dial to auth server: Get "https://teleport.cluster.local/v2/configuration/name": remote error: tls: bad certificate
-"\tGet \"https://teleport.cluster.local/v2/configuration/name\": remote error: tls: bad certificate, failed dial to auth server through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://auth.example.com:3025/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
+ERROR: failed direct dial to Auth Service: Get "https://teleport.cluster.local/v2/configuration/name": remote error: tls: bad certificate
+"\tGet \"https://teleport.cluster.local/v2/configuration/name\": remote error: tls: bad certificate, failed dial to Auth Service through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://auth.example.com:3025/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
 "\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://auth.example.com:3025/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
 ```
 

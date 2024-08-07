@@ -25,7 +25,7 @@ AWS-hosted Redis database can take one of two forms:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Self-Hosted](../../../../img/database-access/guides/redis_elasticache_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud","team"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Teleport Enterprise">
 ![Teleport Database Access RDS Cloud](../../../../img/database-access/guides/redis_elasticache_cloud.png)
 </TabItem>
 
@@ -269,10 +269,10 @@ $ tsh db ls
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 $ tsh db ls
 # Name                        Description                                               Labels
 # --------------------------- --------------------------------------------------------- --------

@@ -173,14 +173,14 @@ $ tsh login --proxy=teleport.example.com --user=alice
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 
-# > Profile URL:        https://mytenant.teleport.sh:443
+# > Profile URL:        example.teleport.sh:443
 #  Logged in as:       alice
-#  Cluster:            mytenant.teleport.sh
+#  Cluster:            example.teleport.sh
 #  Roles:              devs*
 #  Logins:             admin
 #  Kubernetes:         enabled
@@ -285,14 +285,14 @@ $ tsh login --proxy=teleport.example.com --auth=github
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --auth=github
+$ tsh login --proxy=example.teleport.sh --auth=github
 
-#> Profile URL:        https://mytenant.teleport.sh:443
+#> Profile URL:        example.teleport.sh:443
 #  Logged in as:       bob
-#  Cluster:            mytenant.teleport.sh
+#  Cluster:            example.teleport.sh
 #  Roles:              sso-users*
 #  Logins:             bob
 #  Kubernetes:         enabled

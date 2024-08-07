@@ -31,7 +31,7 @@ Here are the steps we'll walkthrough:
 Create a user `api-admin` with the built-in role `editor`:
 
 ```code
-# Run this directly on your Auth Server unless you are using Teleport Cloud
+# Run this directly on your Auth Service unless you are using Teleport Enterprise
 # Add a user and login via the Proxy Service
 $ sudo tctl users add api-admin --roles=editor
 ```
@@ -88,7 +88,7 @@ func main() {
 
 	clt, err := client.New(ctx, client.Config{
 		Addrs: []string{
-			// Teleport Cloud customers should use <tenantname>.teleport.sh
+			// Teleport Enterprise customers should use <tenantname>.teleport.sh
 			"tele.example.com:443",
 			"tele.example.com:3025",
 			"tele.example.com:3024",
@@ -115,7 +115,7 @@ func main() {
 }
 ```
 
-Now you can run the program and connect the client to the Teleport Auth Server to fetch the server version.
+Now you can run the program and connect the client to the Teleport Auth Service to fetch the server version.
 
 ```code
 $ go run main.go

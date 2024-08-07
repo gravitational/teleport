@@ -64,7 +64,7 @@ Kibana's HTTP endpoint via the Teleport Application Service, running the `tctl
 create` command above will generate an error similar to the following:
 
 ```text
-ERROR: tctl must be either used on the auth server or provided with the identity file via --identity flag
+ERROR: tctl must be either used on the Auth Service or provided with the identity file via --identity flag
 ```
 
 To avoid this error, create the `teleport-event-handler-role.yaml` file on your
@@ -406,7 +406,7 @@ your Logstash `http` input earlier, `https://localhost:9601`. Change
 
 Change `teleport.addr` to the host and port of your Teleport Proxy Service, or
 the Auth Service if you have configured the Event Handler to connect to it
-directly, e.g., `mytenant.teleport.sh:443`.
+directly, e.g., `example.teleport.sh:443`.
 
 (!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 

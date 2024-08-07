@@ -130,7 +130,7 @@ $ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 <TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice --auth=local
+$ tsh login --proxy=example.teleport.sh --user=alice --auth=local
 $ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 ```
 
@@ -330,7 +330,7 @@ $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner
 
 ```code
 # Once Alice logs in again, she will receive a new certificate with updated roles.
-$ tsh login --proxy=mytenant.teleport.sh --user=alice --auth=local
+$ tsh login --proxy=example.teleport.sh --user=alice --auth=local
 # Alice can now get a certificate for the security scanner
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```

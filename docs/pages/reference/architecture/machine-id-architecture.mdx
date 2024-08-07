@@ -25,7 +25,7 @@ they comprise three linked resources. These are:
 - Token: for [onboarding](#joining-and-authentication), a token must exist that
   allows the Machine ID agent to initially authenticate as the bot user. If an
   existing token is not specified, then a single-use token will be created by
-  the Auth Server.
+  the Auth Service.
 
 The creation of these resources is managed by `tctl bots add`.
 
@@ -123,7 +123,7 @@ include a **generation counter**.
 
 The generation counter is stored against the user in the database and within the
 certificate. This counter is incremented each time the user renews their
-certificate. When a bot attempts to renew, the Auth Server ensures that the
+certificate. When a bot attempts to renew, the Auth Service ensures that the
 value within the certificate and in the database match. If they do not match,
 then the bot user is automatically locked. This means that if certificates are
 stolen, and attempted to be renewed whilst the bot is still running, the next

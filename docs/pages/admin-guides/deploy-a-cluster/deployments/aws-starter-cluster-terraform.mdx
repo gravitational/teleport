@@ -9,14 +9,14 @@ and describe how to manage the resulting Teleport deployment.
 
 This module will deploy the following components:
 - One AWS EC2 instance running the Teleport Auth Service, Proxy Service and SSH Service components
-- AWS DynamoDB tables for storing the Teleport backend database and audit events
+- Amazon DynamoDB tables for storing the Teleport backend database and audit events
 - An AWS S3 bucket for storing Teleport session recordings
 - A minimal AWS IAM role granting permissions for the EC2 instance to use DynamoDB and S3
 - An AWS security group restricting inbound traffic to the EC2 instance
-- An AWS Route 53 DNS record pointing to the subdomain you control and choose during installation
+- An Amazon Route 53 DNS record pointing to the subdomain you control and choose during installation
 
 It also optionally deploys the following components when ACM is enabled:
-- An AWS ACM certificate for the subdomain in AWS Route 53 that you control and choose during installation
+- An AWS ACM certificate for the subdomain in Amazon Route 53 that you control and choose during installation
 - An AWS Application Load Balancer using the above ACM certificate to secure incoming traffic
 
 More details are [provided below](#reference-deployment-defaults).
@@ -171,7 +171,7 @@ cluster from scratch, so choose carefully. A good example might be something lik
 $ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
-Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
+Teleport (Gravitational) automatically builds and publishes Teleport Community Edition, Enterprise and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
 where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
 and `<arch>` is either `x86_64` or `arm64`.
@@ -186,7 +186,7 @@ the example `awscli` commands below. The output is in JSON format by default.
   type="tip"
   title="List Teleport AMIs"
 >
-  OSS AMIs<br/>
+  Teleport Community Edition AMIs<br/>
   ```code
   $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-(=teleport.version=)-*'
   ```
@@ -232,7 +232,7 @@ here. The license file isn't used in Teleport Community Edition installs.)
 $ export TF_VAR_route53_zone="example.com"
 ```
 
-Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
+Our Terraform setup requires you to have your domain provisioned in Amazon Route 53 - it will automatically add
 DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```code

@@ -17,7 +17,7 @@ when gradually transitioning large server fleets to Teleport.
 
 <Notice type="warning">
 
-Teleport Cloud only supports session recording at the Node level. If you are
+Teleport Enterprise only supports session recording at the Node level. If you are
 interested in setting up session recording, read our
 [Server Access Getting Started Guide](../getting-started.mdx) so you can start
 replacing your OpenSSH servers with Teleport Nodes.
@@ -100,7 +100,7 @@ Now, `sshd` will trust users who present a Teleport-issued certificate.
 The next step is to configure host authentication.
 
 The recommended solution is to ask Teleport to issue valid host certificates for
-all OpenSSH nodes. To generate a host certificate, run this on your Teleport Auth Server:
+all OpenSSH nodes. To generate a host certificate, run this on your Teleport Auth Service:
 
 ```code
 # Creating host certs, with an array of every host to be accessed.

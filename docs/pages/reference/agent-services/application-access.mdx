@@ -12,7 +12,7 @@ appearing in the `teleport.yaml` configuration file:
 
 ```yaml
 app_service:
-  # Enables application proxy service.
+  # Enables application Proxy Service.
   enabled: yes
   # Teleport provides a small debug app called "dumper" that can be used
   # to make sure application access is working correctly. It outputs JWTs,
@@ -124,11 +124,11 @@ $ tctl create -f app.yaml
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tsh login --proxy=example.teleport.sh --user=myuser
 # Create the resource.
 $ tctl create -f app.yaml
 ```

@@ -14,12 +14,12 @@ Teleport cluster while preserving compatibility.
 
 (!docs/pages/includes/compatibility.mdx!)
 
-In Teleport Enterprise Cloud, we manage the Auth and Proxy Services for you. You
+In Teleport Enterprise, we manage the Auth Service and Proxy Service Services for you. You
 can determine the current version of these services by running the following
-command, where `mytenant` is the name of your Teleport Enterprise Cloud tenant:
+command, where `mytenant` is the name of your Teleport Enterprise tenant:
 
 ```code
-$ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
+$ curl -s example.teleport.sh/webapi/ping | jq '.server_version'
 ```
 
 ## Upgrading a self-hosted Teleport cluster
@@ -46,7 +46,7 @@ Teleport cluster:
    Service. Proxy Service instances are stateless and can be upgraded in any
    sequence or at the same time.
 
-1. Upgrade your Teleport agents to the same version number as the Auth Service.
+1. Upgrade your Teleport Agents to the same version number as the Auth Service.
    You can upgrade resource agents in any sequence or at the same time.
    
    If you are upgrading more then one version number, repeat these steps until

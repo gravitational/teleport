@@ -287,8 +287,8 @@ joining the cluster.
 
 <Notice type="warning">
 
-The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
-Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
+The EC2 join method is not available in Teleport Enterprise and Teleport
+Team. Teleport Enterprise and Team customers can use the [IAM join
 method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 </Notice>
@@ -398,7 +398,7 @@ Teleport 12+.
 
 Kubernetes JWKS joining is available for any Teleport process running in
 Kubernetes. The Auth Service does not have to run in Kubernetes so this method
-can be used with any Teleport cluster, including Teleport Cloud.
+can be used with any Teleport cluster, including Teleport Enterprise.
 This join method works by exporting the public Kubernetes signing keys and using
 them to validate Kubernetes SA token signatures. The signature validation can be
 performed by an Auth Service without access to the Kubernetes.

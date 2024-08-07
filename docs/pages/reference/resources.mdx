@@ -247,7 +247,7 @@ Global cluster configuration options for authentication.
 metadata:
   name: cluster-auth-preference
 spec:
-  # Sets the type of second factor to use.
+  # Sets the type of multi-factor to use.
   # Possible values: "on", "otp" and "webauthn"
   # If "on" is set, all MFA protocols are supported.
   second_factor: "otp"
@@ -263,7 +263,7 @@ spec:
     # IMPORTANT: rp_id must never change in the lifetime of the cluster, because
     # it's recorded in the registration data on the WebAuthn device. If the
     # ri_id changes, all existing WebAuthn key registrations will become invalid
-    # and all users who use WebAuthn as the second factor will need to
+    # and all users who use WebAuthn as the multi-factor will need to
     # re-register.
     rp_id: teleport.example.com
     # Allow list of device attestation CAs in PEM format.

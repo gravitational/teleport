@@ -22,7 +22,7 @@ Database Service forwards user traffic to the database.
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Database access with SQL Server and AD authentication](../../../../img/database-access/sql-server-ad-1.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 ![Database access with SQL Server and AD authentication](../../../../img/database-access/sql-server-ad-2.png)
 </TabItem>
 </Tabs>
@@ -236,17 +236,17 @@ endpoint.
   ```
   
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
-point to your Teleport Cloud tenant address and `--uri` to the SQL Server
+point to your Teleport Enterprise tenant address and `--uri` to the SQL Server
 endpoint.
 
   ```code
   $ sudo teleport db configure create \
     -o file \
     --token=/tmp/token \
-    --proxy=mytenant.teleport.sh:443 \
+    --proxy=example.teleport.sh:443 \
     --name=sqlserver \
     --protocol=sqlserver \
     --uri=sqlserver.example.com:1433 \
@@ -333,10 +333,10 @@ $ tsh db ls
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 $ tsh db ls
 # Name      Description         Labels
 # --------- ------------------- -------

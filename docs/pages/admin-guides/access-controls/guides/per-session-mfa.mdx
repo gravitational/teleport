@@ -29,7 +29,7 @@ their on-disk Teleport certificates.
 
 - (!docs/pages/includes/tctl.mdx!)
 - [WebAuthn configured](webauthn.mdx) on this cluster
-- Second factor hardware device, such as YubiKey or SoloKey
+- multi-factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
@@ -65,7 +65,7 @@ configuration:
 <Tabs>
 <TabItem label="Static configuration">
 
-Update `teleport.yaml` on the Auth Server to include the following content:
+Update `teleport.yaml` on the Auth Service to include the following content:
 
 ```yaml
 auth_service:

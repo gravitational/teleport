@@ -26,7 +26,7 @@ In this guide, we show you how to enable Kubernetes application auto-discovery.
 
 ## Step 1/2. Create a join token
 
-Create a join token for a new Teleport agent that will run the Teleport
+Create a join token for a new Teleport Agent that will run the Teleport
 Kubernetes Service, Application Service, and Discovery Service:
 
 ```code
@@ -40,15 +40,15 @@ Teleport applications created from discovered Kubernetes services.
 
 ## Step 2/2. Deploy the agent
 
-If you want to install a new Teleport agent in your Kubernetes cluster, you can
-use the `teleport-kube-agent` Helm chart. If you already have a Teleport agent
+If you want to install a new Teleport Agent in your Kubernetes cluster, you can
+use the `teleport-kube-agent` Helm chart. If you already have a Teleport Agent
 installed, you can upgrade it to enable the Kubernetes Application Discovery
 by adding the `kube`, `app`, and `discovery` to roles as shown below.
 
 <Tabs>
 <TabItem label="Install a new agent">
 
-Deploy a new Teleport agent running your configured services by installing the
+Deploy a new Teleport Agent running your configured services by installing the
 `teleport-kube-agent` Helm chart:
 
 ```code

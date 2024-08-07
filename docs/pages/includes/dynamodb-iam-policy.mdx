@@ -14,7 +14,7 @@ steps, which we will explain in more detail below:
 
 - Create a cluster state table.
 - Create an audit event table.
-- Create an IAM policy and attach it to the Teleport Auth Service's IAM
+- Create an IAM policy and attach it to the Teleport Auth Service instances IAM
   identity.
 
 #### Create a cluster state table
@@ -53,7 +53,7 @@ The table must also have the following key schema elements:
 
 #### Create and attach an IAM policy
 
-Create the following IAM policy and attach it to the Teleport Auth Service's IAM
+Create the following IAM policy and attach it to the Teleport Auth Service instances IAM
 identity.
 
 You'll need to replace these values in the policy example below:
