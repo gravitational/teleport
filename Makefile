@@ -886,13 +886,13 @@ endif
 .PHONY: test-go-bench
 test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_PATTERN = "[^(?:(?:BenchmarkRoot|BenchmarkMux_ProxyV2Signature).*)].*"
-test-go-bench:
+test-go-bench: | $(TEST_LOG_DIR)
 	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -benchtime 1x $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
 test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
-test-go-bench-root:
+test-go-bench-root: | $(TEST_LOG_DIR)
 	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -benchtime 1x $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
