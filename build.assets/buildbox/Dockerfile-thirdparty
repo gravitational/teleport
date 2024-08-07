@@ -135,6 +135,27 @@ RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/
 	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=arm && \
 	rm -rf ${THIRDPARTY_DIR}/arm/{bin,sbin,src}
 
+# Build boringssl for FIPS with boring-rs
+
+# Building boringssl requires Go 1.16.5 to be installed for FIPS compliant builds.
+# We only need that for building boringssl, so put it in /tmp.
+# ninja-build and cmake have been installed via apt, but we may need to build
+# these tools ourselves since they are not the right version.
+
+ARG BUILDARCH
+# Set BUILDARCH if not set when not using buildkit. Only works for arm64 and amd64.
+RUN BUILDARCH=${BUILDARCH:-$(uname -m | sed 's/aarch64/arm64/g; s/x86_64/amd64/g')}; \
+	curl -fsSL https://storage.googleapis.com/golang/go1.16.5.linux-${BUILDARCH}.tar.gz | \
+	tar -C /tmp -xz && \
+	/tmp/go/bin/go version
+ENV PATH=/tmp/go/bin:${PATH}
+
+# directories not cleaned up for debugging purposes. This doesn't work yet.
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f thirdparty-libs.mk build-boringssl ARCH=amd64 # && rm -f ${THIRDPARTY_DIR}/amd64/{bin,sbin,src}
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f thirdparty-libs.mk build-boringssl ARCH=arm64 # && rm -f ${THIRDPARTY_DIR}/amd64/{bin,sbin,src}
+
 # -----------------------------------------------------------------------------
 # Start buildbox-thirdparty from a fresh ${BASE_IMAGE} and copy in
 # /opt/thirdparty so as to remove any layers above with the build tools. We

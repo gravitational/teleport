@@ -235,3 +235,42 @@ tp-build-libpcsclite: fetch-git-libpcsclite
 		--disable-libsystemd --with-systemdsystemunitdir=no
 	$(MAKE) -C $(libpcsclite_SRCDIR)/src -j$(NPROC) PROGRAMS= all
 	$(MAKE) -C $(libpcsclite_SRCDIR)/src PROGRAMS= install
+
+# -----------------------------------------------------------------------------
+# boringssl
+#
+# A specific version of boringssl is needed for FIPS compliance. It is also
+# built by a specific version of clang-12.
+#
+# We build boringssl into the buildbox so we know it is correct when we do a
+# build of Teleport.
+
+boringssl_VERSION = fips-20210429
+boringssl_GIT_REF = $(boringssl_VERSION)
+boringssl_GIT_REF_HASH = 853ca1ea1168dff08011e5d42d94609cc0ca2e27
+boringssl_GIT_REPO = https://github.com/google/boringssl
+boringssl_SRCDIR = $(call tp-src-dir,boringssl)
+
+.PHONY: build-boringssl
+build-boringssl: BUILDDIR = $(boringssl_SRCDIR)/build
+build-boringssl: fetch-git-boringssl
+	mkdir $(BUILDDIR)
+	printf 'set(CMAKE_C_COMPILER "clang")\n' > $(BUILDDIR)/toolchain
+	printf 'set(CMAKE_CXX_COMPILER "clang++")\n' >> $(BUILDDIR)/toolchain
+#	cmake -B $(BUILDDIR) -G Ninja \
+#		-DFIPS=1 \
+#		-DCMAKE_TOOLCHAIN_FILE=$(BUILDDIR)/toolchain \
+#		-DCMAKE_BUILD_TYPE=Release \
+#		$(boringssl_SRCDIR)
+#	ninja -C $(BUILDDIR)
+
+# this recipe is failing (hence being commented out above) for cross compiling
+.PHONY: build-boringssl2
+build-boringssl2: BUILDDIR = $(boringssl_SRCDIR)/build
+build-boringssl2:
+	cmake -B $(BUILDDIR) -G Ninja \
+		-DFIPS=1 \
+		-DCMAKE_TOOLCHAIN_FILE=$(BUILDDIR)/toolchain \
+		-DCMAKE_BUILD_TYPE=Release \
+		$(boringssl_SRCDIR)
+	ninja -C $(BUILDDIR)
