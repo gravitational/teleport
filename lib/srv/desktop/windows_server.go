@@ -185,6 +185,10 @@ type WindowsServiceConfig struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string
+	// KCDAddr optionally configures address of Key Distribution Center used during Kerberos NLA negotiation.
+	// If empty LDAP address will be used.
+	// Used for NLA support when AD is true.
+	KDCAddr string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
 	DiscoveryBaseDN string
@@ -195,7 +199,7 @@ type WindowsServiceConfig struct {
 	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
 	// into Teleport labels.
 	DiscoveryLDAPAttributeLabels []string
-	// Hostname of the windows desktop service
+	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
@@ -858,6 +862,21 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
 	width, height := desktop.GetScreenSize()
+
+	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsDNSHostName)
+	if !ok {
+		if computerName, err = utils.Host(desktop.GetAddr()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	kdcAddr := s.cfg.KDCAddr
+	if kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
+		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Logger: log,
@@ -866,6 +885,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  addr.String(),
+		ComputerName:          computerName,
+		KDCAddr:               kdcAddr,
 		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
@@ -873,8 +894,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 		Width:                 width,
 		Height:                height,
+		AD:                    !desktop.NonAD(),
 	})
-	// before we check the error above, we grab the windows user so that
+	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
 	var windowsUser string
 	if rdpc != nil {

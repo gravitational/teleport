@@ -27,7 +27,8 @@ use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
-use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize};
+use ironrdp_connector::credssp::KerberosConfig;
+use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize, SmartCardIdentity};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
@@ -49,7 +50,7 @@ use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
-use ironrdp_rdpsnd::Rdpsnd;
+use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
 use ironrdp_session::x224::{self, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
@@ -60,7 +61,7 @@ use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Once};
 use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
@@ -73,8 +74,11 @@ use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::HandshakeError;
+use url::Url;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
+static START: Once = Once::new();
 
 /// The "Microsoft::Windows::RDS::DisplayControl" DVC is opened
 /// by the server. Until it does so, we withhold the latest screen
@@ -120,6 +124,12 @@ impl Client {
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
+        START.call_once(|| {
+            // we register provider explicitly to avoid panics when both ring and aws_lc
+            // features of rustls are enabled, which happens often in dependencies like tokio-tls
+            // and reqwest
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
         let server_addr = params.addr.clone();
         let server_socket_addr = server_addr
             .to_socket_addrs()?
@@ -182,7 +192,7 @@ impl Client {
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
             .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
+            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
             .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
@@ -204,18 +214,26 @@ impl Client {
         // Frame the stream again for use by connect_finalize
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
+        let mut network_client = crate::network_client::NetworkClient::new();
+        let kerberos_config = params
+            .kdc_addr
+            .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
+            .transpose()
+            .map_err(ClientError::UrlError)?
+            .map(|kdc_url| KerberosConfig {
+                kdc_proxy_url: Some(kdc_url),
+                hostname: params.computer_name.clone(),
+            });
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
             &mut rdp_stream,
             connector,
-            server_addr.into(),
+            params.computer_name.unwrap_or(server_addr).into(),
             server_public_key,
-            None,
-            None,
+            Some(&mut network_client),
+            kerberos_config,
         )
         .await?;
-
-        debug!("connection_result: {:?}", connection_result);
 
         // Register the RDP channels with the browser client.
         Self::send_connection_activated(
@@ -1386,13 +1404,25 @@ type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(params: &ConnectParams, pin: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize {
+        desktop_size: DesktopSize {
             width: params.screen_width,
             height: params.screen_height,
         },
         enable_tls: true,
-        enable_credssp: false,
-        credentials: Credentials::SmartCard { pin },
+        enable_credssp: params.ad,
+        credentials: Credentials::SmartCard {
+            config: params.ad.then(|| {
+                SmartCardIdentity {
+                    certificate: params.cert_der.clone(),
+                    reader_name: "Teleport".to_string(),
+                    container_name: "".to_string(),
+                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                    private_key: params.key_der.clone(),
+                }
+                .into()
+            }),
+            pin,
+        },
         domain: None,
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
         // This determines which Smart Card Redirection dialect we use per
@@ -1430,6 +1460,8 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
 #[derive(Debug)]
 pub struct ConnectParams {
     pub addr: String,
+    pub kdc_addr: Option<String>,
+    pub computer_name: Option<String>,
     pub cert_der: Vec<u8>,
     pub key_der: Vec<u8>,
     pub screen_width: u16,
@@ -1437,6 +1469,7 @@ pub struct ConnectParams {
     pub allow_clipboard: bool,
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
+    pub ad: bool,
 }
 
 #[derive(Debug)]
@@ -1452,6 +1485,7 @@ pub enum ClientError {
     InternalError(String),
     UnknownAddress,
     InputEventError(InputEventError),
+    UrlError(url::ParseError),
     #[cfg(feature = "fips")]
     ErrorStack(ErrorStack),
     #[cfg(feature = "fips")]
@@ -1477,6 +1511,7 @@ impl Display for ClientError {
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::UrlError(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::ErrorStack(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]

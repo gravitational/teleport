@@ -2161,6 +2161,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
 
+	cfg.WindowsDesktop.KDCAddr = fc.WindowsDesktop.KDCAddress
+
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
