@@ -68,12 +68,12 @@ type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
 export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
 
-  function handleOnRowClick(row: IntegrationLike) {
+  function handleRowClick(row: IntegrationLike) {
     if (row.kind !== 'okta') return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
-  function handleOnRowStyle(row: IntegrationLike): React.CSSProperties {
+  function getRowStyle(row: IntegrationLike): React.CSSProperties {
     if (row.kind !== 'okta') return;
     return { cursor: 'pointer' };
   }
@@ -84,8 +84,8 @@ export function IntegrationList(props: Props<IntegrationLike>) {
       isSearchable
       data={props.list}
       row={{
-        onClick: handleOnRowClick,
-        getStyle: handleOnRowStyle,
+        onClick: handleRowClick,
+        getStyle: getRowStyle,
       }}
       columns={[
         {
