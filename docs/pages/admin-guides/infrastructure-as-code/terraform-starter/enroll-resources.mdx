@@ -21,11 +21,11 @@ with Teleport. You will:
 An Agent is a Teleport instance configured to run one or more Teleport services
 in order to proxy infrastructure resources. For a brief architectural overview
 of how Agents run in a Teleport cluster, read the [Introduction to Teleport
-Agents](introduction.mdx).
+Agents](../../../enroll-resources/agents/introduction.mdx).
 
 There are several methods you can use to join a Teleport Agent to your cluster,
 which we discuss in the [Joining Services to your
-Cluster](join-services-to-your-cluster.mdx) guide. In this guide, we will use
+Cluster](../../../enroll-resources/agents/join-services-to-your-cluster.mdx) guide. In this guide, we will use
 the **join token** method, where the operator stores a secure token on the Auth
 Service, and an Agent presents the token in order to join a cluster.
 
@@ -45,7 +45,7 @@ We recommend following this guide on a fresh Teleport demo cluster so you can
 see how an Agent pool works. After you are familiar with the setup, apply the
 lessons from this guide to protect your infrastructure. You can get started with
 a demo cluster using:
-- A demo deployment on a [Linux server](../../../deploy-a-cluster/linux-demo.mdx)
+- A demo deployment on a [Linux server](../../../admin-guides/deploy-a-cluster/linux-demo.mdx)
 - A [Teleport Enterprise (Cloud) trial](https://goteleport.com/signup)
 
 </Admonition>
@@ -66,7 +66,7 @@ a demo cluster using:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Import the Terraform module
+## Step 1/3. Import the Terraform module
 
 In this step, you will download Terraform modules that show you how to get
 started enrolling Teleport resources. These modules are minimal examples of how
@@ -78,14 +78,6 @@ modify your Terraform configuration to accommodate your infrastructure in
 production.
 
 1. Navigate to your Terraform project directory.
-
-   <Notice type="warning">
-   
-   If you don't have an identity file available in
-   `terraform-identity/identity`, make sure you have followed the [prerequisites
-   for this guide](#prerequisites).
-   
-   </Notice>
 
 1. Fetch the Teleport code repository and copy the example Terraform
    configuration for this project into your current working directory. The
@@ -126,28 +118,43 @@ production.
    </TabItem>
    </Tabs>
 
-1. Create a file called `agent.tf` with the following content, which imports the
-   `terraform-starter` module for your cloud provider:
+1. Create a file called `agent.tf` with the following content, which configures
+   the child modules you downloaded in the previous step:
 
    <Tabs>
    <TabItem label="AWS">
    
    ```hcl
-    module "agent_installation" {
-     source                = "./teleport"
-     agent_count           = 2
-     agent_roles           = ["Node"]
-     labels                = {}
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
      proxy_service_address = "teleport.example.com:443"
      teleport_edition      = "cloud"
      teleport_version      = "(=teleport.version=)"
    }
    
-    module "agent_deployment" {
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
      region           = ""
      source           = "./cloud"
      subnet_id        = ""
-     userdata_scripts = module.agent_installation.userdata_scripts
+     userdata_scripts = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
    }
    ```
    
@@ -155,22 +162,37 @@ production.
    <TabItem label="Google Cloud">
    
    ```hcl
-    module "agent_installation" {
-     source                = "./teleport"
-     agent_count           = 2
-     agent_roles           = ["Node"]
-     labels                = {}
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
      proxy_service_address = "teleport.example.com:443"
      teleport_edition      = "cloud"
      teleport_version      = "(=teleport.version=)"
    }
    
-    module "agent_deployment" {
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
      gcp_zone         = "us-east1-b"
      google_project   = ""
      source           = "./cloud"
      subnet_id        = ""
-     userdata_scripts = module.agent_installation.userdata_scripts
+     userdata_scripts = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
    }
    ```
    
@@ -178,60 +200,56 @@ production.
    <TabItem label="Azure">
    
    ```hcl
-    module "agent_installation" {
-     source                = "./teleport"
-     agent_count           = 2
-     agent_roles           = ["Node"]
-     labels                = {}
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
      proxy_service_address = "teleport.example.com:443"
      teleport_edition      = "cloud"
      teleport_version      = "(=teleport.version=)"
    }
    
-    module "agent_deployment" {
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
      azure_resource_group = ""
      public_key_path      = ""
      region               = "East US"
      source               = "./cloud"
      subnet_id            = ""
-     userdata_scripts     = module.agent_installation.userdata_scripts
+     userdata_scripts     = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
    }
    ```
    
    </TabItem>
    </Tabs>
 
-Edit the ` module "agent_installation"` block in `agent.tf` as follows:
+Each of the `agent_installation_*` module blocks produces a number of
+installation scripts equal to the `agent_count` input. Each installation script
+runs the Teleport SSH Service with a Teleport join token, labeling the Agent
+with the key/value pairs specified in `agent_labels`. This configuration passes
+all installation scripts to the `agent_deployment` module in order to run them
+on virtual machines, launching one VM per script.
 
-1. Assign `agent_count` to `2` for high availability. As you scale your Teleport
-   usage, you can increase this count to ease the load on each Agent. 
+As you scale your Teleport usage, you can increase this count to ease the load
+on each Agent. 
 
-1. Modify the elements of the `agent_roles` list.
-
-   The Teleport Auth Service associates a join token with one or more roles,
-   identifying the Teleport services that are allowed to use the token. Modify
-   `agent_roles` to include the token roles that correspond to the Teleport
-   services you plan to run on your Agent nodes:
-
-   | Role value  | Service it enables           |
-   |-------------|------------------------------|
-   | `App`       | Teleport Application Service |
-   | `Discovery` | Teleport Discovery Service   |
-   | `Db`        | Teleport Database Service    |
-   | `Kube`      | Teleport Kubernetes Service  |
-   | `Node`      | Teleport SSH Service         |
-
-   The elements of the `agent_roles` list also determine which Teleport services
-   the Agents deployed by the `terraform-starter` module will run. For
-   example, if the value of `agent_roles` is `["Node", "Db"]`, the configuration
-   file enables the Teleport SSH Service and Teleport Database Service.
-   
-   If the value of the `agent_roles` input variable includes the `Node` role,
-   the configuration also adds the `role: agent-pool` label to the Teleport SSH
-   Service on each instance. This makes it easier to access hosts in the Agent
-   pool later. The script makes Teleport the only option for accessing Agent
-   instances by disabling OpenSSH on startup and deleting any authorized public
-   keys.
+Edit the `agent_installation_dev` and `agent_installation_prod` blocks in
+`agent.tf` as follows:
 
 1. Assign `proxy_service_address` to the host and HTTPS port of your Teleport
    Proxy Service, e.g., `mytenant.teleport.sh:443`.
@@ -262,53 +280,54 @@ Edit the `module "agent_deployment"` block in `agent.tf` as follows:
 
 1. Assign the remaining input variables depending on your cloud provider:
 
-<Tabs>
-<TabItem label="AWS">
+   <Tabs>
+   <TabItem label="AWS">
+   
+   1. Assign `region` to the AWS region where you plan to deploy Teleport Agents,
+      such as `us-east-1`.
+   1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
+      Agents.
+   
+   </TabItem>
+   <TabItem label="Google Cloud">
+   
+   1. Assign `google_project` to the name of your Google Cloud project and
+      `gcp_zone` to the zone where you will deploy Agents, such as `us-east1-b`.
 
-1. Assign `region` to the AWS region where you plan to deploy Teleport Agents,
-   such as `us-east-1`.
-1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
-   Agents.
+   1. For `subnet_id`, include the name or URI of the Google Cloud subnet where you
+      will deploy the Teleport Agents.
+   
+      The subnet URI has the format:
+   
+      ```
+      projects/PROJECT_NAME/regions/REGION/subnetworks/SUBNET_NAME
+      ```
+   
+   </TabItem>
+   <TabItem label="Azure">
+   
+   1. Assign `azure_resource_group` to the name of the Azure resource group where
+      you are deploying Teleport Agents.
+   
+   1. The module uses `public_key_path` to pass validation, as Azure VMs must
+      include an RSA public key with at least 2048 bits. Once the module deploys
+      the VMs, a cloud-init script removes the public key and disables OpenSSH. Set
+      this input to the path to a valid public SSH key.
+   
+   1. Assign `region` to the Azure region where you plan to deploy Teleport Agents,
+      such as `East US`.
+   
+   1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
+      Agents. Use the following format:
+   
+      ```text
+      /subscriptions/SUBSCRIPTION/resourceGroups/RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/NETWORK_NAME/subnets/SUBNET_NAME
+      ```
+   
+   </TabItem>
+   </Tabs>
 
-</TabItem>
-<TabItem label="Google Cloud">
-
-1. Assign `google_project` to the name of your Google Cloud project and
-   `gcp_zone` to the zone where you will deploy Agents, such as `us-east1-b`.
-1. For `subnet_id`, include the name or URI of the Google Cloud subnet where you
-   will deploy the Teleport Agents.
-
-   The subnet URI has the format:
-
-   ```
-   projects/PROJECT_NAME/regions/REGION/subnetworks/SUBNET_NAME
-   ```
-
-</TabItem>
-<TabItem label="Azure">
-
-1. Assign `azure_resource_group` to the name of the Azure resource group where
-   you are deploying Teleport Agents.
-
-1. The module uses `public_key_path` to pass validation, as Azure VMs must
-   include an RSA public key with at least 2048 bits. Once the module deploys
-   the VMs, a cloud-init script removes the public key and disables OpenSSH. Set
-   this input to the path to a valid public SSH key.
-
-1. Assign `region` to the Azure region where you plan to deploy Teleport Agents,
-   such as `East US`.
-
-1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
-   Agents. Use the following format:
-
-   ```text
-   /subscriptions/SUBSCRIPTION/resourceGroups/RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/NETWORK_NAME/subnets/SUBNET_NAME
-   ```
-
-</TabItem>
-</Tabs>
-
-## Step 2/4. Add provider configurations
+## Step 2/3. Add provider configurations
 
 In this step, you will configure the `terraform-starter` module for your
 Teleport cluster and cloud provider.
@@ -427,161 +446,7 @@ Replace the following placeholders:
 </TabItem>
 </Tabs>
 
-## Step 3/4. Enroll dynamic infrastructure resources
-
-In this section, you will configure your Agent pool to enroll infrastructure
-resources in your Teleport cluster. To do so, you will declare **dynamic
-resources**. Agents read these from the Auth Service and proxy traffic to them.
-You apply these by defining them as Terraform resources.
-
-The Teleport Terraform provider currently supports the following dynamic
-resources:
-
-|Infrastructure Resource|Terraform Resource|
-|---|---|
-|Application|`teleport_app`|
-|Database|`teleport_database`|
-|OpenSSH Servers|`teleport_server`|
-
-For Windows desktops and Kubernetes clusters, you must edit the Agent
-configuration file to enroll these resources (we will explain this [later in the
-guide](#enroll-static-resources).
-
-The module we demonstrate in this guide already configures the Agents you deploy
-to be Teleport SSH Service instances. In this setup, you can enroll OpenSSH
-servers with your Teleport cluster agentlessly as dynamic resources.
-
-To declare a dynamic resource with Terraform:
-
-1. Add a configuration block similar to the ones below to a `*.tf` file in your
-   `terraform-starter` project directory. 
-
-   <Tabs>
-   <TabItem label="Application">
-   
-   ```hcl
-   resource "teleport_app" "example" {
-     metadata = {
-       name        = "example"
-       description = "Test app"
-       labels = {
-         // Teleport adds this label by default, so add it here to
-         // ensure a consistent state.
-         "teleport.dev/origin" = "dynamic"
-         // Change "dev" to "prod" as appropriate.
-         "env" = "dev"
-       }
-     }
-   
-     spec = {
-       uri = "example.com:3000"
-     }
-   }
-   ```
-
-   1. Update the `spec.uri` field to match your application's domain name and
-      port.
-   
-   1. Read the [Terraform Provider
-      Reference](../../reference/terraform-provider/resources/app.mdx) for the
-      `teleport_app` resource and adjust any additional configuration fields.
-   
-   </TabItem>
-   <TabItem label="Database">
-   
-   ```hcl
-   resource "teleport_database" "example" {
-     metadata = {
-       name        = "example"
-       description = "Test database"
-       labels = {
-         // Teleport adds this label by default, so add it here to
-         // ensure a consistent state.
-         "teleport.dev/origin" = "dynamic"
-         // Change "dev" to "prod" as appropriate.
-         "env" = "dev"
-       }
-     }
-   
-     spec = {
-       protocol = "postgres"
-       uri      = "localhost"
-     }
-   }
-   ```
-
-   1. Update the `protocol` field to match the protocol of your database. Run the
-      following command on your workstation to see all supported protocols:
-
-      ```code
-      $ teleport help db configure create
-      ```
-
-   1. Update the `uri` field to match the domain name port of your database. If
-      you manage your database with Terraform, you can set it to an attribute of
-      the corresponding Terraform resource to establish a dependency
-      relationship.
-   1. Read the [Terraform Provider
-      Reference](../../reference/terraform-provider/resources/database.mdx) for
-      the `teleport_database` resource and adjust any additional configuration
-      fields.
-   
-   </TabItem>
-   <TabItem label="Agentless OpenSSH Server">
-
-   ```hcl
-   resource "teleport_server" "openssh_agentless" {
-     version = "v2"
-     sub_kind = "openssh"
-     metadata = {
-       name        = "example"
-       description = "Test server"
-       labels = {
-           // Teleport adds this label by default, so add it here to
-           // ensure a consistent state.
-           "teleport.dev/origin" = "dynamic"
-           // Change "dev" to "prod" as appropriate.
-           "env" = "dev"
-         }
-       }
-     spec = {
-       addr = "198.51.100.1:22"
-       hostname = "example"
-     }
-   }
-   ```
-
-   1. Update `spec.addr` with the domain name or IP address of the server as well
-      as the port. If you manage your database with Terraform, you can set it to
-      an attribute of the corresponding Terraform resource to establish a
-      dependency relationship.
-   1. Update `hostname` with the hostname of the server as shown by Teleport
-      client tools (Teleport Connect, `tsh`, and the Web UI). 
-   1. Read the [Terraform Provider
-      Reference](../../reference/terraform-provider/resources/server.mdx) for
-      the `teleport_database` resource and adjust any additional configuration
-      fields.
-
-   </TabItem>
-   </Tabs>
-
-1. Make sure that, in each dynamic infrastructure resource, the `labels` field
-   includes the following line to ensure that your Terraform state remains
-   consistent with the your cluster:
-
-   ```hcl
-   "teleport.dev/origin" = "dynamic"
-   ```
-
-1. Edit the `labels` field of each dynamic infrastructure resource to add
-   one of the following key-value pairs:
-   - `"env" = "dev"`
-   - `"env" = "prod"`
-
-   In the next guide in this series, you will define a Teleport role that
-   restricts access to resources with this label.
-
-## Step 4/4. Verify the deployment
+## Step 3/3. Verify the deployment
 
 In this step, you will create a Teleport bot to apply your Terraform
 configuration. The bot will exist for one hour and will be granted the default
@@ -647,13 +512,19 @@ provider creates them on the Teleport Auth Service backend.
 ### User data script
 
 Each Teleport Agent deployed by the `terraform-starter` module loads a user
-data script that creates a Teleport configuration file for the Agent. The
-services enabled by the configuration file depend on the value of the
-`agent_roles` input variable:
+data script that creates a Teleport configuration file for the Agent: 
 
 ```text
 (!examples/terraform-starter/agent-installation/userdata!)
 ```
+
+The configuration adds the `role: agent-pool` label to the Teleport SSH Service
+on each instance. This makes it easier to access hosts in the Agent pool later.
+It also adds the labels you configured using the `agent_labels` input of the
+module.
+
+The script makes Teleport the only option for accessing Agent instances by
+disabling OpenSSH on startup and deleting any authorized public keys.
 
 ### Virtual machine instances
 
@@ -708,7 +579,7 @@ by declaring Terraform resources for each infrastructure resource you want to
 enroll, you can protect more of your infrastructure with Teleport by:
 
 - Configuring Auto-Discovery
-- Configuring static resource enrollment
+- Configuring resource enrollment
 
 ### Configure Auto-Discovery
 
@@ -716,20 +587,26 @@ For a more scalable approach to enrolling resources than the one shown in this
 guide, configure the Teleport Discovery Service to automatically detect
 resources in your infrastructure and enroll them with the Teleport Auth Service.
 
-To configure the Teleport Discovery Service, edit the userdata script run by the
-Agent instances managed in the Terraform starter module. Follow the
-[Auto-Discovery
-guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides to
-configure the Discovery Service and enable your Agents to proxy the resources
-that the service enrolls.
+To configure the Teleport Discovery Service:
 
-### Enroll static resources
+1. Edit the userdata script run by the Agent instances managed in the Terraform
+   starter module. Follow the [Auto-Discovery
+   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides
+   to configure the Discovery Service and enable your Agents to proxy the
+   resources that the service enrolls.
+1. Add the `Discovery` role to the join token resource you created earlier. In
+   this guide, the join token only has the `Node` role.
+1. Add roles to the join token resource that corresponds to the Agent services
+   you want to proxy discovered resources. The roles to add depend on the
+   resources you want to automatically enroll based on the [Auto-Discovery
+   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides.
 
-You can enroll resources statically by editing the configuration file that each
-Teleport Agent reads when it starts up, which is `/etc/teleport.yaml` by
-default. For information about enrolling static resources, read the
-documentation section for each kind of resource you would like to enroll:
+### Enroll resources manually
 
+You can also enroll resources manually, instructing Agents to proxy specific
+endpoints in your infrastructure. For information about manual enrollment, read
+the documentation section for each kind of resource you would like to enroll:
+  
 - [Databases](../../../enroll-resources/database-access/database-access.mdx)
 - [Windows
   desktops](../../../enroll-resources/desktop-access/desktop-access.mdx)
@@ -739,22 +616,17 @@ documentation section for each kind of resource you would like to enroll:
 - [Web applications and cloud provider
   APIs](../../../enroll-resources/application-access/application-access.mdx)
 
-To incorporate configuration changes into your Terraform module:
+Once you are familiar with the process of enrolling a resource manually, you can
+edit your Terraform module to:
 
-1. Edit the userdata script for the compute instances that run Teleport Agents.
-
-1. In the section of the configuration file for the service that you edited,
-   assign the `labels` field to add key-value pairs. In the next guide in this
-   series, you will define a Teleport role that restricts access to resources
-   with this label.
-
-   For example, you could indicate that a resource belongs to a development
-   environment with the following label:
-
-   ```yaml
-   kubernetes_service:
-      enabled: true
-      labels:
-        env: "dev"
-   ```
+1. **Add token roles:** The token resource you created has only the `Node` role,
+   and you can add roles to authorize your Agents to proxy additional kinds of
+   resources. Consult a guide to enrolling resources manually to determine the
+   role to add to the token.
+1. **Change the userdata script** to enable additional Agent services additional
+   infrastructure resources for your Agents to proxy.
+1. **Deploy dynamic resources:** Consult the [Terraform provider
+   reference](../../../reference/terraform-provider.mdx) for Terraform resources
+   that you can apply in order to enroll dynamic resources in your
+   infrastructure.
 
