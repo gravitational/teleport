@@ -1,7 +1,18 @@
 ---
-title: Run the Teleport Terraform provider in CI or Cloud.
+title: Run the Teleport Terraform Provider in CI or Cloud
 description: How to manage dynamic resources using the Teleport Terraform provider from your CI pipelines or Cloud provider.
 ---
+
+## How it works
+
+This setup asks the runtime (the CI/CD system, cloud provider, container engine, ...) for an identity
+proof. This proof is then used directly by the Terraform provider to connect to Teleport and obtain credentials.
+In this setup, there is no `tbot` daemon involved as the Terraform provider can natively obtain the identity proof
+and join the Teleport cluster.
+
+The setup only works for select runtimes which Teleport
+has [a delegated join method](../../../reference/join-methods.mdx#delegated-join-methods) for (e.g. GitHub Actions,
+GitLab CI, ...)
 
 ## Prerequisites
 
@@ -32,7 +43,7 @@ If you are in one of those cases, please follow the dedicated guides:
 - [Run the Terraform Provider locally](./local.mdx)
 - [Run the Teleport Terraform Provider on a server](./dedicated-server.mdx)
 
-## Step 1/4. Create the terraform provider bot
+## Step 1/4. Create the Terraform provider bot
 
 In this step you will create [a bot](../../../enroll-resources/machine-id/architecture.mdx#what-is-a-bot) named `terraform`.
 

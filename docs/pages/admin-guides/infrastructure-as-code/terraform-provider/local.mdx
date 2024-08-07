@@ -1,16 +1,22 @@
 ---
-title: Run the Teleport Terraform provider locally
+title: Run the Teleport Terraform Provider Locally
 description: How to manage dynamic resources using the Teleport Terraform provider from your workstation.
 ---
 
 This guide covers how to run the Teleport terraform provider from your local computer,
 where you are already logged in Teleport as yourself.
 
-
 This guide does not cover running Teleport in remote environments such as a cloud VM, an on-prem server,
 or CI/CD pipelines. If you are in one of those cases, please follow the dedicated guides:
 - [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
 - [Run the Terraform Provider on a server](./dedicated-server.mdx)
+
+## How it works
+
+This setup relies on the user's local credentials (from `tsh login`) to create a temporary bot in Teleport,
+connect as the bot to obtain short-lived credentials, and export those credentials in the shell's environment variables.
+Every Terraform command run in this same terminal will then read credentials from environment variables and be able to
+connect to Teleport as the temporary bot.
 
 ## Prerequisites
 
@@ -44,7 +50,7 @@ Proxy: <Var name="teleport.example.com:443" />
 
 ### Step 1/2. Generate temporary bot credentials
 
-In this step, you will use `tctl` and your local credentials to create a temporary bot in Teleport for the terraform
+In this step, you will use `tctl` and your local credentials to create a temporary bot in Teleport for the Terraform
 provider. The bot will exist for one hour and will be granted the default `terraform-provider` role that can edit every
 resource the TF provider supports.
 
