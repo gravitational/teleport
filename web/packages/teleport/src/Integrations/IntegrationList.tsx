@@ -85,7 +85,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
       data={props.list}
       row={{
         onClick: handleOnRowClick,
-        onStyle: handleOnRowStyle,
+        getStyle: handleOnRowStyle,
       }}
       columns={[
         {
