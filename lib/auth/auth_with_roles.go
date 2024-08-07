@@ -3499,8 +3499,8 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 }
 
 // hasOneNonPresetUser returns true only if there is exactly one non-preset user in the provided list of users.
-// This method always compare with the original preset user users, and take into account that
-// the preset users may have been removed.
+// This method always compare with the original preset users, and take into account that some preset users may
+// have been removed.
 func hasOneNonPresetUser(users []types.User) bool {
 	presets := getPresetUsers()
 

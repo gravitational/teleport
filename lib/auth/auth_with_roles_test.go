@@ -8399,6 +8399,115 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 	}
 }
 
+func TestCloudDefaultPasswordless(t *testing.T) {
+	tt := []struct {
+		name                     string
+		cloud                    bool
+		qtyPreexistingUsers      int
+		expectedDefaultConnector string
+	}{
+		{
+			name:                     "First Cloud user should set cluster to passwordless",
+			cloud:                    true,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: constants.PasswordlessConnector,
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless",
+			cloud:                    true,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+		{
+			name:                     "First non-Cloud user should not set cluster to passwordless",
+			cloud:                    false,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			// create new server
+			ctx := context.Background()
+			srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+			require.NoError(t, err)
+
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
+			// set cluster Webauthn
+			authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorWebauthn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			})
+			require.NoError(t, err)
+			_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
+			require.NoError(t, err)
+
+			// create preexisting users
+			for i := 0; i < tc.qtyPreexistingUsers; i += 1 {
+				_, _, err = CreateUserAndRole(srv.AuthServer, fmt.Sprintf("testuser-%d", i), nil, []types.Rule{
+					types.NewRule(types.KindUser, services.RW()),
+				})
+				require.NoError(t, err)
+			}
+
+			// add the user that will have the auth method changed to passwordless
+			username := "passwordless-user"
+			_, _, err = CreateUserAndRole(srv.AuthServer, username, nil, []types.Rule{
+				types.NewRule(types.KindUser, services.RW()),
+			})
+			require.NoError(t, err)
+
+			// setup to change authentication method to passkey
+			resetToken, err := srv.AuthServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+				Name: username,
+			})
+			require.NoError(t, err)
+			token := resetToken.GetName()
+
+			registerChal, err := srv.AuthServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:     token,
+				DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			})
+			require.NoError(t, err)
+
+			_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
+			require.NoError(t, err)
+
+			setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
+			require.NoError(t, err)
+
+			// actual authentication method change via ServerWithRoles
+			serverWithRoles := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				alog:       srv.AuditLog,
+				context:    *setupAuthContext,
+			}
+
+			serverWithRoles.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+				TokenID:                token,
+				NewMFARegisterResponse: registerSolved,
+			})
+
+			authPreferences, err := serverWithRoles.GetAuthPreference(ctx)
+			require.NoError(t, err)
+
+			// assert that the auth preference matches the expected
+			require.Equal(t, tc.expectedDefaultConnector, authPreferences.GetConnectorName())
+		})
+	}
+}
+
 func TestHasOneNonPresetUser(t *testing.T) {
 	tt := []struct {
 		name            string
