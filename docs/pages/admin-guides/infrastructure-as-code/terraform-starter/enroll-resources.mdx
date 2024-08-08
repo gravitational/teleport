@@ -133,20 +133,36 @@ production.
    <TabItem label="AWS">
    
    ```hcl
-    module "agent_installation" {
-     source                = "./teleport"
-     agent_count           = 2
-     labels                = {}
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
      proxy_service_address = "teleport.example.com:443"
      teleport_edition      = "cloud"
      teleport_version      = "(=teleport.version=)"
    }
    
-    module "agent_deployment" {
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
      region           = ""
      source           = "./cloud"
      subnet_id        = ""
-     userdata_scripts = module.agent_installation.userdata_scripts
+     userdata_scripts = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
    }
    ```
    
@@ -154,21 +170,37 @@ production.
    <TabItem label="Google Cloud">
    
    ```hcl
-    module "agent_installation" {
-     source                = "./teleport"
-     agent_count           = 2
-     labels                = {}
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
      proxy_service_address = "teleport.example.com:443"
      teleport_edition      = "cloud"
      teleport_version      = "(=teleport.version=)"
    }
    
-    module "agent_deployment" {
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
      gcp_zone         = "us-east1-b"
      google_project   = ""
      source           = "./cloud"
      subnet_id        = ""
-     userdata_scripts = module.agent_installation.userdata_scripts
+     userdata_scripts = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
    }
    ```
    
@@ -176,32 +208,55 @@ production.
    <TabItem label="Azure">
    
    ```hcl
-    module "agent_installation" {
-     source                = "./teleport"
-     agent_count           = 2
-     labels                = {}
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
      proxy_service_address = "teleport.example.com:443"
      teleport_edition      = "cloud"
      teleport_version      = "(=teleport.version=)"
    }
    
-    module "agent_deployment" {
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
      azure_resource_group = ""
      public_key_path      = ""
      region               = "East US"
      source               = "./cloud"
      subnet_id            = ""
-     userdata_scripts     = module.agent_installation.userdata_scripts
+     userdata_scripts     = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
    }
    ```
    
    </TabItem>
    </Tabs>
 
-Edit the ` module "agent_installation"` block in `agent.tf` as follows:
+Edit the `agent_installation_dev` and `agent_installation_prod` blocks in
+`agent.tf` as follows:
 
-1. Assign `agent_count` to `2` for high availability. As you scale your Teleport
-   usage, you can increase this count to ease the load on each Agent. 
+1. In the `agent_installation_dev` and `agent_installation_prod` modules, leave
+   `agent_count` to `1`, or assign to `2` for high availability. Each of these
+   modules deploys a number of Linux servers equal to `agent_count`, labels them
+   with the key/value pairs specified in `agent_labels`, and deploys them by
+   passing userdata sdcripts to the `agent_deployment` module. 
+
+   As you scale your Teleport usage, you can increase this count to ease the
+   load on each Agent. 
 
 1. Assign `proxy_service_address` to the host and HTTPS port of your Teleport
    Proxy Service, e.g., `mytenant.teleport.sh:443`.
