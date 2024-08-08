@@ -60,6 +60,7 @@ use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
+use std::env;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -1412,7 +1413,10 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             height: params.screen_height,
         },
         enable_tls: true,
-        enable_credssp: params.ad,
+        // For now, NLA is opt-in via an environment variable.
+        // We'll make it the default behavior in a future release.
+        enable_credssp: params.ad
+            && env::var("TELEPORT_ENABLE_RDP_NLA").unwrap_or_default() == "yes",
         credentials: Credentials::SmartCard {
             config: params.ad.then(|| {
                 SmartCardIdentity {
