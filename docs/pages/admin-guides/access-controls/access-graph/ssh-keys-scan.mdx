@@ -1,5 +1,5 @@
 ---
-title: Discover insecure Access Patterns with Teleport Policy
+title: Discover insecure SSH access with Teleport Policy
 description: Describes how to enable SSH Keys Scanning using Teleport Policy and Access Graph.
 ---
 
@@ -42,6 +42,7 @@ Together with the key fingerprint, the node also sends the following metadata:
 - `key_comment`: The comment associated with the key in the `authorized_keys` file.
 
 By default, Teleport scans the `$HOME/.ssh/authorized_keys` and `$HOME/.ssh/authorized_keys2` files for authorized keys.
+Here, `$HOME` refers to the home directory of each user on the system, whether they are local or LDAP managed users.
 
 ### Importing User's SSH Private Keys
 
@@ -69,15 +70,6 @@ Teleport Cluster with metadata such as:
 `tsh` never sends the private key itself to the Teleport Cluster, ensuring that the private key remains secure on the device.
 It also never sends the private key path or any other sensitive information.
 </Notice>
-
-### Creating insecure access paths
-
-Teleport Policy’s Access Graph feature delves into the Authorized Keys, Private Keys imported and Device Trust inventory,
-crafting a graphical representation thereof.
-
-Users will have new nodes in the Access Graph representing the devices they own. These nodes will be connected to
-the private keys they have on their devices. The private keys will be connected to the authorized keys on the servers
-they can access. This way, you can identify insecure access paths and take corrective actions.
 
 ## Prerequisites
 
