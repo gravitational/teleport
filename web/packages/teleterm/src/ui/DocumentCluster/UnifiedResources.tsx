@@ -259,7 +259,7 @@ const Resources = memo(
   }) => {
     const appContext = useAppContext();
 
-    const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+    const { fetch, resources, attempt } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
           // Block the call if we don't know yet what resources to show.
@@ -316,11 +316,10 @@ const Resources = memo(
     const { onResourcesRefreshRequest } = props;
     useEffect(() => {
       const { cleanup } = onResourcesRefreshRequest(() => {
-        clear();
-        fetch({ force: true });
+        fetch({ clear: true });
       });
       return cleanup;
-    }, [onResourcesRefreshRequest, fetch, clear]);
+    }, [onResourcesRefreshRequest, fetch]);
 
     const resourceIds =
       props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
