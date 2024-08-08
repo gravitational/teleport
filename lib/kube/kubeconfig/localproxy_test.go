@@ -34,7 +34,7 @@ func TestLocalProxy(t *testing.T) {
 	)
 
 	kubeconfigPath, initialConfig := setup(t)
-	creds, _, err := genUserKey("localhost")
+	creds, _, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
 	exec := &ExecValues{
 		TshBinaryPath: "/path/to/tsh",

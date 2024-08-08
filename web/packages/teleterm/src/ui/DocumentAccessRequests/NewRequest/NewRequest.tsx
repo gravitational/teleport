@@ -251,6 +251,7 @@ function toResourceMap(request: PendingAccessRequest): ResourceMap {
     node: {},
     db: {},
     app: {},
+    saml_idp_service_provider: {},
   };
   if (request.kind === 'role') {
     request.roles.forEach(role => {

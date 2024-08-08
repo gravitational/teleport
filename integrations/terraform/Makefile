@@ -7,7 +7,7 @@ BUILDDIR ?= build
 TFDIR ?= example
 
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 

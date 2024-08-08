@@ -196,7 +196,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	key, err := NewClientKey(routedIdentity, hostCAs)
+	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -204,7 +204,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	status := &kubernetesStatus{
 		clusterAddr:           clusterAddr,
 		tlsServerName:         tlsServerName,
-		credentials:           key,
+		credentials:           keyRing,
 		teleportClusterName:   proxyPong.ClusterName,
 		kubernetesClusterName: kubeClusterName,
 	}

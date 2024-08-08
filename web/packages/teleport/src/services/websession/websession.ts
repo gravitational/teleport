@@ -176,6 +176,14 @@ const session = {
     return !!this._isRenewing;
   },
 
+  setDeviceTrustRequired() {
+    this._isDeviceTrustRequired = true;
+  },
+
+  getDeviceTrustRequired() {
+    return !!this._isDeviceTrustRequired;
+  },
+
   getIsDeviceTrusted() {
     return !!this._isDeviceTrusted;
   },

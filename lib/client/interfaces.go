@@ -20,6 +20,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -41,13 +42,14 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// KeyIndex helps to identify a key in the store.
-type KeyIndex struct {
+// KeyRingIndex identifies a KeyRing in the store.
+type KeyRingIndex struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
 	ProxyHost string
 	// Username is the username that a key is associated with.
@@ -56,9 +58,9 @@ type KeyIndex struct {
 	ClusterName string
 }
 
-// Check verifies the KeyIndex is fully specified.
-func (idx KeyIndex) Check() error {
-	missingField := "key index field %s is not set"
+// Check verifies the KeyRingIndex is fully specified.
+func (idx KeyRingIndex) Check() error {
+	missingField := "keyring index field %s is not set"
 	if idx.ProxyHost == "" {
 		return trace.BadParameter(missingField, "ProxyHost")
 	}
@@ -71,23 +73,36 @@ func (idx KeyIndex) Check() error {
 	return nil
 }
 
-// Match compares this key index to the given matchKey index.
+// Match compares this KeyRingIndex to the given matchKeyRing index.
 // It will be considered a match if all non-zero elements of
-// the matchKey are matched by this key index.
-func (idx KeyIndex) Match(matchKey KeyIndex) bool {
-	return (matchKey.ProxyHost == "" || matchKey.ProxyHost == idx.ProxyHost) &&
-		(matchKey.ClusterName == "" || matchKey.ClusterName == idx.ClusterName) &&
-		(matchKey.Username == "" || matchKey.Username == idx.Username)
+// the matchKeyRing are matched by this KeyRingIndex.
+func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
+	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
+		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
+		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
 }
 
-// KeyRing describes a set of client keys and certifcates for a specific cluster.
-type KeyRing struct {
-	KeyIndex
+// TLSCredential holds a signed TLS certificate and matching private key.
+type TLSCredential struct {
+	PrivateKey *keys.PrivateKey
+	Cert       []byte
+}
 
-	// PrivateKey represents the single cryptographic key associated with all
-	// certificates in the KeyRing. This will soon be deprecated and replaced
-	// with unique keys for each certificate, as part of the implementation of
-	// RFD 136.
+// TLSCertificate returns a valid [tls.Certificate] ready to be used in a TLS
+// handshake.
+func (c *TLSCredential) TLSCertificate() (tls.Certificate, error) {
+	cert, err := c.PrivateKey.TLSCertificate(c.Cert)
+	return cert, trace.Wrap(err)
+}
+
+// KeyRing describes a set of client keys and certificates for a specific cluster.
+type KeyRing struct {
+	KeyRingIndex
+
+	// PrivateKey used to represent the single cryptographic key associated with all
+	// certificates in the KeyRing. This is in the process of being deprecated
+	// and replaced with unique keys for each certificate, as part of the
+	// implementation of RFD 136.
 	PrivateKey *keys.PrivateKey
 
 	// Cert is an SSH client certificate
@@ -98,12 +113,12 @@ type KeyRing struct {
 	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
 	// kubernetes clusters. Map key is a kubernetes cluster name.
 	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
-	// DBTLSCerts are PEM-encoded TLS certificates for database access.
+	// DBTLSCredentials are TLS credentials for database access.
 	// Map key is the database service name.
-	DBTLSCerts map[string][]byte `json:"DBCerts,omitempty"`
-	// AppTLSCerts are TLS certificates for application access.
+	DBTLSCredentials map[string]TLSCredential
+	// AppTLSCredetials are TLS credentials for application access.
 	// Map key is the application name.
-	AppTLSCerts map[string][]byte `json:"AppCerts,omitempty"`
+	AppTLSCredentials map[string]TLSCredential
 	// WindowsDesktopCerts are TLS certificates for Windows Desktop access.
 	// Map key is the desktop server name.
 	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
@@ -120,22 +135,51 @@ func (k *KeyRing) Copy() *KeyRing {
 	return &copy
 }
 
-// GenerateRSAKey generates a new unsigned key.
-func GenerateRSAKey() (*KeyRing, error) {
+// GenerateKey returns a new private key with the appropriate algorithm for
+// [purpose]. If this KeyRing uses a PIV/hardware key, it will always return
+// that hardware key.
+func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
+	if k.PrivateKey.IsHardware() {
+		// We always use the same hardware key.
+		return k.PrivateKey, nil
+	}
+
+	// Ping is cached if called more than once on [tc].
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := cryptosuites.GenerateKeyWithSuite(ctx, pingResp.Auth.SignatureAlgorithmSuite, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	priv, err := keys.NewPrivateKey(key, privateKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return priv, nil
+}
+
+// GenerateRSAKeyRing generates a new unsigned key ring.
+func GenerateRSAKeyRing() (*KeyRing, error) {
 	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewKey(priv), nil
+	return NewKeyRing(priv), nil
 }
 
-// NewKey creates a new Key for the given private key.
-func NewKey(priv *keys.PrivateKey) *KeyRing {
+// NewKeyRing creates a new KeyRing for the given private key.
+func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
 		PrivateKey:          priv,
 		KubeTLSCerts:        make(map[string][]byte),
-		DBTLSCerts:          make(map[string][]byte),
-		AppTLSCerts:         make(map[string][]byte),
+		DBTLSCredentials:    make(map[string]TLSCredential),
+		AppTLSCredentials:   make(map[string]TLSCredential),
 		WindowsDesktopCerts: make(map[string][]byte),
 	}
 }
@@ -164,7 +208,7 @@ func (k *KeyRing) RootClusterCAs() ([][]byte, error) {
 	return nil, trace.NotFound("failed to find TLS CA for %q root cluster", rootClusterName)
 }
 
-// TLSCAs returns all TLS CA certificates from this key
+// TLSCAs returns all TLS CA certificates from this KeyRing.
 func (k *KeyRing) TLSCAs() (result [][]byte) {
 	for _, ca := range k.TrustedCerts {
 		result = append(result, ca.TLSCertificates...)
@@ -191,9 +235,9 @@ func (k *KeyRing) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName str
 }
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
-// keys/certs against SSH CAs in the Key.
+// keys/certs against SSH CAs in the KeyRing.
 //
-// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
+// If not CAs are present in the KeyRing, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
 func (k *KeyRing) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, error) {
@@ -204,7 +248,7 @@ func (k *KeyRing) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, err
 	return sshutils.HostKeyCallback(trustedHostKeys, true)
 }
 
-// authorizedHostKeys returns all authorized host keys from this key. If any host
+// authorizedHostKeys returns all authorized host keys from this KeyRing. If any host
 // names are provided, only matching host keys will be returned.
 func (k *KeyRing) authorizedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 	var hostKeys []ssh.PublicKey
@@ -278,7 +322,7 @@ func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
-// Key and HostKeyCallback matching SSH CAs in the Key.
+// KeyRing and HostKeyCallback matching SSH CAs in the KeyRing.
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
@@ -344,7 +388,7 @@ const (
 
 // teleportAgentKeyComment returns a teleport agent key comment
 // like "teleport:<proxyHost>:<userName>:<clusterName>".
-func teleportAgentKeyComment(k KeyIndex) string {
+func teleportAgentKeyComment(k KeyRingIndex) string {
 	return strings.Join([]string{
 		agentKeyCommentPrefix,
 		k.ProxyHost,
@@ -354,14 +398,14 @@ func teleportAgentKeyComment(k KeyIndex) string {
 }
 
 // parseTeleportAgentKeyComment parses an agent key comment into
-// its associated KeyIndex.
-func parseTeleportAgentKeyComment(comment string) (KeyIndex, bool) {
+// its associated KeyRingIndex.
+func parseTeleportAgentKeyComment(comment string) (KeyRingIndex, bool) {
 	parts := strings.Split(comment, agentKeyCommentSeparator)
 	if len(parts) != 4 || parts[0] != agentKeyCommentPrefix {
-		return KeyIndex{}, false
+		return KeyRingIndex{}, false
 	}
 
-	return KeyIndex{
+	return KeyRingIndex{
 		ProxyHost:   parts[1],
 		ClusterName: parts[2],
 		Username:    parts[3],
@@ -374,8 +418,8 @@ func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }
 
-// AsAgentKey converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
-// can be added to a local agent (keyring), nut non-standard keys cannot be added
+// AsAgentKey converts client.KeyRing struct to an agent.AddedKey. Any agent.AddedKey
+// can be added to a local agent (keyring), but non-standard keys cannot be added
 // to an SSH system agent through the ssh agent protocol. Check canAddToSystemAgent
 // before adding this key to an SSH system agent.
 func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
@@ -387,7 +431,7 @@ func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
 	return agent.AddedKey{
 		PrivateKey:       k.PrivateKey.Signer,
 		Certificate:      sshCert,
-		Comment:          teleportAgentKeyComment(k.KeyIndex),
+		Comment:          teleportAgentKeyComment(k.KeyRingIndex),
 		LifetimeSecs:     0,
 		ConfirmBeforeUse: false,
 	}, nil
@@ -439,21 +483,17 @@ func (k *KeyRing) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
 
 // DBTLSCert returns the tls.Certificate for authentication against a named database.
 func (k *KeyRing) DBTLSCert(dbName string) (tls.Certificate, error) {
-	certPem, ok := k.DBTLSCerts[dbName]
+	cred, ok := k.DBTLSCredentials[dbName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for database %q not found", dbName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return tlsCert, nil
+	return cred.TLSCertificate()
 }
 
 // DBTLSCertificates returns all parsed x509 database access certificates.
 func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
-	for _, bytes := range k.DBTLSCerts {
-		cert, err := tlsca.ParseCertificatePEM(bytes)
+	for _, cred := range k.DBTLSCredentials {
+		cert, err := tlsca.ParseCertificatePEM(cred.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -464,21 +504,17 @@ func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
 
 // AppTLSCert returns the tls.Certificate for authentication against a named app.
 func (k *KeyRing) AppTLSCert(appName string) (tls.Certificate, error) {
-	certPem, ok := k.AppTLSCerts[appName]
+	cred, ok := k.AppTLSCredentials[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return tlsCert, nil
+	return cred.TLSCertificate()
 }
 
 // AppTLSCertificates returns all parsed x509 app access certificates.
 func (k *KeyRing) AppTLSCertificates() (certs []x509.Certificate, err error) {
-	for _, bytes := range k.AppTLSCerts {
-		cert, err := tlsca.ParseCertificatePEM(bytes)
+	for _, cred := range k.AppTLSCredentials {
+		cert, err := tlsca.ParseCertificatePEM(cred.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

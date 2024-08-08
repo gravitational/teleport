@@ -35,7 +35,7 @@ regular maintenance window.
 
 - A Teleport Enterprise cluster. If you do not have one, [sign
   up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](./reference.mdx) to read about manual updates.
+  Reference](upgrading.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport agents that are not yet enrolled in automatic updates.
@@ -79,12 +79,12 @@ Teleport cluster that agents use to determine when to check for upgrades.
    Create the role resource:
 
    ```code
-   $ tctl create cmd-editor.yaml
+   $ tctl create cmc-editor.yaml
    ```
 
 1. Add the role to your Teleport user:
 
-  (!docs/pages/includes/add-role-to-user.mdx!)
+  (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
 
 1. Create a cluster maintenance config in a file called `cmc.yaml`. The
    following example allows maintenance on Monday, Wednesday and Friday between
@@ -183,7 +183,7 @@ Server ID                            Hostname      Services Version Upgrader
    <TabItem label="Managed Teleport Enterprise">
 
    ```code
-   $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} cloud
+   $ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} cloud
    ```
 
    </TabItem>
