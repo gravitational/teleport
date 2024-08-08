@@ -63,9 +63,9 @@ func authorizeWithVerbs(verbs []string) authorizerFactory {
 }
 
 func assertTraceErr(f func(error) bool) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
-		require.Error(t, err, msgAndArgs...)
-		require.True(t, f(err), msgAndArgs...)
+	return func(t require.TestingT, err error, _ ...any) {
+		require.Error(t, err)
+		require.True(t, f(err), "unexpected error: %v", err)
 	}
 }
 
@@ -214,6 +214,17 @@ func TestStaticHostUserCRUD(t *testing.T) {
 			request: func(ctx context.Context, svc *Service) error {
 				_, err := svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
 					User: makeStaticHostUser(0),
+				})
+				return err
+			},
+			verbs:  []string{types.VerbUpdate},
+			assert: assertTraceErr(trace.IsCompareFailed),
+		},
+		{
+			name: "update nonexistent resource",
+			request: func(ctx context.Context, svc *Service) error {
+				_, err := svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
+					User: makeStaticHostUser(10),
 				})
 				return err
 			},
