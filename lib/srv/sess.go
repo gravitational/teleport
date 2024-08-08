@@ -271,6 +271,7 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
+			log.Warnf("Unable to create host users: %v", err)
 			return nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)

@@ -446,7 +446,7 @@ func (h *Handler) performMFACeremony(
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: certsReq,
-		Key:      nil, // We just want the certs.
+		KeyRing:  nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

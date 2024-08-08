@@ -36,15 +36,15 @@ import (
 
 // UserCreds holds user client credentials
 type UserCreds struct {
-	// Key is user client key and certificate
-	Key client.KeyRing
-	// HostCA is a trusted host certificate authority
+	// KeyRing is user client key ring.
+	KeyRing client.KeyRing
+	// HostCA is a trusted host certificate authority.
 	HostCA types.CertAuthority
 }
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	err := tc.AddKey(&creds.Key)
+	err := tc.AddKeyRing(&creds.KeyRing)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -145,7 +145,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 
 	return &UserCreds{
 		HostCA: ca,
-		Key: client.KeyRing{
+		KeyRing: client.KeyRing{
 			PrivateKey: priv,
 			Cert:       sshCert,
 			TLSCert:    x509Cert,

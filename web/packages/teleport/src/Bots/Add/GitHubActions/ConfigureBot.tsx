@@ -27,7 +27,7 @@ import { Text } from 'design';
 
 import FieldInput from 'shared/components/FieldInput';
 
-import Alert from 'design/Alert';
+import { Alert } from 'design/Alert';
 
 import { H2 } from 'design';
 

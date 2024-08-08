@@ -245,7 +245,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 }
 
 // RemoveAllSecure is similar to [os.RemoveAll] but leverages [RemoveSecure] to delete files so that they are
-// overwritten.  This helps guard against hardware attacks on magnetic disks.
+// overwritten. This helps guard against hardware attacks on magnetic disks.
 func RemoveAllSecure(path string) error {
 	if path == "" {
 		// match behavior from os.RemoveAll

@@ -24,6 +24,7 @@ import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
+import session from 'teleport/services/websession';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -135,6 +136,37 @@ test('notification bell with notification', async () => {
 
   await userEvent.click(screen.getByTestId('tb-notifications-button'));
   expect(screen.getByTestId('tb-notifications-dropdown')).toBeVisible();
+});
+
+test('warning icon will show if session requires device trust and is not authorized', async () => {
+  setup();
+  jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => true);
+
+  render(getTopBar());
+
+  // the icon will show in the topbar and the usermenunav dropdown
+  expect(screen.getAllByTestId('device-trust-required-icon')).toHaveLength(2);
+});
+
+test('authorized icon will show if session is authorized', async () => {
+  setup();
+  jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => true);
+  jest.spyOn(session, 'getIsDeviceTrusted').mockImplementation(() => true);
+
+  render(getTopBar());
+
+  // the icon will show in the topbar and the usermenunav dropdown
+  expect(screen.getAllByTestId('device-trusted-icon')).toHaveLength(2);
+});
+
+test('icon will not show if device trust is not required', async () => {
+  setup();
+  jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => false);
+
+  render(getTopBar());
+
+  // no icons will be present
+  expect(screen.queryByTestId('device-trust-icon')).not.toBeInTheDocument();
 });
 
 const getTopBar = () => {
