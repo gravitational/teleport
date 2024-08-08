@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	accesslistsvc "github.com/gravitational/teleport/e/lib/accesslist"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -906,8 +907,8 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 			}
 		})
 
-	reviewerRoleName := irMetadata.name + ReviewerSuffix
-
+	accessRoleName := common.CreateOktaAccessRoleFriendlyName(irMetadata.title, irMetadata.name)
+	reviewerRoleName := common.CreateOktaReviewerRoleFriendlyName(irMetadata.title, irMetadata.name)
 	// Create an access list for the resources.
 	accessList, err := accesslist.NewAccessList(header.Metadata{
 		Name:   irMetadata.name,
@@ -921,7 +922,7 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 			Roles: []string{reviewerRoleName},
 		},
 		Grants: accesslist.Grants{
-			Roles: []string{irMetadata.name},
+			Roles: []string{accessRoleName},
 		},
 		Owners: owners,
 	})
@@ -951,7 +952,7 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 		rules = append(rules, types.NewRule(types.KindUserGroup, services.RO()))
 	}
 
-	role, err := types.NewRole(irMetadata.name, types.RoleSpecV6{
+	role, err := types.NewRole(accessRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Namespaces:  []string{apidefaults.Namespace},
 			Rules:       rules,
@@ -974,7 +975,10 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-	reviewerRole.SetStaticLabels(labels)
+
+	labelsCpy := maps.Clone(labels)
+	labelsCpy[eteleport.OktaACLReviewerRoleLabel] = "true"
+	reviewerRole.SetStaticLabels(labelsCpy)
 
 	return accessList, members, []types.Role{role, reviewerRole}, nil
 }
@@ -1037,12 +1041,11 @@ func (a *accessListSync) addRolesToOktaRequester(ctx context.Context) error {
 
 	a.importRoles.Read(
 		func(importRoles map[string]types.Role) {
-			for roleName := range importRoles {
-				if strings.HasSuffix(roleName, ReviewerSuffix) {
+			for k, v := range importRoles {
+				if _, ok := v.GetLabel(eteleport.OktaACLReviewerRoleLabel); ok {
 					continue
 				}
-
-				roles = append(roles, roleName)
+				roles = append(roles, k)
 			}
 		})
 

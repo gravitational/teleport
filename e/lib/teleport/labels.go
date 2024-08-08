@@ -36,4 +36,7 @@ const (
 
 	// OktaAppHiddenLabel is the label that indicates that an Okta app is hidden from user Okta portal.
 	OktaAppHiddenLabel = types.TeleportInternalLabelPrefix + "okta-app-hidden"
+
+	// OktaACLReviewerRoleLabel is the label that indicates that a role is an Okta ACL reviewer role.
+	OktaACLReviewerRoleLabel = types.TeleportInternalLabelPrefix + "okta-accesslist-reviewer-role"
 )

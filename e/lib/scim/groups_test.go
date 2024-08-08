@@ -338,8 +338,8 @@ func TestGroupCreate(t *testing.T) {
 			expectedAccessListID:          newACLID,
 			expectedDisplayName:           newACLDisplayName,
 			expectedRoles: map[string][]any{
-				newACLID:               {passThrough[types.Role]},
-				newACLID + "-reviewer": {passThrough[types.Role]},
+				"test_access_list-access-okta-acl-role-test-new-acl":   {passThrough[types.Role]},
+				"test_access_list-reviewer-okta-acl-role-test-new-acl": {passThrough[types.Role]},
 			},
 			expectError:     require.NoError,
 			expectedMembers: []*types.UserV2{},
@@ -370,8 +370,8 @@ func TestGroupCreate(t *testing.T) {
 			expectedMemberLookups:         users[0:5],
 			expectedMembers:               users[0:5],
 			expectedRoles: map[string][]any{
-				newACLID:               {passThrough[types.Role]},
-				newACLID + "-reviewer": {passThrough[types.Role]},
+				"test_access_list-access-okta-acl-role-test-new-acl":   {passThrough[types.Role]},
+				"test_access_list-reviewer-okta-acl-role-test-new-acl": {passThrough[types.Role]},
 			},
 			expectError: require.NoError,
 		},
@@ -420,7 +420,7 @@ func TestGroupCreate(t *testing.T) {
 			expectACLLookup:               true,
 			expectCreatingAccessListEvent: true,
 			expectedRoles: map[string][]any{
-				newACLID: {nil, trace.AlreadyExists("That role already exists")},
+				"access_list_0-access-okta-acl-role-test-new-acl": {nil, trace.AlreadyExists("That role already exists")},
 			},
 			expectCreateAccessList: false,
 			expectError:            requireAlreadyExists,
@@ -435,8 +435,8 @@ func TestGroupCreate(t *testing.T) {
 			expectACLLookup:               true,
 			expectCreatingAccessListEvent: true,
 			expectedRoles: map[string][]any{
-				newACLID:               {passThrough[types.Role]},
-				newACLID + "-reviewer": {nil, trace.AlreadyExists("That role already exists")},
+				"access_list_0-access-okta-acl-role-test-new-acl":   {passThrough[types.Role]},
+				"access_list_0-reviewer-okta-acl-role-test-new-acl": {nil, trace.AlreadyExists("That role already exists")},
 			},
 			expectCreateAccessList: false,
 			expectError:            requireAlreadyExists,

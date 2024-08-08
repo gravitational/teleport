@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -179,8 +180,8 @@ func (gh *groupHandler) createNewAccessList(ctx context.Context, shim providerSh
 }
 
 func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, acl *accesslist.AccessList) (types.Role, types.Role, error) {
-	accessRoleName := acl.GetName()
-	reviewerRoleName := acl.GetName() + "-reviewer"
+	accessRoleName := common.CreateOktaAccessRoleFriendlyName(acl.Spec.Title, acl.GetName())
+	reviewerRoleName := common.CreateOktaReviewerRoleFriendlyName(acl.Spec.Title, acl.GetName())
 
 	accessRole, err := types.NewRole(accessRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -208,7 +209,9 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	reviewerRole.SetStaticLabels(shim.getResourceLabels())
+	labelsCpy := shim.getResourceLabels()
+	labelsCpy[eteleport.OktaACLReviewerRoleLabel] = "true"
+	reviewerRole.SetStaticLabels(labelsCpy)
 
 	gh.log.Debugf("Creating access role %q", accessRole.GetName())
 	if _, err := gh.roles.CreateRole(ctx, accessRole); err != nil {
