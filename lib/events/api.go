@@ -792,6 +792,13 @@ const (
 	IntegrationUpdateEvent = "integration.update"
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
+
+	// PluginCreateEvent is emitted when a plugin resource is created.
+	PluginCreateEvent = "plugin.create"
+	//PluginUpdateEvent is emitted when a plugin resource is updated.
+	PluginUpdateEvent = "plugin.update"
+	// PluginDeleteEvent is emitted when a plugin resource is deleted.
+	PluginDeleteEvent = "plugin.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
