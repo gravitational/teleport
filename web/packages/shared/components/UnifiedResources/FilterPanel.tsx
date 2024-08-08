@@ -31,6 +31,7 @@ import {
   Rows,
   ArrowsIn,
   ArrowsOut,
+  Refresh,
 } from 'design/Icon';
 
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
@@ -77,6 +78,7 @@ interface FilterPanelProps {
   ClusterDropdown?: JSX.Element;
   availabilityFilter?: ResourceAvailabilityFilter;
   changeAvailableResourceMode(mode: IncludedResourceMode): void;
+  onRefresh(): void;
 }
 
 export function FilterPanel({
@@ -94,6 +96,7 @@ export function FilterPanel({
   hideViewModeOptions,
   changeAvailableResourceMode,
   ClusterDropdown = null,
+  onRefresh,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -149,6 +152,18 @@ export function FilterPanel({
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
+        <HoverTooltip tipContent="Refresh">
+          <ButtonBorder
+            onClick={onRefresh}
+            textTransform="none"
+            css={`
+              border-color: ${props => props.theme.colors.spotBackground[2]};
+            `}
+            size="small"
+          >
+            {<Refresh size={12} />}
+          </ButtonBorder>
+        </HoverTooltip>
         {!hideViewModeOptions && (
           <>
             {currentViewMode === ViewMode.LIST && (
