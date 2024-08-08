@@ -18,6 +18,8 @@ package local
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -144,7 +146,55 @@ func TestSPIFFEFederationService_UpsertSPIFFEFederation(t *testing.T) {
 }
 
 func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
+	ctx, service := setupSPIFFEFederationTest(t)
+	// Create entities to list
+	createdObjects := []*machineidv1.SPIFFEFederation{}
+	// Create 49 entities to test an incomplete page at the end.
+	for i := 0; i < 49; i++ {
+		created, err := service.CreateSPIFFEFederation(
+			ctx,
+			newSPIFFEFederation(fmt.Sprintf("%d.example.com", i)),
+		)
+		require.NoError(t, err)
+		createdObjects = append(createdObjects, created)
+	}
+	t.Run("default page size", func(t *testing.T) {
+		page, nextToken, err := service.ListSPIFFEFederations(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, page, 49)
+		require.Empty(t, nextToken)
 
+		// Expect that we get all the things we have created
+		for _, created := range createdObjects {
+			slices.ContainsFunc(page, func(federation *machineidv1.SPIFFEFederation) bool {
+				return proto.Equal(created, federation)
+			})
+		}
+	})
+	t.Run("pagination", func(t *testing.T) {
+		fetched := []*machineidv1.SPIFFEFederation{}
+		token := ""
+		iterations := 0
+		for {
+			iterations++
+			page, nextToken, err := service.ListSPIFFEFederations(ctx, 10, token)
+			require.NoError(t, err)
+			fetched = append(fetched, page...)
+			if nextToken == "" {
+				break
+			}
+			token = nextToken
+		}
+		require.Equal(t, 5, iterations)
+
+		require.Len(t, fetched, 49)
+		// Expect that we get all the things we have created
+		for _, created := range createdObjects {
+			slices.ContainsFunc(fetched, func(federation *machineidv1.SPIFFEFederation) bool {
+				return proto.Equal(created, federation)
+			})
+		}
+	})
 }
 
 func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
