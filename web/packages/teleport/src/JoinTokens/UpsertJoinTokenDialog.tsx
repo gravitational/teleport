@@ -248,9 +248,8 @@ export const UpsertJoinTokenDialog = ({
               {!editToken && ( // We only want to change the method when creating a new token
                 <FieldSelect
                   label="Method"
-                  rule={requiredField('Select a join method')}
+                  rule={requiredField<Option>('Select a join method')}
                   isSearchable
-                  isSimpleValue
                   isClearable={false}
                   value={newTokenState.method}
                   onChange={setTokenMethod}
@@ -283,7 +282,6 @@ export const UpsertJoinTokenDialog = ({
                 placeholder="Click to select roles"
                 isSearchable
                 isMulti
-                isSimpleValue
                 mb={5}
                 isClearable={false}
                 value={newTokenState.roles}
