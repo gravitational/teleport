@@ -17,9 +17,7 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-
-import { CSSObject } from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 
 import {
   space,
@@ -409,5 +407,12 @@ export const ButtonWarningBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="danger" {...props} />;
 export const ButtonText = <E extends React.ElementType = 'button'>(
-  props: ButtonProps<E>
-) => <Button fill="minimal" intent="neutral" {...props} />;
+  props: ButtonProps<E> & { compact?: boolean }
+) => (
+  <Button
+    fill="minimal"
+    intent="neutral"
+    {...(props.compact ? { px: 1 } : {})}
+    {...props}
+  />
+);
