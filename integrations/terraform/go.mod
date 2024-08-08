@@ -149,6 +149,7 @@ require (
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -316,6 +317,7 @@ require (
 	github.com/yuin/goldmark-meta v1.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
+	github.com/zeebo/errs v1.3.0 // indirect
 	github.com/zmap/zcrypto v0.0.0-20231219022726-a1f61fb1661c // indirect
 	github.com/zmap/zlint/v3 v3.6.0 // indirect
 	go.abhg.dev/goldmark/frontmatter v0.2.0 // indirect
