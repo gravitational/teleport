@@ -4,7 +4,7 @@ description: Describes how to enable SSH Keys Scanning using Teleport Policy and
 ---
 
 Organizations often struggle to maintain a secure environment due to the lack of visibility into access patterns.
-Long-lived SSH keys, for example, can pose a significant security risk as they can be forgotten or mismanaged while
+Long-lived SSH keys, for example, can pose a significant security risk as they can be compromised or mismanaged while
 still providing non-auditable access to critical systems.
 
 With Teleport Policy's Access Graph, you can gain insights on how SSH keys are used within your environment. By scanning
@@ -30,7 +30,7 @@ Teleport and Teleport Policy's Access Graph synchronize various resources, inclu
 These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../teleport-policy/getting-started-policy.mdx).
 
-### Importing Node's SSH Authorized Keys
+### Importing an SSH Node's Authorized Keys
 
 Teleport Cluster Nodes running the Teleport SSH Service continuously scan for SSH Authorized Keys present on the server.
 The public fingerprint of these keys is sent to the Teleport Auth Service, which then pushes them to the Access Graph.
@@ -46,7 +46,7 @@ By default, Teleport scans the `$HOME/.ssh/authorized_keys` and `$HOME/.ssh/auth
 ### Importing User's SSH Private Keys
 
 Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
-It goes through the specified directories—defaulting to `/Users` on macOS, `/home` on Linux, and `C://Users` on Windows—
+It goes through the specified directories—defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows—
 by examining files with certain prefaces to identify SSH private keys.
 
 The `tsh` tool authenticates with the Teleport Cluster through the [Device Trust](../device-trust.mdx) feature,
