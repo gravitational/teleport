@@ -100,7 +100,17 @@ func TestOpsGenieGetMessageRecipients(t *testing.T) {
 				},
 			}
 			recipients := a.getMessageRecipients(ctx, req)
-			require.ElementsMatch(t, tt.expectedRecipients, recipients)
+
+			got := make(map[string]string, len(recipients))
+			for _, r := range recipients {
+				got[r.Name] = r.ID
+			}
+			want := make(map[string]string, len(tt.expectedRecipients))
+			for _, r := range tt.expectedRecipients {
+				want[r.Name] = r.ID
+			}
+
+			require.Equal(t, want, got)
 		})
 	}
 
