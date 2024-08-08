@@ -2875,7 +2875,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		pageToken := ""
 		for {
 			resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
-				PageSize:  100,
 				PageToken: pageToken,
 			})
 			if err != nil {
