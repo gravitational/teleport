@@ -19,11 +19,13 @@
 package client
 
 import (
+	"context"
 	"errors"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -176,16 +178,16 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(keyRing.PrivateKey.PrivateKeyPEM(), fs.userKeyPath(keyRing.KeyRingIndex)); err != nil {
+	// Store TLS key and cert.
+	if err := fs.writeTLSCredential(TLSCredential{
+		PrivateKey: keyRing.PrivateKey,
+		Cert:       keyRing.TLSCert,
+	}, fs.userKeyPath(keyRing.KeyRingIndex), fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Store SSH public key (it currently matches the same private key as the TLS cert).
 	if err := fs.writeBytes(keyRing.PrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Store TLS cert
-	if err := fs.writeBytes(keyRing.TLSCert, fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -203,7 +205,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		}
 	}
 
-	// Store per-cluster key data.
+	// Store per-cluster SSH cert.
 	if len(keyRing.Cert) > 0 {
 		if err := fs.writeBytes(keyRing.Cert, fs.sshCertPath(keyRing.KeyRingIndex)); err != nil {
 			return trace.Wrap(err)
@@ -218,39 +220,122 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 
-		certPath := fs.kubeCertPath(keyRing.KeyRingIndex, kubeCluster)
-		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
-			return trace.Wrap(err)
-		}
 		keyPath := fs.kubeKeyPath(keyRing.KeyRingIndex, kubeCluster)
-		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		certPath := fs.kubeCertPath(keyRing.KeyRingIndex, kubeCluster)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for db, cred := range keyRing.DBTLSCredentials {
 		db = filepath.Clean(db)
-		certPath := fs.databaseCertPath(keyRing.KeyRingIndex, db)
-		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
-			return trace.Wrap(err)
-		}
 		keyPath := fs.databaseKeyPath(keyRing.KeyRingIndex, db)
-		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		certPath := fs.databaseCertPath(keyRing.KeyRingIndex, db)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for app, cred := range keyRing.AppTLSCredentials {
 		app = filepath.Clean(app)
-		certPath := fs.appCertPath(keyRing.KeyRingIndex, app)
-		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
-			return trace.Wrap(err)
-		}
 		keyPath := fs.appKeyPath(keyRing.KeyRingIndex, app)
-		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		certPath := fs.appCertPath(keyRing.KeyRingIndex, app)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	return nil
+}
+
+func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath string) error {
+	if err := os.MkdirAll(filepath.Dir(keyPath), os.ModeDir|profileDirPerms); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// Always lock the key file when reading or writing a TLS credential so
+	// that we can't end up with non-matching key/cert in a race condition.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryWriteLockFile(ctx, keyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock()
+
+	if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := fs.writeBytes(cred.Cert, certPath); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
+	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	key, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	return TLSCredential{
+		PrivateKey: key,
+		Cert:       certPEM,
+	}, nil
+}
+
+func readTLSCredentialFiles(keyPath, certPath string) ([]byte, []byte, error) {
+	// Always lock the key file when reading or writing a TLS credential so
+	// that we can't end up with non-matching key/cert in a race condition.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryReadLockFile(ctx, keyPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer unlock()
+
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+	return keyPEM, certPEM, nil
+}
+
+func tryWriteLockFile(ctx context.Context, path string) (func(), error) {
+	return tryLockFile(ctx, path, utils.FSTryWriteLock)
+}
+
+func tryReadLockFile(ctx context.Context, path string) (func(), error) {
+	return tryLockFile(ctx, path, utils.FSTryReadLock)
+}
+
+func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() error, error)) (func(), error) {
+	unlock, err := lockFn(path)
+	for {
+		switch {
+		case err == nil:
+			return func() {
+				if err := unlock(); err != nil {
+					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
+				}
+			}, nil
+		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
+			select {
+			case <-ctx.Done():
+				return nil, trace.Wrap(ctx.Err(), "timed out trying to acquire lock for TLS credential at %s", path)
+			case <-time.After(50 * time.Millisecond):
+			}
+			unlock, err = lockFn(path)
+		default:
+			return nil, trace.Wrap(err, "could not acquire lock for TLS credential at %s", path)
+		}
+	}
 }
 
 func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
@@ -410,41 +495,25 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 }
 
 func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
-	credsByName := make(map[string]TLSCredential)
 	files, err := os.ReadDir(credentialDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+	credsByName := make(map[string]TLSCredential, len(files)/2)
 	for _, file := range files {
-		if certName := keypaths.TrimCertPathSuffix(file.Name()); certName != file.Name() {
-			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			cred := credsByName[certName]
-			cred.Cert = data
-			credsByName[certName] = cred
-		}
 		if keyName := keypaths.TrimKeyPathSuffix(file.Name()); keyName != file.Name() {
-			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
+			keyPath := filepath.Join(credentialDir, file.Name())
+			certPath := filepath.Join(credentialDir, keyName+keypaths.FileExtTLSCert)
+			cred, err := readTLSCredential(keyPath, certPath)
 			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			privKey, err := keys.ParsePrivateKey(data)
-			if err != nil {
+				if trace.IsNotFound(err) {
+					// Somehow we have a key with no cert, skip it. This should
+					// cause a cert re-issue which should solve the problem.
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
-			cred := credsByName[keyName]
-			cred.PrivateKey = privKey
 			credsByName[keyName] = cred
-		}
-	}
-	for name, creds := range credsByName {
-		if creds.Cert == nil || creds.PrivateKey == nil {
-			// Found a cert with no key or vice-versa, this may have been
-			// written by an older version or partially deleted, treat it as
-			// missing and a cert re-issue should solve it.
-			delete(credsByName, name)
 		}
 	}
 	return credsByName, nil

@@ -631,7 +631,8 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 2 different files from the disk:
+	// it removes all transversals, it still has to read 2 different files from
+	// the disk and acquire a read lock on the key file:
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
 	//

@@ -34,8 +34,8 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	// fileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
 	fileExtTLSCertLegacy = "-x509.pem"
-	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
-	fileExtTLSCert = ".crt"
+	// FileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
+	FileExtTLSCert = ".crt"
 	// fileExtTLSKey is the suffix/extension of a file where a TLS private key is stored.
 	fileExtTLSKey = ".key"
 	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
@@ -253,7 +253,7 @@ func AppCredentialDir(baseDir, proxy, username, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.crt
 func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
-	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
+	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+FileExtTLSCert)
 }
 
 // AppKeyPath returns the path to the user's private key for the given proxy,
@@ -293,7 +293,7 @@ func DatabaseCredentialDir(baseDir, proxy, username, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>.crt
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
-	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCert)
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+FileExtTLSCert)
 }
 
 // DatabaseKeyPath returns the path to the user's TLS private key
@@ -332,7 +332,7 @@ func KubeCredentialDir(baseDir, proxy, username, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.crt
 func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+fileExtTLSCert)
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+FileExtTLSCert)
 }
 
 // KubeKeyPath returns the path to the user's TLS private key
@@ -380,7 +380,7 @@ func IdentitySSHCertPath(path string) string {
 // TrimCertPathSuffix returns the given path with any cert suffix/extension trimmed off.
 func TrimCertPathSuffix(path string) string {
 	trimmedPath := strings.TrimSuffix(path, fileExtTLSCertLegacy)
-	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtTLSCert)
+	trimmedPath = strings.TrimSuffix(trimmedPath, FileExtTLSCert)
 	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtSSHCert)
 	return trimmedPath
 }
