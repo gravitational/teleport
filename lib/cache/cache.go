@@ -39,6 +39,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	kubeprovisionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubeprovision/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -179,6 +180,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
+		{Kind: types.KindKubeProvision},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -231,6 +233,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindKubeProvision},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -312,6 +315,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindKubeProvision},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -516,6 +520,7 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	kubeProvisionCache           services.KubeProvisions
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -646,6 +651,8 @@ type Config struct {
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
+	// KubeProvisions is a KubeProvision service
+	KubeProvisions services.KubeProvisions
 	// CrownJewels is a CrownJewels service.
 	CrownJewels services.CrownJewels
 	// DatabaseServices is a DatabaseService service.
@@ -911,6 +918,12 @@ func New(config Config) (*Cache, error) {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
+	kubeProvisionsCache, err := local.NewKubeProvisionService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
 	if err != nil {
 		cancel()
@@ -963,6 +976,7 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
+		kubeProvisionCache:           kubeProvisionsCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -2815,6 +2829,32 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	}
 	defer rg.Release()
 	return rg.reader.GetDiscoveryConfig(ctx, name)
+}
+
+// ListKubeProvisions returns a list of KubeProvision resources.
+func (c *Cache) ListKubeProvisions(ctx context.Context, pageSize int, nextKey string) ([]*kubeprovisionv1.KubeProvision, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubeProvisions")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeProvisions)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubeProvisions(ctx, pageSize, nextKey)
+}
+
+// GetKubeProvision returns the specified KubeProvision resource.
+func (c *Cache) GetKubeProvision(ctx context.Context, name string) (*kubeprovisionv1.KubeProvision, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeProvision")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeProvisions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetKubeProvision(ctx, name)
 }
 
 // ListCrownJewels returns a list of CrownJewel resources.

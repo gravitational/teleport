@@ -34,6 +34,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeprovisionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubeprovision/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -1254,6 +1255,26 @@ func (c *databaseObjectCollection) writeText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type kubeProvisionCollection struct {
+	provisions []*kubeprovisionv1.KubeProvision
+}
+
+func (k *kubeProvisionCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(k.provisions))
+	for _, resource := range k.provisions {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (k *kubeProvisionCollection) writeYaml(w io.Writer, verbose bool) error {
+	return utils.WriteYAML(w, k.provisions)
+}
+
+func (k *kubeProvisionCollection) writeText(w io.Writer, verbose bool) error {
+	return utils.WriteYAML(w, k.provisions)
 }
 
 type deviceCollection struct {

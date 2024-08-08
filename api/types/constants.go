@@ -200,6 +200,9 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
+	// KindKubeProvision is a kube provision resource.
+	KindKubeProvision = "kube_provision"
+
 	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
 

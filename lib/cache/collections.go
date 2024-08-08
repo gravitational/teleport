@@ -31,6 +31,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	kubeprovisionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubeprovision/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -222,6 +223,7 @@ type cacheCollections struct {
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
 	kubeServers              collectionReader[kubeServerGetter]
+	kubeProvisions           collectionReader[services.KubeProvisionsGetter]
 	locks                    collectionReader[services.LockGetter]
 	namespaces               collectionReader[namespaceGetter]
 	networkRestrictions      collectionReader[networkRestrictionGetter]
@@ -566,6 +568,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.crownJewels
+		case types.KindKubeProvision:
+			if c.KubeProvisions == nil {
+				return nil, trace.BadParameter("missing parameter KubeProvisions")
+			}
+			collections.kubeProvisions = &genericCollection[*kubeprovisionv1.KubeProvision, services.KubeProvisionsGetter, kubeProvisionsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.kubeProvisions
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -2347,6 +2358,51 @@ func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGett
 }
 
 var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
+
+type kubeProvisionsExecutor struct{}
+
+func (kubeProvisionsExecutor) getAll(ctx context.Context, cache *Cache, _ bool) ([]*kubeprovisionv1.KubeProvision, error) {
+	var resources []*kubeprovisionv1.KubeProvision
+	var nextToken string
+	for {
+		var page []*kubeprovisionv1.KubeProvision
+		var err error
+		page, nextToken, err = cache.KubeProvisions.ListKubeProvisions(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (kubeProvisionsExecutor) upsert(ctx context.Context, cache *Cache, resource *kubeprovisionv1.KubeProvision) error {
+	_, err := cache.kubeProvisionCache.UpsertKubeProvision(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (kubeProvisionsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.kubeProvisionCache.DeleteAllKubeProvisions(ctx)
+}
+
+func (kubeProvisionsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.kubeProvisionCache.DeleteKubeProvision(ctx, resource.GetName())
+}
+
+func (kubeProvisionsExecutor) isSingleton() bool { return false }
+
+func (kubeProvisionsExecutor) getReader(cache *Cache, cacheOK bool) services.KubeProvisionsGetter {
+	if cacheOK {
+		return cache.kubeProvisionCache
+	}
+	return cache.Config.KubeProvisions
+}
+
+var _ executor[*kubeprovisionv1.KubeProvision, services.KubeProvisionsGetter] = kubeProvisionsExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}

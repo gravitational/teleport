@@ -164,6 +164,8 @@ type ReadProxyAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	services.KubeProvisionsGetter
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -421,6 +423,8 @@ type RemoteProxyAccessPoint interface {
 type ReadKubernetesAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	services.KubeProvisionsGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)

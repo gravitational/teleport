@@ -211,6 +211,9 @@ type InitConfig struct {
 	// CrownJewels is a service that manages CrownJewels.
 	CrownJewels services.CrownJewels
 
+	// KubeProvisions is a service that manages KubeProvisions.
+	KubeProvisions services.KubeProvisions
+
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 

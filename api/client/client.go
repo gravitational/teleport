@@ -52,6 +52,7 @@ import (
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/kubeprovision"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -72,6 +73,7 @@ import (
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	kubeprovisionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubeprovision/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -3131,6 +3133,16 @@ func (c *Client) DeleteAllKubernetesClusters(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// GetKubeProvision returns the requested KubeProvision resource.
+func (c *Client) GetKubeProvision(ctx context.Context, name string) (*kubeprovisionv1.KubeProvision, error) {
+	return c.KubeProvisionServiceClient().GetKubeProvision(ctx, name)
+}
+
+// ListKubeProvisions lists KubeProvisions resources
+func (c *Client) ListKubeProvisions(ctx context.Context, pageSize int, pageToken string) ([]*kubeprovisionv1.KubeProvision, string, error) {
+	return c.KubeProvisionServiceClient().ListKubeProvisions(ctx, pageSize, pageToken)
+}
+
 // GetKubernetesWaitingContainerClient an unadorned KubeWaitingContainers
 // client, using the underlying Auth gRPC connection.
 func (c *Client) GetKubernetesWaitingContainerClient() *kubewaitingcontainerclient.Client {
@@ -4602,6 +4614,11 @@ func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseO
 // DatabaseObjectClient returns a client for managing database objects.
 func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
 	return dbobjectv1.NewDatabaseObjectServiceClient(c.conn)
+}
+
+// KubeProvisionServiceClient returns a client for managing kube provisions.
+func (c *Client) KubeProvisionServiceClient() *kubeprovision.Client {
+	return kubeprovision.NewClient(kubeprovisionv1.NewKubeProvisionServiceClient(c.conn))
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.

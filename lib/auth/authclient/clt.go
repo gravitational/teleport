@@ -675,6 +675,11 @@ func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
 }
 
+// KubeProvisionsClient returns a client for managing Kube Provision resources.
+func (c *Client) KubeProvisionsClient() services.KubeProvisions {
+	return c.APIClient.KubeProvisionServiceClient()
+}
+
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1431,6 +1436,7 @@ type ClientI interface {
 	services.KubeWaitingContainer
 	services.Notifications
 	services.VnetConfigGetter
+	services.KubeProvisionsGetter
 	types.Events
 
 	types.WebSessionsGetter
@@ -1599,6 +1605,9 @@ type ClientI interface {
 
 	// DatabaseObjectsClient returns a database object client.
 	DatabaseObjectsClient() *databaseobject.Client
+
+	// KubeProvisionsClient returns a kube provisions client.
+	KubeProvisionsClient() services.KubeProvisions
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client

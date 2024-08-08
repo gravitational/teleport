@@ -211,6 +211,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessMonitoringRuleParser()
 		case types.KindBotInstance:
 			parser = newBotInstanceParser()
+		case types.KindKubeProvision:
+			parser = newKubeProvisionParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2156,6 +2158,34 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(botInstance), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newKubeProvisionParser() *kubeProvisionParser {
+	return &kubeProvisionParser{
+		baseParser: newBaseParser(backend.Key(kubeProvisionPrefix)),
+	}
+}
+
+type kubeProvisionParser struct {
+	baseParser
+}
+
+func (p *kubeProvisionParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindKubeProvision, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalKubeProvision(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

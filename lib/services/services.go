@@ -58,6 +58,7 @@ type Services interface {
 	SecReportsClient() *secreport.Client
 	CrownJewelClient() CrownJewels
 	DatabaseObjectsClient() DatabaseObjects
+	KubeProvisionsClient() KubeProvisions
 }
 
 // RotationGetter returns the rotation state.

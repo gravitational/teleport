@@ -21,6 +21,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	kubeprovisionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubeprovision/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -76,6 +77,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *crownjewelv1.CrownJewel:
 			out.Resource = &proto.Event_CrownJewel{
 				CrownJewel: r,
+			}
+		case *kubeprovisionv1.KubeProvision:
+			out.Resource = &proto.Event_KubeProvision{
+				KubeProvision: r,
 			}
 		case *dbobjectv1.DatabaseObject:
 			out.Resource = &proto.Event_DatabaseObject{
@@ -517,6 +522,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetBotInstance(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetKubeProvision(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

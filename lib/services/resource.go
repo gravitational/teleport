@@ -52,6 +52,9 @@ type MarshalConfig struct {
 
 	// Expires is an optional expiry time
 	Expires time.Time
+
+	// DiscardUnknown specifies if unknown fields and enum name values are ignored.
+	DiscardUnknown bool
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -87,6 +90,14 @@ func AddOptions(opts []MarshalOption, add ...MarshalOption) []MarshalOption {
 func WithRevision(rev string) MarshalOption {
 	return func(c *MarshalConfig) error {
 		c.Revision = rev
+		return nil
+	}
+}
+
+// WithDiscardUnknown assigns sets DiscardUnknown marshal option.
+func WithDiscardUnknown() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.DiscardUnknown = true
 		return nil
 	}
 }
@@ -225,6 +236,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindBot, nil
 	case types.KindBotInstance, types.KindBotInstance + "s":
 		return types.KindBotInstance, nil
+	case types.KindKubeProvision, types.KindKubeProvision + "s":
+		return types.KindKubeProvision, nil
 	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
 		return types.KindDatabaseObjectImportRule, nil
 	case types.KindAccessMonitoringRule:
@@ -828,7 +841,11 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		return nil, trace.Wrap(err)
 	}
 	var resource T = new(U)
-	err = protojson.Unmarshal(data, resource)
+	unmarshalOptions := protojson.UnmarshalOptions{}
+	if cfg.DiscardUnknown {
+		unmarshalOptions.DiscardUnknown = true
+	}
+	err = unmarshalOptions.Unmarshal(data, resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

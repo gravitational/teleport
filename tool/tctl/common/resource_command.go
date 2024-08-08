@@ -46,6 +46,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeprovisionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubeprovision/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -162,6 +163,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindCrownJewel:               rc.createCrownJewel,
 		types.KindVnetConfig:               rc.createVnetConfig,
 		types.KindPlugin:                   rc.createPlugin,
+		types.KindKubeProvision:            rc.createKubeProvision,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -176,6 +178,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindCrownJewel:              rc.updateCrownJewel,
 		types.KindVnetConfig:              rc.updateVnetConfig,
 		types.KindPlugin:                  rc.updatePlugin,
+		types.KindKubeProvision:           rc.updateKubeProvision,
 	}
 	rc.config = config
 
@@ -964,6 +967,40 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createKubeProvision(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	newKubeProvision, err := services.UnmarshalKubeProvision(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.KubeProvisionsClient()
+	if rc.force {
+		if _, err := c.UpsertKubeProvision(ctx, newKubeProvision); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("kube provision %q has been updated\n", newKubeProvision.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateKubeProvision(ctx, newKubeProvision); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("kube provision %q has been created\n", newKubeProvision.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) updateKubeProvision(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	in, err := services.UnmarshalKubeProvision(resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.KubeProvisionsClient().UpdateKubeProvision(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("kube provision %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -1781,6 +1818,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
+	case types.KindKubeProvision:
+		if err := client.KubeProvisionServiceClient().DeleteKubeProvision(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Kube provision %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2729,6 +2771,32 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &discoveryConfigCollection{discoveryConfigs: resources}, nil
+	case types.KindKubeProvision:
+		remote := client.KubeProvisionsClient()
+		if rc.ref.Name != "" {
+			kp, err := remote.GetKubeProvision(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &kubeProvisionCollection{provisions: []*kubeprovisionv1.KubeProvision{kp}}, nil
+		}
+
+		var resources []*kubeprovisionv1.KubeProvision
+		var dcs []*kubeprovisionv1.KubeProvision
+		var err error
+		var nextKey string
+		for {
+			dcs, nextKey, err = remote.ListKubeProvisions(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resources = append(resources, dcs...)
+			if nextKey == "" {
+				break
+			}
+		}
+
+		return &kubeProvisionCollection{provisions: resources}, nil
 	case types.KindAuditQuery:
 		if rc.ref.Name != "" {
 			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
