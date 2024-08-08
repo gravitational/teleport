@@ -80,7 +80,7 @@ test('non application resource kind', async () => {
     kind: ResourceKind.Server,
     name: '',
     icon: undefined,
-    keywords: '',
+    keywords: [],
     event: DiscoverEventResource.Server,
   });
 
@@ -100,7 +100,7 @@ test('with application resource kind for aws console', async () => {
     appMeta: { awsConsole: true },
     name: '',
     icon: undefined,
-    keywords: '',
+    keywords: [],
     event: DiscoverEventResource.ApplicationHttp,
   });
 
@@ -120,7 +120,7 @@ test('missing permissions for integrations', async () => {
     appMeta: { awsConsole: true },
     name: '',
     icon: undefined,
-    keywords: '',
+    keywords: [],
     event: DiscoverEventResource.ApplicationHttp,
   });
 
