@@ -313,7 +313,6 @@ func TestRegisterBotInstance(t *testing.T) {
 			Status: events.Status{
 				Success: true,
 			},
-			UserName:  "bot-test",
 			BotName:   "test",
 			Method:    string(types.JoinMethodToken),
 			TokenName: token.GetSafeName(),

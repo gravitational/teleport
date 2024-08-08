@@ -20,6 +20,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strconv"
 	"time"
@@ -35,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -160,7 +162,20 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys.MarshalPublicKey(cryptoPubKey)
+
+	// Note: Manually unrolled `MarshalPublicKey` from
+	// https://github.com/gravitational/teleport/pull/43260 as it was not
+	// backported to v15.
+	switch pubKey := cryptoPubKey.(type) {
+	case *rsa.PublicKey:
+		pubPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(pubKey),
+		})
+		return pubPEM, nil
+	default:
+		return nil, trace.BadParameter("unsupported public key type %T", cryptoPubKey)
+	}
 }
 
 // commitGenerationCounterToBotUser updates the legacy generation counter label
