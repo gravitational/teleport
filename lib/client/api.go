@@ -544,10 +544,16 @@ func VirtualPathCAParams(caType types.CertAuthType) VirtualPathParams {
 	}
 }
 
-// VirtualPathDatabaseParams returns parameters for selecting specific database
-// certificates.
-func VirtualPathDatabaseParams(databaseName string) VirtualPathParams {
+// VirtualPathDatabaseCertParams returns parameters for selecting a specific database
+// certificate by name.
+func VirtualPathDatabaseCertParams(databaseName string) VirtualPathParams {
 	return VirtualPathParams{databaseName}
+}
+
+// VirtualPathDatabaseKeyParams returns parameters for selecting a specific database
+// key by name.
+func VirtualPathDatabaseKeyParams(databaseName string) VirtualPathParams {
+	return VirtualPathParams{"DB", databaseName}
 }
 
 // VirtualPathAppCertParams returns parameters for selecting specific app cert by name.
@@ -1468,8 +1474,8 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
-	return key, trace.Wrap(err)
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	return keyRing, trace.Wrap(err)
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
@@ -3713,7 +3719,10 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		keyRing.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
 	}
 	if tc.DatabaseService != "" {
-		keyRing.DBTLSCerts[tc.DatabaseService] = response.TLSCert
+		keyRing.DBTLSCredentials[tc.DatabaseService] = TLSCredential{
+			Cert:       response.TLSCert,
+			PrivateKey: priv,
+		}
 	}
 
 	// Store the requested cluster name in the keyring.

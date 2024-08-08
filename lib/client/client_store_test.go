@@ -108,7 +108,10 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	keyRing.Cert = cert
 	keyRing.TLSCert = tlsCert
 	keyRing.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
-	keyRing.DBTLSCerts["example-db"] = tlsCert
+	keyRing.DBTLSCredentials["example-db"] = TLSCredential{
+		Cert:       tlsCert,
+		PrivateKey: priv,
+	}
 	return keyRing
 }
 

@@ -113,9 +113,9 @@ type KeyRing struct {
 	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
 	// kubernetes clusters. Map key is a kubernetes cluster name.
 	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
-	// DBTLSCerts are PEM-encoded TLS certificates for database access.
+	// DBTLSCredentials are TLS credentials for database access.
 	// Map key is the database service name.
-	DBTLSCerts map[string][]byte `json:"DBCerts,omitempty"`
+	DBTLSCredentials map[string]TLSCredential
 	// AppTLSCredetials are TLS credentials for application access.
 	// Map key is the application name.
 	AppTLSCredentials map[string]TLSCredential
@@ -178,7 +178,7 @@ func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
 		PrivateKey:          priv,
 		KubeTLSCerts:        make(map[string][]byte),
-		DBTLSCerts:          make(map[string][]byte),
+		DBTLSCredentials:    make(map[string]TLSCredential),
 		AppTLSCredentials:   make(map[string]TLSCredential),
 		WindowsDesktopCerts: make(map[string][]byte),
 	}
@@ -483,21 +483,17 @@ func (k *KeyRing) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
 
 // DBTLSCert returns the tls.Certificate for authentication against a named database.
 func (k *KeyRing) DBTLSCert(dbName string) (tls.Certificate, error) {
-	certPem, ok := k.DBTLSCerts[dbName]
+	cred, ok := k.DBTLSCredentials[dbName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for database %q not found", dbName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return tlsCert, nil
+	return cred.TLSCertificate()
 }
 
 // DBTLSCertificates returns all parsed x509 database access certificates.
 func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
-	for _, bytes := range k.DBTLSCerts {
-		cert, err := tlsca.ParseCertificatePEM(bytes)
+	for _, cred := range k.DBTLSCredentials {
+		cert, err := tlsca.ParseCertificatePEM(cred.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

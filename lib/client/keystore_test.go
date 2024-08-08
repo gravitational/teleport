@@ -69,13 +69,13 @@ func TestKeyStore(t *testing.T) {
 		keyRing.TrustedCerts = nil
 		require.Equal(t, keyRing, retrievedKeyRing)
 
-		// Delete just the db cert, reload & verify it's gone
+		// Delete just the db cred, reload & verify it's gone
 		err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
 		require.NoError(t, err)
 		retrievedKeyRing, err = keyStore.GetKeyRing(idx, WithSSHCerts{}, WithDBCerts{})
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
-		expectKeyRing.DBTLSCerts = make(map[string][]byte)
+		expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
 		require.Equal(t, expectKeyRing, retrievedKeyRing)
 
 		// check for the key, now without cluster name
@@ -270,10 +270,10 @@ func TestAddKey_withoutSSHCert(t *testing.T) {
 	_, err := os.Stat(sshCertPath)
 	require.ErrorIs(t, err, os.ErrNotExist)
 
-	// check db certs
+	// check db creds
 	keyCopy, err := keyStore.GetKeyRing(idx, WithDBCerts{})
 	require.NoError(t, err)
-	require.Len(t, keyCopy.DBTLSCerts, 1)
+	require.Len(t, keyCopy.DBTLSCredentials, 1)
 }
 
 func TestConfigDirNotDeleted(t *testing.T) {

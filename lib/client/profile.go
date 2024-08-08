@@ -444,7 +444,7 @@ func (p *ProfileStatus) KeyPath() string {
 // DatabaseCertPathForCluster returns path to the specified database access
 // certificate for this profile, for the specified cluster.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>.crt
 //
 // If the input cluster name is an empty string, the selected cluster in the
 // profile will be used.
@@ -453,11 +453,30 @@ func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseN
 		clusterName = p.Cluster
 	}
 
-	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseCertParams(databaseName)); ok {
 		return path
 	}
 
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
+}
+
+// DatabaseKeyPathForCluster returns path to the specified database access
+// private key for this profile, for the specified cluster.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>.key
+//
+// If the input cluster name is an empty string, the selected cluster in the
+// profile will be used.
+func (p *ProfileStatus) DatabaseKeyPathForCluster(clusterName string, databaseName string) string {
+	if clusterName == "" {
+		clusterName = p.Cluster
+	}
+
+	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathDatabaseKeyParams(databaseName)); ok {
+		return path
+	}
+
+	return keypaths.DatabaseKeyPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
 // OracleWalletDir returns path to the specified database access
@@ -472,7 +491,7 @@ func (p *ProfileStatus) OracleWalletDir(clusterName string, databaseName string)
 		clusterName = p.Cluster
 	}
 
-	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseCertParams(databaseName)); ok {
 		return path
 	}
 

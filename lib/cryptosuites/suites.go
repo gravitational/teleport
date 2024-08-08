@@ -83,6 +83,8 @@ const (
 	UserSSH
 	// UserTLS represents a user TLS key.
 	UserTLS
+	// UserDatabase represents a user Database key.
+	UserDatabase
 
 	// TODO(nklaassen): define remaining key purposes.
 
@@ -143,6 +145,7 @@ var (
 		SPIFFECAJWT:         RSA2048,
 		UserSSH:             RSA2048,
 		UserTLS:             RSA2048,
+		UserDatabase:        RSA2048,
 		// We could consider updating this algorithm even in the legacy suite, only database agents need to
 		// accept these connections and they have never restricted algorithm support.
 		ProxyToDatabaseAgent: RSA2048,
@@ -167,6 +170,7 @@ var (
 		SPIFFECAJWT:          ECDSAP256,
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -189,6 +193,7 @@ var (
 		SPIFFECAJWT:          ECDSAP256,
 		UserSSH:              ECDSAP256,
 		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -213,6 +218,7 @@ var (
 		SPIFFECAJWT:          ECDSAP256,
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
