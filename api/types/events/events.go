@@ -1980,3 +1980,15 @@ func (m *IntegrationUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *IntegrationDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
+
+func (m *PluginCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
+func (m *PluginUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
+func (m *PluginDelete) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}

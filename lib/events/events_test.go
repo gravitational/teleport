@@ -194,6 +194,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	IntegrationCreateEvent:                      &apievents.IntegrationCreate{},
 	IntegrationUpdateEvent:                      &apievents.IntegrationUpdate{},
 	IntegrationDeleteEvent:                      &apievents.IntegrationDelete{},
+	PluginCreateEvent:                           &apievents.PluginCreate{},
+	PluginUpdateEvent:                           &apievents.PluginUpdate{},
+	PluginDeleteEvent:                           &apievents.PluginDelete{},
 }
 
 // TestJSON tests JSON marshal events
