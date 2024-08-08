@@ -102,7 +102,7 @@ export function SelectIntegration() {
               data-testid="aws-integration-select"
             />
           </Box>
-          <ButtonText as={Link} to={locationState} pl={0}>
+          <ButtonText as={Link} to={locationState} compact>
             Or click here to set up a different AWS account
           </ButtonText>
 

@@ -59,7 +59,7 @@ export default function Workflow() {
   if (!requestId) {
     return (
       <>
-        <FeatureBox px={4}>
+        <FeatureBox>
           <FeatureHeader
             css={`
               border-bottom: none;
