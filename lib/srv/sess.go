@@ -235,12 +235,12 @@ func (sc *sudoersCloser) Close() error {
 	return nil
 }
 
-func (s *SessionRegistry) TryWriteSudoersFile(srv Server, identityContext IdentityContext) (io.Closer, error) {
+func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
 	if s.sudoers == nil {
 		return nil, nil
 	}
 
-	sudoers, err := identityContext.AccessChecker.HostSudoers(srv.GetInfo())
+	sudoers, err := identityContext.AccessChecker.HostSudoers(s.Srv.GetInfo())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -261,13 +261,13 @@ func (s *SessionRegistry) TryWriteSudoersFile(srv Server, identityContext Identi
 	}, nil
 }
 
-func (s *SessionRegistry) TryCreateHostUser(srv Server, identityContext IdentityContext) (created bool, closer io.Closer, err error) {
-	if !srv.GetCreateHostUser() || s.users == nil {
+func (s *SessionRegistry) TryCreateHostUser(identityContext IdentityContext) (created bool, closer io.Closer, err error) {
+	if !s.Srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
-	ui, err := identityContext.AccessChecker.HostUsers(srv.GetInfo())
+	ui, err := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			log.Warnf("Unable to create host users: %v", err)

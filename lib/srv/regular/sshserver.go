@@ -1446,7 +1446,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	// Create host user.
-	created, userCloser, err := s.termHandlers.SessionRegistry.TryCreateHostUser(s, identityContext)
+	created, userCloser, err := s.termHandlers.SessionRegistry.TryCreateHostUser(identityContext)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
@@ -1456,7 +1456,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		ccx.AddCloser(userCloser)
 	}
 
-	sudoersCloser, err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(s, identityContext)
+	sudoersCloser, err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(identityContext)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
