@@ -160,6 +160,9 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	_, err = service.CreateGlobalNotification(ctx, globalNotificationLateExpiry)
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
 
+	// Verify that the Metada.Expires on the global notification wrapper is the same as in the inner notification.
+	require.Equal(t, notification.Metadata.Expires, notification.Spec.Notification.Metadata.Expires)
+
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
 	require.NoError(t, err)
