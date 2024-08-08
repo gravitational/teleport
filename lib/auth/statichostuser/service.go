@@ -19,12 +19,13 @@ package statichostuser
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // ServiceConfig holds configuration options for the static host user gRPC service.

@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
@@ -28,9 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services/local"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type authorizerFactory func(t *testing.T, client test.LocalClient) authz.Authorizer

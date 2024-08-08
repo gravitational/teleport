@@ -17,8 +17,9 @@ package statichostuser
 import (
 	"context"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/trace"
+
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 )
 
 // Client is a StaticHostUser client.
