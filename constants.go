@@ -581,9 +581,6 @@ const (
 	// membership information
 	TraitTeams = "github_teams"
 
-	// TraitJWT is the name of the trait containing JWT header for app access.
-	TraitJWT = "jwt"
-
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"

@@ -3302,6 +3302,51 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			// See comment in ApplyValueTraits for why we allow this.
+			comment: "explicitly allow internal traits referenced via external namespace",
+			inTraits: map[string][]string{
+				constants.TraitLogins:             {"logins"},
+				constants.TraitWindowsLogins:      {"windowsLogins"},
+				constants.TraitKubeGroups:         {"kubeGroups"},
+				constants.TraitKubeUsers:          {"kubeUsers"},
+				constants.TraitDBNames:            {"dBNames"},
+				constants.TraitDBUsers:            {"dBUsers"},
+				constants.TraitDBRoles:            {"dBRoles"},
+				constants.TraitAWSRoleARNs:        {"aWSRoleARNs"},
+				constants.TraitAzureIdentities:    {"azureIdentities"},
+				constants.TraitGCPServiceAccounts: {"gCPServiceAccounts"},
+				constants.TraitJWT:                {"jwt"},
+			},
+			allow: rule{
+				inLogins: []string{
+					"{{external.logins}}",
+					"{{external.windows_logins}}",
+					"{{external.kubernetes_groups}}",
+					"{{external.kubernetes_users}}",
+					"{{external.db_names}}",
+					"{{external.db_users}}",
+					"{{external.db_roles}}",
+					"{{external.aws_role_arns}}",
+					"{{external.azure_identities}}",
+					"{{external.gcp_service_accounts}}",
+					"{{external.jwt}}",
+				},
+				outLogins: []string{
+					"logins",
+					"windowsLogins",
+					"kubeGroups",
+					"kubeUsers",
+					"dBNames",
+					"dBUsers",
+					"dBRoles",
+					"aWSRoleARNs",
+					"azureIdentities",
+					"gCPServiceAccounts",
+					"jwt",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
