@@ -20,6 +20,16 @@ $ teleport db configure aws print-iam --types rds,redshift --role teleport-db-se
 To learn more about IAM permissions for a specific type of database, refer to
 the related section below.
 
+## DocumentDB
+
+(!docs/pages/includes/database-access/reference/aws-iam/documentdb/access-policy.mdx dbUserRole="documentdb-user-role"!)
+
+### IAM role as a DocumentDB database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/documentdb/role-as-user-policy.mdx!)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="documentdb-user-role"!)
+
 ## DynamoDB
 
 (!docs/pages/includes/database-access/reference/aws-iam/dynamodb/access-policy.mdx dbUserRole="dynamodb-user-role"!)
