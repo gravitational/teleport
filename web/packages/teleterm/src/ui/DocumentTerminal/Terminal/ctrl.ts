@@ -24,7 +24,7 @@ import { debounce } from 'shared/utils/highbar';
 import { WindowsPty } from 'teleterm/services/pty';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
-import { ConfigService } from 'teleterm/services/config';
+import { ConfigService, AppConfig } from 'teleterm/services/config';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
@@ -45,15 +45,23 @@ export default class TtyTerminal {
   private debouncedResize: () => void;
   private logger = new Logger('lib/term/terminal');
   private removePtyProcessOnDataListener: () => void;
+  private config: Pick<
+    AppConfig,
+    'terminal.rightClick' | 'terminal.copyOnSelect'
+  >;
 
   constructor(
     private ptyProcess: IPtyProcess,
     private options: Options,
-    private configService: ConfigService,
+    configService: ConfigService,
     private keyboardShortcutsService: KeyboardShortcutsService
   ) {
     this.el = options.el;
     this.term = null;
+    this.config = {
+      'terminal.rightClick': configService.get('terminal.rightClick').value,
+      'terminal.copyOnSelect': configService.get('terminal.copyOnSelect').value,
+    };
 
     this.debouncedResize = debounce(
       this.requestResize.bind(this),
@@ -74,6 +82,7 @@ export default class TtyTerminal {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      rightClickSelectsWord: this.config['terminal.rightClick'] === 'menu',
       theme: this.options.theme,
       windowsPty: this.options.windowsPty && {
         backend: this.options.windowsPty.useConpty ? 'conpty' : 'winpty',
@@ -85,10 +94,7 @@ export default class TtyTerminal {
     });
 
     this.term.onSelectionChange(() => {
-      if (
-        this.configService.get('terminal.copyOnSelect').value &&
-        this.term.hasSelection()
-      ) {
+      if (this.config['terminal.copyOnSelect'] && this.term.hasSelection()) {
         void this.copySelection();
       }
     });
@@ -127,7 +133,7 @@ export default class TtyTerminal {
       //  the same time on Linux causes flickering.
       e.preventDefault();
 
-      if (this.configService.get('terminal.rightClick').value === 'menu') {
+      if (this.config['terminal.rightClick'] === 'menu') {
         this.options.openContextMenu(e);
       }
     });
@@ -142,9 +148,7 @@ export default class TtyTerminal {
       e.stopPropagation();
       e.preventDefault();
 
-      const terminalRightClick = this.configService.get(
-        'terminal.rightClick'
-      ).value;
+      const terminalRightClick = this.config['terminal.rightClick'];
 
       switch (terminalRightClick) {
         case 'paste': {
