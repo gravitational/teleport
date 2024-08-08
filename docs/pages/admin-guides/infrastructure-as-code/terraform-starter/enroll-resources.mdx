@@ -66,7 +66,7 @@ a demo cluster using:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Import the Terraform module
+## Step 1/3. Import the Terraform module
 
 In this step, you will download Terraform modules that show you how to get
 started enrolling Teleport resources. These modules are minimal examples of how
@@ -333,7 +333,7 @@ Edit the `module "agent_deployment"` block in `agent.tf` as follows:
 </TabItem>
 </Tabs>
 
-## Step 2/4. Add provider configurations
+## Step 2/3. Add provider configurations
 
 In this step, you will configure the `terraform-starter` module for your
 Teleport cluster and cloud provider.
@@ -452,161 +452,7 @@ Replace the following placeholders:
 </TabItem>
 </Tabs>
 
-## Step 3/4. Enroll dynamic infrastructure resources
-
-In this section, you will configure your Agent pool to enroll infrastructure
-resources in your Teleport cluster. To do so, you will declare **dynamic
-resources**. Agents read these from the Auth Service and proxy traffic to them.
-You apply these by defining them as Terraform resources.
-
-The Teleport Terraform provider currently supports the following dynamic
-resources:
-
-|Infrastructure Resource|Terraform Resource|
-|---|---|
-|Application|`teleport_app`|
-|Database|`teleport_database`|
-|OpenSSH Servers|`teleport_server`|
-
-For Windows desktops and Kubernetes clusters, you must edit the Agent
-configuration file to enroll these resources (we will explain this [later in the
-guide](#enroll-static-resources).
-
-The module we demonstrate in this guide already configures the Agents you deploy
-to be Teleport SSH Service instances. In this setup, you can enroll OpenSSH
-servers with your Teleport cluster agentlessly as dynamic resources.
-
-To declare a dynamic resource with Terraform:
-
-1. Add a configuration block similar to the ones below to a `*.tf` file in your
-   `terraform-starter` project directory. 
-
-   <Tabs>
-   <TabItem label="Application">
-   
-   ```hcl
-   resource "teleport_app" "example" {
-     metadata = {
-       name        = "example"
-       description = "Test app"
-       labels = {
-         // Teleport adds this label by default, so add it here to
-         // ensure a consistent state.
-         "teleport.dev/origin" = "dynamic"
-         // Change "dev" to "prod" as appropriate.
-         "env" = "dev"
-       }
-     }
-   
-     spec = {
-       uri = "example.com:3000"
-     }
-   }
-   ```
-
-   1. Update the `spec.uri` field to match your application's domain name and
-      port.
-   
-   1. Read the [Terraform Provider
-      Reference](../../reference/terraform-provider/resources/app.mdx) for the
-      `teleport_app` resource and adjust any additional configuration fields.
-   
-   </TabItem>
-   <TabItem label="Database">
-   
-   ```hcl
-   resource "teleport_database" "example" {
-     metadata = {
-       name        = "example"
-       description = "Test database"
-       labels = {
-         // Teleport adds this label by default, so add it here to
-         // ensure a consistent state.
-         "teleport.dev/origin" = "dynamic"
-         // Change "dev" to "prod" as appropriate.
-         "env" = "dev"
-       }
-     }
-   
-     spec = {
-       protocol = "postgres"
-       uri      = "localhost"
-     }
-   }
-   ```
-
-   1. Update the `protocol` field to match the protocol of your database. Run the
-      following command on your workstation to see all supported protocols:
-
-      ```code
-      $ teleport help db configure create
-      ```
-
-   1. Update the `uri` field to match the domain name port of your database. If
-      you manage your database with Terraform, you can set it to an attribute of
-      the corresponding Terraform resource to establish a dependency
-      relationship.
-   1. Read the [Terraform Provider
-      Reference](../../reference/terraform-provider/resources/database.mdx) for
-      the `teleport_database` resource and adjust any additional configuration
-      fields.
-   
-   </TabItem>
-   <TabItem label="Agentless OpenSSH Server">
-
-   ```hcl
-   resource "teleport_server" "openssh_agentless" {
-     version = "v2"
-     sub_kind = "openssh"
-     metadata = {
-       name        = "example"
-       description = "Test server"
-       labels = {
-           // Teleport adds this label by default, so add it here to
-           // ensure a consistent state.
-           "teleport.dev/origin" = "dynamic"
-           // Change "dev" to "prod" as appropriate.
-           "env" = "dev"
-         }
-       }
-     spec = {
-       addr = "198.51.100.1:22"
-       hostname = "example"
-     }
-   }
-   ```
-
-   1. Update `spec.addr` with the domain name or IP address of the server as well
-      as the port. If you manage your database with Terraform, you can set it to
-      an attribute of the corresponding Terraform resource to establish a
-      dependency relationship.
-   1. Update `hostname` with the hostname of the server as shown by Teleport
-      client tools (Teleport Connect, `tsh`, and the Web UI). 
-   1. Read the [Terraform Provider
-      Reference](../../reference/terraform-provider/resources/server.mdx) for
-      the `teleport_database` resource and adjust any additional configuration
-      fields.
-
-   </TabItem>
-   </Tabs>
-
-1. Make sure that, in each dynamic infrastructure resource, the `labels` field
-   includes the following line to ensure that your Terraform state remains
-   consistent with the your cluster:
-
-   ```hcl
-   "teleport.dev/origin" = "dynamic"
-   ```
-
-1. Edit the `labels` field of each dynamic infrastructure resource to add
-   one of the following key-value pairs:
-   - `"env" = "dev"`
-   - `"env" = "prod"`
-
-   In the next guide in this series, you will define a Teleport role that
-   restricts access to resources with this label.
-
-## Step 4/4. Verify the deployment
+## Step 3/3. Verify the deployment
 
 In this step, you will create a Teleport bot to apply your Terraform
 configuration. The bot will exist for one hour and will be granted the default
@@ -736,7 +582,7 @@ by declaring Terraform resources for each infrastructure resource you want to
 enroll, you can protect more of your infrastructure with Teleport by:
 
 - Configuring Auto-Discovery
-- Configuring static resource enrollment
+- Configuring resource enrollment
 
 ### Configure Auto-Discovery
 
@@ -744,20 +590,28 @@ For a more scalable approach to enrolling resources than the one shown in this
 guide, configure the Teleport Discovery Service to automatically detect
 resources in your infrastructure and enroll them with the Teleport Auth Service.
 
-To configure the Teleport Discovery Service, edit the userdata script run by the
-Agent instances managed in the Terraform starter module. Follow the
-[Auto-Discovery
-guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides to
-configure the Discovery Service and enable your Agents to proxy the resources
-that the service enrolls.
+To configure the Teleport Discovery Service:
 
-### Enroll static resources
+1. Edit the userdata script run by the Agent instances managed in the Terraform
+   starter module. Follow the [Auto-Discovery
+   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides
+   to configure the Discovery Service and enable your Agents to proxy the
+   resources that the service enrolls.
 
-You can enroll resources statically by editing the configuration file that each
-Teleport Agent reads when it starts up, which is `/etc/teleport.yaml` by
-default. For information about enrolling static resources, read the
-documentation section for each kind of resource you would like to enroll:
+1. Add the `Discovery` role to the join token resource you created earlier. In
+   this guide, the join token only has the `Node` role.
 
+1. Add roles to the join token resource that corresponds to the Agent services
+   you want to proxy discovered resources. The roles to add depend on the
+   resources you want to automatically enroll based on the [Auto-Discovery
+   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides.
+
+### Enroll resources manually
+
+You can also enroll resources manually, instructing Agents to proxy specific
+endpoints in your infrastructure. For information about manual enrollment, read
+the documentation section for each kind of resource you would like to enroll:
+  
 - [Databases](../../../enroll-resources/database-access/database-access.mdx)
 - [Windows
   desktops](../../../enroll-resources/desktop-access/desktop-access.mdx)
@@ -767,22 +621,17 @@ documentation section for each kind of resource you would like to enroll:
 - [Web applications and cloud provider
   APIs](../../../enroll-resources/application-access/application-access.mdx)
 
-To incorporate configuration changes into your Terraform module:
+Once you are familiar with the process of enrolling a resource manually, you can
+edit your Terraform module to:
 
-1. Edit the userdata script for the compute instances that run Teleport Agents.
-
-1. In the section of the configuration file for the service that you edited,
-   assign the `labels` field to add key-value pairs. In the next guide in this
-   series, you will define a Teleport role that restricts access to resources
-   with this label.
-
-   For example, you could indicate that a resource belongs to a development
-   environment with the following label:
-
-   ```yaml
-   kubernetes_service:
-      enabled: true
-      labels:
-        env: "dev"
-   ```
+1. **Add token roles:** The token resource you created has only the `Node` role,
+   and you can add roles to authorize your Agents to proxy additional kinds of
+   resources. Consult a guide to enrolling resources manually to determine the
+   role to add to the token.
+1. **Change the userdata script** to enable additional Agent services additional
+   infrastructure resources for your Agents to proxy.
+1. **Deploy dynamic resources:** Consult the [Terraform provider
+   reference](../../../reference/terraform-provider.mdx) for Terraform resources
+   that you can apply in order to enroll dynamic resources in your
+   infrastructure.
 
