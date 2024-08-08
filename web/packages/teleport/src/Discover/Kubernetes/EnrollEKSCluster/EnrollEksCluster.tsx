@@ -17,7 +17,15 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Box, ButtonPrimary, ButtonText, Link, Text, Toggle } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonText,
+  Flex,
+  Link,
+  Text,
+  Toggle,
+} from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
@@ -447,27 +455,29 @@ export function EnrollEksCluster(props: AgentStepProps) {
           {!isAutoDiscoveryEnabled && (
             <StyledBox mb={5} mt={5}>
               <Text mb={2}>Automatically enroll selected EKS cluster</Text>
-              <ButtonPrimary
-                width="215px"
-                type="submit"
-                onClick={enroll}
-                disabled={enrollmentNotAllowed}
-                mt={2}
-                mb={2}
-              >
-                Enroll EKS Cluster
-              </ButtonPrimary>
-              <Box>
-                <ButtonText
+              <Flex alignItems="center" flexDirection="column" width="200px">
+                <ButtonPrimary
+                  width="215px"
+                  type="submit"
+                  onClick={enroll}
                   disabled={enrollmentNotAllowed}
-                  onClick={() => {
-                    setIsManualHelmDialogShown(b => !b);
-                  }}
-                  pl={0}
+                  mt={2}
+                  mb={2}
                 >
-                  Or enroll manually
-                </ButtonText>
-              </Box>
+                  Enroll EKS Cluster
+                </ButtonPrimary>
+                <Box>
+                  <ButtonText
+                    width="215px"
+                    disabled={enrollmentNotAllowed}
+                    onClick={() => {
+                      setIsManualHelmDialogShown(b => !b);
+                    }}
+                  >
+                    Or enroll manually
+                  </ButtonText>
+                </Box>
+              </Flex>
             </StyledBox>
           )}
           {isAutoDiscoveryEnabled && (
