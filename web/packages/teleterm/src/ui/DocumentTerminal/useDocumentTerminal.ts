@@ -53,12 +53,25 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
       documentsService.update(doc.uri, { status: 'connecting' });
     }
 
+    // Add `shellId` before going further.
+    let docWithDefaultShell: types.DocumentTerminal;
+    if (
+      (doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.gateway_kube') &&
+      !doc.shellId
+    ) {
+      docWithDefaultShell = {
+        ...doc,
+        shellId: ctx.configService.get('terminal.shell').value,
+      };
+      documentsService.update(doc.uri, docWithDefaultShell);
+    }
+
     try {
       return await initializePtyProcess(
         ctx,
         logger.current,
         documentsService,
-        doc
+        docWithDefaultShell || doc
       );
     } catch (err) {
       if ('status' in doc) {
@@ -262,19 +275,9 @@ async function setUpPtyProcess(
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
-    // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
-    // moving title-updating logic to DocumentsService. The logic behind
-    // updating the title should be encapsulated in a single place, so that
-    // useDocumentTerminal doesn't need to know the details behind the title of
-    // each document kind.
-    if (doc.kind !== 'doc.terminal_shell') {
-      return;
-    }
-
-    const cwd = await ptyProcess.getCwd();
-    documentsService.update(doc.uri, {
-      cwd,
-      title: `${cwd || 'Terminal'} · ${getClusterName()}`,
+    documentsService.refreshPtyTitle(doc.uri, {
+      cwd: await ptyProcess.getCwd(),
+      clusterName: getClusterName(),
     });
   };
 
@@ -448,6 +451,7 @@ function createCmd(
       clusterName,
       env,
       initMessage,
+      shellId: doc.shellId,
     };
   }
 
@@ -457,5 +461,6 @@ function createCmd(
     proxyHost,
     clusterName,
     cwd: doc.cwd,
+    shellId: doc.shellId,
   };
 }

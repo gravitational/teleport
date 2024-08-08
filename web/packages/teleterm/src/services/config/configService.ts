@@ -21,7 +21,7 @@ import zodToJsonSchema from 'zod-to-json-schema';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
 import Logger from 'teleterm/logger';
-import { Platform } from 'teleterm/mainProcess/types';
+import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import {
   createAppConfigSchema,
@@ -68,13 +68,13 @@ export interface ConfigService {
 export function createConfigService({
   configFile,
   jsonSchemaFile,
-  platform,
+  settings,
 }: {
   configFile: FileStorage;
   jsonSchemaFile: FileStorage;
-  platform: Platform;
+  settings: RuntimeSettings;
 }): ConfigService {
-  const schema = createAppConfigSchema(platform);
+  const schema = createAppConfigSchema(settings);
   updateJsonSchema({ schema, configFile, jsonSchemaFile });
 
   const {

@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 
-import { Platform } from 'teleterm/mainProcess/types';
+import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
@@ -28,11 +28,11 @@ import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
-export const createAppConfigSchema = (platform: Platform) => {
-  const defaultKeymap = getDefaultKeymap(platform);
-  const defaultTerminalFont = getDefaultTerminalFont(platform);
+export const createAppConfigSchema = (settings: RuntimeSettings) => {
+  const defaultKeymap = getDefaultKeymap(settings.platform);
+  const defaultTerminalFont = getDefaultTerminalFont(settings.platform);
 
-  const shortcutSchema = createKeyboardShortcutSchema(platform);
+  const shortcutSchema = createKeyboardShortcutSchema(settings.platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
@@ -62,6 +62,19 @@ export const createAppConfigSchema = (platform: Platform) => {
       .default('auto')
       .describe(
         '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
+      ),
+    'terminal.shell': z
+      .string()
+      .default(settings.defaultOsShellId)
+      .describe(
+        'A default terminal shell. It is best to configure it through UI (right click on a terminal tab > Default Shell).'
+      )
+      .refine(
+        configuredShell =>
+          settings.availableShells.some(shell => shell.id === configuredShell),
+        configuredShell => ({
+          message: `Cannot find the shell "${configuredShell}". Available options are: [${settings.availableShells.map(({ id }) => id).join(', ')}]. Using platform default (${settings.defaultOsShellId}).`,
+        })
       ),
     'usageReporting.enabled': z
       .boolean()

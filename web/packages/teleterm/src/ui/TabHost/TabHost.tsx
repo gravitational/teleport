@@ -26,6 +26,7 @@ import { Tabs } from 'teleterm/ui/Tabs';
 import { DocumentsRenderer } from 'teleterm/ui/Documents/DocumentsRenderer';
 import { IAppContext } from 'teleterm/ui/types';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+import { Shell } from 'teleterm/mainProcess/shell';
 
 import { useTabShortcuts } from './useTabShortcuts';
 import { useNewTabOpener } from './useNewTabOpener';
@@ -83,7 +84,7 @@ export function TabHost({
 
   function handleTabContextMenu(doc: types.Document) {
     ctx.mainProcessClient.openTabContextMenu({
-      documentKind: doc.kind,
+      document: doc,
       onClose: () => {
         documentsService.close(doc.uri);
       },
@@ -95,6 +96,14 @@ export function TabHost({
       },
       onDuplicatePty: () => {
         documentsService.duplicatePtyAndActivate(doc.uri);
+      },
+      onReopenPtyInShell(shell: Shell) {
+        if (
+          doc.kind === 'doc.terminal_shell' ||
+          doc.kind === 'doc.gateway_kube'
+        ) {
+          documentsService.reopenPtyInShell(doc, shell);
+        }
       },
     });
   }

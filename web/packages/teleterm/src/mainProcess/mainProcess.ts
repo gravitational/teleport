@@ -502,7 +502,10 @@ export default class MainProcess {
     );
 
     subscribeToTerminalContextMenuEvent();
-    subscribeToTabContextMenuEvent();
+    subscribeToTabContextMenuEvent(
+      this.settings.availableShells,
+      this.configService
+    );
     subscribeToConfigServiceEvents(this.configService);
     subscribeToFileStorageEvents(this.appStateFileStorage);
   }

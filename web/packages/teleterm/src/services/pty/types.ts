@@ -64,6 +64,8 @@ export type ShellCommand = PtyCommandBase & {
   // The initMessage is rendered on the terminal UI without being written or
   // read by the underlying PTY.
   initMessage?: string;
+  /** Shell identifier. */
+  shellId: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {

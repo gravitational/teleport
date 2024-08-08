@@ -43,7 +43,10 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
+  DocumentPtySession,
 } from './types';
+
+import type { Shell } from 'teleterm/mainProcess/shell';
 
 export class DocumentsService {
   constructor(
@@ -256,6 +259,8 @@ export class DocumentsService {
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),
+          // Do not inherit the shell of this document when opening a new one, use default.
+          shellId: undefined,
           ...opts,
         };
       } else {
@@ -368,6 +373,36 @@ export class DocumentsService {
     });
   }
 
+  refreshPtyTitle(
+    uri: DocumentUri,
+    {
+      cwd,
+      clusterName,
+    }: {
+      cwd: string;
+      clusterName: string;
+    }
+  ) {
+    const doc = this.getDocument(uri);
+    if (!doc) {
+      return;
+    }
+    if (doc.kind === 'doc.terminal_shell') {
+      this.update(doc.uri, {
+        cwd,
+        title: [doc.shellId, cwd, clusterName].filter(Boolean).join(' · '),
+      });
+      return;
+    }
+
+    if (doc.kind === 'doc.gateway_kube') {
+      const { params } = routing.parseKubeUri(doc.targetUri);
+      this.update(doc.uri, {
+        title: [doc.shellId, cwd, params.kubeId].filter(Boolean).join(' · '),
+      });
+    }
+  }
+
   replace(uri: DocumentUri, document: Document): void {
     const documentToCloseIndex = this.getDocuments().findIndex(
       doc => doc.uri === uri
@@ -378,6 +413,15 @@ export class DocumentsService {
     }
     this.add(document, documentToClose ? documentToCloseIndex : undefined);
     this.open(document.uri);
+  }
+
+  reopenPtyInShell<T extends DocumentPtySession | DocumentGatewayKube>(
+    document: T,
+    shell: Shell
+  ): void {
+    // We assign a new URI to render a new document.
+    const newDocument: T = { ...document, shellId: shell.id, uri: unique() };
+    this.replace(document.uri, newDocument);
   }
 
   filter(uri: string) {
