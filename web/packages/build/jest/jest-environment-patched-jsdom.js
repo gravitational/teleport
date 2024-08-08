@@ -38,7 +38,7 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     // https://github.com/jsdom/jsdom/issues/3522
     if (!global.matchMedia) {
       global.matchMedia = query => ({
-        matches: true,
+        matches: false,
         media: query,
         onchange: null,
         addListener: () => {},
