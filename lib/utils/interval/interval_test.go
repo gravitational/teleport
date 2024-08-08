@@ -24,8 +24,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
+
+// TestLastTick verifies that the LastTick method returns the last tick time as expected.
+func TestLastTick(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	interval := New(Config{
+		Duration: time.Minute,
+		Clock:    clock,
+	})
+
+	_, ok := interval.LastTick()
+	require.False(t, ok)
+
+	timeout := time.After(time.Second * 30)
+	for i := 0; i < 3; i++ {
+		clock.Advance(time.Minute)
+
+		var tick time.Time
+		select {
+		case tick = <-interval.Next():
+		case <-timeout:
+			t.Fatal("timeout waiting for tick")
+		}
+		require.Equal(t, clock.Now(), tick)
+
+		tick, ok = interval.LastTick()
+		require.True(t, ok)
+		require.Equal(t, clock.Now(), tick)
+	}
+}
 
 // TestIntervalReset verifies the basic behavior of the interval reset functionality.
 // Since time based tests tend to be flaky, this test passes if it has a >50% success
@@ -71,6 +101,53 @@ func TestIntervalReset(t *testing.T) {
 			// margin or error of +/- 1 duration in order to
 			// minimize flakiness.
 			if elapsed > duration*2 && elapsed < duration*4 {
+				success.Add(1)
+			} else {
+				failure.Add(1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	require.Greater(t, success.Load(), failure.Load())
+}
+
+// TestIntervalResetTo verifies the basic behavior of the interval ResetTo method.
+// Since time based tests tend to be flaky, this test passes if it has a >50% success
+// rate (i.e. >50% of ResetTo calls seemed to have changed the timer's behavior as expected).
+func TestIntervalResetTo(t *testing.T) {
+	const workers = 1_000
+	const ticks = 12
+	const longDuration = time.Millisecond * 800
+	const shortDuration = time.Millisecond * 200
+	t.Parallel()
+
+	var success, failure atomic.Uint64
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			interval := New(Config{
+				Duration: longDuration,
+			})
+			defer interval.Stop()
+
+			start := time.Now()
+
+			for i := 0; i < ticks; i++ {
+				interval.ResetTo(shortDuration)
+				<-interval.Next()
+			}
+
+			elapsed := time.Since(start)
+			// if the above works completed before the expected minimum time
+			// to complete all ticks as long ticks, we assume that ResetTo has
+			// successfully shortened the interval.
+			if elapsed < longDuration*time.Duration(ticks) {
 				success.Add(1)
 			} else {
 				failure.Add(1)
