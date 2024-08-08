@@ -611,6 +611,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	case tc.NonInteractive:
 		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
 	case !IsErrorResolvableWithRelogin(fnErr):
+		// If the connection to Auth was unexpectedly cut, see if the client is too
+		// old to interact with the cluster.
+		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
+			// The results are intentionally ignored - Ping prints warnings
+			// related to versions, and that's all that is needed here.
+			_, _ = tc.Ping(ctx)
+		}
+
 		return trace.Wrap(fnErr)
 	}
 	opt := defaultRetryWithReloginOptions()
