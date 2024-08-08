@@ -93,7 +93,10 @@ If a new plan is needed, auth servers will query their cache of instance heartbe
 The first auth server to write the plan wins; others will be rejected by the optimistic lock.
 Auth servers will only write the plan if their instance heartbeat cache is healthy.
 
-If the list is greater than 100,000 UUIDs, auth servers will first write pages with a randomly generated suffix, in a linked-link, before the atomic non-suffixed write.
+If the resource size is greater than 100 KiB, auth servers will divide the resource into pages no greater than 100 KiB each.
+Each page will duplicate all values besides `hosts`, which will be different for each page.
+All pages besides the first page will be suffixed with a randomly generated number.
+Pages will be written in reverse order, in a linked-link, before the final atomic non-suffixed write of the first page.
 If the non-suffixed write fails, the auth server is responsible for cleaning up the unusable pages.
 If cleanup fails, the unusable pages will expire after 2 weeks.
 
