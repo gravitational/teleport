@@ -117,12 +117,12 @@ export const createAppConfigSchema = (platform: Platform) => {
     // the default shortcut will still work (for example, Command+C on Macs).
     'keymap.terminalCopy': shortcutSchema
       .default(defaultKeymap['terminalCopy'])
-      .describe(getShortcutDesc('copy text')),
+      .describe(getShortcutDesc('copy text in the terminal')),
     // Even if this is set to a non-default paste shortcut for a given platform,
     // the default shortcut will still work (for example, Command+V on Macs).
     'keymap.terminalPaste': shortcutSchema
       .default(defaultKeymap['terminalPaste'])
-      .describe(getShortcutDesc('paste text')),
+      .describe(getShortcutDesc('paste text in the terminal')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
