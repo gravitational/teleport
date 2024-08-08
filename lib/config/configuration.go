@@ -2930,9 +2930,19 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	creds, err := fc.Jamf.toJamfCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(tigrato): DELETE once we remove the fields from the config.
+	jamfSpec.Username, jamfSpec.Password = creds.Username, creds.Password
+	jamfSpec.ClientId, jamfSpec.ClientSecret = creds.ClientID, creds.ClientSecret
+
 	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:       jamfSpec,
-		ExitOnSync: fc.Jamf.ExitOnSync,
+		Spec:        jamfSpec,
+		ExitOnSync:  fc.Jamf.ExitOnSync,
+		Credentials: creds,
 	}
 	return nil
 }
