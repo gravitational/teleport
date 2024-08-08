@@ -530,11 +530,11 @@ included in the `spec.allow.logins` field of roles the user holds in the root cl
 
 For local Teleport users, the `external` trait namespace includes all values
 from the `spec.traits` field of the [user resource](../reference/resources.mdx#user).
-This includes any custom traits names, as well as names matching the `internal`
+This includes any custom trait names, as well as names matching the `internal`
 traits listed above.
 For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways
-to refer to the `logins` traits, but a custom trait called `groups` can only be
-refenced by `{{external.groups}}`.
+to refer to the `logins` trait, but a custom trait called `groups` can only be
+referenced by `{{external.groups}}`.
 
 When a user authenticates to Teleport through a single sign-on identity provider
 (IdP), Teleport populates `external` traits using attributes it receives from the
