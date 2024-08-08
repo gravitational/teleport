@@ -26,12 +26,13 @@ import (
 )
 
 type Notification struct {
-	Id      string    `json:"id"`
-	Title   string    `json:"title"`
-	SubKind string    `json:"subKind"`
-	Created time.Time `json:"created"`
-	Clicked bool      `json:"clicked"`
-	Labels  []Label   `json:"labels"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	SubKind     string    `json:"subKind"`
+	Created     time.Time `json:"created"`
+	Clicked     bool      `json:"clicked"`
+	TextContent string    `json:"textContent,omitempty"`
+	Labels      []Label   `json:"labels"`
 }
 
 // MakeNotification creates a notification object for the WebUI.
@@ -41,11 +42,12 @@ func MakeNotification(notification *notificationsv1.Notification) Notification {
 	clicked := notification.Metadata.GetLabels()[types.NotificationClickedLabel] == "true"
 
 	return Notification{
-		Id:      notification.Metadata.GetName(),
-		Title:   notification.Metadata.GetLabels()[types.NotificationTitleLabel],
-		SubKind: notification.SubKind,
-		Created: notification.Spec.Created.AsTime(),
-		Clicked: clicked,
-		Labels:  labels,
+		ID:          notification.Metadata.GetName(),
+		Title:       notification.Metadata.GetLabels()[types.NotificationTitleLabel],
+		SubKind:     notification.SubKind,
+		Created:     notification.Spec.Created.AsTime(),
+		Clicked:     clicked,
+		TextContent: notification.Metadata.GetLabels()[types.NotificationTextContentLabel],
+		Labels:      labels,
 	}
 }
