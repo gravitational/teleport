@@ -428,6 +428,7 @@ func TestRootHostUsers(t *testing.T) {
 }
 
 func TestRootLoginAsHostUser(t *testing.T) {
+	utils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
