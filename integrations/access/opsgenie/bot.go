@@ -129,6 +129,10 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 
 // FetchRecipient returns the recipient for the given raw recipient.
 func (b *Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
+	return createScheduleRecipient(ctx, name)
+}
+
+func createScheduleRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	return &common.Recipient{
 		Name: name,
 		ID:   name,
