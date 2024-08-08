@@ -278,7 +278,7 @@ export const UpsertJoinTokenDialog = ({
               )}
               <FieldSelect
                 label="Join Roles"
-                data-testid="role_select"
+                inputId="role_select"
                 rule={requiredField('At least one role is required')}
                 placeholder="Click to select roles"
                 isSearchable
