@@ -60,6 +60,7 @@ func TestListPodRBAC(t *testing.T) {
 		usernameWithLimitedAccess     = "limited_user"
 		usernameWithDenyRule          = "denied_user"
 		usernameWithoutListVerbAccess = "no_list_user"
+		usernameWithTraits            = "trait_user"
 		testPodName                   = "test"
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
@@ -121,6 +122,31 @@ func TestListPodRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
+						},
+					})
+			},
+		},
+	)
+
+	userWithTraits, _ := testCtx.CreateUserWithTraitsAndRole(
+		testCtx.Context,
+		t,
+		usernameWithTraits,
+		map[string][]string{
+			"namespaces": {metav1.NamespaceDefault},
+		},
+		RoleSpec{
+			Name:       usernameWithTraits,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Name:      types.Wildcard,
+							Namespace: "{{external.namespaces}}",
 							Verbs:     []string{types.Wildcard},
 						},
 					})
@@ -275,6 +301,34 @@ func TestListPodRBAC(t *testing.T) {
 			name: "list pods in every namespace for user with default namespace",
 			args: args{
 				user:      userWithNamespaceAccess,
+				namespace: metav1.NamespaceAll,
+			},
+			want: want{
+				listPodsResult: []string{
+					"default/nginx-1",
+					"default/nginx-2",
+					"default/test",
+				},
+			},
+		},
+		{
+			name: "list default namespace pods for user with traits for default namespace",
+			args: args{
+				user:      userWithTraits,
+				namespace: metav1.NamespaceDefault,
+			},
+			want: want{
+				listPodsResult: []string{
+					"default/nginx-1",
+					"default/nginx-2",
+					"default/test",
+				},
+			},
+		},
+		{
+			name: "list pods in every namespace for user with default namespace traitsck",
+			args: args{
+				user:      userWithTraits,
 				namespace: metav1.NamespaceAll,
 			},
 			want: want{

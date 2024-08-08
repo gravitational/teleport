@@ -1340,11 +1340,38 @@ func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Ro
 	return created, trace.Wrap(err)
 }
 
+// createUserAndRoleOptions is a set of options for CreateUserAndRole
+type createUserAndRoleOptions struct {
+	mutateUser func(user types.User)
+	mutateRole func(role types.Role)
+}
+
+// CreateUserAndRoleOption is a functional option for CreateUserAndRole
+type CreateUserAndRoleOption func(*createUserAndRoleOptions)
+
+// WithUserMutator sets a function that will be called to mutate the user before it is created
+func WithUserMutator(mutate func(user types.User)) CreateUserAndRoleOption {
+	return func(o *createUserAndRoleOptions) {
+		o.mutateUser = mutate
+	}
+}
+
+// WithRoleMutator sets a function that will be called to mutate the role before it is created
+func WithRoleMutator(mutate func(role types.Role)) CreateUserAndRoleOption {
+	return func(o *createUserAndRoleOptions) {
+		o.mutateRole = mutate
+	}
+}
+
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
-func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
+func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
+	o := createUserAndRoleOptions{}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
@@ -1356,13 +1383,18 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)
 	}
-
+	if o.mutateRole != nil {
+		o.mutateRole(role)
+	}
 	upsertedRole, err := clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	user.AddRole(upsertedRole.GetName())
+	if o.mutateUser != nil {
+		o.mutateUser(user)
+	}
 	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

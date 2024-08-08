@@ -89,6 +89,9 @@ type Role interface {
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
 
+	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
+	GetRoleConditions(rct RoleConditionType) RoleConditions
+
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
 	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
@@ -1691,6 +1694,16 @@ func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
 		return nil
 	}
 	return roleConditions.ReviewRequests.PreviewAsRoles
+}
+
+// GetRoleConditions returns the role conditions for the role.
+func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
+	roleConditions := r.Spec.Allow
+	if rct == Deny {
+		roleConditions = r.Spec.Deny
+	}
+
+	return roleConditions
 }
 
 // SetPreviewAsRoles sets the list of extra roles which should apply to a

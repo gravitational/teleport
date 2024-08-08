@@ -488,6 +488,33 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
+		var out []types.KubernetesResource
+		// we access the resources in the role using the role conditions
+		// to avoid receiving the compatibility resources added in GetKubernetesResources
+		// for roles <v7
+		for _, rec := range r.GetRoleConditions(condition).KubernetesResources {
+			namespaces := applyValueTraitsSlice([]string{rec.Namespace}, traits, "kubernetes resource namespace")
+			if rec.Namespace == "" {
+				namespaces = []string{""}
+			}
+			names := applyValueTraitsSlice([]string{rec.Name}, traits, "kubernetes resource name")
+			if rec.Name == "" {
+				names = []string{""}
+			}
+			verbs := applyValueTraitsSlice(rec.Verbs, traits, "kubernetes resource verb")
+			for _, namespace := range namespaces {
+				for _, name := range names {
+					out = append(out, types.KubernetesResource{
+						Kind:      rec.Kind,
+						Namespace: namespace,
+						Name:      name,
+						Verbs:     verbs,
+					})
+				}
+			}
+		}
+		r.SetKubeResources(condition, out)
+
 		for _, kind := range []string{
 			types.KindRemoteCluster,
 			types.KindNode,
