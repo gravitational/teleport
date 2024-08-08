@@ -971,8 +971,9 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
-			Role:     role,
-			Username: serverID,
+			Role:                  types.RoleInstance,
+			Username:              serverID,
+			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
 				Username: serverID,
 			},

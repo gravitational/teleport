@@ -1463,9 +1463,10 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 	response := &webclient.PingResponse{
-		Proxy:         *proxyConfig,
-		ServerVersion: teleport.Version,
-		ClusterName:   h.auth.clusterName,
+		Proxy:            *proxyConfig,
+		ServerVersion:    teleport.Version,
+		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
