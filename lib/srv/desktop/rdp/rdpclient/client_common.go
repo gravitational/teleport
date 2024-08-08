@@ -72,11 +72,13 @@ type Config struct {
 	// Used for NLA support when AD is true.
 	ComputerName string
 
-	// KDCAddr is address of Key Distribution Center.
-	// Used for NLA support when AD is true.
+	// KDCAddr is the address of Key Distribution Center.
+	// This is used to support RDP Network Level Authentication (NLA)
+	// when connecting to hosts enrolled in Active Directory.
+	// This filed is not used when AD is false.
 	KDCAddr string
 
-	// AD determines if the desktop is part of an Active Directory domain
+	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
 }
 

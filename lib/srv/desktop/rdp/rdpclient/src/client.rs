@@ -28,7 +28,9 @@ use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::credssp::KerberosConfig;
-use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize, SmartCardIdentity};
+use ironrdp_connector::{
+    Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
+};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
@@ -58,6 +60,7 @@ use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
@@ -1436,7 +1439,9 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
-            color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
+            // Changing this to 16 gets us uncompressed bitmaps on machines configured like
+            // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
+            color_depth: 32,
         }),
         dig_product_id: "".to_string(),
         // `client_dir` is apparently unimportant, however most RDP clients hardcode this value (including FreeRDP):
@@ -1503,7 +1508,22 @@ impl Display for ClientError {
                 Reason(reason) => Display::fmt(reason, f),
                 _ => Display::fmt(e, f),
             },
-            ClientError::ConnectorError(e) => Display::fmt(e, f),
+            // TODO(zmb3, probakowski): improve the formatting on the IronRDP side
+            // https://github.com/Devolutions/IronRDP/blob/master/crates/ironrdp-connector/src/lib.rs#L263
+            ClientError::ConnectorError(e) => match &e.kind {
+                ConnectorErrorKind::Credssp(e) => {
+                    write!(f, "CredSSP {:?}: {}", e.error_type, e.description)
+                }
+                ConnectorErrorKind::Custom => {
+                    write!(f, "CredSSP: {}", e.context)?;
+                    if let Some(src) = e.source() {
+                        write!(f, " ({})", src)
+                    } else {
+                        Ok(())
+                    }
+                }
+                _ => Display::fmt(e, f),
+            },
             ClientError::InputEventError(e) => Display::fmt(e, f),
             ClientError::JoinError(e) => Display::fmt(e, f),
             ClientError::CGOErrCode(e) => Debug::fmt(e, f),

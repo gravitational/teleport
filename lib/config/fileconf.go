@@ -2316,9 +2316,11 @@ type WindowsDesktopService struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string `yaml:"pki_domain"`
-	// KCDAddr optionally configures address of Key Distribution Center used during Kerberos NLA negotiation.
-	// If empty LDAP address will be used.
-	// Used for NLA support when AD is true.
+	// KDCAddress optionally configures the address of the Kerberos Key Distribution Center,
+	// which is used to support RDP Network Level Authentication (NLA).
+	// If empty, the LDAP address will be used instead.
+	// Note: NLA is only supported in Active Directory environments - this field has
+	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
