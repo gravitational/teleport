@@ -1,8 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.22.0
-
-toolchain go1.22.5
+go 1.22.6
 
 // Doc generation tooling
 require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced

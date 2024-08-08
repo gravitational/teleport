@@ -8622,6 +8622,13 @@ type UserSpecV2 struct {
 	// authentication
 	LocalAuth *LocalAuthSecrets `protobuf:"bytes,9,opt,name=LocalAuth,proto3" json:"local_auth,omitempty"`
 	// TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+	//
+	// Note that SSO users are transient and thus may contain an empty
+	// TrustedDeviceIDs field, even though the user->device association exists
+	// under the Device Trust subsystem. Do not rely on this field to determine
+	// device associations or ownership, it exists for legacy/informative purposes
+	// only.
+	//
 	// Managed by the Device Trust subsystem, avoid manual edits.
 	TrustedDeviceIDs     []string `protobuf:"bytes,10,rep,name=TrustedDeviceIDs,proto3" json:"trusted_device_ids,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -9825,9 +9832,6 @@ type WebSessionSpecV2 struct {
 	//
 	// If during login a device is required and DeviceWebToken is nil, then it's
 	// likely the user needs to enroll their device to avoid impacting access.
-	//
-	// Transient, only set in certain situations (such as the initial session
-	// returned during login).
 	TrustedDeviceRequirement TrustedDeviceRequirement `protobuf:"varint,14,opt,name=TrustedDeviceRequirement,proto3,enum=types.TrustedDeviceRequirement" json:"trusted_device_requirement,omitempty"`
 	XXX_NoUnkeyedLiteral     struct{}                 `json:"-"`
 	XXX_unrecognized         []byte                   `json:"-"`

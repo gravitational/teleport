@@ -3467,6 +3467,13 @@ message UserSpecV2 {
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 
   // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+  //
+  // Note that SSO users are transient and thus may contain an empty
+  // TrustedDeviceIDs field, even though the user->device association exists
+  // under the Device Trust subsystem. Do not rely on this field to determine
+  // device associations or ownership, it exists for legacy/informative purposes
+  // only.
+  //
   // Managed by the Device Trust subsystem, avoid manual edits.
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
@@ -3903,9 +3910,6 @@ message WebSessionSpecV2 {
   //
   // If during login a device is required and DeviceWebToken is nil, then it's
   // likely the user needs to enroll their device to avoid impacting access.
-  //
-  // Transient, only set in certain situations (such as the initial session
-  // returned during login).
   TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
 }
 
