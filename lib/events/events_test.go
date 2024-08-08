@@ -218,6 +218,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	IntegrationDeleteEvent:                      &apievents.IntegrationDelete{},
 	SPIFFEFederationCreateEvent:                 &apievents.SPIFFEFederationCreate{},
 	SPIFFEFederationDeleteEvent:                 &apievents.SPIFFEFederationDelete{},
+	PluginCreateEvent:                           &apievents.PluginCreate{},
+	PluginUpdateEvent:                           &apievents.PluginUpdate{},
+	PluginDeleteEvent:                           &apievents.PluginDelete{},
 }
 
 // TestJSON tests JSON marshal events

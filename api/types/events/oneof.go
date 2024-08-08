@@ -704,6 +704,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 			SPIFFEFederationDelete: e,
 		}
 
+	case *PluginCreate:
+		out.Event = &OneOf_PluginCreate{
+			PluginCreate: e,
+		}
+	case *PluginUpdate:
+		out.Event = &OneOf_PluginUpdate{
+			PluginUpdate: e,
+		}
+	case *PluginDelete:
+		out.Event = &OneOf_PluginDelete{
+			PluginDelete: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
