@@ -19,14 +19,11 @@
 package auth
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 )
 
 func TestTotalInstances(t *testing.T) {
@@ -288,132 +285,103 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 
 func TestUpgradeEnrollPeriodic(t *testing.T) {
 	tts := []struct {
-		desc          string
-		enrolled      map[string]int
-		unenrolled    map[string]int
-		promptVersion string
+		desc           string
+		enrolled       map[string]int
+		unenrolled     map[string]int
+		generatePrompt bool
 	}{
 		{
-			desc: "mixed-case",
+			desc: "enrolled in auto updates and up to date",
 			enrolled: map[string]int{
-				"v2.3.4": 5,
-				"v1.2.3": 2,
+				"v15.4.4": 5,
+			},
+			generatePrompt: false,
+		},
+		{
+			desc: "unenrolled in auto updates and up to date",
+			unenrolled: map[string]int{
+				"v15.4.4": 5,
+			},
+			generatePrompt: false,
+		},
+		{
+			desc: "enrolled in auto updates and out dated",
+			enrolled: map[string]int{
+				"v14.3.20": 5,
+			},
+			generatePrompt: false,
+		},
+		{
+			desc: "unenrolled in auto updates and out dated",
+			unenrolled: map[string]int{
+				"v14.3.20": 5,
+			},
+			generatePrompt: true,
+		},
+		{
+			desc: "mixed with all up to date",
+			enrolled: map[string]int{
+				"v15.4.4": 5,
 			},
 			unenrolled: map[string]int{
-				"v2.3.4": 1,
-				"v1.2.3": 2,
-				"v1.0.0": 1,
+				"v15.4.4": 5,
 			},
-			promptVersion: "v2.3.4",
+			generatePrompt: false,
 		},
 		{
-			desc: "trivial-case",
+			desc: "mixed with all out dated",
 			enrolled: map[string]int{
-				"v1.2.3": 1,
+				"v14.3.20": 5,
 			},
 			unenrolled: map[string]int{
-				"v1.2.2": 1,
+				"v14.3.20": 5,
 			},
-			promptVersion: "v1.2.3",
+			generatePrompt: true,
 		},
 		{
-			desc: "insufficient-lag",
+			desc: "mixed with all enrolled in auto updates",
 			enrolled: map[string]int{
-				"v2.3.4": 2,
-				"v1.2.3": 3,
+				"v15.4.4":  5,
+				"v14.3.20": 5,
 			},
-			unenrolled: map[string]int{
-				"v1.2.3": 3,
-				"v1.2.2": 1,
-			},
+			generatePrompt: false,
 		},
 		{
-			desc: "sparse-with-prompt",
-			enrolled: map[string]int{
-				"v1.2.5": 1,
-				"v1.2.4": 1,
-				"v1.2.3": 1,
-				"v1.2.2": 1,
-			},
-			unenrolled: map[string]int{
-				"v1.2.4": 1,
-				"v1.2.3": 1,
-				"v1.2.2": 1,
-				"v1.2.1": 1,
-			},
-			promptVersion: "v1.2.4",
-		},
-		{
-			desc: "sparse-no-prompt",
-			enrolled: map[string]int{
-				"v1.2.4": 1,
-				"v1.2.3": 1,
-				"v1.2.2": 1,
-				"v1.2.1": 1,
-			},
-			unenrolled: map[string]int{
-				"v1.2.4": 1,
-				"v1.2.3": 1,
-				"v1.2.2": 1,
-				"v1.2.1": 1,
-			},
-		},
-		{
-			desc: "no-enrolled",
-			unenrolled: map[string]int{
-				"v1.2.3": 1,
-			},
-		},
-		{
-			desc: "all-enrolled",
-			enrolled: map[string]int{
-				"v2.3.4": 1,
-			},
-		},
-		{
-			desc: "no-instances",
+			desc:           "no-instances",
+			generatePrompt: false,
 		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			periodic := newUpgradeEnrollPeriodic()
+			periodic := &upgradeEnrollPeriodic{
+				authVersion: "v15.4.7",
+				enrolled:    make(map[string]int),
+				unenrolled:  make(map[string]int),
+			}
 
 			for ver, count := range tt.enrolled {
 				for i := 0; i < count; i++ {
-					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
+					instance := proto.UpstreamInventoryHello{
 						Version:          ver,
-						ExternalUpgrader: "some-upgrader",
-					})
-					require.NoError(t, err)
-
+						ExternalUpgrader: "test-upgrader",
+					}
 					periodic.VisitInstance(instance)
 				}
 			}
 
 			for ver, count := range tt.unenrolled {
 				for i := 0; i < count; i++ {
-					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
-						Version:          ver,
-						ExternalUpgrader: "",
-					})
-					require.NoError(t, err)
+					instance := proto.UpstreamInventoryHello{
+						Version: ver,
+					}
 
 					periodic.VisitInstance(instance)
 				}
 			}
 
-			msg, ok := periodic.GenerateEnrollPrompt()
-
-			if tt.promptVersion == "" {
-				require.False(t, ok, "expected no prompt gen, but got %q, tt=%q", msg, tt.desc)
-				return
-			}
-
-			require.True(t, ok, "expected prompt containing version %s, but prompt was not generated. tt=%q", tt.promptVersion, tt.desc)
-
-			pattern := fmt.Sprintf("--older-than=%s", tt.promptVersion)
-			require.Contains(t, msg, pattern, "tt=%q", tt.desc)
+			_, ok := periodic.GenerateEnrollPrompt()
+			require.Equal(t, tt.generatePrompt, ok)
 		})
 	}
 }
