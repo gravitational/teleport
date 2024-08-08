@@ -46,6 +46,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -244,6 +245,8 @@ type CLIConf struct {
 	AppName string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
+	// TODO(russjones)
+	NonInteractive bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
 	// Namespace is used to select cluster namespace
@@ -780,6 +783,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("remote-forward", "Forward remote connections to localhost").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
+	// Use -T to not allocate a TTY.
+	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
 	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
@@ -1268,6 +1273,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
+	}
+
+	// Handle validation of TTY allocation flags here because kingpin support
+	// for inverse short flags is missing.
+	if cf.Interactive && cf.NonInteractive {
+		return trace.BadParameter("either -t or -T can be specified, not both")
+	}
+	if cf.NonInteractive {
+		cf.Interactive = false
 	}
 
 	// Did we initially get the Username from flags/env?
