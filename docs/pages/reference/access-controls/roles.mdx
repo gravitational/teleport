@@ -497,7 +497,7 @@ sign-on provider.
 The `internal` trait namespace includes only the exact internal trait names
 included in the above table.
 For local Teleport users, these traits can be set in the `spec.traits` field of the
-[user resource](../reference/resources.mdx#user).
+[user resource](../resources.mdx#user).
 These trait names can also be set for SSO users if they are included in an
 attribute or claim from your IdP.
 
@@ -529,7 +529,7 @@ included in the `spec.allow.logins` field of roles the user holds in the root cl
 #### Referring to external traits in Teleport roles
 
 For local Teleport users, the `external` trait namespace includes all values
-from the `spec.traits` field of the [user resource](../reference/resources.mdx#user).
+from the `spec.traits` field of the [user resource](../resources.mdx#user).
 This includes any custom trait names, as well as names matching the `internal`
 traits listed above.
 For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways
