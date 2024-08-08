@@ -130,11 +130,6 @@ func New(config *servicecfg.BPFConfig) (BPF, error) {
 		return &NOP{}, nil
 	}
 
-	// Check if the host can run BPF programs.
-	if err := IsHostCompatible(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create a cgroup controller to add/remote cgroups.
 	cgroup, err := controlgroup.New(&controlgroup.Config{
 		MountPath: config.CgroupPath,
