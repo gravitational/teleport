@@ -68,6 +68,9 @@ const (
 	// KindBotInstance is an instance of a Machine ID bot
 	KindBotInstance = "bot_instance"
 
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
+
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 

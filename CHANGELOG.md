@@ -1,6 +1,27 @@
 # Changelog
 
-## 15.4.10 (07/29/24)
+## 15.4.12 (08/08/24)
+
+* Improved copy and paste behavior in the terminal in Teleport Connect. On Windows and Linux, Ctrl+Shift+C/V now copies and pastes text (these shortcuts can be changed with `keymap.terminalCopy`/`keymap.terminalPaste`).  A mouse right click (`terminal.rightClick`) can copy/paste text too (enabled by default on Windows). [#45266](https://github.com/gravitational/teleport/pull/45266)
+* Updated Go toolchain to `1.22.6`. [#45195](https://github.com/gravitational/teleport/pull/45195)
+* Improved `tsh ssh` performance for concurrent execs. [#45163](https://github.com/gravitational/teleport/pull/45163)
+* Fixed regression that denied access to launch some applications. [#45150](https://github.com/gravitational/teleport/pull/45150)
+* Bot resources now honour their `metadata.expires` field. [#45133](https://github.com/gravitational/teleport/pull/45133)
+* Teleport Connect now sets `TERM_PROGRAM: Teleport_Connect` and `TERM_PROGRAM_VERSION: <app_version>` environment variables in the integrated terminal. [#45064](https://github.com/gravitational/teleport/pull/45064)
+* Fix a panic in the Microsoft teams plugin when it receives an error. [#45012](https://github.com/gravitational/teleport/pull/45012)
+* Adds SPIFFE compatible federation bundle endpoint to the Proxy API, allowing other workload identity platforms to federate with the Teleport cluster. [#44999](https://github.com/gravitational/teleport/pull/44999)
+* Added warning on `tbot` startup when the requested certificate TTL exceeds the maximum allowed value. [#44988](https://github.com/gravitational/teleport/pull/44988)
+* Fixed race condition between session recording uploads and session recording upload cleanup. [#44979](https://github.com/gravitational/teleport/pull/44979)
+* Prevent Kubernetes per-Resource RBAC from blocking access to namespaces when denying access to a single resource kind in every namespace. [#44975](https://github.com/gravitational/teleport/pull/44975)
+* Fix `tbot` FIPS builds failing to start due to missing boringcrypto. [#44908](https://github.com/gravitational/teleport/pull/44908)
+* Added support for Kubernetes Workload Attestation into Teleport Workload Identity to allow the authentication of pods running within Kubernetes without secrets. [#44884](https://github.com/gravitational/teleport/pull/44884)
+* Machine ID can now be configured to use Kubernetes Secret destinations from the command line using the `kubernetes-secret` schema. [#44804](https://github.com/gravitational/teleport/pull/44804)
+* Prevent discovery service from overwriting Teleport dynamic resources that have the same name as discovered resources. [#44786](https://github.com/gravitational/teleport/pull/44786)
+* Teleport Connect now uses ConPTY for better terminal resizing and accurate color rendering on Windows, with an option to disable it in the app config. [#44743](https://github.com/gravitational/teleport/pull/44743)
+* Fixed event-handler Helm charts using the wrong command when starting the event-handler container. [#44698](https://github.com/gravitational/teleport/pull/44698)
+* Enabled Mattermost plugin for notification routing ruled. [#4773](https://github.com/gravitational/teleport.e/pull/4773)
+
+## 15.4.11 (07/29/24)
 
 * Fixed an issue that could cause auth servers to panic when their backend connectivity was interrupted. [#44787](https://github.com/gravitational/teleport/pull/44787)
 * Reduced the probability that the event-handler deadlocks when encountering errors processing session recordings. [#44772](https://github.com/gravitational/teleport/pull/44772)

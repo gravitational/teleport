@@ -691,6 +691,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_IntegrationDelete{
 			IntegrationDelete: e,
 		}
+	case *SPIFFEFederationCreate:
+		out.Event = &OneOf_SPIFFEFederationCreate{
+			SPIFFEFederationCreate: e,
+		}
+	case *SPIFFEFederationDelete:
+		out.Event = &OneOf_SPIFFEFederationDelete{
+			SPIFFEFederationDelete: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
