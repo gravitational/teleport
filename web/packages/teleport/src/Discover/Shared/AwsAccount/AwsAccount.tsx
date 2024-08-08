@@ -272,7 +272,7 @@ export function AwsAccount() {
                       options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
-                  <ButtonText as={Link} to={locationState} compact={true}>
+                  <ButtonText as={Link} to={locationState} compact>
                     Or click here to set up a different AWS account
                   </ButtonText>
                 </>

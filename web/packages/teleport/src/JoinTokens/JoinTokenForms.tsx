@@ -111,7 +111,7 @@ export const JoinTokenIAMForm = ({
           />
         </RuleBox>
       ))}
-      <ButtonText onClick={addNewRule} compact={true}>
+      <ButtonText onClick={addNewRule} compact>
         <Plus size={16} mr={2} />
         Add another AWS Rule
       </ButtonText>
@@ -221,7 +221,7 @@ export const JoinTokenGCPForm = ({
           />
         </RuleBox>
       ))}
-      <ButtonText onClick={addNewRule} compact={true}>
+      <ButtonText onClick={addNewRule} compact>
         <Plus size={16} mr={2} />
         Add another GCP Rule
       </ButtonText>

@@ -62,6 +62,11 @@ export type ButtonProps<E extends React.ElementType> =
       inputAlignment?: boolean;
 
       /**
+       * If set to true, renders a button with the smallest horizontal paddings.
+       */
+      compact?: boolean;
+
+      /**
        * Specifies the case transform of the button text. Default is no
        * transformation.
        */
@@ -286,6 +291,9 @@ const buttonPalette = <E extends React.ElementType>({
 const horizontalPadding = <E extends React.ElementType>(
   props: ButtonProps<E>
 ) => {
+  if (props.compact) {
+    return 4;
+  }
   if (props.inputAlignment) {
     return 16;
   }
@@ -407,12 +415,5 @@ export const ButtonWarningBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="danger" {...props} />;
 export const ButtonText = <E extends React.ElementType = 'button'>(
-  props: ButtonProps<E> & { compact?: boolean }
-) => (
-  <Button
-    fill="minimal"
-    intent="neutral"
-    {...(props.compact ? { px: 1 } : {})}
-    {...props}
-  />
-);
+  props: ButtonProps<E>
+) => <Button fill="minimal" intent="neutral" {...props} />;
