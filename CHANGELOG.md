@@ -82,7 +82,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if
 the operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/admin-guides/infrastructure-as-code/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Teleport Operator now supports roles v6 and v7
