@@ -62,6 +62,10 @@ import {
   ConfigureDiscoveryServiceDirections,
   CreatedDiscoveryConfigDialog,
 } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 import { ActionButtons, Header } from '../../Shared';
 
@@ -96,7 +100,8 @@ type EKSClusterEnrollmentState = {
 };
 
 export function EnrollEksCluster(props: AgentStepProps) {
-  const { agentMeta, updateAgentMeta, emitErrorEvent } = useDiscover();
+  const { agentMeta, updateAgentMeta, emitErrorEvent, emitEvent } =
+    useDiscover();
   const { attempt: fetchClustersAttempt, setAttempt: setFetchClustersAttempt } =
     useAttempt('');
 
@@ -245,6 +250,12 @@ export function EnrollEksCluster(props: AgentStepProps) {
           }
         );
         setAutoDiscoveryCfg(discoveryConfig);
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          {
+            eventName: DiscoverEvent.CreateDiscoveryConfig,
+          }
+        );
       } catch (err) {
         const message = getErrMessage(err);
         setAutoDiscoverAttempt({
