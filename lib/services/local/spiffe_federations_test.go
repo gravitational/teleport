@@ -76,7 +76,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		want := newSPIFFEFederation("example.com")
 		got, err := service.CreateSPIFFEFederation(
 			ctx,
-			// Clone to avoid Marshalling modifying want
+			// Clone to avoid Marshaling modifying want
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)

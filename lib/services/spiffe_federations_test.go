@@ -253,7 +253,7 @@ func TestSPIFFEFederationMarshaling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gotBytes, err := MarshalSPIFFEFederation(tc.in)
 			require.NoError(t, err)
-			// Test that unmarshalling gives us the same object
+			// Test that unmarshaling gives us the same object
 			got, err := UnmarshalSPIFFEFederation(gotBytes)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tc.in, got, protocmp.Transform()))
