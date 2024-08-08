@@ -4287,34 +4287,34 @@ message AzureOIDCIntegrationMetadata {
 // PluginCreate is emitted when a plugin resource is created.
 message PluginCreate {
   // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
+  Metadata metadata = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // User is a common user event metadata.
-  UserMetadata User = 2 [
+  UserMetadata user = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ResourceMetadata is a common resource event metadata.
-  ResourceMetadata Resource = 3 [
+  ResourceMetadata resource = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
-  PluginMetadata Plugin = 4 [
+  PluginMetadata plugin = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection.
-  ConnectionMetadata Connection = 5 [
+  ConnectionMetadata connection = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -4324,34 +4324,34 @@ message PluginCreate {
 // PluginUpdate is emitted when a plugin resource is updated.
 message PluginUpdate {
   // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
+  Metadata metadata = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // User is a common user event metadata.
-  UserMetadata User = 2 [
+  UserMetadata user = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ResourceMetadata is a common resource event metadata.
-  ResourceMetadata Resource = 3 [
+  ResourceMetadata resource = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
-  PluginMetadata Plugin = 4 [
+  PluginMetadata plugin = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection.
-  ConnectionMetadata Connection = 5 [
+  ConnectionMetadata connection = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -4360,35 +4360,35 @@ message PluginUpdate {
 
 // PluginDelete is emitted when a plugin is deleted.
 message PluginDelete {
-  // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
+  // metadata is a common event metadata.
+  Metadata metadata = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // User is a common user event metadata.
-  UserMetadata User = 2 [
+  UserMetadata user = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ResourceMetadata is a common resource event metadata.
-  ResourceMetadata Resource = 3 [
+  ResourceMetadata resource = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
-  PluginMetadata Plugin = 4 [
+  PluginMetadata plugin = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection.
-  ConnectionMetadata Connection = 5 [
+  ConnectionMetadata connection = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -4397,17 +4397,18 @@ message PluginDelete {
 
 // PluginMetadata contains information about plugin resources.
 message PluginMetadata {
-  // PluginType is the plugin type of the plugin resource.
-  string PluginType = 1 [(gogoproto.jsontag) = "plugin_type"];
+  // plugin_type is the plugin type of the plugin resource.
+  // The value matches the types.PluginV1.Spec.Type field.
+  string plugin_type = 1 [(gogoproto.jsontag) = "plugin_type"];
 
-  // Plugin is the resource without secrets.
-  types.PluginV1 Plugin = 2 [(gogoproto.jsontag) = "plugin,omitempty"];
+  // plugin is the resource without secrets.
+  types.PluginV1 plugin = 2 [(gogoproto.jsontag) = "plugin,omitempty"];
 
-  // HasCredentials indicates whether the plugin has credentials.
-  bool HasCredentials = 3 [(gogoproto.jsontag) = "has_credentials"];
+  // has_credentials indicates whether the plugin has credentials.
+  bool has_credentials = 3 [(gogoproto.jsontag) = "has_credentials"];
 
-  // ReusesCredentials indicates whether the plugin reuses credentials.
-  bool ReusesCredentials = 4 [(gogoproto.jsontag) = "reuses_credentials"];
+  // reuses_credentials indicates whether the plugin reuses credentials.
+  bool reuses_credentials = 4 [(gogoproto.jsontag) = "reuses_credentials"];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
