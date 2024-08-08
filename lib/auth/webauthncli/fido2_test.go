@@ -2016,6 +2016,21 @@ func TestFIDO2Login_u2fInternalError(t *testing.T) {
 		})
 	}
 
+	// Sanity check: authenticator errors in the presence of unknown credentials.
+	u2fDev.open()
+	_, err := u2fDev.Assertion(
+		"example.com",
+		[]byte(`55cde2973243a946b85a477d2e164a35d2e4f3daaeb11ac5e9a1c4cf3297033e`), // clientDataHash
+		[][]byte{
+			u2fDev.credentialID(),
+			[]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+		},
+		"", // pin
+		&libfido2.AssertionOpts{UP: libfido2.False},
+	)
+	require.ErrorIs(t, err, libfido2.ErrInternal, "u2fDev.Assert error mismatch")
+	u2fDev.Close()
+
 	t.Run("login with multiple credentials", func(t *testing.T) {
 		assertion := &wantypes.CredentialAssertion{
 			Response: wantypes.PublicKeyCredentialRequestOptions{
@@ -2025,6 +2040,9 @@ func TestFIDO2Login_u2fInternalError(t *testing.T) {
 				UserVerification:   protocol.VerificationDiscouraged,
 			},
 		}
+
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
 		_, _, err := wancli.FIDO2Login(ctx, origin, assertion, u2fDev, &wancli.LoginOpts{
 			User: "alpaca",
 		})
@@ -2366,7 +2384,7 @@ func (f *fakeFIDO2Device) Assertion(
 	}
 
 	// Simulate "internal error" on unknown credential handles.
-	// Sometimes happens with Yubikey4 firmware 4.1.8.
+	// Sometimes happens with Yubikeys firmware 4.1.8.
 	if f.errorOnUnknownCredential {
 		for _, cid := range credentialIDs {
 			if !bytes.Equal(cid, f.key.KeyHandle) {
