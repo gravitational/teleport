@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -895,7 +896,6 @@ func TestGoodbye(t *testing.T) {
 }
 
 func TestGetSender(t *testing.T) {
-
 	controller := NewController(
 		&fakeAuth{},
 		usagereporter.DiscardUsageReporter{},
@@ -951,6 +951,77 @@ func TestGetSender(t *testing.T) {
 		assert.True(t, ok)
 		assert.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// TestTimeReconciliation verifies basic behavior of the time reconciliation check.
+func TestTimeReconciliation(t *testing.T) {
+	const serverID = "test-server"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events := make(chan testEvent, 1024)
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	clock := clockwork.NewRealClock()
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTimeReconciliationInterval(time.Millisecond*100),
+		withTestEventsChannel(events),
+		WithClock(clock),
+	)
+	t.Cleanup(func() {
+		require.NoError(t, controller.Close())
+	})
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
+	// Launch goroutine to respond to clock request.
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				switch m := msg.(type) {
+				case proto.DownstreamInventoryPing:
+					downstream.Send(ctx, proto.UpstreamInventoryPong{
+						ID:          m.ID,
+						SystemClock: time.Now().Add(-time.Minute).UTC(),
+					})
+				}
+			case <-downstream.Done():
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	_, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that instance heartbeat succeeds at least 2 times to propagate the system clock.
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+	require.InDelta(t, time.Minute, auth.lastInstance.GetSystemClockDifference(), float64(time.Millisecond))
 }
 
 type eventOpts struct {

@@ -20,11 +20,13 @@ package inventory
 
 import (
 	"context"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -89,9 +91,10 @@ type intervalKey int
 const (
 	instanceHeartbeatKey intervalKey = 1 + iota
 	serverKeepAliveKey
+	instanceTimeReconciliation
 )
 
-// instanceHBStepSize is the step size used for the variable instance hearbteat duration. This value is
+// instanceHBStepSize is the step size used for the variable instance heartbeat duration. This value is
 // basically arbitrary. It was selected because it produces a scaling curve that makes a fairly reasonable
 // tradeoff between heartbeat availability and load scaling. See test coverage in the 'interval' package
 // for a demonstration of the relationship between step sizes and interval/duration scaling.
@@ -100,11 +103,13 @@ const instanceHBStepSize = 1024
 type controllerOptions struct {
 	serverKeepAlive    time.Duration
 	instanceHBInterval time.Duration
+	timeReconciliation time.Duration
 	testEvents         chan testEvent
 	maxKeepAliveErrs   int
 	authID             string
 	onConnectFunc      func(string)
 	onDisconnectFunc   func(string)
+	clock              clockwork.Clock
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -119,6 +124,10 @@ func (options *controllerOptions) SetDefaults() {
 		options.instanceHBInterval = apidefaults.MinInstanceHeartbeatInterval()
 	}
 
+	if options.timeReconciliation == 0 {
+		options.timeReconciliation = baseKeepAlive
+	}
+
 	if options.maxKeepAliveErrs == 0 {
 		// fail on third error. this is arbitrary, but feels reasonable since if we're on our
 		// third error, 3-4m have gone by, so the problem is almost certainly persistent.
@@ -131,6 +140,10 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.onDisconnectFunc == nil {
 		options.onDisconnectFunc = func(s string) {}
+	}
+
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
 	}
 }
 
@@ -176,9 +189,22 @@ func withInstanceHBInterval(d time.Duration) ControllerOption {
 	}
 }
 
+func withTimeReconciliationInterval(d time.Duration) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.timeReconciliation = d
+	}
+}
+
 func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.testEvents = ch
+	}
+}
+
+// WithClock sets the clock for the controller to have a general clock configuration.
+func WithClock(clock clockwork.Clock) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.clock = clock
 	}
 }
 
@@ -193,6 +219,7 @@ type Controller struct {
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
+	timeReconciliationInterval time.Duration
 	instanceHBEnabled          bool
 	instanceHBVariableDuration *interval.VariableDuration
 	maxKeepAliveErrs           int
@@ -200,6 +227,7 @@ type Controller struct {
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
 	onDisconnectFunc           func(string)
+	clock                      clockwork.Clock
 	closeContext               context.Context
 	cancel                     context.CancelFunc
 }
@@ -238,6 +266,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
+		timeReconciliationInterval: options.timeReconciliation,
 		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
 		instanceHBVariableDuration: instanceHBVariableDuration,
 		maxKeepAliveErrs:           options.maxKeepAliveErrs,
@@ -247,6 +276,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		usageReporter:              usageReporter,
 		onConnectFunc:              options.onConnectFunc,
 		onDisconnectFunc:           options.onDisconnectFunc,
+		clock:                      options.clock,
 		closeContext:               ctx,
 		cancel:                     cancel,
 	}
@@ -262,11 +292,15 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
 	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
 	// service.
-	ticker := interval.NewMulti(interval.SubInterval[intervalKey]{
+	ticker := interval.NewMulti(c.clock, interval.SubInterval[intervalKey]{
 		Key:              instanceHeartbeatKey,
 		VariableDuration: c.instanceHBVariableDuration,
 		FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
 		Jitter:           seventhJitter,
+	}, interval.SubInterval[intervalKey]{
+		Key:      instanceTimeReconciliation,
+		Duration: c.timeReconciliationInterval,
+		Jitter:   seventhJitter,
 	})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
@@ -400,6 +434,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
+			case instanceTimeReconciliation:
+				if err := c.timeReconciliation(handle, tick.Time); err != nil {
+					handle.CloseWithError(err)
+					return
+				}
 			default:
 				log.Warnf("Unexpected sub-interval key '%v' in control stream handler of server %q (this is a bug).", tick.Key, handle.Hello().ServerID)
 			}
@@ -416,6 +455,31 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
+}
+
+func (c *Controller) timeReconciliation(handle *upstreamHandle, now time.Time) error {
+	id := rand.Uint64()
+	if err := handle.Send(c.closeContext, proto.DownstreamInventoryPing{ID: id}); err != nil {
+		return trace.Wrap(err)
+	}
+	rspC := make(chan pingResponse, 1)
+	handle.pings[id] = pendingPing{
+		start: now,
+		rspC:  rspC,
+	}
+	tracker := &handle.stateTracker
+	go func() {
+		select {
+		case <-c.closeContext.Done():
+			return
+		case pong := <-rspC:
+			tracker.mu.Lock()
+			tracker.systemClockDifference = c.clock.Since(pong.systemClock) - pong.reqDuration/2
+			tracker.mu.Unlock()
+		}
+	}()
+
+	return nil
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -479,7 +543,8 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		return
 	}
 	pending.rspC <- pingResponse{
-		d: time.Since(pending.start),
+		reqDuration: c.clock.Since(pending.start),
+		systemClock: msg.SystemClock,
 	}
 	delete(handle.pings, msg.ID)
 }
@@ -488,7 +553,7 @@ func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) 
 	ping := proto.DownstreamInventoryPing{
 		ID: req.id,
 	}
-	start := time.Now()
+	start := c.clock.Now()
 	if err := handle.Send(c.closeContext, ping); err != nil {
 		req.rspC <- pingResponse{
 			err: err,
@@ -544,7 +609,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		handle.sshServer = &heartBeatInfo[*types.ServerV2]{}
 	}
 
-	now := time.Now()
+	now := c.clock.Now()
 
 	sshServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
@@ -589,7 +654,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
 	}
 
-	now := time.Now()
+	now := c.clock.Now()
 
 	appServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
@@ -681,7 +746,7 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 				c.testEvent(appKeepAliveOk)
 			}
 		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+			srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
 			lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
 			if err != nil {
 				c.testEvent(appUpsertRetryErr)
@@ -724,7 +789,7 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 			c.testEvent(sshKeepAliveOk)
 		}
 	} else if handle.sshServer.retryUpsert {
-		handle.sshServer.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		handle.sshServer.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
 		lease, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource)
 		if err != nil {
 			c.testEvent(sshUpsertRetryErr)

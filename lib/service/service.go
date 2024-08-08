@@ -1304,12 +1304,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Hostname:                cfg.Hostname,
 		ExternalUpgrader:        externalUpgrader,
 		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
-	})
+	}, inventory.WithDownstreamClock(process.Clock))
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.", "id", ping.ID)
 		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID: ping.ID,
+			ID:          ping.ID,
+			SystemClock: process.Clock.Now().UTC(),
 		})
 		if err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
@@ -2509,6 +2510,10 @@ func (process *TeleportProcess) initAuthService() error {
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
 	})
+	process.RegisterFunc("auth.server.monitor", func() error {
+		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown

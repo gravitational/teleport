@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -46,6 +48,7 @@ type MultiInterval[T comparable] struct {
 	fire      chan T
 	closeOnce sync.Once
 	done      chan struct{}
+	clock     clockwork.Clock
 }
 
 // Tick represents a firing of the interval. The Key field denominates the sub-interval that
@@ -125,7 +128,7 @@ func (s *subIntervalEntry[T]) increment() {
 
 // NewMulti creates a new multi-interval instance.  This function panics on non-positive
 // interval durations (equivalent to time.NewTicker) or if no sub-intervals are provided.
-func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
+func NewMulti[T comparable](clock clockwork.Clock, intervals ...SubInterval[T]) *MultiInterval[T] {
 	if len(intervals) == 0 {
 		panic(errors.New("empty sub-interval set for interval.NewMulti"))
 	}
@@ -137,10 +140,11 @@ func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
 		reset: make(chan T),
 		fire:  make(chan T),
 		done:  make(chan struct{}),
+		clock: clock,
 	}
 
 	// check and initialize our sub-intervals.
-	now := time.Now()
+	now := clock.Now()
 	for _, sub := range intervals {
 		if sub.Duration <= 0 && (sub.VariableDuration == nil || sub.VariableDuration.Duration() <= 0) {
 			panic(errors.New("non-positive sub interval for interval.NewMulti"))
@@ -156,7 +160,7 @@ func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
 
 	// start the timer in this goroutine to improve
 	// consistency of first tick.
-	timer := time.NewTimer(d)
+	timer := clock.NewTimer(d)
 
 	go interval.run(timer, key)
 
@@ -257,7 +261,7 @@ func (i *MultiInterval[T]) pushEntry(entry subIntervalEntry[T]) {
 	i.subs = append(i.subs, entry)
 }
 
-func (i *MultiInterval[T]) run(timer *time.Timer, key T) {
+func (i *MultiInterval[T]) run(timer clockwork.Timer, key T) {
 	defer timer.Stop()
 
 	var pending pendingTicks[T]
@@ -276,7 +280,7 @@ func (i *MultiInterval[T]) run(timer *time.Timer, key T) {
 		}
 
 		select {
-		case t := <-timer.C:
+		case t := <-timer.Chan():
 			// increment the sub-interval for the current key
 			i.increment(key)
 
@@ -292,7 +296,7 @@ func (i *MultiInterval[T]) run(timer *time.Timer, key T) {
 			timer.Reset(d)
 
 		case resetKey := <-i.reset:
-			now := time.Now()
+			now := i.clock.Now()
 
 			// reset the sub-interval for the target key
 			i.resetEntry(now, resetKey)
@@ -307,14 +311,14 @@ func (i *MultiInterval[T]) run(timer *time.Timer, key T) {
 
 			// stop and drain timer
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 
 			// apply the new duration
 			timer.Reset(d)
 
 		case fireKey := <-i.fire:
-			now := time.Now()
+			now := i.clock.Now()
 
 			// reset the sub-interval for the key we are firing
 			i.resetEntry(now, fireKey)
@@ -329,13 +333,13 @@ func (i *MultiInterval[T]) run(timer *time.Timer, key T) {
 
 			// stop and drain timer.
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 
 			// re-set the timer
 			timer.Reset(d)
 		case entry := <-i.push:
-			now := time.Now()
+			now := i.clock.Now()
 
 			// add the new sub-interval entry
 			i.pushEntry(entry)
@@ -351,7 +355,7 @@ func (i *MultiInterval[T]) run(timer *time.Timer, key T) {
 
 			// stop and drain timer
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 
 			// apply the new duration
