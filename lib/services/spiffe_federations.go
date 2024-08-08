@@ -53,8 +53,6 @@ type SPIFFEFederations interface {
 // MarshalSPIFFEFederation marshals the SPIFFEFederation object into a JSON byte
 // array.
 func MarshalSPIFFEFederation(object *machineidv1.SPIFFEFederation, opts ...MarshalOption) ([]byte, error) {
-	object.Version = types.V1
-	object.Kind = types.KindSPIFFEFederation
 	return MarshalProtoResource(object, opts...)
 }
 
@@ -71,6 +69,10 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("object cannot be nil")
+	case s.Version != types.V1:
+		return trace.BadParameter("version: only %q is supported", types.V1)
+	case s.Kind != types.KindSPIFFEFederation:
+		return trace.BadParameter("kind: must be %q", types.KindSPIFFEFederation)
 	case s.Metadata == nil:
 		return trace.BadParameter("metadata: is required")
 	case s.Metadata.Name == "":

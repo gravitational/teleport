@@ -173,6 +173,42 @@ func TestValidateSPIFFEFederation(t *testing.T) {
 			},
 			requireErr: errContains("metadata.name: must not include the spiffe:// prefix"),
 		},
+		{
+			name: "fail - wrong kind",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindUser,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example.com",
+				},
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/foo",
+						},
+					},
+				},
+			},
+			requireErr: errContains(`kind: must be "spiffe_federation"`),
+		},
+		{
+			name: "fail - wrong version",
+			in: &machineidv1.SPIFFEFederation{
+				Kind:    types.KindUser,
+				Version: types.V3,
+				Metadata: &headerv1.Metadata{
+					Name: "example.com",
+				},
+				Spec: &machineidv1.SPIFFEFederationSpec{
+					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/foo",
+						},
+					},
+				},
+			},
+			requireErr: errContains(`version: only "v1" is supported`),
+		},
 	}
 
 	for _, tc := range testCases {
