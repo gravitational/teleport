@@ -83,7 +83,10 @@ export function useKeyBasedPagination<T>({
   }, [setState]);
 
   const fetch = useCallback(
-    async (options?: { force?: boolean }) => {
+    async (options?: { force?: boolean; clear?: boolean }) => {
+      if (options?.clear) {
+        clear();
+      }
       const { finished, attempt, resources, startKey } = stateRef.current;
       if (
         finished ||
@@ -154,7 +157,7 @@ export function useKeyBasedPagination<T>({
         });
       }
     },
-    [fetchFunc, stateRef, setState, fetchMoreSize, initialFetchSize]
+    [fetchFunc, stateRef, clear, setState, fetchMoreSize, initialFetchSize]
   );
 
   function updateFetchedResources(modifiedResources: T[]) {
@@ -209,12 +212,16 @@ type KeyBasedPagination<T> = {
    * as a mere suggestion to fetch more data and can be called multiple times,
    * for example, when the user scrolls to the bottom of the page.
    *
-   * @param options.force Cancels a pending request, if there is one.
-   * Disregards whether error has previously occurred. Intended for using as an
-   * explicit user's action. Don't call it from `useInfiniteScroll`, or you'll
-   * risk flooding the server with requests!
+   * @param options - Options to control the fetch behavior.
+   * @param options.force - If true, cancels any pending request and
+   * disregards whether an error occurred previously. This option is intended for
+   * explicit user actions. Do not call it from `useInfiniteScroll` to avoid
+   * flooding the server with requests.
+   * @param options.clear - If true, works like `force` but also clears
+   * the state. Similarly, do not call it from `useInfiniteScroll` to avoid
+   * flooding the server with requests.
    */
-  fetch(options?: { force?: boolean }): Promise<void>;
+  fetch(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   /** Aborts a pending request and clears the state. **/
   clear(): void;
   attempt: Attempt;
