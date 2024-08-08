@@ -34,9 +34,9 @@ teleport:
     # EC2, IAM or a token.
     #
     # EC2 join method documentation:
-    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-ec2/
+    # https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/
     # IAM join method documentation:
-    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
+    # https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/aws-iam/
     join_params:
         # When `method` is set to "token", it is the equivalent to using `auth_token` above.
         # You should only use either auth_token or join_params.
@@ -69,7 +69,7 @@ teleport:
     #   - /var/lib/teleport/pin2
     #
     # See the documentation on using CA pins:
-    # https://goteleport.com/docs/management/join-services-to-your-cluster/join-token/#connecting-directly-to-the-auth-service.
+    # https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/join-token/#connecting-directly-to-the-auth-service.
     ca_pin:
       "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
