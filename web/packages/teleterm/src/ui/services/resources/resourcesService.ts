@@ -142,6 +142,7 @@ export class ResourcesService {
             },
           };
         }
+        return r;
       });
     } catch (err) {
       throw new ResourceSearchError(clusterUri, err);

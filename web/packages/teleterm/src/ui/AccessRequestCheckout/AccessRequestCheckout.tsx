@@ -148,6 +148,7 @@ export function AccessRequestCheckout() {
                     };
                     switch (c.kind) {
                       case 'app':
+                      case 'saml_idp_service_provider':
                         resource.Icon = Icon.Application;
                         break;
                       case 'node':
@@ -160,9 +161,6 @@ export function AccessRequestCheckout() {
                         resource.Icon = Icon.Kubernetes;
                         break;
                       case 'role':
-                        break;
-                      case 'saml_idp_service_provider':
-                        resource.Icon = Icon.Application;
                         break;
                       default:
                         c satisfies never;
