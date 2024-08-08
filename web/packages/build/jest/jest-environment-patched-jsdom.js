@@ -33,6 +33,21 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     if (!global.Element.prototype.scrollIntoView) {
       global.Element.prototype.scrollIntoView = () => {};
     }
+
+    // TODO(gzdunek): Remove this once JSDOM provides matchMedia.
+    // https://github.com/jsdom/jsdom/issues/3522
+    if (!global.matchMedia) {
+      global.matchMedia = query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => {},
+      });
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;
