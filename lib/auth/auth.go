@@ -651,10 +651,6 @@ func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string)
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
-func (r *Services) StaticHostUserClient() services.StaticHostUser {
-	return r
-}
-
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{

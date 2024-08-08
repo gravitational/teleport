@@ -64,8 +64,8 @@ func authorizeWithVerbs(verbs []string) authorizerFactory {
 
 func assertTraceErr(f func(error) bool) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, msgAndArgs ...any) {
-		require.Error(t, err)
-		require.True(t, f(err))
+		require.Error(t, err, msgAndArgs...)
+		require.True(t, f(err), msgAndArgs...)
 	}
 }
 
@@ -243,7 +243,7 @@ func testStaticHostUserAccess(
 }
 
 func initSvc(t *testing.T, authorizerFn authorizerFactory) (context.Context, *Service) {
-	ctx, client, backend := test.InitSvc(t)
+	ctx, client, backend := test.InitRBACServices(t)
 	localResourceService, err := local.NewStaticHostUserService(backend)
 	require.NoError(t, err)
 	for i := 0; i < 10; i++ {

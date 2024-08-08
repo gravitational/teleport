@@ -309,7 +309,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 }
 
 func initSvc(t *testing.T, authorizerFn func(t *testing.T, client test.LocalClient) authz.Authorizer) (context.Context, *Service) {
-	ctx, client, backend := test.InitSvc(t)
+	ctx, client, backend := test.InitRBACServices(t)
 	localResourceService, err := local.NewKubeWaitingContainerService(backend)
 	require.NoError(t, err)
 

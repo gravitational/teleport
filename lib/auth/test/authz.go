@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// AuthorizerForDummyUser creates an authz context that authorizes a new user
+// with the given allowed verbs.
 func AuthorizerForDummyUser(t *testing.T, ctx context.Context, localClient LocalClient, resourceType string, roleVerbs []string) *authz.Context {
 	const clusterName = "localhost"
 
@@ -72,6 +74,8 @@ func AuthorizerForDummyUser(t *testing.T, ctx context.Context, localClient Local
 	return authCtx
 }
 
+// LocalClient is an extension of authz.AuthorizerAccessPoint that includes a
+// few extra methods for test setup.
 type LocalClient interface {
 	authz.AuthorizerAccessPoint
 
@@ -79,7 +83,8 @@ type LocalClient interface {
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 }
 
-func InitSvc(t *testing.T) (context.Context, LocalClient, backend.Backend) {
+// InitRBACServices creates all the services necessary to run RBAC tests for resources.
+func InitRBACServices(t *testing.T) (context.Context, LocalClient, backend.Backend) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
