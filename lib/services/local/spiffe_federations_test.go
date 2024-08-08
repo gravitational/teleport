@@ -97,13 +97,13 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		res := newSPIFFEFederation("twoofme.com")
 		_, err := service.CreateSPIFFEFederation(
 			ctx,
-			// Clone to avoid Marshalling modifying want
+			// Clone to avoid Marshaling modifying want
 			proto.Clone(res).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
 		_, err = service.CreateSPIFFEFederation(
 			ctx,
-			// Clone to avoid Marshalling modifying want
+			// Clone to avoid Marshaling modifying want
 			proto.Clone(res).(*machineidv1.SPIFFEFederation),
 		)
 		require.Error(t, err)
@@ -118,7 +118,7 @@ func TestSPIFFEFederationService_UpsertSPIFFEFederation(t *testing.T) {
 		want := newSPIFFEFederation("example.com")
 		got, err := service.UpsertSPIFFEFederation(
 			ctx,
-			// Clone to avoid Marshalling modifying want
+			// Clone to avoid Marshaling modifying want
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestSPIFFEFederationService_UpsertSPIFFEFederation(t *testing.T) {
 		// Ensure we can upsert over an existing resource
 		_, err = service.UpsertSPIFFEFederation(
 			ctx,
-			// Clone to avoid Marshalling modifying want
+			// Clone to avoid Marshaling modifying want
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 		want := newSPIFFEFederation("example.com")
 		_, err := service.CreateSPIFFEFederation(
 			ctx,
-			// Clone to avoid Marshalling modifying want
+			// Clone to avoid Marshaling modifying want
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
@@ -274,5 +274,5 @@ func TestSPIFFEFederationService_DeleteAllSPIFFEFederation(t *testing.T) {
 
 	page, _, err = service.ListSPIFFEFederations(ctx, 0, "")
 	require.NoError(t, err)
-	require.Len(t, page, 0)
+	require.Empty(t, page)
 }

@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//nolint:unused // Because the executors generate a large amount of false positives.
 package cache
 
 import (
@@ -27,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func newSPIFFEFederation(t *testing.T, name string) *machineidv1.SPIFFEFederation {
+func newSPIFFEFederation(name string) *machineidv1.SPIFFEFederation {
 	return &machineidv1.SPIFFEFederation{
 		Kind:    types.KindSPIFFEFederation,
 		Version: types.V1,
@@ -52,7 +53,7 @@ func TestSPIFFEFederations(t *testing.T) {
 
 	testResources153(t, p, testFuncs153[*machineidv1.SPIFFEFederation]{
 		newResource: func(s string) (*machineidv1.SPIFFEFederation, error) {
-			return newSPIFFEFederation(t, s), nil
+			return newSPIFFEFederation(s), nil
 		},
 
 		create: func(ctx context.Context, item *machineidv1.SPIFFEFederation) error {
