@@ -1954,6 +1954,84 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 	require.NoError(t, err, "FIDO2Register errored, expected a successful registration")
 }
 
+// TestFIDO2Login_u2fInternalError tests the scenario described by issue
+// https://github.com/gravitational/teleport/issues/44912.
+func TestFIDO2Login_u2fInternalError(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	dev1 := mustNewFIDO2Device("/dev1", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+	dev2 := mustNewFIDO2Device("/dev2", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+	u2fDev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	u2fDev.u2fOnly = true
+	u2fDev.errorOnUnknownCredential = true
+
+	f2 := newFakeFIDO2(dev1, dev2, u2fDev)
+	f2.setCallbacks()
+
+	const origin = "https://example.com"
+	ctx := context.Background()
+
+	// Register all authenticators.
+	cc := &wantypes.CredentialCreation{
+		Response: wantypes.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: wantypes.RelyingPartyEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "example.com",
+				},
+				ID: "example.com",
+			},
+			User: wantypes.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "alpaca",
+				},
+				DisplayName: "Alpaca",
+				ID:          []byte{1, 2, 3, 4, 5}, // arbitrary
+			},
+			Parameters: []wantypes.CredentialParameter{
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
+			},
+			AuthenticatorSelection: wantypes.AuthenticatorSelection{
+				RequireResidentKey: protocol.ResidentKeyNotRequired(),
+				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
+				UserVerification:   protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+	allowedCreds := make([]wantypes.CredentialDescriptor, 0, len(f2.devices))
+	for _, dev := range f2.devices {
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		mfaResp, err := wancli.FIDO2Register(ctx, origin, cc, dev)
+		cancel()
+		require.NoError(t, err, "FIDO2Register failed")
+
+		allowedCreds = append(allowedCreds, wantypes.CredentialDescriptor{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: mfaResp.GetWebauthn().RawId,
+		})
+	}
+
+	t.Run("login with multiple credentials", func(t *testing.T) {
+		assertion := &wantypes.CredentialAssertion{
+			Response: wantypes.PublicKeyCredentialRequestOptions{
+				Challenge:          make([]byte, 32),
+				RelyingPartyID:     "example.com",
+				AllowedCredentials: allowedCreds,
+				UserVerification:   protocol.VerificationDiscouraged,
+			},
+		}
+		_, _, err := wancli.FIDO2Login(ctx, origin, assertion, u2fDev, &wancli.LoginOpts{
+			User: "alpaca",
+		})
+		require.NoError(t, err, "FIDO2Login failed")
+	})
+}
+
 func resetFIDO2AfterTests(t *testing.T) {
 	pollInterval := wancli.FIDO2PollInterval
 	devLocations := wancli.FIDODeviceLocations
@@ -2014,6 +2092,10 @@ type fakeFIDO2Device struct {
 	// Set to true to simulate an U2F-only device.
 	// Causes libfido2.ErrNotFIDO2 on Info.
 	u2fOnly bool
+
+	// errorOnUnknownCredential makes the device fail assertions if an unknown
+	// credential is present.
+	errorOnUnknownCredential bool
 
 	// assertionErrors is a chain of errors to return from Assertion.
 	// Errors are returned from start to end and removed, one-by-one, on each
@@ -2283,6 +2365,16 @@ func (f *fakeFIDO2Device) Assertion(
 		privilegedAccess = true
 	}
 
+	// Simulate "internal error" on unknown credential handles.
+	// Sometimes happens with Yubikey4 firmware 4.1.8.
+	if f.errorOnUnknownCredential {
+		for _, cid := range credentialIDs {
+			if !bytes.Equal(cid, f.key.KeyHandle) {
+				return nil, fmt.Errorf("failed to get assertion: %w", libfido2.ErrInternal)
+			}
+		}
+	}
+
 	// U2F only: exit without user interaction if there are no credentials.
 	if f.u2fOnly {
 		found := false
@@ -2290,6 +2382,9 @@ func (f *fakeFIDO2Device) Assertion(
 			if bytes.Equal(cid, f.key.KeyHandle) {
 				found = true
 				break
+			}
+			if f.errorOnUnknownCredential {
+				return nil, fmt.Errorf("failed to get assertion: %w", libfido2.ErrInternal)
 			}
 		}
 		if !found {
