@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -217,6 +218,12 @@ func (s *SPIFFEFederationService) CreateSPIFFEFederation(
 	}
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if status := req.GetSpiffeFederation().GetStatus(); status != nil {
+		if !proto.Equal(status, &machineidv1.SPIFFEFederationStatus{}) {
+			return nil, trace.BadParameter("status: cannot be set")
+		}
 	}
 
 	created, err := s.backend.CreateSPIFFEFederation(ctx, req.SpiffeFederation)
