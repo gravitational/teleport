@@ -19,6 +19,8 @@
 import React from 'react';
 import styled, { CSSObject } from 'styled-components';
 
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
+
 import {
   space,
   width,
@@ -358,7 +360,10 @@ const block = props =>
 const textTransform = props =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
-const StyledButton = styled.button`
+const StyledButton = styled.button.withConfig({
+  shouldForwardProp: (prop, target) =>
+    !['compact'].includes(prop) && defaultValidatorFn(prop, target),
+})`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
