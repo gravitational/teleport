@@ -247,6 +247,8 @@ type CLIConf struct {
 	Interactive bool
 	// TODO(russjones)
 	NonInteractive bool
+	// TODO(russjones)
+	ShowVersion bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
 	// Namespace is used to select cluster namespace
@@ -773,7 +775,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
-	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	ssh.Arg("[user@]host", "Remote hostname and the login to use").StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -785,6 +787,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	// Use -T to not allocate a TTY.
 	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
+	// TODO(russjones)
+	ssh.Flag(uuid.New().String(), "").Short('V').Hidden().BoolVar(&cf.ShowVersion)
 	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
@@ -1282,6 +1286,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 	if cf.NonInteractive {
 		cf.Interactive = false
+	}
+
+	// If "tsh ssh -V" was executed, Teleport is in OpenSSH compatibility mode,
+	// show the version and exit.
+	if cf.ShowVersion {
+		modules.GetModules().PrintVersion()
+		return nil
+	}
+	if cf.UserHost == "" {
+		return trace.BadParameter("required argument '[user@]host' not provided")
 	}
 
 	// Did we initially get the Username from flags/env?
