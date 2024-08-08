@@ -482,9 +482,10 @@ sign-on provider.
 |`{{internal.aws_role_arns}}`|List of allowed AWS role ARNS for the user.|
 |`{{internal.azure_identities}}`| Returns the Azure identities defined in Teleport available to the user. Azure identities can be set for a specific user or defined in a role.|
 |`{{internal.db_names}}`|List of all allowed database names for the user.|
+|`{{internal.db_roles}}`|List of all allowed database roles for the user.|
 |`{{internal.db_users}}`|List of all allowed database users for the user.|
 |`{{internal.gcp_service_accounts}}`|List of GCP service accounts for the user.|
-|`{{internal.kube_username}}`|Kubernetes usernames available to the user.|
+|`{{internal.jwt}}`|JWT header used for app access.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
 |`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../admin-guides/management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
@@ -495,17 +496,15 @@ sign-on provider.
 
 The `internal` trait namespace includes only the exact internal trait names
 included in the above table.
-They can be set in the `spec.traits` field of the
-[user resource](../reference/resources.mdx#user), or passed from an external
-IdP.
+For local Teleport users, these traits can be set in the `spec.traits` field of the
+[user resource](../reference/resources.mdx#user).
+These trait names can also be set for SSO users if they are included in an
+attribute or claim from your IdP.
 
-Internal traits may be referenced in built-in roles such as the `access` role,
-and they may be different when a user is accessing a leaf cluster vs a root
-cluster.
-For example, when accessing a leaf cluster, the `logins` trait will be set to
-the complete list of SSH logins allowed for the user, which may include values
-from the user's `logins` trait in the root cluster as well as logins hardcoded
-in roles the user holds in the root cluster.
+Internal traits are referenced in the [preset roles](#preset-roles) `access` and
+`require-trusted-device` to allow access to resources based on user traits.
+External traits are never referenced in preset roles (unless you manually edit
+said preset roles).
 
 You can use the following format in your role to reference an internal trait:
 
@@ -514,14 +513,32 @@ logins:
   - '{{internal.logins}}'
 ```
 
+<Admonition type="warning">
+For backward compatibility, some internal traits will differ when expanded
+in a leaf cluster vs a root cluster.
+In a leaf cluster the `logins`, `kubernetes_groups`, `kubernetes_users`,
+`db_names`, `db_users`, and `aws_role_arns` traits will all be set to the
+complete set of values that are encoded into the user's certificate when they
+sign in to Teleport.
+For example, when accessing a leaf cluster, the `internal.logins` trait will be set to
+the complete list of SSH logins allowed for the user, which may include values
+from the user's `internal.logins` trait in the root cluster as well as logins only
+included in the `spec.allow.logins` field of roles the user holds in the root cluster.
+</Admonition>
+
 #### Referring to external traits in Teleport roles
 
 For local Teleport users, the `external` trait namespace includes all values
 from the `spec.traits` field of the [user resource](../reference/resources.mdx#user).
+This includes any custom traits names, as well as names matching the `internal`
+traits listed above.
+For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways
+to refer to the `logins` traits, but a custom trait called `groups` can only be
+refenced by `{{external.groups}}`.
+
 When a user authenticates to Teleport through a single sign-on identity provider
 (IdP), Teleport populates `external` traits using attributes it receives from the
 IdP.
-
 For example, assuming you have the following SAML assertion attribute in your
 response:
 
