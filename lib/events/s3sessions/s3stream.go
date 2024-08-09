@@ -232,7 +232,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		}
 		for _, part := range page.Parts {
 			parts = append(parts, events.StreamPart{
-				Number:       *part.PartNumber,
+				Number:       aws.ToInt32(part.PartNumber),
 				ETag:         aws.ToString(part.ETag),
 				LastModified: aws.ToTime(part.LastModified),
 			})

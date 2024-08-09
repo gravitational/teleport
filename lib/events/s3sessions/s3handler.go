@@ -158,6 +158,7 @@ func (s *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Bucket")
 	}
 
+	// Check if AWSConfig isn't already configured by checking for Region (which is required).
 	if s.AWSConfig.Region == "" {
 		var err error
 		opts := []func(*config.LoadOptions) error{
