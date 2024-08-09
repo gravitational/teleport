@@ -249,6 +249,108 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 	}
 }
 
+func TestUpdateDatabase(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+
+	initDb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().CreateDatabase(context.Background(), initDb)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		wantErr        bool
+		updateReq      updateDatabaseRequest
+		verifyResponse func(*testing.T, *roundtrip.Response, updateDatabaseRequest, error)
+	}{
+		{
+			name: "partial update",
+			updateReq: updateDatabaseRequest{
+				URI:    "some-other-uri:5432",
+				Labels: []ui.Label{{Name: "foo", Value: "bar"}},
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req updateDatabaseRequest, err error) {
+				require.NoError(t, err)
+
+				var gotDb ui.Database
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &gotDb))
+				require.Equal(t, req.URI, gotDb.URI)
+				require.ElementsMatch(t, gotDb.Labels, []ui.Label{
+					{Name: "foo", Value: "bar"},
+					{Name: "teleport.dev/origin", Value: "dynamic"},
+				})
+
+				backendDb, err := env.server.Auth().GetDatabase(context.Background(), initDb.GetName())
+				require.NoError(t, err)
+				require.Equal(t, ui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+			},
+		},
+		{
+			name: "overwrite",
+			updateReq: updateDatabaseRequest{
+				DBOverwrite: &createDatabaseRequest{
+					Name:     initDb.GetName(),
+					URI:      "some-other-uri:3306",
+					Labels:   []ui.Label{{Name: "foo", Value: "bar"}},
+					Protocol: "mysql",
+					AWSRDS: &awsRDS{
+						AccountID:  "123456789012",
+						ResourceID: "resource-id",
+						Subnets:    []string{"subnet"},
+						VPCID:      "vpc-id",
+					},
+				},
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req updateDatabaseRequest, err error) {
+				require.NoError(t, err)
+
+				var gotDb ui.Database
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &gotDb))
+				require.Equal(t, req.DBOverwrite.URI, gotDb.URI)
+				require.Equal(t, req.DBOverwrite.Protocol, gotDb.Protocol)
+				require.Equal(t, req.DBOverwrite.AWSRDS.AccountID, gotDb.AWS.AccountID)
+				require.Equal(t, req.DBOverwrite.AWSRDS.ResourceID, gotDb.AWS.RDS.ResourceID)
+				require.ElementsMatch(t, gotDb.Labels, []ui.Label{{Name: "foo", Value: "bar"}, {Name: "teleport.dev/origin", Value: "dynamic"}})
+
+				backendDb, err := env.server.Auth().GetDatabase(context.Background(), initDb.GetName())
+				require.NoError(t, err)
+				require.Equal(t, ui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+			},
+		},
+		{
+			name:    "overwrite error: different database name",
+			wantErr: true,
+			updateReq: updateDatabaseRequest{
+				DBOverwrite: &createDatabaseRequest{
+					Name: "cannot-change-name",
+				},
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req updateDatabaseRequest, err error) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", initDb.GetName())
+			resp, err := pack.clt.PutJSON(context.Background(), endpoint, test.updateReq)
+
+			test.verifyResponse(t, resp, test.updateReq, err)
+		})
+	}
+}
+
 func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	t.Parallel()
 
