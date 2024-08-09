@@ -179,7 +179,7 @@ func newDebugClient(configPath string) (DebugClient, string, string, error) {
 	// In that case, fallback to default data dir path. The data directory
 	// is not required so should use the default if not specified.
 	dataDir := defaults.DataDir
-	if cfg == nil || cfg.DataDir != "" {
+	if cfg != nil && cfg.DataDir != "" {
 		dataDir = cfg.DataDir
 	}
 
