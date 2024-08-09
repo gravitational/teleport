@@ -349,18 +349,8 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 // TODO(gabrielcorado): DELETE IN V18.0.0
 // This is here for backward compatibility in case the auth server
 // does not support enriched resources yet.
-func getARNFromRoles(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) []string {
-	var clusterClient *client.ClusterClient
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		var err error
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
-		return trace.Wrap(err)
-	}); err != nil {
-		log.WithError(err).Debugf("Failed to create cluster client.")
-		return profile.AWSRolesARNs
-	}
-
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+func getARNFromRoles(cf *CLIConf, tc *client.TeleportClient, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, app types.Application) []string {
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, roleGetter)
 	if err != nil {
 		log.WithError(err).Debugf("Failed to fetch user roles.")
 		return profile.AWSRolesARNs
