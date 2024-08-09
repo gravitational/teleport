@@ -408,7 +408,7 @@ $(BUILDDIR)/fdpass-teleport:
 
 .PHONY: tsh-app
 tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
-tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/tsh/tsh.entitlements
+tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/tsh.entitlements
 tsh-app:
 	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
 	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
