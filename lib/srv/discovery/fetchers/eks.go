@@ -364,7 +364,7 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 	}
 
 	// If no access configuration is required, return the cluster.
-	if a.SetupAccessForARN == "" || rsp.Cluster.AccessConfig == nil {
+	if a.SetupAccessForARN == "" || rsp.Cluster.AccessConfig == nil || a.Integration != "" {
 		return cluster, nil
 	}
 
