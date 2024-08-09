@@ -118,17 +118,6 @@ describe('test AutoDeploy.tsx', () => {
     await screen.findByText('subnet-id');
   }
 
-  test('init: labels are rendered, command is not rendered yet', async () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
-
-    renderAutoDeploy(teleCtx, discoverCtx);
-    await waitForSubnetsAndSecurityGroups();
-
-    expect(screen.getByText(/env: prod/i)).toBeInTheDocument();
-    expect(screen.queryByText(/copy\/paste/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/curl/i)).not.toBeInTheDocument();
-  });
-
   test('clicking button renders command', async () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 

@@ -77,7 +77,13 @@ class DatabaseService {
     req: UpdateDatabaseRequest
   ): Promise<Database> {
     return api
-      .put(cfg.getDatabaseUrl(clusterId, req.name), req)
+      .put(
+        cfg.getDatabaseUrl(
+          clusterId,
+          req.kind === 'overwrite-update' ? req.dbOverwrite?.name : req.name
+        ),
+        req
+      )
       .then(makeDatabase);
   }
 
