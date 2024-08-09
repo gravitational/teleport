@@ -110,14 +110,17 @@ Otherwise the host's default shell will be used.
 
 ### Sudoers Configuration
 
+Teleport host user creation leverages the `sudoers.d` directory for new users.
 For CentOS builds, ensure that the following line is present in your `sudoers` file:
 
 ```bash
-#includedir /etc/sudoers.d```
-Note: In the sudoers file, the # symbol is typically used to indicate comments. However, in this context, 
-#includedir is a directive and not a comment.
+#includedir /etc/sudoers.d
+```
 
-For Debian-based systems, you might encounter @includedir /etc/sudoers.d, which serves a similar purpose. 
+In the sudoers file, the `#` symbol is typically used to indicate comments. However, in this context, 
+`#includedir` is a directive and not a comment.
+
+For Debian-based systems, you might encounter `@includedir /etc/sudoers.d`, which serves a similar purpose. 
 Ensure that the correct directive is used based on your operating system.
 
 
