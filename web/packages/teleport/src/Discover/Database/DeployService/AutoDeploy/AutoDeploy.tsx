@@ -110,6 +110,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   }
 
   function handleDeploy(validator) {
+    setSvcDeployedAwsUrl('');
+    setDeployFinished(false);
+
     if (!validator.validate()) {
       return;
     }
@@ -125,8 +128,6 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
     if (wantAutoDiscover) {
       setAttempt({ status: 'processing' });
-      setSvcDeployedAwsUrl('');
-      setDeployFinished(false);
 
       integrationService
         .deployDatabaseServices(integrationName, {
@@ -153,8 +154,6 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         });
     } else {
       setAttempt({ status: 'processing' });
-      setSvcDeployedAwsUrl('');
-      setDeployFinished(false);
       integrationService
         .deployAwsOidcService(integrationName, {
           deploymentMode: 'database-service',
