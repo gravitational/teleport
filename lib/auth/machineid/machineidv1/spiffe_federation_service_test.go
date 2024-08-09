@@ -68,6 +68,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
@@ -248,6 +249,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
@@ -390,6 +392,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
@@ -503,6 +506,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
