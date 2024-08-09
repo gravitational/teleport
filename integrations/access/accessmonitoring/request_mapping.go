@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package accessrequest
+package accessmonitoring
 
 import (
 	"time"
@@ -88,7 +88,7 @@ func newRequestConditionParser() (*typical.Parser[accessRequestExpressionEnv, an
 	return requestConditionParser, nil
 }
 
-func matchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
+func MatchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
 	parsedExpr, err := parseAccessRequestExpression(expr)
 	if err != nil {
 		return false, trace.Wrap(err)
