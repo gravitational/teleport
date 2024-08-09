@@ -1181,7 +1181,10 @@
             {
               "title": "teleport-cluster",
               "slug": "/reference/helm-reference/teleport-cluster/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": [
+                "oss",
+                "enterprise"
+              ]
             },
             {
               "title": "teleport-kube-agent",
@@ -1190,7 +1193,9 @@
             {
               "title": "teleport-access-graph",
               "slug": "/reference/helm-reference/teleport-access-graph/",
-              "forScopes": ["enterprise"]
+              "forScopes": [
+                "enterprise"
+              ]
             },
             {
               "title": "teleport-plugin-event-handler",
@@ -1363,18 +1368,18 @@
     },
     "teleport": {
       "major_version": "14",
-      "version": "14.3.21",
+      "version": "14.3.23",
       "git": "api/14.0.0-gd1e081e",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "14.3.21"
+        "version": "14.3.23"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:14.3.21",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:14.3.21",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:14.3.21",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:14.3.21"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:14.3.23",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:14.3.23",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:14.3.23",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:14.3.23"
     },
     "terraform": {
       "version": "1.0.0"
