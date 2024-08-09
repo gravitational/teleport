@@ -605,6 +605,17 @@ func Main() {
 		cmdLine = cmdLineOrig
 	}
 
+	// "-V Display the version number and exit."
+	if slices.Contains(cmdLine, "-V") {
+		modules.GetModules().PrintVersion()
+		os.Exit(0)
+	}
+	// "-T Disable pseudo-terminal allocation."
+	i := slices.Index(cmdLine, "-T")
+	if i > 0 {
+		slices.Replace(cmdLine, i, i+1, []string{"--no-tty"}...)
+	}
+
 	err := Run(ctx, cmdLine)
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
@@ -1238,6 +1249,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
 	}
+
+	fmt.Printf("--> cf.Interactive: %v\n", cf.Interactive)
 
 	// Remove HTTPS:// in proxy parameter as https is automatically added
 	cf.Proxy = strings.TrimPrefix(cf.Proxy, "https://")
