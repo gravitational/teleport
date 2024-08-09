@@ -32,10 +32,7 @@ import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import { Timeout } from 'teleport/Discover/Shared/Timeout';
 import { TextIcon } from 'teleport/Discover/Shared';
 
-import {
-  dbWithoutDbServerExistsErrorMsg as dbExistsWithoutDbServerErrorMsg,
-  timeoutErrorMsg,
-} from './const';
+import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -60,46 +57,47 @@ export function CreateDatabaseDialog({
   onOverwrite,
   onTimeout,
 }: CreateDatabaseDialogProps) {
-  /**
-   * Most likely cause of timeout is when we found a matching db_service
-   * but no db_server heartbeats. Most likely cause is because db_service
-   * has been stopped but is not removed from teleport yet (there is some
-   * minutes delay on expiry)
-   */
-  const skipOnTimeout =
-    attempt.status === 'failed' && attempt.statusText === timeoutErrorMsg;
-
   let content: JSX.Element;
-  if (attempt.status === 'failed' && !skipOnTimeout) {
-    // Only allow overwriting if the database error
-    // states that it's a existing database without a db_server.
-    const canOverwriteDb = attempt.statusText.includes(
-      dbExistsWithoutDbServerErrorMsg
-    );
+  if (attempt.status === 'failed') {
+    /**
+     * Most likely cause of timeout is when we found a matching db_service
+     * but no db_server heartbeats. Most likely cause is because db_service
+     * has been stopped but is not removed from teleport yet (there is some
+     * minutes delay on expiry)
+     */
+    if (attempt.statusText === timeoutErrorMsg) {
+      content = <SuccessContent dbName={dbName} onClick={onTimeout} />;
+    } else {
+      // Only allow overwriting if the database error
+      // states that it's a existing database without a db_server.
+      const canOverwriteDb = attempt.statusText.includes(
+        dbWithoutDbServerExistsErrorMsg
+      );
 
-    // TODO(bl-nero): Migrate this to alert boxes.
-    content = (
-      <>
-        <Flex mb={5} alignItems="center">
-          <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
-          <Text>{attempt.statusText}</Text>
-        </Flex>
-        <Flex gap={3}>
-          <ButtonPrimary width="50%" onClick={retry}>
-            Retry
-          </ButtonPrimary>
-          {canOverwriteDb && (
-            <ButtonWarning width="50%" onClick={onOverwrite}>
-              Overwrite
-            </ButtonWarning>
-          )}
-          <ButtonSecondary width="50%" onClick={close}>
-            Close
-          </ButtonSecondary>
-        </Flex>
-      </>
-    );
-  } else if (attempt.status === 'processing') {
+      // TODO(bl-nero): Migrate this to alert boxes.
+      content = (
+        <>
+          <Flex mb={5} alignItems="center">
+            <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
+            <Text>{attempt.statusText}</Text>
+          </Flex>
+          <Flex gap={3} width="100%">
+            <ButtonPrimary onClick={retry} style={{ flex: 1 }}>
+              Retry
+            </ButtonPrimary>
+            {canOverwriteDb && (
+              <ButtonWarning onClick={onOverwrite} style={{ flex: 1 }}>
+                Overwrite
+              </ButtonWarning>
+            )}
+            <ButtonSecondary onClick={close} style={{ flex: 1 }}>
+              Close
+            </ButtonSecondary>
+          </Flex>
+        </>
+      );
+    }
+  } else if (attempt.status === 'processing' || attempt.status === '') {
     content = (
       <>
         <AnimatedProgressBar mb={1} />
@@ -121,19 +119,8 @@ export function CreateDatabaseDialog({
         </ButtonPrimary>
       </>
     );
-  } else {
-    // success
-    content = (
-      <>
-        <Text mb={5}>
-          <Icons.Check size="small" ml={1} mr={2} color="success.main" />
-          Database "{dbName}" successfully registered
-        </Text>
-        <ButtonPrimary width="100%" onClick={skipOnTimeout ? onTimeout : next}>
-          Next
-        </ButtonPrimary>
-      </>
-    );
+  } else if (attempt.status === 'success') {
+    content = <SuccessContent dbName={dbName} onClick={next} />;
   }
 
   return (
@@ -150,3 +137,15 @@ export function CreateDatabaseDialog({
     </Dialog>
   );
 }
+
+const SuccessContent = ({ dbName, onClick }) => (
+  <>
+    <Text mb={5}>
+      <Icons.Check size="small" ml={1} mr={2} color="success.main" />
+      Database "{dbName}" successfully registered
+    </Text>
+    <ButtonPrimary width="100%" onClick={onClick}>
+      Next
+    </ButtonPrimary>
+  </>
+);

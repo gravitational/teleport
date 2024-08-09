@@ -325,7 +325,6 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels?: Label[];
   securityGroups?: string[];
   vpcId: string;
   accountId: string;
