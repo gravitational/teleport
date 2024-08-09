@@ -135,6 +135,17 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
 type updateDatabaseRequest struct {
+	// DBOverwrite will completely overwrite an existing database
+	// as if it were a create database request versus a partial update
+	// with select few fields as defined below.
+	// DBOverwrite is used when user opts to "overwrite" an existing database
+	// in the web UI. Partial update is used under the hood by the web UI
+	// when it detects some select fields have changed eg: update CA Cert
+	DBOverwrite *createDatabaseRequest `json:"dbOverwrite,omitempty"`
+
+	// If DBOverwrite is provided, other fields will be
+	// ignored.
+
 	CACert *string    `json:"caCert,omitempty"`
 	Labels []ui.Label `json:"labels,omitempty"`
 	URI    string     `json:"uri,omitempty"`
@@ -181,8 +192,14 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.checkAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+	if req.DBOverwrite != nil {
+		if err := req.DBOverwrite.checkAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else { // partial update
+		if err := req.checkAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -195,44 +212,53 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	savedOrNewCaCert := database.GetCA()
-	if req.CACert != nil {
-		savedOrNewCaCert = *req.CACert
-	}
-
-	savedOrNewAWSRDS := awsRDS{
-		AccountID:  database.GetAWS().AccountID,
-		ResourceID: database.GetAWS().RDS.ResourceID,
-	}
-	if req.AWSRDS != nil {
-		savedOrNewAWSRDS = awsRDS{
-			AccountID:  req.AWSRDS.AccountID,
-			ResourceID: req.AWSRDS.ResourceID,
+	if req.DBOverwrite != nil {
+		if databaseName != req.DBOverwrite.Name {
+			return nil, trace.BadParameter("database names %q and %q does not match", databaseName, req.DBOverwrite.Name)
 		}
-	}
+		database, err = getNewDatabaseResource(*req.DBOverwrite)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else { // partial update
+		savedOrNewCaCert := database.GetCA()
+		if req.CACert != nil {
+			savedOrNewCaCert = *req.CACert
+		}
 
-	savedOrNewURI := req.URI
-	if len(savedOrNewURI) == 0 {
-		savedOrNewURI = database.GetURI()
-	}
+		savedOrNewAWSRDS := awsRDS{
+			AccountID:  database.GetAWS().AccountID,
+			ResourceID: database.GetAWS().RDS.ResourceID,
+		}
+		if req.AWSRDS != nil {
+			savedOrNewAWSRDS = awsRDS{
+				AccountID:  req.AWSRDS.AccountID,
+				ResourceID: req.AWSRDS.ResourceID,
+			}
+		}
 
-	savedLabels := database.GetStaticLabels()
+		savedOrNewURI := req.URI
+		if len(savedOrNewURI) == 0 {
+			savedOrNewURI = database.GetURI()
+		}
 
-	// Make a new database to reset the check and set defaulted fields.
-	database, err = getNewDatabaseResource(createDatabaseRequest{
-		Name:     databaseName,
-		Protocol: database.GetProtocol(),
-		URI:      savedOrNewURI,
-		Labels:   req.Labels,
-		AWSRDS:   &savedOrNewAWSRDS,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		savedLabels := database.GetStaticLabels()
 
-	database.SetCA(savedOrNewCaCert)
-	if len(req.Labels) == 0 {
-		database.SetStaticLabels(savedLabels)
+		// Make a new database to reset the check and set defaulted fields.
+		database, err = getNewDatabaseResource(createDatabaseRequest{
+			Name:     databaseName,
+			Protocol: database.GetProtocol(),
+			URI:      savedOrNewURI,
+			Labels:   req.Labels,
+			AWSRDS:   &savedOrNewAWSRDS,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		database.SetCA(savedOrNewCaCert)
+		if len(req.Labels) == 0 {
+			database.SetStaticLabels(savedLabels)
+		}
 	}
 
 	if err := clt.UpdateDatabase(r.Context(), database); err != nil {
