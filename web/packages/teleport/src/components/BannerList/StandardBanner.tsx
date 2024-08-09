@@ -25,12 +25,12 @@ import { userEventService } from 'teleport/services/userEvent';
 
 export type Severity = 'info' | 'warning' | 'danger';
 
-export type Props = {
+type Props = {
   message: string;
   severity: Severity;
   id: string;
   link?: string;
-  onDismiss: (id: string) => void;
+  onDismiss: () => void;
 };
 
 export function StandardBanner({
@@ -50,7 +50,7 @@ export function StandardBanner({
   };
 
   return (
-    <Banner kind={severity} onDismiss={() => onDismiss(id)} dismissible>
+    <Banner kind={severity} onDismiss={onDismiss} dismissible>
       {isValidTeleportLink(link) ? (
         <Link
           href={link}

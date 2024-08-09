@@ -62,7 +62,7 @@ export const BannerList = ({
           severity={banner.severity}
           id={banner.id}
           link={banner.link}
-          onDismiss={removeBanner}
+          onDismiss={() => removeBanner(banner.id)}
           key={banner.id}
         />
       ))}

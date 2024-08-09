@@ -83,21 +83,20 @@ describe('StandardBanner', () => {
     });
   });
 
-  it('calls onClose when the X is clicked', () => {
+  it('calls onDismiss when the X is clicked', () => {
     const id = 'test-banner';
-    const onClose = jest.fn();
+    const onDismiss = jest.fn();
     render(
       <StandardBanner
         message="I am steve banner"
         severity="info"
         id={id}
-        onDismiss={onClose}
+        onDismiss={onDismiss}
       />
     );
 
     fireEvent.click(screen.getByRole('button'));
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledWith(id);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
   describe('with link', () => {
