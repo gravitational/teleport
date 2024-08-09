@@ -234,12 +234,18 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return trace.Wrap(err)
 	}
 
+	loginsByRole, err := a.getLoginsByRole(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	reqData := pd.AccessRequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
 		RequestReason:     req.GetRequestReason(),
 		SystemAnnotations: req.GetSystemAnnotations(),
 		Resources:         resourceNames,
+		LoginsByRole:      loginsByRole,
 	}
 
 	_, err = a.pluginData.Create(ctx, reqID, PluginData{AccessRequestData: reqData})
@@ -486,6 +492,20 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	log.Infof("Successfully notified user %s request marked as %s", reqData.User, tag)
 
 	return nil
+}
+
+func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	loginsByRole := make(map[string][]string)
+
+	for _, role := range req.GetRoles() {
+		currentRole, err := a.apiClient.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		loginsByRole[role] = currentRole.GetLogins(types.Allow)
+	}
+
+	return loginsByRole, nil
 }
 
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {

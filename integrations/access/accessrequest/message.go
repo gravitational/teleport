@@ -36,7 +36,8 @@ import (
 // for message section texts, so we truncate all reasons to a generous but
 // conservative limit
 const (
-	requestReasonLimit = 500
+	requestInlineLimit = 500
+	requestReasonLimit
 	resolutionReasonLimit
 	ReviewReasonLimit
 )
@@ -81,10 +82,20 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 		msgFieldToBuilder(&builder, "User", reqData.User)
 	}
 	if len(reqData.Roles) > 0 {
-		msgFieldToBuilder(&builder, "Role(s)", strings.Join(reqData.Roles, ","))
+		for role, logins := range reqData.LoginsByRole {
+			var loginStr string
+			if len(logins) > 0 {
+				loginStr = strings.Join(logins, ", ")
+			} else {
+				loginStr = "none"
+			}
+			msgFieldToBuilder(&builder, "Role", lib.MarkdownEscapeInLine(role, requestInlineLimit),
+				"Login(s)", lib.MarkdownEscapeInLine(loginStr, requestInlineLimit))
+		}
+
 	}
 	if len(reqData.Resources) > 0 {
-		msgFieldToBuilder(&builder, "Resource(s)", strings.Join(reqData.Resources, ","))
+		msgFieldToBuilder(&builder, "Resource(s)", lib.MarkdownEscapeInLine(strings.Join(reqData.Resources, ","), requestInlineLimit))
 	}
 	if reqData.RequestReason != "" {
 		msgFieldToBuilder(&builder, "Reason", lib.MarkdownEscape(reqData.RequestReason, requestReasonLimit))
@@ -134,10 +145,20 @@ func MsgReview(review types.AccessReview) (string, error) {
 	return builder.String(), nil
 }
 
-func msgFieldToBuilder(b *strings.Builder, field, value string) {
+func msgFieldToBuilder(b *strings.Builder, field, value string, additionalFields ...string) {
 	b.WriteString("*")
 	b.WriteString(field)
 	b.WriteString("*: ")
 	b.WriteString(value)
+
+	for i := 0; i < len(additionalFields)-1; i += 2 {
+		field := additionalFields[i]
+		value := additionalFields[i+1]
+		b.WriteString(" *")
+		b.WriteString(field)
+		b.WriteString("*: ")
+		b.WriteString(value)
+	}
+
 	b.WriteString("\n")
 }
