@@ -1,11 +1,7 @@
 ---
-title: Discover insecure SSH access with Teleport Policy
-description: Describes how to enable SSH Keys Scanning using Teleport Policy and Access Graph.
+title: Discover Insecure SSH Access with Teleport Policy
+description: Describes how to enable SSH Key Scanning using Teleport Policy and Access Graph.
 ---
-
-Organizations often struggle to maintain a secure environment due to the lack of visibility into access patterns.
-Long-lived SSH keys, for example, can pose a significant security risk as they can be compromised or mismanaged while
-still providing non-auditable access to critical systems.
 
 With Teleport Policy's Access Graph, you can gain insights on how SSH keys are used within your environment. By scanning
 all SSH authorized keys present on your servers and SSH Private Keys present on company managed laptops, Teleport Policy can
@@ -30,14 +26,14 @@ Teleport and Teleport Policy's Access Graph synchronize various resources, inclu
 These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../teleport-policy/getting-started-policy.mdx).
 
-### Importing an SSH Node's Authorized Keys
+### Importing SSH Authorized Keys
 
-Teleport Cluster Nodes running the Teleport SSH Service continuously scan for SSH Authorized Keys present on the server.
+Teleport-protected servers running the Teleport SSH Service continuously scan for SSH Authorized Keys present on the server.
 The public fingerprint of these keys is sent to the Teleport Auth Service, which then pushes them to the Access Graph.
-Together with the key fingerprint, the node also sends the following metadata:
+Together with the key fingerprint, the Teleport-protected server also sends the following metadata:
 
 - `public_fingerprint`: The SHA256 fingerprint of the public key.
-- `host_id`: The unique identifier of the node.
+- `host_id`: The unique identifier of the server.
 - `username`: The local username whose access is granted by the key.
 - `key_comment`: The comment associated with the key in the `authorized_keys` file.
 
@@ -50,7 +46,7 @@ Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
 It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows, 
 by peeking into files to identify SSH private keys.
 
-The `tsh` tool authenticates with the Teleport Cluster through the [Device Trust](../device-trust.mdx) feature,
+The `tsh` tool authenticates with the Teleport cluster through the [Device Trust](../device-trust.mdx) feature,
 which guarantees that only enrolled devices can submit private keys to the cluster. By utilizing the device's Secure
 Enclave or TPM private key, it confirms that the device is the same one that was enrolled, enabling Teleport to trust
 and accept the private key reports without requiring further authentication or credentials thus allowing scanning operations
@@ -58,7 +54,7 @@ to be performed without user interaction and valid credentials.
 
 Once the device is authenticated, the `tsh` tool extracts the public key fingerprint from the private key, if available,
 otherwise, it generates the fingerprint from the public key file if the last exists. The fingerprint is then sent to the
-Teleport Cluster with metadata such as:
+Teleport cluster with metadata such as:
 
 - `device_id`: The unique identifier of the device.
 - `public_fingerprint`: The SHA256 fingerprint of the public key if available.
@@ -67,7 +63,7 @@ Teleport Cluster with metadata such as:
     available in a separate file, or `protected` if the public key fingerprint is not available.
 
 <Notice type="warning">
-`tsh` never sends the private key itself to the Teleport Cluster, ensuring that the private key remains secure on the device.
+`tsh` never sends the private key itself to the Teleport cluster, ensuring that the private key remains secure on the device.
 It also never sends the private key path or any other sensitive information.
 </Notice>
 
@@ -80,7 +76,7 @@ Check [Access Graph page](../teleport-policy/getting-started-policy.mdx) for det
 how to set up Access Graph.
 - For self-hosted clusters, the node running the Access Graph service must be reachable
 from Teleport Auth Service.
-- A Teleport Node running the Teleport SSH Service.
+- A Linux/macOS server running the Teleport SSH Service.
 - Devices enrolled in the [Teleport Device Trust feature](../device-trust.mdx).
 - For Jamf Pro integration, devices must be enrolled in Jamf Pro and have the signed `tsh` binary installed.
 
@@ -102,7 +98,7 @@ spec:
 version: v1
 ```
 
-Save the changes and exit the editor. The Teleport cluster will now start informing the Teleport SSH nodes to scan for
+Save the changes and exit the editor. The Teleport cluster will now start informing the Teleport-protected servers to scan for
 SSH Authorized Keys. This process may take a few minutes to complete.
 
 After a few minutes, you can navigate to the Access Graph page in the Teleport UI to view the imported SSH Authorized Keys
@@ -120,7 +116,7 @@ $ tsh scan keys --proxy=<Var name="teleport.example.com" /> --dirs=<Var name="/d
 ```
 
 The `tsh` tool will scan the specified directories and subdirectories for SSH Private Keys and send the public key
-fingerprints to the Teleport Cluster. The Teleport Cluster will then import the keys and display them in the Access Graph.
+fingerprints to the Teleport cluster. The Teleport cluster will then import the keys and display them in the Access Graph.
 
 `tsh scan keys` supports the following flags:
 
@@ -132,7 +128,7 @@ fingerprints to the Teleport Cluster. The Teleport Cluster will then import the 
   like `--skip-paths="/Users/*/Library/*,/home/*/Library/*"`.
 
 Once the scan is complete, `tsh` will display the number of keys found, their fingerprints and their paths. The program
-output is the only place where the private key paths are displayed. The paths are not sent to the Teleport Cluster.
+output is the only place where the private key paths are displayed. The paths are not sent to the Teleport cluster.
 
 
 ## Step 3/3. View Access Graph
@@ -144,7 +140,7 @@ The access paths shown include the following relationships:
 
 - A device node linked to the user who owns the device.
 - A private key node connected to the Device node, representing the private key found on the device.
-- A host user connected to the Teleport node where it is registered.
+- A host user connected to the Teleport-protected server where it is registered.
 - An authorized key node connected to the host user node, representing the authorized key found on the `authorized_keys` file.
 - A path linking the private key to the authorized key nodes, indicating the insecure access path if the fingerprints match.
 
