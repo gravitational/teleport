@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.3.22 (08/08/24)
+## 14.3.23 (08/08/24)
 
 * Updated Go toolchain to `1.22.6`. [#45196](https://github.com/gravitational/teleport/pull/45196)
 * Teleport Connect now sets `TERM_PROGRAM: Teleport_Connect` and `TERM_PROGRAM_VERSION: <app_version>` environment variables in the integrated terminal. [#45065](https://github.com/gravitational/teleport/pull/45065)

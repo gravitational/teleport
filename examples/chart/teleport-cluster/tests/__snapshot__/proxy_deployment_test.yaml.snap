@@ -11,8 +11,8 @@ sets clusterDomain on Deployment Pods:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 14.3.22
-        helm.sh/chart: teleport-cluster-14.3.22
+        app.kubernetes.io/version: 14.3.23
+        helm.sh/chart: teleport-cluster-14.3.23
         teleport.dev/majorVersion: "14"
       name: RELEASE-NAME-proxy
       namespace: NAMESPACE
@@ -26,7 +26,7 @@ sets clusterDomain on Deployment Pods:
       template:
         metadata:
           annotations:
-            checksum/config: a01c03888376199abd6dcbb49c57406f9e4705a651de3ad94778a114e679457b
+            checksum/config: 0dc9f49f0e96c011ffe822e396b98a2cb33c210b9b7a74cb9896ac1be13a1ff2
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -34,8 +34,8 @@ sets clusterDomain on Deployment Pods:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-cluster
-            app.kubernetes.io/version: 14.3.22
-            helm.sh/chart: teleport-cluster-14.3.22
+            app.kubernetes.io/version: 14.3.23
+            helm.sh/chart: teleport-cluster-14.3.23
             teleport.dev/majorVersion: "14"
         spec:
           affinity:
@@ -44,7 +44,7 @@ sets clusterDomain on Deployment Pods:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
-            image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+            image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
             imagePullPolicy: IfNotPresent
             lifecycle:
               preStop:
@@ -105,7 +105,7 @@ sets clusterDomain on Deployment Pods:
             - wait
             - no-resolve
             - RELEASE-NAME-auth-v13.NAMESPACE.svc.test.com
-            image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+            image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
             name: wait-auth-update
           serviceAccountName: RELEASE-NAME-proxy
           terminationGracePeriodSeconds: 60
@@ -137,7 +137,7 @@ should provision initContainer correctly when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       name: wait-auth-update
     - args:
       - echo test
@@ -194,7 +194,7 @@ should set nodeSelector when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -255,7 +255,7 @@ should set nodeSelector when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       name: wait-auth-update
     nodeSelector:
       environment: security
@@ -306,7 +306,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -374,7 +374,7 @@ should set resources when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
@@ -407,7 +407,7 @@ should set securityContext for initContainers when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -475,7 +475,7 @@ should set securityContext for initContainers when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -515,7 +515,7 @@ should set securityContext when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -583,7 +583,7 @@ should set securityContext when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.22
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.23
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
