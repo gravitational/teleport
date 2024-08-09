@@ -187,6 +187,7 @@ type AWSOIDCDeployServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	// VPCID is the VPCID where the service is going to be deployed.
 	VPCID string `json:"vpcId"`
 
 	// AccountID is the AWS Account ID.
