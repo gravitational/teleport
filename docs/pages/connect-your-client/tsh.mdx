@@ -952,6 +952,12 @@ the `--format` flag of `tsh play`:
 | `json` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a JSON-serialized list of audit events, separated by newlines. |
 | `yaml` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a YAML-serialized list of audit events, separated by `---` characters. |
 
+The `tsh play` command can also be used to speed up recordings for SSH and Kuberntes.
+
+```code
+tsh play --speed 8x UUID
+```
+
 ## tsh configuration files
 
 You can use a configuration file to control the behavior of `tsh`. The scope of
