@@ -93,12 +93,14 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 
 // ConfigureEKSIAM sets up the roles required for enrolling EKS clusters into Teleport.
 // It creates an embedded policy with the following permissions:
-// - eks:ListClusters
-// - eks:DescribeCluster
-// - eks:ListAccessEntries
+// - eks:AssociateAccessPolicy
 // - eks:CreateAccessEntry
 // - eks:DeleteAccessEntry
-// - eks:AssociateAccessPolicy
+// - eks:DescribeAccessEntry
+// - eks:DescribeCluster
+// - eks:ListAccessEntries
+// - eks:ListClusters
+// - eks:UpdateAccessEntry
 //
 // For more info about EKS access entries see:
 // https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
