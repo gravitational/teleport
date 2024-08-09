@@ -33,10 +33,10 @@ variable "proxy_service_address" {
 variable "teleport_edition" {
   type        = string
   default     = "oss"
-  description = "Edition of your Teleport cluster. Can be: oss, enterprise, team, or cloud."
+  description = "Edition of your Teleport cluster. Can be: oss, enterprise, or cloud."
   validation {
-    condition     = contains(["oss", "enterprise", "team", "cloud"], var.teleport_edition)
-    error_message = "teleport_edition must be one of: oss, enterprise, team, cloud."
+    condition     = contains(["oss", "enterprise", "cloud"], var.teleport_edition)
+    error_message = "teleport_edition must be one of: oss, enterprise, cloud."
   }
 }
 
