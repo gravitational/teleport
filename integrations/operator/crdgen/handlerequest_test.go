@@ -523,7 +523,10 @@ state of this API Resource.\n---\nThis struct is intended for direct use as an a
 		t.Run(c.description, func(t *testing.T) {
 			actual, err := propertyTable("", &c.input)
 			assert.NoError(t, err)
-			assert.Equal(t, c.expected, actual)
+			// Compare the unsorted slices. Sorting takes place
+			// on the VersionSection that contains the
+			// []PropertyTable.
+			assert.ElementsMatch(t, c.expected, actual)
 		})
 	}
 }
