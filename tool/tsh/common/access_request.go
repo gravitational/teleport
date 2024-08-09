@@ -368,7 +368,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		FootnoteLabel: "[+]",
 	})
 	table.AddFootnote("[+]",
-		"Roles and requested resources are truncated, use `tsh request show <request-id>` to view the full list")
+		"Columns are truncated, use `tsh request show <request-id>` to view the full list")
 	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
 	table.AddColumn(asciitable.Column{Title: "Request TTL"})
 	table.AddColumn(asciitable.Column{Title: "Session TTL"})
