@@ -495,8 +495,8 @@ const DeployHints = ({
             to see progress details.
           </Text>
           <Text>
-            There are a couple of possible reasons for why we haven't been able
-            to detect your database service:
+            There are a few possible reasons for why we haven't been able to
+            detect your database service:
           </Text>
           <ul
             css={`
@@ -505,17 +505,18 @@ const DeployHints = ({
             `}
           >
             <li>
-              The subnets you selected does not route to an internet gateway
-              (igw) or a NAT gateway in a public subnet.
+              The subnets you selected do not route to an internet gateway (igw)
+              or a NAT gateway in a public subnet.
             </li>
             <li>
-              The security groups you selected does not allow outbound traffic
-              (eg: <Mark>0.0.0.0/0</Mark>) to reach Teleport cluster.
+              The security groups you selected do not allow outbound traffic
+              (eg: <Mark>0.0.0.0/0</Mark>) to pull the public Teleport image and
+              to reach your Teleport cluster.
             </li>
             <li>
-              The security group attached to your database(s) does not allow
-              inbound traffic from the security group you selected or does not
-              allow inbound traffic from all IPs in the subnets you selected.
+              The security groups attached to your database(s) neither allow
+              inbound traffic from the security group you selected nor allow
+              inbound traffic from all IPs in the subnets you selected.
             </li>
             <li>
               There may be issues in the region you selected ({region}). Check
@@ -529,10 +530,9 @@ const DeployHints = ({
               for any problems.
             </li>
             <li>
-              The network may be slow. Try continuing to wait for a few more
-              minutes or{' '}
+              The network may be slow. Try waiting for a few more minutes or{' '}
               <AlternateInstructionButton onClick={abortDeploying}>
-                try manually deploying your own service.
+                try manually deploying your own database service.
               </AlternateInstructionButton>
             </li>
           </ul>

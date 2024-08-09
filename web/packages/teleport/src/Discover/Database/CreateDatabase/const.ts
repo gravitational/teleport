@@ -20,4 +20,4 @@ export const timeoutErrorMsg =
   'Teleport could not detect your new database in time. Please try again.';
 
 export const dbWithoutDbServerExistsErrorMsg =
-  'already exists but there are no database servers for it';
+  'already exists but there are no Teleport agents proxying it';
