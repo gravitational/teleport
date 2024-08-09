@@ -429,24 +429,15 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 		{
 			name: "user metadata for bot",
 			identity: Identity{
-				Username:     "alpaca",
-				Impersonator: "llama",
-				RouteToApp: RouteToApp{
-					AWSRoleARN:        "awsrolearn",
-					AzureIdentity:     "azureidentity",
-					GCPServiceAccount: "gcpaccount",
-				},
-				ActiveRequests: []string{"accessreq1", "accessreq2"},
-				BotName:        "foo",
+				Username:      "bot-alpaca",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
 			},
 			want: apievents.UserMetadata{
-				User:              "alpaca",
-				Impersonator:      "llama",
-				AWSRoleARN:        "awsrolearn",
-				AccessRequests:    []string{"accessreq1", "accessreq2"},
-				AzureIdentity:     "azureidentity",
-				GCPServiceAccount: "gcpaccount",
-				UserKind:          apievents.UserKind_USER_KIND_BOT,
+				User:          "bot-alpaca",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
 			},
 		},
 		{

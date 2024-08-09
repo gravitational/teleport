@@ -383,6 +383,9 @@ type UserCertParams struct {
 	// BotName is set to the name of the bot, if the user is a Machine ID bot user.
 	// Empty for human users.
 	BotName string
+	// BotInstanceID is the unique identifier for the bot instance, if this is a
+	// Machine ID bot. It is empty for human users.
+	BotInstanceID string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.

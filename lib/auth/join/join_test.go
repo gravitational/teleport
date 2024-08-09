@@ -24,11 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -318,4 +321,49 @@ func TestVerifyALPNUpgradedConn(t *testing.T) {
 			}))
 		})
 	}
+}
+
+type authJoinClientMock struct {
+	AuthJoinClient
+	registerUsingToken func(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+}
+
+func (a *authJoinClientMock) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	return a.registerUsingToken(ctx, req)
+}
+
+// TestRegisterWithAuthClient is a unit test to validate joining using a
+// auth client supplied via RegisterParams
+func TestRegisterWithAuthClient(t *testing.T) {
+	ctx := context.Background()
+	expectedCerts := &proto.Certs{
+		SSH: []byte("ssh-cert"),
+	}
+	expectedToken := "test-token"
+	expectedRole := types.RoleBot
+	called := false
+	m := &authJoinClientMock{
+		registerUsingToken: func(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+			assert.Empty(t, cmp.Diff(
+				req,
+				&types.RegisterUsingTokenRequest{
+					Token: expectedToken,
+					Role:  expectedRole,
+				},
+			))
+			called = true
+			return expectedCerts, nil
+		},
+	}
+
+	gotCerts, gotErr := Register(ctx, RegisterParams{
+		Token: expectedToken,
+		ID: state.IdentityID{
+			Role: expectedRole,
+		},
+		AuthClient: m,
+	})
+	require.NoError(t, gotErr)
+	assert.True(t, called)
+	assert.Equal(t, expectedCerts, gotCerts)
 }

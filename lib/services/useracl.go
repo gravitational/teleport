@@ -106,6 +106,8 @@ type UserACL struct {
 	AccessGraph ResourceAccess `json:"accessGraph"`
 	// Bots defines access to manage Bots.
 	Bots ResourceAccess `json:"bots"`
+	// BotInstances defines access to manage bot instances
+	BotInstances ResourceAccess `json:"botInstances"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
@@ -199,6 +201,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
+	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 
 	var auditQuery ResourceAccess
@@ -244,6 +247,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
+		BotInstances:            botInstances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
 	}
