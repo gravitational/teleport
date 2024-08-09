@@ -125,7 +125,10 @@ export function GitHubFlowProvider({
             },
           }).then(token => {
             setTokenName(token.id);
-            return serviceCreateBot(createBotRequest);
+            return serviceCreateBot({
+              ...createBotRequest,
+              roles: [createBotRequest.botName],
+            });
           });
         })
     );
