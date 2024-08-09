@@ -313,6 +313,29 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "discover create app server event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent{
+				UiDiscoverCreateAppServerEvent: &usageeventsv1.UIDiscoverCreateAppServerEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateAppServerEvent{
+				UiDiscoverCreateAppServerEvent: &prehogv1a.UIDiscoverCreateAppServerEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      false,
+					},
+					Resource: &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE},
+					Status:   &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+		},
+		{
 			name: "discover deploy eice event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice{
 				UiDiscoverDeployEice: &usageeventsv1.UIDiscoverDeployEICEEvent{

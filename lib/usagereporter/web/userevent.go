@@ -61,6 +61,7 @@ const (
 	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
 	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
 	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
+	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
 	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
@@ -301,6 +302,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverEC2InstanceSelectionEvent,
 		uiDiscoverDeployEICEEvent,
 		uiDiscoverCreateNodeEvent,
+		uiDiscoverCreateAppServerEvent,
 		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
 

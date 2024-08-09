@@ -366,6 +366,13 @@ message UIDiscoverCreateNodeEvent {
   DiscoverStepStatus status = 3;
 }
 
+// UIDiscoverCreateAppServerEvent is emitted when an app server is created.
+message UIDiscoverCreateAppServerEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 // UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
 message UIDiscoverDatabaseConfigureIAMPolicyEvent {
   DiscoverMetadata metadata = 1;
@@ -739,6 +746,7 @@ message UsageEventOneOf {
     DiscoveryFetchEvent discovery_fetch_event = 54;
     UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 55;
     UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 56;
+    UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 57;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
