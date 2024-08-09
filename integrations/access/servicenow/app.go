@@ -436,11 +436,13 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 }
 
 func (a *App) getOnCallUsers(ctx context.Context, serviceNames []string) ([]string, error) {
+	log := logger.Get(ctx)
 	onCallUsers := []string{}
 	for _, scheduleName := range serviceNames {
 		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.WithError(err).Error("Failed to retrieve responder from schedule")
+			continue
 		}
 		onCallUsers = append(onCallUsers, respondersResult...)
 	}
