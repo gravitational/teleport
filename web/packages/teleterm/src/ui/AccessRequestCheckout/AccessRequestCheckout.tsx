@@ -148,6 +148,7 @@ export function AccessRequestCheckout() {
                     };
                     switch (c.kind) {
                       case 'app':
+                      case 'saml_idp_service_provider':
                         resource.Icon = Icon.Application;
                         break;
                       case 'node':

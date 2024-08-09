@@ -1,10 +1,16 @@
-build:
-	go build -o protoc-gen-crd
-
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
+
+libfiles := $(wildcard *.go)
+
+build: build/protoc-gen-crd
+build-docs: build/protoc-gen-crd-docs
+
+build/%: cmd/%/main.go cmd/%/debug.go $(libfiles)
+	mkdir -p build
+	go build -o $@ github.com/gravitational/teleport/integrations/operator/crdgen/cmd/$*
 
 .PHONY: test
 test: build
@@ -17,7 +23,7 @@ test: build
 		protoc \
 			-I=testdata/protofiles \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./protoc-gen-crd \
+			--plugin=./build/protoc-gen-crd \
 			--crd_out=$(CRD_OUT_PATH) \
 			"$${proto}"; \
 	done
@@ -44,7 +50,7 @@ update-snapshot: build
 		protoc \
 			-I=testdata/protofiles \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./protoc-gen-crd \
+			--plugin=./build/protoc-gen-crd \
 			--crd_out=$(CRD_OUT_PATH) \
 			"$${proto}"; \
 	done

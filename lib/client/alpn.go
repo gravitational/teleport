@@ -115,12 +115,12 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 
 func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
 	// TODO(nklaassen): support configurable signature algorithms.
-	key, err := GenerateRSAKey()
+	keyRing, err := GenerateRSAKeyRing()
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	publicKeyPEM, err := keys.MarshalPublicKey(key.PrivateKey.Public())
+	publicKeyPEM, err := keys.MarshalPublicKey(keyRing.PrivateKey.Public())
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -142,7 +142,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKey.PrivateKeyPEM())
+	tlsCert, err := keys.X509KeyPair(certs.TLS, keyRing.PrivateKey.PrivateKeyPEM())
 	if err != nil {
 		return tls.Certificate{}, trace.BadParameter("failed to parse private key: %v", err)
 	}

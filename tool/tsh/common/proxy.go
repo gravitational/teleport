@@ -268,7 +268,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":      listener.Addr().String(),
 			"ca":           profile.CACertPathForCluster(rootCluster),
 			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":          profile.KeyPath(),
+			"key":          profile.DatabaseKeyPathForCluster(cf.SiteName, dbInfo.ServiceName),
 			"randomPort":   randomPort,
 			"databaseUser": dbInfo.Username,
 			"databaseName": dbInfo.Database,
@@ -573,12 +573,12 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 }
 
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := key.AppTLSCert(appName)
+	appCert, err := keyRing.AppTLSCert(appName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {
@@ -589,12 +589,12 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithDBCerts{})
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithDBCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := key.DBTLSCert(dbName)
+	dbCert, err := keyRing.DBTLSCert(dbName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
 	} else if err != nil {
@@ -621,7 +621,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient
 	}
 }
 
-func generateDBLocalProxyCert(key *libclient.KeyRing, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(keyRing *libclient.KeyRing, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -631,7 +631,7 @@ func generateDBLocalProxyCert(key *libclient.KeyRing, profile *libclient.Profile
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      key.PrivateKey.Signer,
+		Signer:      keyRing.PrivateKey.Signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,

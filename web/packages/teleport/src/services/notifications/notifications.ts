@@ -37,7 +37,8 @@ export class NotificationService {
       return {
         notifications: json.notifications
           ? json.notifications.map(notificationJson => {
-              const { id, title, subKind, created, clicked } = notificationJson;
+              const { id, title, subKind, created, clicked, textContent } =
+                notificationJson;
               const labels = notificationJson.labels || [];
 
               return {
@@ -47,6 +48,7 @@ export class NotificationService {
                 createdDate: new Date(created),
                 clicked,
                 labels,
+                textContent,
               };
             })
           : [],
