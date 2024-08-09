@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -49,12 +50,19 @@ type ACLCommand struct {
 
 	// Used for managing a particular access list.
 	accessListName string
+	// Used to add an access list to another one
+	memberKind string
 
 	// Used for managing membership to an access list.
 	userName string
 	expires  string
 	reason   string
 }
+
+const (
+	memberKindUser = "user"
+	memberKindList = "list"
+)
 
 // Initialize allows ACLCommand to plug itself into the CLI parser
 func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
@@ -70,6 +78,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 	users := acl.Command("users", "Manage user membership to access lists.")
 
 	c.usersAdd = users.Command("add", "Add a user to an access list.")
+	c.usersAdd.Flag("kind", "Access list member kind, 'user' or 'list'").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
 	c.usersAdd.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
 	c.usersAdd.Arg("user", "The user to add to the access list.").Required().StringVar(&c.userName)
 	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the access list.").StringVar(&c.expires)
@@ -151,6 +160,14 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 		}
 	}
 
+	var membershipKind string
+	switch c.memberKind {
+	case memberKindList:
+		membershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+	case "", memberKindUser:
+		membershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+	}
+
 	member, err := accesslist.NewAccessListMember(header.Metadata{
 		Name: c.userName,
 	}, accesslist.AccessListMemberSpec{
@@ -160,8 +177,9 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 		Expires:    expires,
 
 		// The following fields will be updated in the backend, so their values here don't matter.
-		Joined:  time.Now(),
-		AddedBy: "dummy",
+		Joined:         time.Now(),
+		AddedBy:        "dummy",
+		MembershipKind: membershipKind,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -219,7 +237,11 @@ func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) e
 		}
 		fmt.Printf("Members of %s:\n", c.accessListName)
 		for _, member := range allMembers {
-			fmt.Printf("- %s\n", member.Spec.Name)
+			if member.Spec.MembershipKind == accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String() {
+				fmt.Printf("- (Access List) %s \n", member.Spec.Name)
+			} else {
+				fmt.Printf("- %s\n", member.Spec.Name)
+			}
 		}
 		return nil
 	default:
@@ -249,6 +271,7 @@ func displayAccessListsText(accessLists ...*accesslist.AccessList) error {
 		for k, values := range accessList.GetGrants().Traits {
 			traitStrings = append(traitStrings, fmt.Sprintf("%s:{%s}", k, strings.Join(values, ",")))
 		}
+
 		grantedTraits := strings.Join(traitStrings, ",")
 		table.AddRow([]string{
 			accessList.GetName(),

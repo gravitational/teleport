@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
@@ -167,6 +168,9 @@ type Owner struct {
 
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// Kind is the kind of owner, either list or user
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -286,10 +290,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		a.Spec.Audit.Notifications.Start = twoWeeks
 	}
 
-	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
-		return trace.BadParameter("grants must specify at least one role or trait")
-	}
-
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
 	// were created with duplicated owners before the backend checked for duplicate owners. In order to
 	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
@@ -298,6 +298,9 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	for _, owner := range a.Spec.Owners {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
+		}
+		if owner.MembershipKind == "" {
+			owner.MembershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
 		}
 
 		if _, ok := ownerMap[owner.Name]; ok {

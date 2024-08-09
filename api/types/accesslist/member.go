@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
@@ -61,6 +62,9 @@ type AccessListMemberSpec struct {
 
 	// IneligibleStatus describes the reason why this member is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// origin of the member, either "member", or "dynamic"
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // NewAccessListMember will create a new access listm member.
@@ -84,6 +88,10 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if a.Spec.MembershipKind == "" {
+		a.Spec.MembershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
 	}
 
 	if a.Spec.AccessList == "" {
