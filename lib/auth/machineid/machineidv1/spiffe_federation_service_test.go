@@ -217,3 +217,145 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		})
 	}
 }
+
+// TestSPIFFEFederationService_DeleteSPIFFEFederation is an integration test
+// that uses a real gRPC client/server.
+func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
+	t.Parallel()
+	srv, mockEmitter := newTestTLSServer(t)
+	ctx := context.Background()
+
+	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
+	require.NoError(t, err)
+	unauthorizedUser, err := auth.CreateUser(
+		ctx,
+		srv.Auth(),
+		"unauthorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		nothingRole,
+	)
+	require.NoError(t, err)
+
+	role, err := types.NewRole("federation-deleter", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSPIFFEFederation},
+					Verbs:     []string{types.VerbDelete},
+				},
+			},
+		},
+	})
+	authorizedUser, err := auth.CreateUser(
+		ctx,
+		srv.Auth(),
+		"authorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		role,
+	)
+	require.NoError(t, err)
+
+	name := "example.com"
+
+	tests := []struct {
+		name           string
+		user           string
+		create         bool
+		requireError   require.ErrorAssertionFunc
+		requireSuccess bool
+		requireEvent   *events.SPIFFEFederationDelete
+	}{
+		{
+			name:           "success",
+			user:           authorizedUser.GetName(),
+			create:         true,
+			requireError:   require.NoError,
+			requireSuccess: true,
+			requireEvent: &events.SPIFFEFederationDelete{
+				Metadata: events.Metadata{
+					Type: libevents.SPIFFEFederationDeleteEvent,
+					Code: libevents.SPIFFEFederationDeleteCode,
+				},
+				ResourceMetadata: events.ResourceMetadata{
+					Name: name,
+				},
+				UserMetadata: events.UserMetadata{
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
+				},
+			},
+		},
+		{
+			name:   "not-exist",
+			user:   authorizedUser.GetName(),
+			create: false,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:   "unauthorized",
+			user:   unauthorizedUser.GetName(),
+			create: true,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			resource := &machineidv1pb.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: name,
+				},
+				Spec: &machineidv1pb.SPIFFEFederationSpec{
+					BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/bundle.json",
+						},
+					},
+				},
+			}
+
+			if tt.create {
+				_, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
+					ctx, resource,
+				)
+				require.NoError(t, err)
+			}
+
+			mockEmitter.Reset()
+			_, err = client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
+				Name: resource.Metadata.GetName(),
+			})
+			tt.requireError(t, err)
+			if tt.requireSuccess {
+				// Check that it is no longer in the backend
+				_, err := srv.Auth().Services.SPIFFEFederations.GetSPIFFEFederation(
+					ctx, resource.Metadata.GetName(),
+				)
+				require.True(t, trace.IsNotFound(err))
+			}
+			// Now we can ensure that the appropriate audit event was
+			// generated.
+			if tt.requireEvent != nil {
+				evt, ok := mockEmitter.LastEvent().(*events.SPIFFEFederationDelete)
+				require.True(t, ok)
+				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
+				require.Empty(t, cmp.Diff(
+					evt,
+					tt.requireEvent,
+					cmpopts.IgnoreFields(events.SPIFFEFederationDelete{}, "ConnectionMetadata"),
+				))
+			}
+		})
+	}
+}
