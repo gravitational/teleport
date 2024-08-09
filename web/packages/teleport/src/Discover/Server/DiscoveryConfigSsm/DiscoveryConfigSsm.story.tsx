@@ -167,7 +167,7 @@ const Component = ({
       name: '',
       kind: ResourceKind.Application,
       icon: null,
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.Ec2Instance,
       nodeMeta: {
         location: ServerLocation.Aws,

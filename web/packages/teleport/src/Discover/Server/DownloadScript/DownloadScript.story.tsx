@@ -196,7 +196,7 @@ const Provider = props => {
       name: 'kube',
       kind: ResourceKind.Kubernetes,
       icon: 'kube',
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.Kubernetes,
     },
     exitFlow: () => null,
