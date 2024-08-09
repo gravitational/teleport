@@ -47,8 +47,8 @@ Here, `$HOME` refers to the home directory of each user on the system, whether t
 ### Importing User's SSH Private Keys
 
 Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
-It goes through the specified directories—defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows—
-by examining files with certain prefaces to identify SSH private keys.
+It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows, 
+by peeking into files to identify SSH private keys.
 
 The `tsh` tool authenticates with the Teleport Cluster through the [Device Trust](../device-trust.mdx) feature,
 which guarantees that only enrolled devices can submit private keys to the cluster. By utilizing the device's Secure
