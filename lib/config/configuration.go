@@ -998,6 +998,14 @@ func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
 	return nil
 }
 
+const proxyUntrustedTLSCertErrMsg = `The Proxy Service was unable to validate the certificate chain of the
+  configured TLS certificate. The authority that issued this certificate is not
+  trusted on this host. Using an untrusted certificate is likely to cause
+  connection problems when clients and other Teleport services connect to this
+  Proxy Service. To trust a custom certificate authority you may set the
+  SSL_CERT_FILE or SSL_CERT_DIR environment variables to a path with your
+  authority's certificate chain.`
+
 // applyProxyConfig applies file configuration for the "proxy_service" section.
 func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
@@ -1124,8 +1132,8 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			log.Warnf(warningMessage)
 		} else {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
-				return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
-					fc.Proxy.CertFile, utils.UserMessageFromError(err))
+				return trace.BadParameter("unable to verify HTTPS certificate chain in %v:\n\n  %s\n\n  %s",
+					p.Certificate, proxyUntrustedTLSCertErrMsg, err)
 			}
 		}
 
