@@ -165,6 +165,11 @@ func (fs *FSKeyStore) kubeCertPath(idx KeyRingIndex, kubename string) string {
 	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
+// kubeKeyPath returns the private key path for the given KeyRingIndex and kube cluster name.
+func (fs *FSKeyStore) kubeKeyPath(idx KeyRingIndex, kubename string) string {
+	return keypaths.KubeKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+}
+
 // AddKeyRing adds the given key ring to the store.
 func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	if err := keyRing.KeyRingIndex.Check(); err != nil {
@@ -205,8 +210,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		}
 	}
 
-	// TODO(awly): unit test this.
-	for kubeCluster, cert := range keyRing.KubeTLSCerts {
+	for kubeCluster, cred := range keyRing.KubeTLSCredentials {
 		// Prevent directory traversal via a crafted kubernetes cluster name.
 		//
 		// This will confuse cluster cert loading (GetKeyRing will return
@@ -214,8 +218,12 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 
-		path := fs.kubeCertPath(keyRing.KeyRingIndex, kubeCluster)
-		if err := fs.writeBytes(cert, path); err != nil {
+		certPath := fs.kubeCertPath(keyRing.KeyRingIndex, kubeCluster)
+		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
+			return trace.Wrap(err)
+		}
+		keyPath := fs.kubeKeyPath(keyRing.KeyRingIndex, kubeCluster)
+		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -401,25 +409,6 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	return sshCerts, nil
 }
 
-func getCertsByName(certDir string) (map[string][]byte, error) {
-	certsByName := make(map[string][]byte)
-	certFiles, err := os.ReadDir(certDir)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	for _, certFile := range certFiles {
-		name := keypaths.TrimCertPathSuffix(certFile.Name())
-		if isCert := name != certFile.Name(); isCert {
-			data, err := os.ReadFile(filepath.Join(certDir, certFile.Name()))
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			certsByName[name] = data
-		}
-	}
-	return certsByName, nil
-}
-
 func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
 	credsByName := make(map[string]TLSCredential)
 	files, err := os.ReadDir(credentialDir)
@@ -504,12 +493,12 @@ func (o WithSSHCerts) deleteFromKeyRing(keyRing *KeyRing) {
 type WithKubeCerts struct{}
 
 func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
-	certDir := keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	certsByName, err := getCertsByName(certDir)
+	credentialDir := keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing.KubeTLSCerts = certsByName
+	keyRing.KubeTLSCredentials = credsByName
 	return nil
 }
 
@@ -517,11 +506,11 @@ func (o WithKubeCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	if idx.ClusterName == "" {
 		return []string{keypaths.KubeDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
-	return []string{keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	return []string{keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 }
 
 func (o WithKubeCerts) deleteFromKeyRing(keyRing *KeyRing) {
-	keyRing.KubeTLSCerts = make(map[string][]byte)
+	keyRing.KubeTLSCredentials = make(map[string]TLSCredential)
 }
 
 // WithDBCerts is a CertOption for handling database access certificates.
@@ -661,7 +650,7 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRin
 		case WithSSHCerts:
 			retKeyRing.Cert = keyRing.Cert
 		case WithKubeCerts:
-			retKeyRing.KubeTLSCerts = keyRing.KubeTLSCerts
+			retKeyRing.KubeTLSCredentials = keyRing.KubeTLSCredentials
 		case WithDBCerts:
 			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:

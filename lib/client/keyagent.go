@@ -515,7 +515,7 @@ func (a *LocalKeyAgent) AddDatabaseKeyRing(keyRing *KeyRing) error {
 // AddKubeKeyRing activates a new signed Kubernetes key by adding it into the keystore.
 // key must contain at least one Kubernetes cert. ssh cert is not required.
 func (a *LocalKeyAgent) AddKubeKeyRing(keyRing *KeyRing) error {
-	if len(keyRing.KubeTLSCerts) == 0 {
+	if len(keyRing.KubeTLSCredentials) == 0 {
 		return trace.BadParameter("key ring must contain at least one Kubernetes access certificate")
 	}
 	return a.addKeyRing(keyRing)

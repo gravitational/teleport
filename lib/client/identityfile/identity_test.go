@@ -416,8 +416,8 @@ func TestKeyFromIdentityFile(t *testing.T) {
 		require.NoError(t, err)
 		parsedKeyRing, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, cluster)
 		require.NoError(t, err)
-		require.NotNil(t, parsedKeyRing.KubeTLSCerts[k8sCluster])
-		require.Equal(t, keyRing.TLSCert, parsedKeyRing.KubeTLSCerts[k8sCluster])
+		require.NotNil(t, parsedKeyRing.KubeTLSCredentials[k8sCluster].PrivateKey)
+		require.Equal(t, keyRing.TLSCert, parsedKeyRing.KubeTLSCredentials[k8sCluster].Cert)
 	})
 }
 
