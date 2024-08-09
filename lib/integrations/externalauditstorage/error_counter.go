@@ -370,14 +370,14 @@ func (c *ErrorCountingSessionHandler) CompleteUpload(ctx context.Context, upload
 }
 
 // ReserveUploadPart calls [c.wrapped.ReserveUploadPart] and counts the error or success.
-func (c *ErrorCountingSessionHandler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+func (c *ErrorCountingSessionHandler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32) error {
 	err := c.wrapped.ReserveUploadPart(ctx, upload, partNumber)
 	c.uploads.observe(err)
 	return err
 }
 
 // UploadPart calls [c.wrapped.UploadPart] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+func (c *ErrorCountingSessionHandler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int32, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	part, err := c.wrapped.UploadPart(ctx, upload, partNumber, partBody)
 	c.uploads.observe(err)
 	return part, err

@@ -888,7 +888,7 @@ type Streamer interface {
 // StreamPart represents uploaded stream part
 type StreamPart struct {
 	// Number is a part number
-	Number int64
+	Number int32
 	// ETag is a part e-tag
 	ETag string
 	// LastModified is the time of last modification of this part (if
@@ -931,9 +931,9 @@ type MultipartUploader interface {
 	CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error
 	// ReserveUploadPart reserves an upload part. Reserve is used to identify
 	// upload errors beforehand.
-	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
+	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int32) error
 	// UploadPart uploads part and returns the part
-	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
+	UploadPart(ctx context.Context, upload StreamUpload, partNumber int32, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
 	// ListUploads lists uploads that have been initiated but not completed with
