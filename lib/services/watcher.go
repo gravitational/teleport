@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2257,6 +2258,20 @@ func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
 func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	slices.SortFunc(events, func(a, b types.Event) int {
+		va, ok := a.Resource.(types.OktaAssignment)
+		if !ok {
+			return 0
+		}
+		vb, ok := b.Resource.(types.OktaAssignment)
+		if !ok {
+			return 0
+		}
+		if va.GetCleanupTime().Before(vb.GetCleanupTime()) {
+			return -1
+		}
+		return 1
+	})
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
