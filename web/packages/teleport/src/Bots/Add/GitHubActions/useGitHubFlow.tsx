@@ -125,6 +125,7 @@ export function GitHubFlowProvider({
             },
           }).then(token => {
             setTokenName(token.id);
+            createBotRequest.roles = [createBotRequest.botName];
             return serviceCreateBot(createBotRequest);
           });
         })
