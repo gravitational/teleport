@@ -322,6 +322,31 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+
+	// Create a global notification.
+	globalNotification, err := service.CreateGlobalNotification(ctx, newGlobalNotification(t, "test-global"))
+	require.NoError(t, err)
+
+	// Create a notification state for this notification
+	userNotificationStateGlobal := &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: globalNotification.GetMetadata().GetName(),
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+	}
+	// Upsert a notification state for user 1
+	_, err = service.UpsertUserNotificationState(ctx, testUsername, userNotificationStateGlobal)
+	require.NoError(t, err)
+	// Upsert the notification state for user 2
+	_, err = service.UpsertUserNotificationState(ctx, "test-username-2", userNotificationStateGlobal)
+	require.NoError(t, err)
+
+	// Test that getting all notification states works.
+	uns, _, err := service.ListNotificationStatesForAllUsers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, uns, 2)
 }
 
 // TestUserLastSeenNotificationCRUD tests backend operations for user last seen notification resources.
