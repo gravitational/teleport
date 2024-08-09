@@ -102,7 +102,7 @@ export function defaultResourceSpec(kind: ResourceKind): ResourceSpec {
     name: '',
     kind,
     icon: null,
-    keywords: '',
+    keywords: [],
     event: null,
   };
 }
