@@ -2961,6 +2961,11 @@
       "source": "/user-manual/",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/architecture/overview/",
+      "destination": "/architecture/introduction/",
+      "permanent": true
     }
   ]
 }
