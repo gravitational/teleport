@@ -85,6 +85,9 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
         cwd: this.options.cwd || getDefaultCwd(this.options.env),
         env: this.options.env,
         useConpty: this.options.useConpty,
+        // Do not clear the terminal on launch when using ConPTY.
+        conptyInheritCursor:
+          this.options.useConpty && !!this.options.initMessage,
       });
     } catch (error) {
       this._logger.error(error);
