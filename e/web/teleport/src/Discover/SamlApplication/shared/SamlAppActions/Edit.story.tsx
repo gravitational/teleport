@@ -89,7 +89,7 @@ const resourceSpec: ResourceSpec = {
   name: 'my_app',
   kind: 5,
   icon: 'application',
-  keywords: 'saml',
+  keywords: ['saml'],
   event: DiscoverEventResource.SamlApplication,
 };
 
