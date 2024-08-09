@@ -158,7 +158,6 @@ export function FilterPanel({
             textTransform="none"
             css={`
               padding: 0 4.5px;
-              border-color: ${props => props.theme.colors.spotBackground[2]};
             `}
             size="small"
           >
