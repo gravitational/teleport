@@ -20,6 +20,8 @@ package machineidv1_test
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -468,6 +470,138 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 						protocmp.Transform(),
 					),
 				)
+			}
+		})
+	}
+}
+
+// TestSPIFFEFederationService_ListSPIFFEFederations is an integration test
+// that uses a real gRPC client/server.
+func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
+	require.NoError(t, err)
+	unauthorizedUser, err := auth.CreateUser(
+		ctx,
+		srv.Auth(),
+		"unauthorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		nothingRole,
+	)
+	require.NoError(t, err)
+
+	role, err := types.NewRole("federation-reader", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSPIFFEFederation},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+				},
+			},
+		},
+	})
+	authorizedUser, err := auth.CreateUser(
+		ctx,
+		srv.Auth(),
+		"authorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		role,
+	)
+	require.NoError(t, err)
+
+	// Create entities to list
+	createdObjects := []*machineidv1pb.SPIFFEFederation{}
+	// Create 49 entities to test an incomplete page at the end.
+	for i := 0; i < 49; i++ {
+		created, err := srv.AuthServer.AuthServer.Services.SPIFFEFederations.CreateSPIFFEFederation(
+			ctx,
+			&machineidv1pb.SPIFFEFederation{
+				Kind:    types.KindSPIFFEFederation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: fmt.Sprintf("%d.example.com", i),
+				},
+				Spec: &machineidv1pb.SPIFFEFederationSpec{
+					BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
+						HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+							BundleEndpointUrl: "https://example.com/bundle.json",
+						},
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+		createdObjects = append(createdObjects, created)
+	}
+
+	tests := []struct {
+		name           string
+		user           string
+		pageSize       int
+		wantIterations int
+		requireError   require.ErrorAssertionFunc
+		assertResponse bool
+	}{
+		{
+			name:           "success - one page",
+			user:           authorizedUser.GetName(),
+			wantIterations: 1,
+			requireError:   require.NoError,
+			assertResponse: true,
+		},
+		{
+			name:           "success - small pages",
+			pageSize:       10,
+			wantIterations: 5,
+			user:           authorizedUser.GetName(),
+			requireError:   require.NoError,
+			assertResponse: true,
+		},
+		{
+			name: "unauthorized",
+			user: unauthorizedUser.GetName(),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			fetched := []*machineidv1pb.SPIFFEFederation{}
+			token := ""
+			iterations := 0
+			for {
+				iterations++
+				resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+					PageSize:  int32(tt.pageSize),
+					PageToken: token,
+				})
+				tt.requireError(t, err)
+				if err != nil {
+					return
+				}
+				fetched = append(fetched, resp.SpiffeFederations...)
+				if resp.NextPageToken == "" {
+					break
+				}
+				token = resp.NextPageToken
+			}
+			if tt.assertResponse {
+				require.Equal(t, tt.wantIterations, iterations)
+				require.Len(t, fetched, 49)
+				for _, created := range createdObjects {
+					slices.ContainsFunc(fetched, func(federation *machineidv1pb.SPIFFEFederation) bool {
+						return proto.Equal(created, federation)
+					})
+				}
 			}
 		})
 	}
