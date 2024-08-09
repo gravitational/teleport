@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -39,6 +40,7 @@ type TEnv struct {
 	Emitter        *eventstest.ChannelEmitter
 	Authorizer     authz.Authorizer
 	KeyStore       *keystore.Manager
+	GenericService *generic.Service[types.SAMLIdPServiceProvider]
 }
 
 // TClient is a test environment client for SAMl IdP.
@@ -159,6 +161,16 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 
 	keyStore := keystore.NewSoftwareKeystoreForTests(t)
 
+	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
+		Backend:       backend,
+		PageLimit:     20,
+		ResourceKind:  types.KindSAMLIdPServiceProvider,
+		BackendPrefix: "saml_idp_service_provider",
+		MarshalFunc:   services.MarshalSAMLIdPServiceProvider,
+		UnmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
+	})
+	require.NoError(t, err)
+
 	return TEnv{
 		ClusterService: clusterService,
 		CAService:      caService,
@@ -170,6 +182,7 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		Emitter:        emitter,
 		Authorizer:     authorizer,
 		KeyStore:       keyStore,
+		GenericService: svc,
 	}
 }
 
@@ -180,8 +193,8 @@ func WithRole(ctx context.Context, role types.SystemRole) context.Context {
 }
 
 // NewTestEntityDescriptor creates new entity descriptor with provided entityID.
-func NewTestEntityDescriptor(entityID string) string {
-	return fmt.Sprintf(testEntityDescriptor, entityID)
+func NewTestEntityDescriptor(entityID, acsURL string) string {
+	return fmt.Sprintf(testEntityDescriptor, entityID, acsURL)
 }
 
 // CreateCA creates a new CA with preset "test-cluster" value as cluster name.
@@ -209,7 +222,7 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
    <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="%s" index="0" isDefault="true"/>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `

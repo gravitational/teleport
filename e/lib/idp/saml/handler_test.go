@@ -44,7 +44,7 @@ func TestAuth(t *testing.T) {
 			Name: "shortcut-name",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1"),
+			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", "https://sp1.com/acs"),
 			EntityID:         "sp1",
 			RelayState:       "test-relay-state",
 		},
@@ -226,7 +226,7 @@ func TestMetadataValues(t *testing.T) {
 }
 
 func TestSSOGET(t *testing.T) {
-	testSSO(t, http.MethodGet, func(r *http.Request, authnRequest saml.AuthnRequest) {
+	testSSO(t, http.MethodGet, func(r *http.Request, authnRequest saml.AuthnRequest, relayState string) {
 		var buf bytes.Buffer
 		require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
 
@@ -240,12 +240,13 @@ func TestSSOGET(t *testing.T) {
 
 		values := r.URL.Query()
 		values.Add("SAMLRequest", encodedRequest)
+		values.Add("RelayState", relayState)
 		r.URL.RawQuery = values.Encode()
 	})
 }
 
 func TestSSOPOST(t *testing.T) {
-	testSSO(t, http.MethodPost, func(r *http.Request, authnRequest saml.AuthnRequest) {
+	testSSO(t, http.MethodPost, func(r *http.Request, authnRequest saml.AuthnRequest, relayState string) {
 		var buf bytes.Buffer
 		require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
 
@@ -253,10 +254,42 @@ func TestSSOPOST(t *testing.T) {
 
 		r.PostForm = url.Values{}
 		r.PostForm.Add("SAMLRequest", encodedRequest)
+		r.PostForm.Add("RelayState", relayState)
 	})
 }
 
-func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.AuthnRequest)) {
+// Note: The XML validator will return error on a valid tag supplied to ACS field,
+// so for test purpose, only a greater-than character is used below.
+// The payload itself is not meant for an exhaustive string escaping test,
+// we only want to check the characters are being escaped
+// in sensitive fields as expected.
+const acsURLWithHTMLTag = `https://sp.com>script>`
+const relayStateWithHTMlTag = `"<script>"`
+
+func createSamlIdPServiceProviderItem(t *testing.T, ctx context.Context, env *tEnvWithSAMLService) types.SAMLIdPServiceProvider {
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", acsURLWithHTMLTag),
+			EntityID:         "sp1",
+			RelayState:       relayStateWithHTMlTag,
+		},
+	)
+	require.NoError(t, err)
+	// manually creating resource as we no longer allow certain HTML tag characters in the
+	// CreateSAMLIdPServiceProvider, UpdateSAMLIdPServiceProvider methods and require the
+	// XML to be a valid XML format.
+	item, err := env.testServices.GenericService.MakeBackendItem(sp1, sp1.GetName())
+	require.NoError(t, err)
+	_, err = env.testServices.UserService.Backend.Create(ctx, item)
+	require.NoError(t, err)
+
+	return sp1
+}
+
+func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.AuthnRequest, string)) {
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	env := newTEnv(ctx, t, clock)
@@ -264,17 +297,7 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 
 	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
 
-	sp1, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp1",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	)
-	require.NoError(t, err)
-	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
+	createSamlIdPServiceProviderItem(t, ctx, env)
 
 	authnRequest := saml.AuthnRequest{
 		ID:           "auth-id",
@@ -288,7 +311,7 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	r := httptest.NewRequest(method, path.Join(IdPRoute, "sso"), nil)
 	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
-	addRequest(r, authnRequest)
+	addRequest(r, authnRequest, relayStateWithHTMlTag)
 
 	env.samlIdPService.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -300,6 +323,20 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 		require.Equal(t, "sp1", event.ServiceProviderEntityID)
 	})
 
+	// csp header validation
+	cspStr := w.Header().Get("Content-Security-Policy")
+	csp, err := parseCSP(cspStr)
+	require.NoError(t, err)
+	valdiateBaseCSPValues(t, csp)
+	require.Equal(t, []string{acsURLWithHTMLTag}, csp["form-action"])
+	nonceHexFromScriptDirective := nonceHexValue(csp["script-src"])
+	require.NotEmpty(t, nonceHexFromScriptDirective)
+
+	// html.Parse will escape the HTML tags, so below we manually check if the
+	// relayStateWithHTMlTag string is escaped. Test value is hardcoded below for
+	// readability.
+	require.Contains(t, w.Body.String(), `&#34;&lt;script&gt;&#34;`)
+
 	node, err := html.Parse(w.Body)
 	require.NoError(t, err)
 
@@ -308,9 +345,19 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	require.Equal(t, "method", formNode.Attr[0].Key)
 	require.Equal(t, "post", formNode.Attr[0].Val)
 	require.Equal(t, "action", formNode.Attr[1].Key)
-	require.Equal(t, "https://sptest.iamshowcase.com/acs", formNode.Attr[1].Val)
+	require.Equal(t, `https://sp.com%3escript%3e`, formNode.Attr[1].Val)
 	require.Equal(t, "id", formNode.Attr[2].Key)
 	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
+
+	inputNode := testenv.FindNode(formNode, "input")
+	require.Equal(t, SAMLResponse.String(), inputNode.Attr[1].Val)
+	require.Equal(t, RelayState.String(), inputNode.NextSibling.NextSibling.Attr[1].Val)
+	require.Equal(t, html.UnescapeString(relayStateWithHTMlTag), inputNode.NextSibling.NextSibling.Attr[2].Val)
+
+	// compare csp values from header and script tags.
+	scriptNode := testenv.FindNode(node, "script")
+	require.NotNil(t, scriptNode)
+	require.Equal(t, scriptNode.Attr[0].Val, nonceHexFromScriptDirective)
 }
 
 func TestIdPInitiatedLoginGET(t *testing.T) {
@@ -330,21 +377,10 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 
 	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
 
-	sp1, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "shortcut-name",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-			RelayState:       "test-relay-state",
-		},
-	)
-	require.NoError(t, err)
-	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
+	sp1 := createSamlIdPServiceProviderItem(t, ctx, env)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(method, path.Join(IdPRoute, "login", "shortcut-name"), nil)
+	r := httptest.NewRequest(method, path.Join(IdPRoute, "login", sp1.GetName()), nil)
 	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	env.samlIdPService.ServeHTTP(w, r)
@@ -357,6 +393,19 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 		require.Equal(t, "sp1", event.ServiceProviderEntityID)
 	})
 
+	cspStr := w.Header().Get("Content-Security-Policy")
+	csp, err := parseCSP(cspStr)
+	require.NoError(t, err)
+	valdiateBaseCSPValues(t, csp)
+	require.Equal(t, []string{acsURLWithHTMLTag}, csp["form-action"])
+	nonceHexFromScriptDirective := nonceHexValue(csp["script-src"])
+	require.NotEmpty(t, nonceHexFromScriptDirective)
+
+	// html.Parse will escape the HTML tags, so below we manually check if the
+	// relayStateWithHTMlTag string is escaped. Value is hardcoded below for
+	// readability of test value.
+	require.Contains(t, w.Body.String(), `&#34;&lt;script&gt;&#34;` /* HTML string escaped value of relayStateWithHTMlTag */)
+
 	node, err := html.Parse(w.Body)
 	require.NoError(t, err)
 
@@ -365,10 +414,20 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 	require.Equal(t, "method", formNode.Attr[0].Key)
 	require.Equal(t, "post", formNode.Attr[0].Val)
 	require.Equal(t, "action", formNode.Attr[1].Key)
-	require.Equal(t, "https://sptest.iamshowcase.com/acs", formNode.Attr[1].Val)
+	require.Equal(t, `https://sp.com%3escript%3e`, formNode.Attr[1].Val)
 	require.Equal(t, "id", formNode.Attr[2].Key)
 	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
-	require.Equal(t, "test-relay-state", formNode.FirstChild.NextSibling.Attr[2].Val)
+
+	inputNode := testenv.FindNode(formNode, "input")
+	require.Equal(t, SAMLResponse.String(), inputNode.Attr[1].Val)
+	require.Equal(t, RelayState.String(), inputNode.NextSibling.NextSibling.Attr[1].Val)
+	require.Equal(t, html.UnescapeString(relayStateWithHTMlTag), inputNode.NextSibling.NextSibling.Attr[2].Val)
+	// require.Equal(t, html.UnescapeString(relayStateWithHTMlTag), formNode.FirstChild.NextSibling.Attr[2].Val)
+
+	// compare csp values from header and script tags.
+	scriptNode := testenv.FindNode(node, "script")
+	require.NotNil(t, scriptNode)
+	require.Equal(t, scriptNode.Attr[0].Val, nonceHexFromScriptDirective)
 
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(method, path.Join(IdPRoute, "login/doesntexist"), nil)

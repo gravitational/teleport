@@ -147,7 +147,7 @@ func TestGetServiceProvider(t *testing.T) {
 			Name: "friendly-name",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("entity-id-1"),
+			EntityDescriptor: testenv.NewTestEntityDescriptor("entity-id-1", "https://sp.com"),
 			EntityID:         "entity-id-1",
 		},
 	)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -259,6 +260,24 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 		s.writeError(w, http.StatusInternalServerError)
 	}
 	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), sp.GetRelayState())
+}
+
+// Write writes SAML authentication response with security headers and HTML POST form.
+func (s *Service) Write(w http.ResponseWriter, authnRequest *saml.IdpAuthnRequest) error {
+	authnForm, err := authnRequest.PostBinding()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := WriteSAMLPOSTFormWithHeaders(w, POSTFormData{
+		URL:                  authnForm.URL,
+		SAMLAuthnMessageType: SAMLResponse,
+		SAMLAuthnMessage:     authnForm.SAMLResponse,
+		RelayState:           authnForm.RelayState,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // handler returns the HTTP handler for the identity provider.

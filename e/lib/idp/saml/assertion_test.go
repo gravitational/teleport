@@ -40,7 +40,7 @@ func TestMakeAssertion(t *testing.T) {
 			Name: "sp1",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1"),
+			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", "https://sp1.com/acs"),
 			EntityID:         "sp1",
 			AttributeMapping: []*types.SAMLAttributeMapping{
 				{
@@ -148,7 +148,7 @@ func TestMakeAssertion(t *testing.T) {
 			AssertionConsumerServices: []saml.IndexedEndpoint{
 				{
 					Binding:   "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-					Location:  "https://sptest.iamshowcase.com/acs",
+					Location:  "https://sp1.com/acs",
 					IsDefault: &trueBool,
 				},
 			},
@@ -158,11 +158,11 @@ func TestMakeAssertion(t *testing.T) {
 		Request:       expectedAuthnReq,
 		ACSEndpoint: &saml.IndexedEndpoint{
 			Binding:   "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-			Location:  "https://sptest.iamshowcase.com/acs",
+			Location:  "https://sp1.com/acs",
 			IsDefault: &trueBool,
 		},
 		ServiceProviderMetadata: ed,
-		Assertion: testAssertion(clock, req.Assertion.Conditions, testReq.RemoteAddr, "auth-id", "https://sptest.iamshowcase.com/acs",
+		Assertion: testAssertion(clock, req.Assertion.Conditions, testReq.RemoteAddr, "auth-id", "https://sp1.com/acs",
 			attribute.New("uid", "urn:oid:0.9.2342.19200300.100.1.1", types.SAMLURINameFormat, "test-user"),
 			attribute.New("eduPersonAffiliation", "urn:oid:1.3.6.1.4.1.5923.1.1.1.1", types.SAMLURINameFormat, "group1", "group2"),
 			attribute.New("customUId", "customUId", types.SAMLUnspecifiedNameFormat, "TEST-USER"),

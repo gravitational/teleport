@@ -211,6 +211,7 @@ func (s *Service) createIdP(ctx context.Context) (saml.IdentityProvider, error) 
 		SessionProvider:         s,
 		ServiceProviderProvider: s,
 		AssertionMaker:          s,
+		ResponseWriter:          s,
 		MetadataURL:             s.metadataURL,
 		SSOURL:                  s.ssoURL,
 	}, nil

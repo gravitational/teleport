@@ -213,7 +213,7 @@ func TestValidatePluginEntraID(t *testing.T) {
 	connector, err := types.NewSAMLConnector(existingAuthConnectorName, types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs/existingconnector",
 		SSO:                      "https://example.org",
-		EntityDescriptor:         testenv.NewTestEntityDescriptor("foo"),
+		EntityDescriptor:         testenv.NewTestEntityDescriptor("foo", "https://entraid.com/acs"),
 		AttributesToRoles: []types.AttributeMapping{
 			{
 				Name:  "foo",
