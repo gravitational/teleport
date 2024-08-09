@@ -12,8 +12,8 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/
-* Getting Started: https://goteleport.com/docs/getting-started/
+* Architecture: https://goteleport.com/docs/architecture/introduction/
+* Getting Started: https://goteleport.com/docs/deploy-a-cluster/linux-demo/
 
 <div align="center">
    <a href="https://goteleport.com/download">
