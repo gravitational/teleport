@@ -19,7 +19,7 @@
     "@types/jsdom": "^21.1.7",
     "@vitejs/plugin-react-swc": "^3.7.0",
     "babel-plugin-styled-components": "^2.1.4",
-    "eslint": "^8.56.0",
+    "eslint": "^9.8.0",
     "eslint-import-resolver-typescript": "^3.6.1",
     "eslint-plugin-babel": "^5.3.1",
     "eslint-plugin-import": "2.29.1",
@@ -31,9 +31,9 @@
     "jest-environment-jsdom": "^29.7.0",
     "jest-fail-on-console": "^3.3.0",
     "jest-styled-components": "^7.2.0",
-    "jsdom": "^21.1.0",
+    "jsdom": "^24.1.1",
     "rollup-plugin-visualizer": "^5.12.0",
-    "typescript-eslint": "^7.14.1",
+    "typescript-eslint": "^8.0.1",
     "vite-plugin-wasm": "^3.3.0",
     "vite-tsconfig-paths": "^4.3.2"
   }
