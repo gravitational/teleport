@@ -274,7 +274,7 @@ func pickAzureApp(cf *CLIConf) (*azureApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, matchAzureApp)
+	appInfo, _, err := getAppInfo(cf, tc, matchAzureApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

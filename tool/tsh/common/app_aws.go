@@ -385,7 +385,7 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, matchAWSApp)
+	appInfo, _, err := getAppInfo(cf, tc, matchAWSApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

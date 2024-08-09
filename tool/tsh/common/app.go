@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -49,12 +50,17 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
+	appInfo, clusterClient, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := appInfo.GetApp(cf.Context, tc)
+	app, err := appInfo.GetApp(cf.Context, tc, clusterClient.AuthClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -63,15 +69,6 @@ func onAppLogin(cf *CLIConf) error {
 		RouteToCluster: tc.SiteName,
 		RouteToApp:     appInfo.RouteToApp,
 		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
-	}
-
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	key, err := appLogin(cf.Context, tc, clusterClient, rootClient, appCertParams)
@@ -186,7 +183,6 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		curlCmd, err := formatAppConfig(tc, profile, routeToApp, appFormatCURL)
 		if err != nil {
 			return trace.Wrap(err)
@@ -499,17 +495,23 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 }
 
 // getAppInfo fetches app information using the user's tsh profile,
-// command line args, and the ListApps endpoint if necessary. If
+// command line args, and the list resources endpoint if necessary. If
 // provided, the matcher will be used to filter active apps in the
-// tsh profile. getAppInfo will also perform re-login if necessary.
-func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
+// tsh profile. In addition, it also returns the cluster client used, so callers
+// can reuse the established connection.
+func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, *client.ClusterClient, error) {
 	var profile *client.ProfileStatus
+	var clusterClient *client.ClusterClient
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
 		profile, err = tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	activeRoutes := profile.Apps
@@ -528,15 +530,15 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 			profile:    profile,
 			RouteToApp: route,
 			isActive:   true,
-		}, nil
+		}, clusterClient, nil
 	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, logins, err := getApp(cf.Context, tc, cf.AppName)
+	app, logins, err := getApp(cf.Context, tc, clusterClient.AuthClient, cf.AppName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	if len(logins) == 0 && app.IsAWSConsole() {
@@ -559,14 +561,14 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	case app.IsAWSConsole():
 		awsRoleARN, err := getARNFromFlags(cf, app, logins)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		appInfo.AWSRoleARN = awsRoleARN
 
 	case app.IsAzureCloud():
 		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		log.Debugf("Azure identity is %q", azureIdentity)
 		appInfo.AzureIdentity = azureIdentity
@@ -574,13 +576,13 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	case app.IsGCP():
 		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
 		appInfo.GCPServiceAccount = gcpServiceAccount
 	}
 
-	return appInfo, nil
+	return appInfo, clusterClient, nil
 }
 
 // appInfo wraps a RouteToApp and the corresponding app.
@@ -605,14 +607,14 @@ func (a *appInfo) appLocalCAPath(cluster string) string {
 
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
-func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.Application, error) {
+func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient) (types.Application, error) {
 	a.appMu.Lock()
 	defer a.appMu.Unlock()
 	if a.app != nil {
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, _, err := getApp(ctx, tc, a.Name)
+	app, _, err := getApp(ctx, tc, clt, a.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -621,20 +623,30 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.
 }
 
 // getApp returns the registered application with the specified name.
-func getApp(ctx context.Context, tc *client.TeleportClient, name string) (app types.Application, logins []string, err error) {
-	err = client.RetryWithRelogin(ctx, tc, func() error {
-		app, logins, err = tc.GetAppWithLogins(ctx, fmt.Sprintf(`name == "%s"`, name))
-		return trace.Wrap(err)
+func getApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
+	// When listing a single app we only need to grab one page.
+	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+		Limit:               1,
+		IncludeLogins:       true,
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
-		}
-
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return
+	if len(res.Resources) == 0 {
+		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+	}
+
+	appServer, ok := res.Resources[0].ResourceWithLabels.(types.AppServer)
+	if !ok {
+		log.Warnf("expected types.AppServer but received unexpected type %T", res.Resources[0].ResourceWithLabels)
+		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+	}
+
+	return appServer.GetApp(), res.Resources[0].Logins, nil
 }
 
 // pickActiveApp returns the app the current profile is logged into.

@@ -369,7 +369,7 @@ func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, matchGCPApp)
+	appInfo, _, err := getAppInfo(cf, tc, matchGCPApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
