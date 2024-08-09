@@ -108,22 +108,6 @@ permission to restart the Nginx service as root. In Teleport 16.4.0 and later,
 the default shell for a created user can be configured with `create_host_user_default_shell`. 
 Otherwise the host's default shell will be used.
 
-### Sudoers Configuration
-
-Teleport host user creation leverages the `sudoers.d` directory for new users.
-For CentOS builds, ensure that the following line is present in your `sudoers` file:
-
-```bash
-#includedir /etc/sudoers.d
-```
-
-In the sudoers file, the `#` symbol is typically used to indicate comments. However, in this context, 
-`#includedir` is a directive and not a comment.
-
-For Debian-based systems, you might encounter `@includedir /etc/sudoers.d`, which serves a similar purpose. 
-Ensure that the correct directive is used based on your operating system.
-
-
 {/*TODO (ptgott): We should move the information below into a reference guide*/}
 <Details title="Customizing host user creation">
 
@@ -184,6 +168,20 @@ Create the role:
 $ tctl create -f auto-users.yaml
 # role 'auto-users' has been created
 ```
+### Sudoers Configuration
+
+Teleport host user creation leverages the `sudoers.d` directory for new users.
+For CentOS builds, ensure that the following line is present in your `sudoers` file:
+
+```bash
+#includedir /etc/sudoers.d
+```
+
+In the sudoers file, the `#` symbol is typically used to indicate comments. However, in this context, 
+`#includedir` is a directive and not a comment.
+
+For Debian-based systems, you might encounter `@includedir /etc/sudoers.d`, which serves a similar purpose. 
+Ensure that the correct directive is used based on your operating system.
 
 #### Create a Teleport user
 
