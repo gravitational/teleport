@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"regexp"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -244,6 +245,11 @@ func (t *transport) rewriteResponse(resp *http.Response) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+    case t.app.GetRewrite() != nil && len(t.app.GetRewrite().RedirectRegex.Regex) > 0:
+		err := t.rewriteRedirectRegex(resp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 	}
 	return nil
@@ -265,6 +271,29 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 			u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
 		}
 		resp.Header.Set("Location", u.String())
+	}
+	return nil
+}
+
+// rewriteRedirectRegex applies redirect rules to the response.
+func (t *transport) rewriteRedirectRegex(resp *http.Response) error {
+	if utils.IsRedirect(resp.StatusCode) {
+		// Parse the "Location" header.
+		u, err := url.Parse(resp.Header.Get("Location"))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Get the regex and replacement from the config.
+		regexPattern := t.app.GetRewrite().RedirectRegex.Regex
+		replacement := t.app.GetRewrite().RedirectRegex.Replacement
+
+		regex, err := regexp.Compile(regexPattern)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newURL := regex.ReplaceAllString(u.String(), replacement)
+		resp.Header.Set("Location", newURL)
 	}
 	return nil
 }
