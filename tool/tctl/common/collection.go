@@ -1698,3 +1698,38 @@ func (c *botInstanceCollection) writeText(w io.Writer, verbose bool) error {
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
+
+type spiffeFederationCollection struct {
+	items []*machineidv1pb.SPIFFEFederation
+}
+
+func (c *spiffeFederationCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "Last synced at"}
+
+	var rows [][]string
+	for _, item := range c.items {
+		lastSynced := "never"
+		if !item.GetStatus().GetCurrentBundleSyncedAt().AsTime().IsZero() {
+			lastSynced = item.Status.CurrentBundleSyncedAt.AsTime().Format(time.RFC3339)
+		}
+		rows = append(rows, []string{
+			item.Metadata.Name,
+			lastSynced,
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
