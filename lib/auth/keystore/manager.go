@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -178,6 +179,14 @@ func (opts *Options) CheckAndSetDefaults() error {
 
 // NewManager returns a new keystore Manager
 func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Options) (*Manager, error) {
+	if err := metrics.RegisterPrometheusCollectors(
+		signCounter,
+		signErrorCounter,
+		createCounter,
+		createErrorCounter,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
