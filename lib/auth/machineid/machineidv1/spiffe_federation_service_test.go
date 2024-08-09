@@ -359,3 +359,116 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 		})
 	}
 }
+
+// TestSPIFFEFederationService_GetSPIFFEFederation is an integration test
+// that uses a real gRPC client/server.
+func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
+	require.NoError(t, err)
+	unauthorizedUser, err := auth.CreateUser(
+		ctx,
+		srv.Auth(),
+		"unauthorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		nothingRole,
+	)
+	require.NoError(t, err)
+
+	role, err := types.NewRole("federation-reader", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSPIFFEFederation},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	authorizedUser, err := auth.CreateUser(
+		ctx,
+		srv.Auth(),
+		"authorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		role,
+	)
+	require.NoError(t, err)
+
+	name := "example.com"
+	resource, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
+		ctx, &machineidv1pb.SPIFFEFederation{
+			Kind:    types.KindSPIFFEFederation,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &machineidv1pb.SPIFFEFederationSpec{
+				BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
+					HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+						BundleEndpointUrl: "https://example.com/bundle.json",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		user           string
+		getName        string
+		requireError   require.ErrorAssertionFunc
+		requireSuccess bool
+	}{
+		{
+			name:           "success",
+			user:           authorizedUser.GetName(),
+			getName:        name,
+			requireError:   require.NoError,
+			requireSuccess: true,
+		},
+		{
+			name:    "not-exist",
+			user:    authorizedUser.GetName(),
+			getName: "do-not-exist",
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:    "unauthorized",
+			user:    unauthorizedUser.GetName(),
+			getName: name,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			got, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+				Name: tt.getName,
+			})
+			tt.requireError(t, err)
+			if tt.requireSuccess {
+				require.Empty(
+					t,
+					cmp.Diff(
+						resource,
+						got,
+						protocmp.Transform(),
+					),
+				)
+			}
+		})
+	}
+}
