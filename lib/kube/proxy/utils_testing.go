@@ -444,9 +444,18 @@ type RoleSpec struct {
 	SetupRoleFunc  func(types.Role) // If nil all pods are allowed.
 }
 
-// CreateUserAndRole creates Teleport user and role with specified names
-func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.TLSServer.Auth(), username, []string{roleSpec.Name}, nil)
+// CreateUserWithTraitsAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
+	user, role, err := auth.CreateUserAndRole(
+		c.TLSServer.Auth(),
+		username,
+		[]string{roleSpec.Name},
+		nil,
+		auth.WithUserMutator(func(user types.User) {
+			user.SetTraits(userTraits)
+		},
+		),
+	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
@@ -460,6 +469,11 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	upsertedRole, err := c.TLSServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, upsertedRole
+}
+
+// CreateUserAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
+	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
 }
 
 func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {
@@ -535,6 +549,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+		Traits:            user.GetTraits(),
 	}
 	for _, opt := range opts {
 		opt(&id)
