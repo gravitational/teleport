@@ -448,8 +448,6 @@ github.com/creack/pty v1.1.18 h1:n56/Zwd5o6whRC5PMGretI4IdRLlmBXYNjScPaBgsbY=
 github.com/creack/pty v1.1.18/go.mod h1:MOBLtS5ELjhRRrroQr9kyvTxUAFNvYEK993ew/Vr4O4=
 github.com/crewjam/httperr v0.2.0 h1:b2BfXR8U3AlIHwNeFFvZ+BV1LFvKLlzMjzaTnZMybNo=
 github.com/crewjam/httperr v0.2.0/go.mod h1:Jlz+Sg/XqBQhyMjdDiC+GNNRzZTD7x39Gu3pglZ5oH4=
-github.com/crewjam/saml v0.4.14 h1:g9FBNx62osKusnFzs3QTN5L9CVA/Egfgm+stJShzw/c=
-github.com/crewjam/saml v0.4.14/go.mod h1:UVSZCf18jJkk6GpWNVqcyQJMD5HsRugBPf4I1nl2mME=
 github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 h1:2Dx4IHfC1yHWI12AxQDJM1QbRCDfk6M+blLzlZCXdrc=
 github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46/go.mod h1:uzvlm1mxhHkdfqitSA92i7Se+S9ksOn3a3qmv/kyOCw=
 github.com/cznic/golex v0.0.0-20181122101858-9c343928389c/go.mod h1:+bmmJDNmKlhWNG+gwWCkaBoTy39Fs+bzRxVBzoTQbIc=
@@ -850,6 +848,8 @@ github.com/gravitational/redis/v9 v9.0.2-teleport.2 h1:br9gSGJLpfrIoKsF5N99zWgjP
 github.com/gravitational/redis/v9 v9.0.2-teleport.2/go.mod h1:/xDTe9EF1LM61hek62Poq2nzQSGj0xSrEtEHbBQevps=
 github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyPBTBROQ5c=
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
+github.com/gravitational/saml v0.4.15-teleport.1 h1:kYSLpxEBEc7JLJJ+VjsZU8PbWI4gWxdCgll5cq1/rGU=
+github.com/gravitational/saml v0.4.15-teleport.1/go.mod h1:S4+611dxnKt8z/ulbvaJzcgSHsuhjVc1QHNTcr1R7Fw=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf h1:aXnqDSit8L1qhI0+QdbJh+MTUFKXG7qbkZXnfr7L96A=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf/go.mod h1:f7i0iNDQJ059oMTcWxx8MA/zKFIuD/lY+0GqbN2Wy8c=
 github.com/gravitational/trace v1.3.1 h1:jwZEuRtCYpLhUtqHo+JH+lu2qM0LB98UagqHtvdKuLI=
