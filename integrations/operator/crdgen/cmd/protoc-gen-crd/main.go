@@ -2,7 +2,7 @@
 
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -25,13 +25,15 @@ import (
 
 	"github.com/gogo/protobuf/vanity/command"
 	log "github.com/sirupsen/logrus"
+
+	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
 )
 
 func main() {
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stderr)
 	req := command.Read()
-	if err := handleRequest(req); err != nil {
+	if err := crdgen.HandleCRDRequest(req); err != nil {
 		log.WithError(err).Error("Failed to generate schema")
 		os.Exit(-1)
 	}

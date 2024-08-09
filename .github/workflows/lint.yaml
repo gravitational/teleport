@@ -61,6 +61,8 @@ jobs:
               # rendered doc changes
               - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
+              - 'docs/pages/reference/operator-resources/**'
+              - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
 
   lint-go:
     name: Lint (Go)
