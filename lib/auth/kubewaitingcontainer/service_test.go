@@ -29,10 +29,9 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
+	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
@@ -72,14 +71,14 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 
 	tt := []struct {
 		Name       string
-		Authorizer func(t *testing.T, client localClient) authz.Authorizer
+		Authorizer func(t *testing.T, client test.LocalClient) authz.Authorizer
 		Setup      func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string)
 		Test       func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string)
 	}{
 		// List
 		{
 			Name: "allowed list access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -97,9 +96,9 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		},
 		{
 			Name: "not allowed list access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-					return authorizerForDummyUser(t, ctx, client, []string{types.VerbRead, types.VerbList}), nil
+					return test.AuthorizerForDummyUser(t, ctx, client, types.KindKubeWaitingContainer, []string{types.VerbRead, types.VerbList}), nil
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -112,7 +111,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		// Get
 		{
 			Name: "allowed get access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -141,9 +140,9 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		},
 		{
 			Name: "not allowed get access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-					return authorizerForDummyUser(t, ctx, client, []string{types.VerbRead, types.VerbList}), nil
+					return test.AuthorizerForDummyUser(t, ctx, client, types.KindKubeWaitingContainer, []string{types.VerbRead, types.VerbList}), nil
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -160,7 +159,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		},
 		{
 			Name: "get nonexistent resource",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -179,7 +178,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		// Create
 		{
 			Name: "allowed create access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -198,9 +197,9 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		},
 		{
 			Name: "not allowed create access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-					return authorizerForDummyUser(t, ctx, client, []string{types.VerbRead, types.VerbList}), nil
+					return test.AuthorizerForDummyUser(t, ctx, client, types.KindKubeWaitingContainer, []string{types.VerbRead, types.VerbList}), nil
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -213,7 +212,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		},
 		{
 			Name: "create resource twice",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -234,7 +233,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		// Delete
 		{
 			Name: "allowed delete access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -256,9 +255,9 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		},
 		{
 			Name: "not allowed delete access",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-					return authorizerForDummyUser(t, ctx, client, []string{types.VerbRead, types.VerbList}), nil
+					return test.AuthorizerForDummyUser(t, ctx, client, types.KindKubeWaitingContainer, []string{types.VerbRead, types.VerbList}), nil
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -274,8 +273,8 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 		},
 		{
-			Name: "get nonexistent resource",
-			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+			Name: "delete nonexistent resource",
+			Authorizer: func(t *testing.T, client test.LocalClient) authz.Authorizer {
 				return kubeAuthFn
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
@@ -297,7 +296,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _, resourceSvc := initSvc(t, tc.Authorizer)
+			ctx, resourceSvc := initSvc(t, tc.Authorizer)
 
 			wcName := uuid.NewString()
 			if tc.Setup != nil {
@@ -309,85 +308,10 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 	}
 }
 
-func authorizerForDummyUser(t *testing.T, ctx context.Context, localClient localClient, roleVerbs []string) *authz.Context {
-	const clusterName = "localhost"
-
-	// Create role
-	roleName := "role-" + uuid.NewString()
-	role, err := types.NewRole(roleName, types.RoleSpecV6{
-		Allow: types.RoleConditions{Rules: []types.Rule{{
-			Resources: []string{types.KindKubeWaitingContainer},
-			Verbs:     roleVerbs,
-		}}},
-	})
-	require.NoError(t, err)
-
-	role, err = localClient.CreateRole(ctx, role)
-	require.NoError(t, err)
-
-	// Create user
-	user, err := types.NewUser("user-" + uuid.NewString())
-	require.NoError(t, err)
-	user.AddRole(roleName)
-	user, err = localClient.CreateUser(ctx, user)
-	require.NoError(t, err)
-
-	localUser := authz.LocalUser{
-		Username: user.GetName(),
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-			Groups:   []string{role.GetName()},
-		},
-	}
-	authCtx, err := authz.ContextForLocalUser(ctx, localUser, localClient, clusterName, true)
-	require.NoError(t, err)
-
-	return authCtx
-}
-
-type localClient interface {
-	authz.AuthorizerAccessPoint
-
-	CreateUser(ctx context.Context, user types.User) (types.User, error)
-	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
-}
-
-func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) authz.Authorizer) (context.Context, localClient, *Service) {
-	ctx := context.Background()
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
-	clusterSrv, err := local.NewClusterConfigurationService(backend)
-	require.NoError(t, err)
-	caSrv := local.NewCAService(backend)
-
-	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
-	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
-	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	require.NoError(t, err)
-
+func initSvc(t *testing.T, authorizerFn func(t *testing.T, client test.LocalClient) authz.Authorizer) (context.Context, *Service) {
+	ctx, client, backend := test.InitRBACServices(t)
 	localResourceService, err := local.NewKubeWaitingContainerService(backend)
 	require.NoError(t, err)
-
-	client := struct {
-		*local.AccessService
-		*local.IdentityService
-		*local.ClusterConfigurationService
-		*local.CA
-	}{
-		AccessService:               roleSvc,
-		IdentityService:             userSvc,
-		ClusterConfigurationService: clusterSrv,
-		CA:                          caSrv,
-	}
 
 	resourceSvc, err := NewService(ServiceConfig{
 		Authorizer: authorizerFn(t, client),
@@ -395,6 +319,5 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 		Cache:      localResourceService,
 	})
 	require.NoError(t, err)
-
-	return ctx, client, resourceSvc
+	return ctx, resourceSvc
 }
