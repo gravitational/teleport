@@ -10,6 +10,15 @@ export const Loaded = () => {
   return <Switchback {...props} />;
 };
 
+export const ManyRoles = () => {
+  return (
+    <Switchback
+      {...props}
+      assumedRoles={Array.from({ length: 10 }, (_, i) => `role${i + 1}`)}
+    />
+  );
+};
+
 export const Processing = () => {
   return <Switchback {...props} attempt={{ status: 'processing' }} />;
 };

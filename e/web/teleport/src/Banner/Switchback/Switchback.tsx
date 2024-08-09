@@ -1,6 +1,6 @@
 import React from 'react';
-import styled from 'styled-components';
-import { Flex, Text, Box } from 'design';
+import { useTheme } from 'styled-components';
+import { Flex, Box, Banner } from 'design';
 import { pluralize } from 'shared/utils/text';
 import { getDurationText } from 'shared/utils/getDurationText';
 
@@ -23,12 +23,17 @@ export function Switchback({
   attempt,
   onErrorConfirm,
 }: State) {
+  const theme = useTheme();
+
   const roleText = pluralize(assumedRoles.length, 'role');
   const durationTxt = getDurationText(time.hours, time.minutes, time.seconds);
   const roles = assumedRoles.join(', ');
 
   return (
-    <Flex height="38px" bg="brand" justifyContent="center">
+    <Banner
+      kind="primary"
+      primaryAction={{ content: btnSetting.text, onClick: btnSetting.func }}
+    >
       {attempt.status === 'failed' && (
         <ErrorAlert err={attempt.statusText} onClose={onErrorConfirm} />
       )}
@@ -38,8 +43,8 @@ export function Switchback({
           py={0}
           px={2}
           mr={2}
-          color="brand"
-          bg="light"
+          color={theme.colors.text.primaryInverse}
+          bg={theme.colors.interactive.solid.primary.default.background}
           style={{
             fontWeight: '500',
             overflow: 'hidden',
@@ -51,38 +56,8 @@ export function Switchback({
         >
           {roles}
         </Box>
-        <Text mr={1} color="text.primaryInverse">
-          {roleText} assumed, expires in {durationTxt}
-        </Text>
-        <StyledButtonLink
-          onClick={btnSetting.func}
-          disabled={attempt.status === 'processing'}
-        >
-          {btnSetting.text}
-        </StyledButtonLink>
+        {roleText} assumed, expires in {durationTxt}
       </Flex>
-    </Flex>
+    </Banner>
   );
 }
-
-const StyledButtonLink = styled.button`
-  color: ${props => props.theme.colors.text.primaryInverse};
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  padding: 8px;
-  outline: none;
-  border: none;
-  border-radius: 4px;
-
-  &:hover,
-  &:focus {
-    background: ${props => props.theme.colors.spotBackground[1]};
-    cursor: pointer;
-  }
-
-  &:disabled {
-    background: ${props => props.theme.colors.spotBackground[0]};
-    color: ${props => props.theme.colors.text.disabled};
-  }
-`;

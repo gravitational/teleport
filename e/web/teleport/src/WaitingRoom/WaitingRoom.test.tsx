@@ -233,12 +233,12 @@ describe('access strategy behavioral testing', () => {
   });
 
   test('when user has assumed roles, waiting room is skipped', async () => {
-    const request = makeAccessRequest();
+    const request = makeAccessRequest({ roles: ['dummy-role'] });
     const userContext = makeUserContext(sampleContext('always'));
 
     jest
-      .spyOn(storeAccessRequests, 'getAssumedRoles')
-      .mockReturnValue([request]);
+      .spyOn(storeAccessRequests, 'getAssumed')
+      .mockReturnValue({ dummyId: request });
     jest.spyOn(storeAccessRequests, 'getWaitingRoom').mockReturnValue(request);
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
