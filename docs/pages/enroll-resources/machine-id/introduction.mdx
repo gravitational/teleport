@@ -49,6 +49,27 @@ access to and what sort of proof (known as the **join method**) is needed to use
 this join token. This proof is typically an identity issued to the machine by
 the platform it runs on (e.g. AWS IAM).
 
+Multiple join tokens may be created for a single bot to allow joining with
+different join methods.
+
+### Bot Instances
+
+Each time a new `tbot` client joins from scratch, it creates a new server-side
+Bot Instance. Bot Instances keep track of individual `tbot` installations over
+time, even as they renew their certificates or rejoin. These server-side
+resources also record the most recent authentication attempts, as well as
+bot heartbeats.
+
+Many Bot Instances can exist concurrently for a given Bot, regardless of their
+join method.
+
+Bot Instances can be inspected with:
+* `tctl get bot_instance` to list all instances
+* `tctl get bot_instance/$botName` to list all instances associated with a
+  particular Bot
+* `tctl get bot_instance/$botName/$id` to show a single bot instance by its bot
+  name and ID
+
 ### tbot
 
 Machine ID is used through an agent called `tbot`. `tbot` authenticates with the
