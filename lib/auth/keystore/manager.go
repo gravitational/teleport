@@ -229,20 +229,6 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	}, nil
 }
 
-type sshCountSigner struct {
-	ssh.Signer
-}
-
-func (s *sshCountSigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
-	signCounter.WithLabelValues(labelSSHKey).Inc()
-	signer, err := s.Signer.Sign(rand, data)
-	if err != nil {
-		signErrorCounter.WithLabelValues(labelSSHKey).Inc()
-		return nil, trace.Wrap(err)
-	}
-	return signer, nil
-}
-
 type cryptoCountSigner struct {
 	crypto.Signer
 	labelValue string
@@ -262,20 +248,14 @@ func (s *cryptoCountSigner) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 // returns an [ssh.Signer].
 func (m *Manager) GetSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
 	signer, err := m.getSSHSigner(ctx, ca.GetActiveKeys())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &sshCountSigner{Signer: signer}, nil
+	return signer, trace.Wrap(err)
 }
 
 // GetSSHSigner selects a usable SSH keypair from the given CA
 // AdditionalTrustedKeys and returns an [ssh.Signer].
 func (m *Manager) GetAdditionalTrustedSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
 	signer, err := m.getSSHSigner(ctx, ca.GetAdditionalTrustedKeys())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &sshCountSigner{Signer: signer}, nil
+	return signer, trace.Wrap(err)
 }
 
 func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
@@ -296,6 +276,7 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			signer = &cryptoCountSigner{Signer: signer, labelValue: labelSSHKey}
 			sshSigner, err := ssh.NewSignerFromSigner(signer)
 			if err != nil {
 				return nil, trace.Wrap(err)
