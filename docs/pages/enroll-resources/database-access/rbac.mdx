@@ -27,7 +27,7 @@ The Database Service grants object-level permissions for the duration of a
 connection and revokes them automatically when the connection ends.
 
 For a more general description of Teleport roles and examples see
-[RBAC](../../access-controls/introduction.mdx), as this section focuses on
+[RBAC](../../admin-guides/access-controls/access-controls.mdx), as this section focuses on
 configuring RBAC for database access.
 
 <Notice type="warning">
@@ -122,13 +122,13 @@ is not currently enforced on MySQL connection attempts.
 Similar to other role fields, `db_*` fields support templating variables.
 
 The `external.xyz` traits are replaced with values from external [single
-sign-on](../../access-controls/sso.mdx) providers. For OIDC, they will be
+sign-on](../../admin-guides/access-controls/sso.mdx) providers. For OIDC, they will be
 replaced with the value of an "xyz" claim. For SAML, they are replaced 
 with an "xyz" assertion value. 
 
 For full details on how traits work in Teleport roles, see
 the [Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
+Reference](../../reference/access-controls/roles.mdx).
 
 For example, here is what a role may look like if you want to assign allowed
 database names from the user's Okta `databases` assertion:
