@@ -55,7 +55,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	app, err := appInfo.GetApp(cf.Context, tc, clusterClient.AuthClient)
+	app, err := appInfo.GetApp(cf.Context, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -536,7 +536,7 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, logins, err := getApp(cf.Context, tc, clusterClient.AuthClient, cf.AppName)
+	app, logins, err := getApp(cf.Context, clusterClient.AuthClient, cf.AppName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -607,14 +607,14 @@ func (a *appInfo) appLocalCAPath(cluster string) string {
 
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
-func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient) (types.Application, error) {
+func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) (types.Application, error) {
 	a.appMu.Lock()
 	defer a.appMu.Unlock()
 	if a.app != nil {
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, _, err := getApp(ctx, tc, clt, a.Name)
+	app, _, err := getApp(ctx, clt, a.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -623,7 +623,7 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient, clt api
 }
 
 // getApp returns the registered application with the specified name.
-func getApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
+func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
 	// When listing a single app we only need to grab one page.
 	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,

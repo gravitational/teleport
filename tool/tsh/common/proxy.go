@@ -387,7 +387,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	app, err := appInfo.GetApp(cf.Context, tc, clusterClient.AuthClient)
+	app, err := appInfo.GetApp(cf.Context, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
