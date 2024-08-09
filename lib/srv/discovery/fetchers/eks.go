@@ -408,15 +408,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 	case trace.IsAccessDenied(err):
 		// Access denied means that the principal does not have access to setup access entries for the cluster.
 		a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
-			aws.StringValue(cluster.Name),
-			[]string{
-				"eks:ListClusters",
-				"eks:DescribeCluster",
-				"eks:DescribeAccessEntry",
-				"eks:CreateAccessEntry",
-				"eks:DeleteAccessEntry",
-				"eks:AssociateAccessPolicy",
-			})
+			aws.StringValue(cluster.Name), awslib.StatementForEKSAccess().Actions)
 		return nil
 	case err == nil:
 		// If the access entry exists and the principal has access to the cluster, check if the teleportKubernetesGroup is part of the Kubernetes group.
@@ -430,15 +422,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 		if err := a.temporarilyGainAdminAccessAndCreateRole(ctx, client, cluster); trace.IsAccessDenied(err) {
 			// Access denied means that the principal does not have access to setup access entries for the cluster.
 			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
-				aws.StringValue(cluster.Name),
-				[]string{
-					"eks:ListClusters",
-					"eks:DescribeCluster",
-					"eks:DescribeAccessEntry",
-					"eks:CreateAccessEntry",
-					"eks:DeleteAccessEntry",
-					"eks:AssociateAccessPolicy",
-				})
+				aws.StringValue(cluster.Name), awslib.StatementForEKSAccess().Actions)
 			return nil
 		} else if err != nil {
 			return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))
@@ -449,15 +433,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 		if trace.IsAccessDenied(err) {
 			// Access denied means that the principal does not have access to setup access entries for the cluster.
 			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
-				aws.StringValue(cluster.Name),
-				[]string{
-					"eks:ListClusters",
-					"eks:DescribeCluster",
-					"eks:DescribeAccessEntry",
-					"eks:CreateAccessEntry",
-					"eks:DeleteAccessEntry",
-					"eks:AssociateAccessPolicy",
-				})
+				aws.StringValue(cluster.Name), awslib.StatementForEKSAccess().Actions)
 			return nil
 		}
 		return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))

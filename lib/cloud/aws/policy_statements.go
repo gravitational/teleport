@@ -180,12 +180,14 @@ func StatementForEKSAccess() *Statement {
 	return &Statement{
 		Effect: EffectAllow,
 		Actions: []string{
-			"eks:ListClusters",
-			"eks:DescribeCluster",
-			"eks:ListAccessEntries",
+			"eks:AssociateAccessPolicy",
 			"eks:CreateAccessEntry",
 			"eks:DeleteAccessEntry",
-			"eks:AssociateAccessPolicy",
+			"eks:DescribeAccessEntry",
+			"eks:DescribeCluster",
+			"eks:ListAccessEntries",
+			"eks:ListClusters",
+			"eks:UpdateAccessEntry",
 		},
 		Resources: allResources,
 	}
