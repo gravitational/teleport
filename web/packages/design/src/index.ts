@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert } from './Alert';
+import { Alert, Banner } from './Alert';
 import Box from './Box';
 import {
   Button,
@@ -66,6 +66,7 @@ import { Toggle } from './Toggle';
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
+  Banner,
   Box,
   Button,
   ButtonBorder,
