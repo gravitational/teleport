@@ -69,7 +69,11 @@ func newTestAuthority(t *testing.T) testAuthority {
 
 // makeSignedKeyRing helper returns a new user key ring signed by CAPriv key.
 func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeExpired bool) *KeyRing {
-	priv, err := s.keygen.GeneratePrivateKey()
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	keyPEM, err := keys.MarshalPrivateKey(signer)
+	require.NoError(t, err)
+	priv, err := keys.NewPrivateKey(signer, keyPEM)
 	require.NoError(t, err)
 
 	allowedLogins := []string{idx.Username, "root"}
@@ -78,8 +82,8 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		ttl = -ttl
 	}
 
-	// reuse the same RSA keys for SSH and TLS keys
-	// TODO(nklaassen): don't
+	// reuse the same keys for SSH and TLS keys
+	// TODO(nklaassen): don't reuse these keys.
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
@@ -428,7 +432,6 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 			var wg sync.WaitGroup
 			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
-				kubeClusterName = kubeClusterName
 				go func() {
 					defer wg.Done()
 					certPEM, keyPEM, err := LoadKeysToKubeFromStore(&profile.Profile{

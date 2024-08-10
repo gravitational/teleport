@@ -18,7 +18,8 @@ package client
 
 import (
 	"context"
-	"crypto/x509"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"errors"
 	"testing"
 
@@ -189,9 +190,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 				cred := keyRing.KubeTLSCredentials["test"]
 				require.NotEmpty(t, cred)
-				cert, err := cred.TLSCertificate()
+				_, err = cred.TLSCertificate()
 				require.NoError(t, err)
-				require.Equal(t, x509.ECDSA, cert.Leaf.PublicKeyAlgorithm)
+				require.IsType(t, (*ecdsa.PrivateKey)(nil), cred.PrivateKey.Signer)
 			},
 		},
 		{
@@ -205,9 +206,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 				cred := keyRing.KubeTLSCredentials["test"]
 				require.NotEmpty(t, cred)
-				cert, err := cred.TLSCertificate()
+				_, err = cred.TLSCertificate()
 				require.NoError(t, err)
-				require.Equal(t, x509.RSA, cert.Leaf.PublicKeyAlgorithm)
+				require.IsType(t, (*rsa.PrivateKey)(nil), cred.PrivateKey.Signer)
 			},
 		},
 		{
@@ -253,9 +254,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 				cred := keyRing.DBTLSCredentials["test"]
 				require.NotEmpty(t, cred)
-				cert, err := cred.TLSCertificate()
+				_, err = cred.TLSCertificate()
 				require.NoError(t, err)
-				require.Equal(t, x509.RSA, cert.Leaf.PublicKeyAlgorithm)
+				require.IsType(t, (*rsa.PrivateKey)(nil), cred.PrivateKey.Signer)
 			},
 		},
 		{

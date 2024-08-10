@@ -357,7 +357,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 	var privateKey *keys.PrivateKey
 	switch params.usage() {
 	case proto.UserCertsRequest_App, proto.UserCertsRequest_Kubernetes:
-		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserTLS)
+		privateKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -366,7 +366,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 	case proto.UserCertsRequest_Database:
-		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserDatabase)
+		privateKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserDatabase)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

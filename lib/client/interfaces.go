@@ -135,12 +135,19 @@ func (k *KeyRing) Copy() *KeyRing {
 	return &copy
 }
 
-// GenerateKey returns a new private key with the appropriate algorithm for
-// [purpose]. If this KeyRing uses a PIV/hardware key, it will always return
-// that hardware key.
-func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
+// generateSubjectTLSKey returns a new private key with the appropriate algorithm for
+// [purpose], meant to be used as the subject key for a new user cert request.
+// If [k.PrivateKey] is a PIV/hardware key or an RSA key, it will be re-used.
+func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
 	if k.PrivateKey.IsHardware() {
-		// We always use the same hardware key.
+		// We always re-use the root TLS key if it is a hardware key.
+		return k.PrivateKey, nil
+	}
+	if _, isRSA := k.PrivateKey.Public().(*rsa.PublicKey); isRSA {
+		// We always re-use the root TLS key if it is RSA (it would be expensive
+		// to always generate new RSA keys). If [k.PrivateKey] is RSA we must be
+		// using the `legacy` signature algorithm suitei and the subject keys
+		// should be RSA as well.
 		return k.PrivateKey, nil
 	}
 

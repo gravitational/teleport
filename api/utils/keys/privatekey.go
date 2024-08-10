@@ -110,7 +110,6 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	cert.Certificate = rawCerts
-	cert.Leaf = x509Cert
 
 	// Check that the certificate's public key matches this private key.
 	if keyPub, ok := signer.Public().(cryptoPublicKeyI); !ok {
