@@ -41,31 +41,31 @@ func Profile(dir string) error {
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	traceFile, err := os.Create(filepath.Join(dir, timestamp+"-trace.profile"))
 	if err != nil {
-		return trace.Wrap(err, "creating trace proile file")
+		return trace.Wrap(err, "creating trace profile file")
 	}
 	defer traceFile.Close()
 
 	cpuFile, err := os.Create(filepath.Join(dir, timestamp+"-cpu.profile"))
 	if err != nil {
-		return trace.Wrap(err, "creating cpu proile file")
+		return trace.Wrap(err, "creating cpu profile file")
 	}
 	defer cpuFile.Close()
 
 	heapFile, err := os.Create(filepath.Join(dir, timestamp+"-heap.profile"))
 	if err != nil {
-		return trace.Wrap(err, "creating heap proile file")
+		return trace.Wrap(err, "creating heap profile file")
 	}
 	defer heapFile.Close()
 
 	goroutineFile, err := os.Create(filepath.Join(dir, timestamp+"-goroutine.profile"))
 	if err != nil {
-		return trace.Wrap(err, "creating goroutine proile file")
+		return trace.Wrap(err, "creating goroutine profile file")
 	}
 	defer goroutineFile.Close()
 
 	blockFile, err := os.Create(filepath.Join(dir, timestamp+"-block.profile"))
 	if err != nil {
-		return trace.Wrap(err, "creating block proile file")
+		return trace.Wrap(err, "creating block profile file")
 	}
 	defer blockFile.Close()
 
