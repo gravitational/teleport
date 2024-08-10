@@ -188,8 +188,7 @@ auth_service:
         # Defaults to "local".
         #connector_name: local
 
-        # this section is used if second_factor is set to 'on', 'optional' or
-        # 'webauthn'.
+        # this section is used if second_factor is set to 'on' or 'webauthn'.
         webauthn:
           # public domain of the Teleport proxy, *excluding* protocol
           # (`https://`) and port number.

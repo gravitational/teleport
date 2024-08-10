@@ -17,7 +17,7 @@ Teleport encourages users to practice defense in depth so that every component o
 
 If a user sets up an account to authenticate to their Teleport cluster with only a password, an adversary can gain access to the password using brute-force attacks, person-in-the-middle attacks, or phishing. But even if a user's password is compromised, you can stop an attacker from authenticating with it when they run `tsh login`.
 
-Teleport lets you make it mandatory for a user to enroll an MFA device when they create an account, and to authenticate using that device when they begin a new Teleport session.
+Teleport lets you set the type of MFA device required when they create an account, and to authenticate using that device when they begin a new Teleport session.
 
 To do so, make the following changes depending on your environment:
 
@@ -63,13 +63,13 @@ $ tctl create -f cap.yaml
 </TabItem>
 </Tabs>
 
-To make MFA mandatory for all users, `second_factor` must be set to one of the following values:
+The `second_factor` options are:
 
 - `otp`
 - `webauthn`
 - `on`
 
-Choose `on` if you would like to require MFA for all users while letting them choose an OTP or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Proxy Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
+Choose `on` if you would like to let them choose an OTP or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Proxy Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
 
 - Adjusting the Teleport signup page so a user must enroll an MFA device of the kind you have selected. If the value of `second_factor` is `on`, users will have the option to select from multiple device types.
 - Presenting the user with an MFA challenge when they run `tsh login`.
@@ -77,9 +77,8 @@ Choose `on` if you would like to require MFA for all users while letting them ch
 If you have enabled SSO in your Teleport environment, MFA challenges at login only apply for local users, but the IdP may apply its own MFA checks.
 
 <Admonition type="warning">
-If your `second_factor` configuration is set to `off` and a user creates an account without a second factor, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario:
-- Set `second_factor` to `optional` until you have confirmed that existing users have enrolled their MFA devices.
-- Run the `tctl users reset <account>` command to force a user to enter new credentials, including any required MFA device.
+Multi-factor authentication is now required for local users as of v16 for self-hosted. See this [guidance](../../../changelog.mdx#multi-factor-authentication-is-now-required-for-local-users) 
+on handling users prior to upgrading if MFA was not required for local users. 
 </Admonition>
 
 ## Present an MFA challenge for every attempt to access a resource
