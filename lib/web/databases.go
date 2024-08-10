@@ -45,14 +45,20 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-// createDatabaseRequest contains the necessary basic information to create a database.
-// Database here is the database resource, containing information to a real database (protocol, uri)
-type createDatabaseRequest struct {
+// createOrOverwriteDatabaseRequest contains the necessary basic information
+// to create (or overwrite) a database.
+// Database here is the database resource, containing information to a real
+// database (protocol, uri).
+type createOrOverwriteDatabaseRequest struct {
 	Name     string     `json:"name,omitempty"`
 	Labels   []ui.Label `json:"labels,omitempty"`
 	Protocol string     `json:"protocol,omitempty"`
 	URI      string     `json:"uri,omitempty"`
 	AWSRDS   *awsRDS    `json:"awsRds,omitempty"`
+	// Overwrite will replace an existing db resource
+	// with a new db resource. Only the name cannot
+	// be changed.
+	Overwrite bool `json:"overwrite,omitempty"`
 }
 
 type awsRDS struct {
@@ -62,7 +68,7 @@ type awsRDS struct {
 	VPCID      string   `json:"vpcId,omitempty"`
 }
 
-func (r *createDatabaseRequest) checkAndSetDefaults() error {
+func (r *createOrOverwriteDatabaseRequest) checkAndSetDefaults() error {
 	if r.Name == "" {
 		return trace.BadParameter("missing database name")
 	}
@@ -94,8 +100,8 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var req *createDatabaseRequest
+func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var req *createOrOverwriteDatabaseRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,11 +120,20 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.CreateDatabase(r.Context(), database); err != nil {
-		if trace.IsAlreadyExists(err) {
-			return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+	if req.Overwrite {
+		if _, err := clt.GetDatabase(r.Context(), req.Name); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
+		if err := clt.UpdateDatabase(r.Context(), database); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := clt.CreateDatabase(r.Context(), database); err != nil {
+			if trace.IsAlreadyExists(err) {
+				return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+			}
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	accessChecker, err := sctx.GetUserAccessChecker()
@@ -135,17 +150,6 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
 type updateDatabaseRequest struct {
-	// DBOverwrite will completely overwrite an existing database
-	// as if it were a create database request versus a partial update
-	// with select few fields as defined below.
-	// DBOverwrite is used when user opts to "overwrite" an existing database
-	// in the web UI. Partial update is used under the hood by the web UI
-	// when it detects some select fields have changed eg: update CA Cert
-	DBOverwrite *createDatabaseRequest `json:"dbOverwrite,omitempty"`
-
-	// If DBOverwrite is provided, other fields will be
-	// ignored.
-
 	CACert *string    `json:"caCert,omitempty"`
 	Labels []ui.Label `json:"labels,omitempty"`
 	URI    string     `json:"uri,omitempty"`
@@ -181,7 +185,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -192,14 +196,8 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	if req.DBOverwrite != nil {
-		if err := req.DBOverwrite.checkAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else { // partial update
-		if err := req.checkAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := req.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -212,53 +210,43 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	if req.DBOverwrite != nil {
-		if databaseName != req.DBOverwrite.Name {
-			return nil, trace.BadParameter("database names %q and %q does not match", databaseName, req.DBOverwrite.Name)
-		}
-		database, err = getNewDatabaseResource(*req.DBOverwrite)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else { // partial update
-		savedOrNewCaCert := database.GetCA()
-		if req.CACert != nil {
-			savedOrNewCaCert = *req.CACert
-		}
+	savedOrNewCaCert := database.GetCA()
+	if req.CACert != nil {
+		savedOrNewCaCert = *req.CACert
+	}
 
-		savedOrNewAWSRDS := awsRDS{
-			AccountID:  database.GetAWS().AccountID,
-			ResourceID: database.GetAWS().RDS.ResourceID,
+	savedOrNewAWSRDS := awsRDS{
+		AccountID:  database.GetAWS().AccountID,
+		ResourceID: database.GetAWS().RDS.ResourceID,
+	}
+	if req.AWSRDS != nil {
+		savedOrNewAWSRDS = awsRDS{
+			AccountID:  req.AWSRDS.AccountID,
+			ResourceID: req.AWSRDS.ResourceID,
 		}
-		if req.AWSRDS != nil {
-			savedOrNewAWSRDS = awsRDS{
-				AccountID:  req.AWSRDS.AccountID,
-				ResourceID: req.AWSRDS.ResourceID,
-			}
-		}
+	}
 
-		savedOrNewURI := req.URI
-		if len(savedOrNewURI) == 0 {
-			savedOrNewURI = database.GetURI()
-		}
+	savedOrNewURI := req.URI
+	if len(savedOrNewURI) == 0 {
+		savedOrNewURI = database.GetURI()
+	}
 
-		savedLabels := database.GetStaticLabels()
+	savedLabels := database.GetStaticLabels()
 
-		// Make a new database to reset the check and set defaulted fields.
-		database, err = getNewDatabaseResource(createDatabaseRequest{
-			Name:     databaseName,
-			Protocol: database.GetProtocol(),
-			URI:      savedOrNewURI,
-			Labels:   req.Labels,
-			AWSRDS:   &savedOrNewAWSRDS,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		database.SetCA(savedOrNewCaCert)
-		if len(req.Labels) == 0 {
-			database.SetStaticLabels(savedLabels)
-		}
+	// Make a new database to reset the check and set defaulted fields.
+	database, err = getNewDatabaseResource(createOrOverwriteDatabaseRequest{
+		Name:     databaseName,
+		Protocol: database.GetProtocol(),
+		URI:      savedOrNewURI,
+		Labels:   req.Labels,
+		AWSRDS:   &savedOrNewAWSRDS,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	database.SetCA(savedOrNewCaCert)
+	if len(req.Labels) == 0 {
+		database.SetStaticLabels(savedLabels)
 	}
 
 	if err := clt.UpdateDatabase(r.Context(), database); err != nil {
@@ -423,7 +411,7 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	}
 }
 
-func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error) {
+func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {
 	labels := make(map[string]string)
 	for _, label := range req.Labels {
 		labels[label.Name] = label.Value
