@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -30,9 +29,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/accessrequest"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -68,7 +66,7 @@ type App struct {
 	pagerduty             Pagerduty
 	statusSink            common.StatusSink
 	mainJob               lib.ServiceJob
-	accessMonitoringRules *common.AccessMonitoringRuleHandler
+	accessMonitoringRules *accessmonitoring.RuleHandler
 
 	*lib.Process
 }
@@ -80,14 +78,9 @@ func NewApp(conf Config) (*App, error) {
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
 	}
-	teleClient, err := conf.GetTeleportClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	app.accessMonitoringRules = common.NewAccessMonitoringRuleHandler(common.AccessMonitoringRuleHandlerConfig{
-		Client:              teleClient,
-		PluginType:          string(conf.PluginType),
-		RuleAppliesCallback: app.amrAppliesToThisPlugin,
+	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     conf.Client,
+		PluginType: types.PluginTypePagerDuty,
 		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
 			return &common.Recipient{
 				Name: name,
@@ -95,7 +88,6 @@ func NewApp(conf Config) (*App, error) {
 				Kind: common.RecipientKindSchedule,
 			}, nil
 		},
-		MatchAccessRequestCallback: accessrequest.MatchAccessRequest,
 	})
 	app.mainJob = lib.NewServiceJob(app.run)
 
@@ -684,14 +676,5 @@ func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginDat
 		Plugin:   pluginName,
 		Set:      EncodePluginData(data),
 		Expect:   EncodePluginData(expectData),
-	})
-}
-
-func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	if amr.Spec.Notification.Name != a.PluginName {
-		return false
-	}
-	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
-		return subject == types.KindAccessRequest
 	})
 }
