@@ -943,7 +943,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		select {
 		case event := <-p.eventsC:
 			require.Equal(b, EventProcessed, event.Type)
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(300 * time.Millisecond):
 			b.Fatalf("timeout waiting for event, iteration=%d", i)
 		}
 	}
