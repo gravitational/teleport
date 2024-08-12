@@ -24,13 +24,6 @@ possible values (types) of MFA:
   instructions on setting up WebAuthn for Teleport.
 - `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
 
-<Admonition type="note">
-
-  As of v16 `optional` and `off` are not supported as [multi-factor authentication is now required for local users](../../changelog.mdx#multi-factor-authentication-is-now-required-for-local-users).
-
-  If you are using Teleport with a Single Sign-On solution, users can also register MFA devices, but Teleport will not prompt them for MFA during login. MFA for SSO users should be handled by the SSO provider.
-</Admonition>
-
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
