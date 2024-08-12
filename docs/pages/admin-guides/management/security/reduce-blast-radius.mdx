@@ -69,17 +69,12 @@ The `second_factor` options are:
 - `webauthn`
 - `on`
 
-Choose `on` if you would like to let them choose an OTP or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Proxy Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
+Choose `on` if you would like to let them choose an OTP or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Auth Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
 
 - Adjusting the Teleport signup page so a user must enroll an MFA device of the kind you have selected. If the value of `second_factor` is `on`, users will have the option to select from multiple device types.
 - Presenting the user with an MFA challenge when they run `tsh login`.
 
 If you have enabled SSO in your Teleport environment, MFA challenges at login only apply for local users, but the IdP may apply its own MFA checks.
-
-<Admonition type="warning">
-Multi-factor authentication is now required for local users as of v16 for self-hosted. See this [guidance](../../../changelog.mdx#multi-factor-authentication-is-now-required-for-local-users) 
-on handling users prior to upgrading if MFA was not required for local users. 
-</Admonition>
 
 ## Present an MFA challenge for every attempt to access a resource
 After a user logs into a Teleport cluster, they can request access to a particular resource, e.g., a node, database, application, or Kubernetes cluster. In this case, the Teleport Auth Service issues a single-use certificate for accessing that resource. You can prevent attackers from doing damage with a compromised certificate by enabling per-session MFA. With this setting, whenever a user requests a one-time certificate to access a resource, the Teleport Auth Service will issue an MFA challenge, even if the user has already begun a Teleport session via `tsh login`.
