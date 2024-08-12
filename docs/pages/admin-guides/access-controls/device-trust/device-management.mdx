@@ -15,14 +15,6 @@ The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
-<Admonition type="tip" title="Self enrollment: v13.3.5+">
-  Users with the preset `editor` or `device-admin` role (since v13.3.6)
-  can register and enroll their device in a single step with the following command:
-  ```code
-  $ tsh device enroll --current-device
-  ```
-</Admonition>
-
 <Admonition type="tip" title="Sync with Jamf Pro">
 Teleport supports device synchronization with [Jamf Pro](./jamf-integration.mdx). Once configured, devices
 are automatically updated in Teleport's device inventory.
@@ -80,11 +72,6 @@ Asset Tag    OS    Enroll Status Device ID
 ------------ ----- ------------- ------------------------------------
 (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
-
-<Admonition type="warning" title="Device Role">
-  For clusters created after v13.3.6, Teleport supports preset `device-admin` role to manage devices
-  and the the preset `editor` role has the necessary permissions to manage devices.
-</Admonition>
 
 ## Create a device enrollment token
 
@@ -227,8 +214,8 @@ Device "c9cbb327-68a8-497e-b820-6a4b2bf58269" removed
 We recommend creating a dedicated `device-admin` role for device inventory
 management.
 
-<Admonition type="tip" title="v13.3.6+">
-  Teleport version 13.3.6 and above has the preset `device-admin` role, which
+<Admonition type="tip" title="Preset Device Administration role">
+  Teleport has the preset `device-admin` role, which
   is a substitute for the role described below.
 </Admonition>
 
