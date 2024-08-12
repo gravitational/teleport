@@ -48,10 +48,17 @@ import (
 
 const (
 	keystoreSubsystem = "keystore"
-	labelKeyType      = "key_type"
-	labelTLSKey       = "tls"
-	labelSSHKey       = "ssh"
-	labelJWTKey       = "jwt"
+
+	labelKeyType = "key_type"
+	keyTypeTLS   = "tls"
+	keyTypeSSH   = "ssh"
+	keyTypeJWT   = "jwt"
+
+	labelStoreType = "store_type"
+	storePKCS11    = "pkcs11"
+	storeGCP       = "gcp_kms"
+	storeAWS       = "aws_kms"
+	storeSoftware  = "software"
 )
 
 var (
@@ -60,25 +67,25 @@ var (
 		Subsystem: keystoreSubsystem,
 		Name:      "sign",
 		Help:      "Total number of sign requests",
-	}, []string{labelKeyType})
+	}, []string{labelKeyType, labelStoreType})
 	signErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: keystoreSubsystem,
 		Name:      "sign_error",
 		Help:      "Total number of sign request errors",
-	}, []string{labelKeyType})
+	}, []string{labelKeyType, labelStoreType})
 	createCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: keystoreSubsystem,
 		Name:      "create",
 		Help:      "Total number of key create requests",
-	}, []string{labelKeyType})
+	}, []string{labelKeyType, labelStoreType})
 	createErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: keystoreSubsystem,
 		Name:      "create_error",
 		Help:      "Total number of key create request errors",
-	}, []string{labelKeyType})
+	}, []string{labelKeyType, labelStoreType})
 )
 
 // Manager provides an interface to interact with teleport CA private keys,
@@ -139,6 +146,9 @@ type backend interface {
 	// keyTypeDescription returns a human-readable description of the types of
 	// keys this backend uses.
 	keyTypeDescription() string
+
+	// name returns the name of the backend.
+	name() string
 }
 
 // Options holds keystore options.
@@ -231,14 +241,15 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 
 type cryptoCountSigner struct {
 	crypto.Signer
-	labelValue string
+	keyType string
+	store   string
 }
 
 func (s *cryptoCountSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	signCounter.WithLabelValues(s.labelValue).Inc()
+	signCounter.WithLabelValues(s.keyType, s.store).Inc()
 	sig, err := s.Signer.Sign(rand, digest, opts)
 	if err != nil {
-		signErrorCounter.WithLabelValues(s.labelValue).Inc()
+		signErrorCounter.WithLabelValues(s.keyType, s.store).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return sig, nil
@@ -276,7 +287,7 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			signer = &cryptoCountSigner{Signer: signer, labelValue: labelSSHKey}
+			signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeSSH, store: backend.name()}
 			sshSigner, err := ssh.NewSignerFromSigner(signer)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -328,7 +339,7 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return cert, &cryptoCountSigner{Signer: signer, labelValue: labelTLSKey}, trace.Wrap(err)
+	return cert, signer, trace.Wrap(err)
 }
 
 // GetAdditionalTrustedTLSCertAndSigner selects a usable TLS keypair from the given CA
@@ -338,7 +349,7 @@ func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca t
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return cert, &cryptoCountSigner{Signer: signer, labelValue: labelTLSKey}, trace.Wrap(err)
+	return cert, signer, trace.Wrap(err)
 }
 
 func (m *Manager) getTLSCertAndSigner(ctx context.Context, keySet types.CAKeySet) ([]byte, crypto.Signer, error) {
@@ -359,6 +370,7 @@ func (m *Manager) getTLSCertAndSigner(ctx context.Context, keySet types.CAKeySet
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+			signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}
 			return keyPair.Cert, signer, nil
 		}
 	}
@@ -397,7 +409,7 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &cryptoCountSigner{Signer: signer, labelValue: labelJWTKey}, trace.Wrap(err)
+			return &cryptoCountSigner{Signer: signer, keyType: keyTypeJWT, store: backend.name()}, trace.Wrap(err)
 		}
 	}
 	return nil, trace.NotFound("no usable JWT key pairs found")
@@ -405,10 +417,10 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
-	createCounter.WithLabelValues(labelSSHKey).Inc()
+	createCounter.WithLabelValues(keyTypeSSH).Inc()
 	key, err := m.newSSHKeyPair(ctx, purpose)
 	if err != nil {
-		createErrorCounter.WithLabelValues(labelSSHKey).Inc()
+		createErrorCounter.WithLabelValues(keyTypeSSH).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
@@ -438,10 +450,10 @@ func (m *Manager) newSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 
 // NewTLSKeyPair creates a new TLS keypair in the keystore backend and returns it.
 func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error) {
-	createCounter.WithLabelValues(labelTLSKey).Inc()
+	createCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name()).Inc()
 	key, err := m.newTLSKeyPair(ctx, clusterName, purpose)
 	if err != nil {
-		createErrorCounter.WithLabelValues(labelTLSKey).Inc()
+		createErrorCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name()).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
@@ -457,7 +469,7 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, purpose
 		return nil, trace.Wrap(err)
 	}
 	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		&cryptoCountSigner{Signer: signer, labelValue: labelTLSKey},
+		&cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: m.backendForNewKeys.name()},
 		pkix.Name{
 			CommonName:   clusterName,
 			Organization: []string{clusterName},
@@ -475,10 +487,10 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, purpose
 // New JWTKeyPair create a new JWT keypair in the keystore backend and returns
 // it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
-	createCounter.WithLabelValues(labelJWTKey).Inc()
+	createCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name()).Inc()
 	key, err := m.newJWTKeyPair(ctx, purpose)
 	if err != nil {
-		createErrorCounter.WithLabelValues(labelJWTKey).Inc()
+		createErrorCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name()).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return key, nil

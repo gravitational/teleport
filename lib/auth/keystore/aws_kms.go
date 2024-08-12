@@ -105,6 +105,10 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 	}, nil
 }
 
+func (a *awsKMSKeystore) name() string {
+	return storeAWS
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (a *awsKMSKeystore) keyTypeDescription() string {
