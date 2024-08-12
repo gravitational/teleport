@@ -21,7 +21,10 @@ package aws
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/textproto"
 	"sort"
@@ -33,7 +36,6 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -253,7 +255,7 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	for _, roleARN := range arns {
 		parsed, err := ParseRoleARN(roleARN)
 		if err != nil {
-			logrus.Warnf("skipping invalid AWS role ARN: %v", err)
+			slog.WarnContext(context.Background(), "Skipping invalid AWS role ARN.", "error", err)
 			continue
 		}
 		if accountID != "" && parsed.AccountID != accountID {
@@ -489,10 +491,29 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 	}.String()
 }
 
-// TruncateRoleSessionName truncates the role session name to AWS character limit (64).
-func TruncateRoleSessionName(roleSessionName string) string {
-	if len(roleSessionName) > MaxRoleSessionName {
-		return roleSessionName[:MaxRoleSessionName]
+// MaybeHashRoleSessionName truncates the role session name and adds a hash
+// when the original role session name is greater than AWS character limit
+// (64).
+func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
+	if len(roleSessionName) <= MaxRoleSessionName {
+		return roleSessionName
 	}
-	return roleSessionName
+
+	hash := sha1.New()
+	hash.Write([]byte(roleSessionName))
+	hex := hex.EncodeToString(hash.Sum(nil))
+
+	// "1" for the delimiter.
+	keepPrefixIndex := MaxRoleSessionName - len(hex) - 1
+
+	if keepPrefixIndex < 0 {
+		// This should not happen since sha1 length and MaxRoleSessionName are
+		// both constant.
+		ret = hex[:MaxRoleSessionName]
+	} else {
+		ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
+	}
+
+	slog.DebugContext(context.Background(), "AWS role session name is too long. Using a hash instead.", "hashed", ret, "original", roleSessionName)
+	return ret
 }

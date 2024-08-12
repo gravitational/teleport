@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // NewWebSessionRequest defines a request to create a new user
@@ -623,6 +624,12 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 			AppPublicAddr: req.PublicAddr,
 			AppName:       req.AppName,
 		},
+		AWSSessionMetadata: apievents.AWSSessionMetadata{
+			// Make an educated guess of the role session name. We have to
+			// guess here since this event is emitted on Auth instead of the
+			// App service that issues the actual AssumeRole call.
+			AWSRoleSessionName: guessAWSRoleSessionName(clusterName.GetClusterName(), req),
+		},
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit app session start event")
@@ -791,4 +798,14 @@ func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
+}
+
+// guessAWSRoleSessionName make an educated guess of the role session name.
+func guessAWSRoleSessionName(localClusterName string, req NewAppSessionRequest) string {
+	// App service uses the Teleport username as the RoleSessionName.
+	user := req.User
+	if req.ClusterName != "" && localClusterName != req.ClusterName {
+		user = services.UsernameForRemoteCluster(req.User, localClusterName)
+	}
+	return awsutils.MaybeHashRoleSessionName(user)
 }

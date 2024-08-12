@@ -668,6 +668,20 @@ username which you can search for to get the events history:
 
 ![CloudTrail](../../../../img/application-access/cloud-trail.png)
 
+When you access an AWS application in a remote cluster, the remote cluster will
+use the name `remote-<your-teleport-username>-<root-cluster-name>` for your
+federated session. This is to prevent any naming collisions with users in the
+remote cluster.
+
+<Admonition type="warning" title="Long Usernames">
+AWS imposes a 64-character limit on role session names. If a Teleport username
+exceeds this length, Teleport generates a hash and combines it with the
+original username to fit within the 64-character limit.
+</Admonition>
+
+You can also locate the federated username in the `aws_role_session_name` field
+within the "App Session Start" (`app.session.start`) audit event.
+
 ## Troubleshooting
 
 Read this section if you run into issues while following this guide.

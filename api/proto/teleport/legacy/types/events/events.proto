@@ -2745,6 +2745,13 @@ message AppSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AWS contains common AWS session information.
+  AWSSessionMetadata AWS = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AppSessionEnd is emitted when an application session ends.
@@ -2872,6 +2879,13 @@ message AppSessionRequest {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AWSSessionMetadata contains extra AWS metadata of an AWS session.
+message AWSSessionMetadata {
+  // AWSRoleSessionName is used to specify the username when assuming the AWS
+  // IAM role.
+  string AWSRoleSessionName = 1 [(gogoproto.jsontag) = "aws_role_session_name,omitempty"];
 }
 
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.
