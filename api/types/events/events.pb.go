@@ -7,14 +7,12 @@ import (
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
-	types "github.com/gravitational/teleport/api/types"
+	types1 "github.com/gravitational/teleport/api/types"
 	_ "github.com/gravitational/teleport/api/types/wrappers"
 	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
-	_ "google.golang.org/protobuf/types/known/structpb"
-	_ "google.golang.org/protobuf/types/known/timestamppb"
-	_ "google.golang.org/protobuf/types/known/wrapperspb"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -1173,10 +1171,10 @@ var xxx_messageInfo_AccessListReviewMetadata proto.InternalMessageInfo
 // LockMetadata contains common metadata for lock resource events.
 type LockMetadata struct {
 	// Target describes the set of interactions that the lock applies to
-	Target               types.LockTarget `protobuf:"bytes,4,opt,name=Target,proto3" json:"target"`
-	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
-	XXX_unrecognized     []byte           `json:"-"`
-	XXX_sizecache        int32            `json:"-"`
+	Target               types1.LockTarget `protobuf:"bytes,4,opt,name=Target,proto3" json:"target"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
 func (m *LockMetadata) Reset()         { *m = LockMetadata{} }
@@ -4294,10 +4292,10 @@ type SAMLConnectorCreate struct {
 	// User is a common user event metadata
 	UserMetadata `protobuf:"bytes,3,opt,name=User,proto3,embedded=User" json:""`
 	// Connector is the new SAML connector
-	Connector            *types.SAMLConnectorV2 `protobuf:"bytes,4,opt,name=Connector,proto3" json:"connector"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
+	Connector            *types1.SAMLConnectorV2 `protobuf:"bytes,4,opt,name=Connector,proto3" json:"connector"`
+	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
+	XXX_unrecognized     []byte                  `json:"-"`
+	XXX_sizecache        int32                   `json:"-"`
 }
 
 func (m *SAMLConnectorCreate) Reset()         { *m = SAMLConnectorCreate{} }
@@ -4342,10 +4340,10 @@ type SAMLConnectorUpdate struct {
 	// User is a common user event metadata
 	UserMetadata `protobuf:"bytes,3,opt,name=User,proto3,embedded=User" json:""`
 	// Connector is the updated SAML connector
-	Connector            *types.SAMLConnectorV2 `protobuf:"bytes,4,opt,name=Connector,proto3" json:"connector"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
+	Connector            *types1.SAMLConnectorV2 `protobuf:"bytes,4,opt,name=Connector,proto3" json:"connector"`
+	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
+	XXX_unrecognized     []byte                  `json:"-"`
+	XXX_sizecache        int32                   `json:"-"`
 }
 
 func (m *SAMLConnectorUpdate) Reset()         { *m = SAMLConnectorUpdate{} }
@@ -6195,7 +6193,7 @@ type LockCreate struct {
 	UserMetadata `protobuf:"bytes,3,opt,name=User,proto3,embedded=User" json:""`
 	// Target describes the set of interactions that the lock applies to
 	// Deprecated: use Lock instead.
-	Target types.LockTarget `protobuf:"bytes,4,opt,name=Target,proto3" json:"target"` // Deprecated: Do not use.
+	Target types1.LockTarget `protobuf:"bytes,4,opt,name=Target,proto3" json:"target"` // Deprecated: Do not use.
 	// Lock is a common lock event metadata
 	Lock                 LockMetadata `protobuf:"bytes,5,opt,name=Lock,proto3" json:"lock"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
@@ -59296,7 +59294,7 @@ func (m *SAMLConnectorCreate) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Connector == nil {
-				m.Connector = &types.SAMLConnectorV2{}
+				m.Connector = &types1.SAMLConnectorV2{}
 			}
 			if err := m.Connector.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -59482,7 +59480,7 @@ func (m *SAMLConnectorUpdate) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Connector == nil {
-				m.Connector = &types.SAMLConnectorV2{}
+				m.Connector = &types1.SAMLConnectorV2{}
 			}
 			if err := m.Connector.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
