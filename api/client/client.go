@@ -1367,9 +1367,11 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilt
 // GetKubernetesServers returns the list of kubernetes servers registered in the
 // cluster.
 func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	servers, err := GetAllResources[types.KubeServer](ctx, c, &proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
-		ResourceType: types.KindKubeServer,
+	servers, err := GetAllResources[types.KubeServer](ctx, c, proto.ListUnifiedResourcesRequest{
+		Kinds: []string{types.KindKubeServer},
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
 	})
 	return servers, trace.Wrap(err)
 }
@@ -1405,9 +1407,11 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 
 // GetApplicationServers returns all registered application servers.
 func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	servers, err := GetAllResources[types.AppServer](ctx, c, &proto.ListResourcesRequest{
-		Namespace:    namespace,
-		ResourceType: types.KindAppServer,
+	servers, err := GetAllResources[types.AppServer](ctx, c, proto.ListUnifiedResourcesRequest{
+		Kinds: []string{types.KindAppServer},
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
 	})
 	return servers, trace.Wrap(err)
 }
@@ -1672,9 +1676,11 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 // DatabaseServer entries. Web UI and `tsh db ls` extract databases from this
 // list and remove duplicates by name.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
-	servers, err := GetAllResources[types.DatabaseServer](ctx, c, &proto.ListResourcesRequest{
-		Namespace:    namespace,
-		ResourceType: types.KindDatabaseServer,
+	servers, err := GetAllResources[types.DatabaseServer](ctx, c, proto.ListUnifiedResourcesRequest{
+		Kinds: []string{types.KindDatabaseServer},
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
 	})
 	return servers, trace.Wrap(err)
 }
@@ -2362,9 +2368,11 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	servers, err := GetAllResources[types.Server](ctx, c, &proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    namespace,
+	servers, err := GetAllResources[types.Server](ctx, c, proto.ListUnifiedResourcesRequest{
+		Kinds: []string{types.KindNode},
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
 	})
 
 	return servers, trace.Wrap(err)
@@ -3718,6 +3726,7 @@ func GetUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient,
 }
 
 // GetEnrichedResourcePage is a helper for getting a single page of enriched resources.
+// Deprecated: Prefer using GetUnifiedResourcePage and the unified resources API.
 func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[*types.EnrichedResource], error) {
 	var out ResourcePage[*types.EnrichedResource]
 
@@ -3785,7 +3794,8 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 	}
 }
 
-// GetResourcePage is a helper for getting a single page of resources that match the provide request.
+// GetResourcePage is a helper for getting a single page of resources that match the provided request.
+// Deprecated: Prefer using GetUnifiedResourcePage and the unified resources API.
 func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
 	var out ResourcePage[T]
 
@@ -3858,9 +3868,10 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 	}
 }
 
-// GetAllResources is a helper for getting all existing resources that match the provided request. In addition to
+// ListAllResources is a helper for getting all existing resources that match the provided request. In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
-func GetAllResources[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) ([]T, error) {
+// Deprecated: Prefer using GetAllResources and the unified resources API.
+func ListAllResources[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) ([]T, error) {
 	var out []T
 
 	// Set the limit to the default size.
@@ -3878,6 +3889,36 @@ func GetAllResources[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 		}
 
 		req.StartKey = page.NextKey
+	}
+
+	return out, nil
+}
+
+// GetAllResources is a helper for getting all existing resources that match the provided request. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetAllResources[T types.ResourceWithLabels](ctx context.Context, clt ListUnifiedResourcesClient, req proto.ListUnifiedResourcesRequest) ([]T, error) {
+	var out []T
+
+	for {
+		page, next, err := GetUnifiedResourcePage(ctx, clt, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page {
+			t, ok := r.ResourceWithLabels.(T)
+			if !ok {
+				slog.WarnContext(ctx, "skipping unexpected resource type", "resource", t)
+				continue
+			}
+
+			out = append(out, t)
+		}
+
+		req.StartKey = next
+		if req.StartKey == "" {
+			break
+		}
 	}
 
 	return out, nil
@@ -3997,31 +4038,46 @@ func (c *Client) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequ
 		return rsp, err
 	}
 
-	// if we got a not implemented error, fallback to client-side filtering
-	servers, err := GetAllResources[*types.ServerV2](ctx, c, &proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
-		UseSearchAsRoles: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// we only get here if we hit a NotImplementedError from GetSSHTargets, which means
 	// we should be performing client-side filtering with default parameters instead.
 	routeMatcher := utils.NewSSHRouteMatcher(req.Host, req.Port, false)
 
-	// do client-side filtering
-	filtered := servers[:0]
-	for _, srv := range servers {
-		if !routeMatcher.RouteToServer(srv) {
-			continue
+	listReq := proto.ListUnifiedResourcesRequest{
+		Kinds: []string{types.KindNode},
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
+		UseSearchAsRoles: true,
+	}
+
+	var servers []*types.ServerV2
+	for {
+		page, next, err := GetUnifiedResourcePage(ctx, c, &listReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		filtered = append(filtered, srv)
+		for _, r := range page {
+			srv, ok := r.ResourceWithLabels.(*types.ServerV2)
+			if !ok {
+				slog.WarnContext(ctx, "expected types.Server but received unexpected resource", "resource", r)
+				continue
+			}
+
+			// do client-side filtering
+			if routeMatcher.RouteToServer(srv) {
+				servers = append(servers, srv)
+			}
+
+		}
+		listReq.StartKey = next
+		if listReq.StartKey == "" {
+			break
+		}
 	}
 
 	return &proto.GetSSHTargetsResponse{
-		Servers: filtered,
+		Servers: servers,
 	}, nil
 }
 

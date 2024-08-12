@@ -86,8 +86,8 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 		return trace.Wrap(err)
 	}
 
-	kubes, err := client.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindKubeServer,
+	kubes, err := client.GetAllResources[types.KubeServer](ctx, clt, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindKubeServer},
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),

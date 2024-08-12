@@ -170,7 +170,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, &cluster.req)
+			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get databases: %v.", err)
 
@@ -1155,9 +1155,8 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 		var err error
 		predicate := makePredicateConjunction(predicate, tc.PredicateExpression)
 		log.Debugf("Listing databases with predicate (%v) and labels %v", predicate, tc.Labels)
-		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			ResourceType:        types.KindDatabaseServer,
+		databases, err = tc.ListDatabases(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindDatabaseServer},
 			PredicateExpression: predicate,
 			Labels:              tc.Labels,
 			UseSearchAsRoles:    tc.UseSearchAsRoles,

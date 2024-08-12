@@ -27,7 +27,6 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -51,9 +50,8 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := apiclient.GetAllResources[types.AppServer](r.Context(), clt, &proto.ListResourcesRequest{
-		ResourceType:     types.KindAppServer,
-		Namespace:        apidefaults.Namespace,
+	appServers, err := apiclient.GetAllResources[types.AppServer](r.Context(), clt, proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindAppServer},
 		UseSearchAsRoles: true,
 	})
 	if err != nil {

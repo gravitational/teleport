@@ -236,9 +236,8 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) er
 		return trace.Wrap(err)
 	}
 
-	nodes, err := client.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
-		Namespace:           c.namespace,
+	nodes, err := client.GetAllResources[types.Server](ctx, clt, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),

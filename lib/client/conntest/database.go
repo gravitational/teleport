@@ -60,7 +60,7 @@ type ClientDatabaseConnectionTester interface {
 	client.ALPNAuthClient
 
 	services.ConnectionsDiagnostic
-	apiclient.GetResourcesClient
+	apiclient.ListUnifiedResourcesClient
 }
 
 // DatabaseConnectionTesterConfig defines the config fields for DatabaseConnectionTester.
@@ -228,12 +228,22 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 
 func (s *DatabaseConnectionTester) getDatabaseServers(ctx context.Context, databaseName string) ([]types.DatabaseServer, error) {
 	// Lookup the Database Server that's proxying the requested Database.
-	page, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, s.cfg.UserClient, &proto.ListResourcesRequest{
+	page, _, err := apiclient.GetUnifiedResourcePage(ctx, s.cfg.UserClient, &proto.ListUnifiedResourcesRequest{
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
-		ResourceType:        types.KindDatabaseServer,
+		Kinds:               []string{types.KindDatabaseServer},
 		Limit:               defaults.MaxIterationLimit,
 	})
-	return page.Resources, trace.Wrap(err)
+
+	var servers []types.DatabaseServer
+	for _, r := range page {
+		db, ok := r.ResourceWithLabels.(types.DatabaseServer)
+		if !ok {
+			continue
+		}
+		servers = append(servers, db)
+	}
+
+	return servers, trace.Wrap(err)
 }
 
 func checkDatabaseLogin(protocol, databaseUser, databaseName string) error {

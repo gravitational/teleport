@@ -620,10 +620,10 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.
 func getApp(ctx context.Context, tc *client.TeleportClient, name string) (app types.Application, err error) {
 	var apps []types.Application
 	err = client.RetryWithRelogin(ctx, tc, func() error {
-		apps, err = tc.ListApps(ctx, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			ResourceType:        types.KindAppServer,
+		apps, err = tc.ListApps(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindAppServer},
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+			Limit:               2,
 		})
 		return trace.Wrap(err)
 	})

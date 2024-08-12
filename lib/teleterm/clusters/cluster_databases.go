@@ -52,10 +52,10 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI
 	var database types.Database
 	dbName := dbURI.GetDbName()
 	err := AddMetadataToRetryableError(ctx, func() error {
-		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, authClient, &proto.ListResourcesRequest{
-			Namespace:           defaults.Namespace,
-			ResourceType:        types.KindDatabaseServer,
+		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, authClient, proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindDatabaseServer},
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
+			Limit:               2,
 		})
 		if err != nil {
 			return trace.Wrap(err)

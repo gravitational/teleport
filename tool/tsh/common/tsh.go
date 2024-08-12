@@ -2252,7 +2252,7 @@ type clusterClient struct {
 	cluster         *client.ClusterClient
 	auth            authclient.ClientI
 	profile         *client.ProfileStatus
-	req             proto.ListResourcesRequest
+	req             proto.ListUnifiedResourcesRequest
 }
 
 func (c *clusterClient) Close() error {
@@ -2307,7 +2307,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 			cluster: clt,
 			auth:    clt.AuthClient,
 			profile: profile,
-			req:     *tc.ResourceFilter(resource),
+			req:     tc.ResourceFilter(resource),
 		})
 		mu.Unlock()
 
@@ -2337,7 +2337,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 				auth:    auth,
 				profile: profile,
 				name:    clusterName,
-				req:     *tc.ResourceFilter(resource),
+				req:     tc.ResourceFilter(resource),
 			})
 		}
 
@@ -2418,7 +2418,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			nodes, err := apiclient.GetAllResources[types.Server](ctx, cluster.auth, &cluster.req)
+			nodes, err := apiclient.GetAllResources[types.Server](ctx, cluster.auth, cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get nodes: %v.", err)
 
@@ -4982,7 +4982,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 
 		logger := log.WithField("cluster", cluster.name)
 		group.Go(func() error {
-			servers, err := apiclient.GetAllResources[types.AppServer](groupCtx, cluster.auth, &cluster.req)
+			servers, err := apiclient.GetAllResources[types.AppServer](groupCtx, cluster.auth, cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get app servers: %v.", err)
 

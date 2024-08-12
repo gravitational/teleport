@@ -36,9 +36,8 @@ func getDatabase(ctx context.Context, clt *authclient.Client, name string) (type
 	ctx, span := tracer.Start(ctx, "getDatabase")
 	defer span.End()
 
-	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
+	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindDatabaseServer},
 		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
 		Limit:               int32(defaults.DefaultChunkSize),
 	})

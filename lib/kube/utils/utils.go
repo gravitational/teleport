@@ -189,10 +189,10 @@ func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]types.KubeClus
 
 // ListKubeClustersWithFilters returns a sorted list of unique kubernetes clusters
 // registered in p.
-func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
-	req.ResourceType = types.KindKubeServer
+func ListKubeClustersWithFilters(ctx context.Context, p client.ListUnifiedResourcesClient, req proto.ListUnifiedResourcesRequest) ([]types.KubeCluster, error) {
+	req.Kinds = []string{types.KindKubeServer}
 
-	kss, err := client.GetAllResources[types.KubeServer](ctx, p, &req)
+	kss, err := client.GetAllResources[types.KubeServer](ctx, p, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -60,10 +60,10 @@ func retrieveDatabaseCertificates(ctx context.Context, tc *client.TeleportClient
 
 // getDatabase loads the database which the name matches.
 func getDatabase(ctx context.Context, tc *client.TeleportClient, serviceName string, protocol string) (types.Database, error) {
-	databases, err := tc.ListDatabases(ctx, &proto.ListResourcesRequest{
-		Namespace:           tc.Namespace,
-		ResourceType:        types.KindDatabaseServer,
+	databases, err := tc.ListDatabases(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindDatabaseServer},
 		PredicateExpression: fmt.Sprintf(`name == "%s" && resource.spec.protocol == "%s"`, serviceName, protocol),
+		Limit:               2,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

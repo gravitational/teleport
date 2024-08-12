@@ -2858,7 +2858,7 @@ func (h *Handler) getUserGroupLookup(ctx context.Context, clt apiclient.GetResou
 			return userGroupLookup
 		}
 
-		userGroups, err := apiclient.GetAllResources[types.UserGroup](ctx, clt, &proto.ListResourcesRequest{
+		userGroups, err := apiclient.ListAllResources[types.UserGroup](ctx, clt, &proto.ListResourcesRequest{
 			ResourceType:     types.KindUserGroup,
 			Namespace:        apidefaults.Namespace,
 			UseSearchAsRoles: true,
@@ -3022,13 +3022,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindNode)
+	req, err := convertListUnifiedResourcesRequest(r, types.KindNode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.IncludeLogins = true
 
-	page, err := apiclient.GetEnrichedResourcePage(r.Context(), clt, req)
+	page, nextKey, err := apiclient.GetUnifiedResourcePage(r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3043,8 +3043,8 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers := make([]ui.Server, 0, len(page.Resources))
-	for _, resource := range page.Resources {
+	uiServers := make([]ui.Server, 0, len(page))
+	for _, resource := range page {
 		server, ok := resource.ResourceWithLabels.(types.Server)
 		if !ok {
 			continue
@@ -3059,9 +3059,8 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return listResourcesGetResponse{
-		Items:      uiServers,
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
+		Items:    uiServers,
+		StartKey: nextKey,
 	}, nil
 }
 

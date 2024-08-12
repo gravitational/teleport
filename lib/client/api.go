@@ -1109,10 +1109,9 @@ func (c *Config) ProxySpecified() bool {
 
 // ResourceFilter returns the default list resource request for the
 // provided resource kind.
-func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
-	return &proto.ListResourcesRequest{
-		ResourceType:        kind,
-		Namespace:           c.Namespace,
+func (c *Config) ResourceFilter(kind string) proto.ListUnifiedResourcesRequest {
+	return proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{kind},
 		Labels:              c.Labels,
 		SearchKeywords:      c.SearchKeywords,
 		PredicateExpression: c.PredicateExpression,
@@ -1385,7 +1384,7 @@ type targetNode struct {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetResourcesClient, options SSHOptions) ([]targetNode, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListUnifiedResourcesClient, options SSHOptions) ([]targetNode, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
@@ -2526,7 +2525,7 @@ func (tc *TeleportClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 }
 
 // ListAppServersWithFilters returns a list of application servers.
-func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.AppServer, error) {
+func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customFilter *proto.ListUnifiedResourcesRequest) ([]types.AppServer, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListAppServersWithFilters",
@@ -2542,15 +2541,16 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 
 	filter := customFilter
 	if filter == nil {
-		filter = tc.ResourceFilter(types.KindAppServer)
+		req := tc.ResourceFilter(types.KindAppServer)
+		filter = &req
 	}
 
-	servers, err := client.GetAllResources[types.AppServer](ctx, clusterClient.AuthClient, filter)
+	servers, err := client.GetAllResources[types.AppServer](ctx, clusterClient.AuthClient, *filter)
 	return servers, trace.Wrap(err)
 }
 
 // ListApps returns all registered applications.
-func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Application, error) {
+func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListUnifiedResourcesRequest) ([]types.Application, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListApps",
@@ -2594,7 +2594,7 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 }
 
 // ListDatabaseServersWithFilters returns all registered database proxy servers.
-func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, customFilter *proto.ListUnifiedResourcesRequest) ([]types.DatabaseServer, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListDatabaseServersWithFilters",
@@ -2610,15 +2610,16 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 
 	filter := customFilter
 	if filter == nil {
-		filter = tc.ResourceFilter(types.KindDatabaseServer)
+		req := tc.ResourceFilter(types.KindDatabaseServer)
+		filter = &req
 	}
 
-	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clusterClient.AuthClient, filter)
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clusterClient.AuthClient, *filter)
 	return servers, trace.Wrap(err)
 }
 
 // ListDatabases returns all registered databases.
-func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
+func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListUnifiedResourcesRequest) ([]types.Database, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListDatabases",

@@ -86,8 +86,8 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) e
 		return trace.Wrap(err)
 	}
 
-	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindDatabaseServer,
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clt, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindDatabaseServer},
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),

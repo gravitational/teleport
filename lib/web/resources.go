@@ -511,6 +511,34 @@ func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResou
 	}, nil
 }
 
+func convertListUnifiedResourcesRequest(r *http.Request, kinds ...string) (*proto.ListUnifiedResourcesRequest, error) {
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sortBy := types.GetSortByFromString(values.Get("sort"))
+	// The unified api only allows sorting by name and kind, however,
+	// older UIs will request to sort by hostname, which was allowed in
+	// the legacy ListResources API.
+	if sortBy.Field == "hostname" {
+		sortBy.Field = "name"
+	}
+
+	startKey := values.Get("startKey")
+	return &proto.ListUnifiedResourcesRequest{
+		Kinds:               kinds,
+		Limit:               limit,
+		StartKey:            startKey,
+		SortBy:              sortBy,
+		PredicateExpression: values.Get("query"),
+		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
+		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+	}, nil
+}
+
 // listKubeResources gets a list of kubernetes resources depending on the type of resource.
 func listKubeResources(ctx context.Context, kubeClient kubeproto.KubeServiceClient, values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesResponse, error) {
 	req, err := newKubeListRequest(values, site, resourceKind)

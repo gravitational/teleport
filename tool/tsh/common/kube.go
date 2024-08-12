@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -1408,7 +1407,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		defer clusterClient.Close()
 
 		teleportCluster = clusterClient.ClusterName()
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListResourcesRequest{
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListUnifiedResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
@@ -1612,9 +1611,8 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	if shouldLoginToOneKubeCluster(cf) {
 		predicate = makeDiscoveredNameOrNamePredicate(c.kubeCluster)
 	}
-	kubes, err := apiclient.GetAllResources[types.KubeCluster](ctx, clt.AuthClient, &proto.ListResourcesRequest{
-		Namespace:           apidefaults.Namespace,
-		ResourceType:        types.KindKubernetesCluster,
+	kubes, err := apiclient.GetAllResources[types.KubeCluster](ctx, clt.AuthClient, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindKubernetesCluster},
 		UseSearchAsRoles:    true,
 		PredicateExpression: makePredicateConjunction(predicate, tc.PredicateExpression),
 		Labels:              tc.Labels,

@@ -396,9 +396,8 @@ func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (t
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
-	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindKubeServer,
+	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindKubeServer},
 		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
 		Limit:               int32(defaults.DefaultChunkSize),
 	})

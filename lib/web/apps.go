@@ -79,7 +79,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		}
 	}
 
-	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
+	userGroups, err := apiclient.ListAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
 		ResourceType:     types.KindUserGroup,
 		Namespace:        apidefaults.Namespace,
 		UseSearchAsRoles: true,

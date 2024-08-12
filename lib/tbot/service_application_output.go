@@ -27,7 +27,6 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -237,9 +236,8 @@ func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
-	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindAppServer,
+	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindAppServer},
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
 		Limit:               1,
 	})

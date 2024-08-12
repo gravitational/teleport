@@ -128,10 +128,10 @@ type GetAppsResponse struct {
 func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
-		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
-			Namespace:           c.clusterClient.Namespace,
-			ResourceType:        types.KindAppServer,
+		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindAppServer},
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+			Limit:               2,
 		})
 		if err != nil {
 			return trace.Wrap(err)

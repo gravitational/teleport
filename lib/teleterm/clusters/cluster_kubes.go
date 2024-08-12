@@ -154,7 +154,7 @@ func (c *Cluster) getKube(ctx context.Context, authClient authclient.ClientI, ku
 	var kubeClusters []types.KubeCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
 		var err error
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListUnifiedResourcesRequest{
 			PredicateExpression: fmt.Sprintf("name == %q", kubeCluster),
 		})
 
