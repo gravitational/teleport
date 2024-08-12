@@ -257,9 +257,9 @@ type profileOptions struct {
 	SAMLSingleLogoutEnabled bool
 }
 
-// profileFromkey returns a ProfileStatus for the given key and options.
-func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, error) {
-	sshCert, err := key.SSHCert()
+// profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
+func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileStatus, error) {
+	sshCert, err := keyRing.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,7 +319,7 @@ func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, er
 	}
 	sort.Strings(extensions)
 
-	tlsCert, err := key.TeleportTLSCertificate()
+	tlsCert, err := keyRing.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,12 +328,12 @@ func profileStatusFromKey(key *KeyRing, opts profileOptions) (*ProfileStatus, er
 		return nil, trace.Wrap(err)
 	}
 
-	databases, err := findActiveDatabases(key)
+	databases, err := findActiveDatabases(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appCerts, err := key.AppTLSCertificates()
+	appCerts, err := keyRing.AppTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -444,7 +444,7 @@ func (p *ProfileStatus) KeyPath() string {
 // DatabaseCertPathForCluster returns path to the specified database access
 // certificate for this profile, for the specified cluster.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>.crt
 //
 // If the input cluster name is an empty string, the selected cluster in the
 // profile will be used.
@@ -453,11 +453,30 @@ func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseN
 		clusterName = p.Cluster
 	}
 
-	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseCertParams(databaseName)); ok {
 		return path
 	}
 
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
+}
+
+// DatabaseKeyPathForCluster returns path to the specified database access
+// private key for this profile, for the specified cluster.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>.key
+//
+// If the input cluster name is an empty string, the selected cluster in the
+// profile will be used.
+func (p *ProfileStatus) DatabaseKeyPathForCluster(clusterName string, databaseName string) string {
+	if clusterName == "" {
+		clusterName = p.Cluster
+	}
+
+	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathDatabaseKeyParams(databaseName)); ok {
+		return path
+	}
+
+	return keypaths.DatabaseKeyPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
 // OracleWalletDir returns path to the specified database access
@@ -472,7 +491,7 @@ func (p *ProfileStatus) OracleWalletDir(clusterName string, databaseName string)
 		clusterName = p.Cluster
 	}
 
-	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseCertParams(databaseName)); ok {
 		return path
 	}
 
@@ -493,16 +512,31 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt
 func (p *ProfileStatus) AppCertPath(cluster, name string) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
-	if path, ok := p.virtualPathFromEnv(VirtualPathApp, VirtualPathAppParams(name)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathAppCert, VirtualPathAppCertParams(name)); ok {
 		return path
 	}
 
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, cluster, name)
+}
+
+// AppKeyPath returns path to the specified app access private key for this
+// profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key
+func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
+	if cluster == "" {
+		cluster = p.Cluster
+	}
+	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathAppKeyParams(name)); ok {
+		return path
+	}
+
+	return keypaths.AppKeyPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // AppLocalCAPath returns the specified app's self-signed localhost CA path for
@@ -556,18 +590,18 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		return p.Databases, nil
 	}
 
-	idx := KeyIndex{
+	idx := KeyRingIndex{
 		ProxyHost:   p.Name,
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
 
 	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, WithDBCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return findActiveDatabases(key)
+	return findActiveDatabases(keyRing)
 }
 
 // AppsForCluster returns a list of apps for this profile, for the
@@ -577,18 +611,18 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		return p.Apps, nil
 	}
 
-	idx := KeyIndex{
+	idx := KeyRingIndex{
 		ProxyHost:   p.Name,
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
 
 	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, WithAppCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return findActiveApps(key)
+	return findActiveApps(keyRing)
 }
 
 // AppNames returns a list of app names this profile is logged into.

@@ -79,7 +79,7 @@ Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:teleport.example.com]
 If you don't provide a login to this command, your local Windows username is used instead.
 
 If you are adding a session for a registered OpenSSH node within your cluster (added with
-[`teleport join openssh`](../enroll-resources/server-access/openssh/openssh.mdx)), you must specify the `sshd` port
+[`teleport join openssh`](../enroll-resources/server-access/openssh/openssh-agentless.mdx)), you must specify the `sshd` port
 (usually 22) when adding a session with `tsh puttyconfig`:
 
 ```bash
@@ -285,7 +285,7 @@ Yes, WinSCP version 6.2 and higher support validation using SSH host certificate
 
 No, PuTTY calls `tsh proxy ssh` which uses the default authentication method configured for the Teleport cluster.
 
-For more information about Teleport authentication, see [Authentication options](../reference/authentication.mdx).
+For more information about Teleport authentication, see [Authentication options](../reference/access-controls/authentication.mdx).
 
 Advanced users can use the Registry Editor to modify the PuTTY proxy command themselves under the `ProxyTelnetCommand`
 key. Note that if you re-run `tsh puttyconfig` for the given hostname, this command is overwritten.
@@ -375,7 +375,7 @@ If this error appears during normal day-to-day operation, this is a bug and shou
 ## Uninstalling tsh
 
 To remove `tsh` and associated user data see
-[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+[Uninstalling Teleport](../admin-guides/management/admin/uninstall-teleport.mdx).
 
 ## Further reading
 - [CLI Reference](../reference/cli/tsh.mdx#tsh-puttyconfig).

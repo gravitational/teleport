@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 
-import { CSSObject } from 'styled-components';
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
 
 import {
   space,
@@ -62,6 +62,11 @@ export type ButtonProps<E extends React.ElementType> =
        * button labels.
        */
       inputAlignment?: boolean;
+
+      /**
+       * If set to true, renders a button with the smallest horizontal paddings.
+       */
+      compact?: boolean;
 
       /**
        * Specifies the case transform of the button text. Default is no
@@ -288,6 +293,9 @@ const buttonPalette = <E extends React.ElementType>({
 const horizontalPadding = <E extends React.ElementType>(
   props: ButtonProps<E>
 ) => {
+  if (props.compact) {
+    return 4;
+  }
   if (props.inputAlignment) {
     return 16;
   }
@@ -352,7 +360,10 @@ const block = props =>
 const textTransform = props =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
-const StyledButton = styled.button`
+const StyledButton = styled.button.withConfig({
+  shouldForwardProp: (prop, target) =>
+    !['compact'].includes(prop) && defaultValidatorFn(prop, target),
+})`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -393,21 +404,21 @@ const StyledButton = styled.button`
   ${themedStyles}
 `;
 
-export const ButtonPrimary = <E extends React.ElementType>(
+export const ButtonPrimary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="primary" {...props} />;
-export const ButtonSecondary = <E extends React.ElementType>(
+export const ButtonSecondary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="neutral" {...props} />;
-export const ButtonBorder = <E extends React.ElementType>(
+export const ButtonBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="neutral" {...props} />;
-export const ButtonWarning = <E extends React.ElementType>(
+export const ButtonWarning = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="danger" {...props} />;
-export const ButtonWarningBorder = <E extends React.ElementType>(
+export const ButtonWarningBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="danger" {...props} />;
-export const ButtonText = <E extends React.ElementType>(
+export const ButtonText = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="minimal" intent="neutral" {...props} />;

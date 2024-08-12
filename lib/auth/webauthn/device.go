@@ -35,7 +35,15 @@ import (
 // https://datatracker.ietf.org/doc/html/rfc8152#section-13.1
 const curveP256CBOR = 1
 
-func deviceToCredential(dev *types.MFADevice, idOnly bool) (wan.Credential, bool) {
+type credentialFlags struct {
+	BE, BS bool
+}
+
+func deviceToCredential(
+	dev *types.MFADevice,
+	idOnly bool,
+	currentFlags *credentialFlags,
+) (wan.Credential, bool) {
 	switch dev := dev.Device.(type) {
 	case *types.MFADevice_U2F:
 		var pubKeyCBOR []byte
@@ -59,10 +67,29 @@ func deviceToCredential(dev *types.MFADevice, idOnly bool) (wan.Credential, bool
 		if !idOnly {
 			pubKeyCBOR = dev.Webauthn.PublicKeyCbor
 		}
+
+		// Use BE/BS from the device, falling back to currentFlags for devices that
+		// haven't been backfilled yet.
+		var be, bs bool
+		if dev.Webauthn.CredentialBackupEligible != nil {
+			be = dev.Webauthn.CredentialBackupEligible.Value
+		} else {
+			be = currentFlags != nil && currentFlags.BE
+		}
+		if dev.Webauthn.CredentialBackedUp != nil {
+			bs = dev.Webauthn.CredentialBackedUp.Value
+		} else {
+			bs = currentFlags != nil && currentFlags.BS
+		}
+
 		return wan.Credential{
 			ID:              dev.Webauthn.CredentialId,
 			PublicKey:       pubKeyCBOR,
 			AttestationType: dev.Webauthn.AttestationType,
+			Flags: wan.CredentialFlags{
+				BackupEligible: be,
+				BackupState:    bs,
+			},
 			Authenticator: wan.Authenticator{
 				AAGUID:    dev.Webauthn.Aaguid,
 				SignCount: dev.Webauthn.SignatureCounter,

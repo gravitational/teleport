@@ -33,7 +33,6 @@ import {
 import cfg from 'teleport/config';
 
 import { ActionButtons, Header, ResourceKind } from '../../Shared';
-import { InfoIcon } from '../InfoIcon';
 
 import { CreatedDiscoveryConfigDialog } from './CreatedDiscoveryConfigDialog';
 import { ConfigureDiscoveryServiceDirections } from './ConfigureDiscoveryServiceDirections';
@@ -161,23 +160,18 @@ function EnrollInfo({ kind }: { kind: ResourceKind }) {
           automatically discover and enroll EC2 instances.
         </Text>
         <OutlineInfo mt={3} linkColor="buttons.link.default">
-          <Box>
-            <InfoIcon />
-          </Box>
-          <Box>
-            Auto discovery will enroll all EC2 instances found in a region. If
-            you want to enroll a <Mark>single</Mark> EC2 instance instead,
-            consider following{' '}
-            <InternalLink
-              to={{
-                pathname: cfg.routes.discover,
-                state: { searchKeywords: 'linux' },
-              }}
-            >
-              the Teleport service installation flow
-            </InternalLink>
-            .
-          </Box>
+          Auto discovery will enroll all EC2 instances found in a region. If you
+          want to enroll a <Mark>single</Mark> EC2 instance instead, consider
+          following{' '}
+          <InternalLink
+            to={{
+              pathname: cfg.routes.discover,
+              state: { searchKeywords: 'linux' },
+            }}
+          >
+            the Teleport service installation flow
+          </InternalLink>
+          .
         </OutlineInfo>
       </>
     );

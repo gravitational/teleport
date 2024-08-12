@@ -181,7 +181,7 @@ const Provider = ({
       appMeta: { awsConsole: true },
       name: '',
       icon: undefined,
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.ApplicationHttp,
     },
     exitFlow: () => null,

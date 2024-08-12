@@ -195,7 +195,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
         kind: ResourceKind.SamlApplication,
         samlMeta: { preset: samlAppPreset },
         icon: 'application',
-        keywords: 'saml',
+        keywords: ['saml'],
       };
       return (
         <ButtonWithMenu

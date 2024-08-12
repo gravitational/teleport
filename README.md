@@ -12,7 +12,7 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/
+* Architecture: https://goteleport.com/docs/architecture/introduction
 * Getting Started: https://goteleport.com/docs/getting-started/
 
 <div align="center">
@@ -55,14 +55,14 @@ Teleport includes an identity-aware access proxy, a CA that issues short-lived c
 
 We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
 
-* [SSH nodes](https://goteleport.com/docs/server-access/introduction/).
-* [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/).
-* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/).
-* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/).
-* [Networked servers](https://goteleport.com/docs/server-access/introduction/).
+* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
+* [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
+* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
+* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
+* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 
-You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/#set-up-a-demo-cluster) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
+You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
 
 Teleport focuses on best practices for infrastructure security:
 
@@ -368,8 +368,9 @@ We had a choice, either start a security consulting business or build a solution
 ## More Information
 
 * [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
-* [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
-* [Reference](https://goteleport.com/docs/reference)
+* [Teleport
+  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
+* [Reference](https://goteleport.com/docs/reference/introduction)
 * [FAQ](https://goteleport.com/docs/faq)
 
 ## Support and Contributing

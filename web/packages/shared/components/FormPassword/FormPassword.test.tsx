@@ -21,7 +21,6 @@ import React from 'react';
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
 import FormPassword from './FormPassword';
-import { On, Optional } from './FormPassword.story';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {
@@ -171,14 +170,4 @@ test('prop auth2faType: OTP form', async () => {
   expect(screen.getByPlaceholderText(placeholdNewPass)).toHaveValue('');
   expect(screen.getByPlaceholderText(placeholdConfirm)).toHaveValue('');
   expect(screen.getByPlaceholderText(/123 456/i)).toHaveValue('');
-});
-
-test('auth2faType "optional" should render form with hardware key as first option in dropdown', async () => {
-  const { container } = render(<Optional />);
-  expect(container).toMatchSnapshot();
-});
-
-test('auth2faType "on" should render form with hardware key as first option in dropdown', async () => {
-  const { container } = render(<On />);
-  expect(container).toMatchSnapshot();
 });
