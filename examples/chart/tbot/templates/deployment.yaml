@@ -113,6 +113,7 @@ spec:
             initialDelaySeconds: 10 # After an initial 10 seconds
             periodSeconds: 10 # Check every 10 seconds
             failureThreshold: 6 # After 60 (6x10) seconds of failure, kill pod
+            timeoutSeconds: 5 # Wait 5 seconds for the probe to complete
           readinessProbe:
             httpGet:
               path: /readyz
@@ -120,6 +121,7 @@ spec:
             initialDelaySeconds: 5 # After an initial 5 seconds
             periodSeconds: 10 # Check every 10 seconds
             failureThreshold: 3 # After 30 (3x10) seconds of failure, mark pod unready
+            timeoutSeconds: 5 # Wait 5 seconds for the probe to complete
       serviceAccountName: {{ template "tbot.serviceAccountName" . }}
       volumes:
         - name: config
