@@ -42,6 +42,24 @@ const (
 	DateTimeFormat = "2006-01-02 15:04:05"
 )
 
+type ServicenowClient interface {
+	// CreateIncident creates an servicenow incident.
+	CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error)
+	// PostReviewNote posts a note once a new request review appears.
+	PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error
+	// ResolveIncident resolves an incident and posts a note with resolution details.
+	ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error
+	// GetOnCall returns the current users on-call for the given rota ID.
+	GetOnCall(ctx context.Context, rotaID string) ([]string, error)
+	// GetUserName returns the name for the given user ID
+	GetUserName(ctx context.Context, userID string) (string, error)
+	// CheckHealth pings servicenow to check if it is reachable.
+	CheckHealth(ctx context.Context) error
+	buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error)
+	buildReviewNoteBody(review types.AccessReview) (string, error)
+	buildResolutionNoteBody(resolution Resolution) (string, error)
+}
+
 // Client is a wrapper around resty.Client that implements a few ServiceNow
 // incident methods to create incidents, update them, and check who is on-call.
 //
