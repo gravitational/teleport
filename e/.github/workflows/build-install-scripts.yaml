@@ -53,15 +53,19 @@ jobs:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
           edition: oss
+          # This is still needed to so that teleport-private
+          # can be checked out
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Copy the scripts to the release directory
         env:
           RELEASE_VERSION: ${{ inputs.teleport-version }}
         run: |
           mkdir -p build/artifacts
-          cp ./assets/install-scripts/install.sh ./build/artifacts/install-v${RELEASE_VERSION}.sh
-          cp ./assets/install-scripts/install-connect.sh ./build/artifacts/install-connect-v${RELEASE_VERSION}.sh
-          cp ./assets/install-scripts/license-check.sh ./build/artifacts/license-check-v${RELEASE_VERSION}.sh
+          cp ./assets/install-scripts/install.sh "./build/artifacts/install-v${RELEASE_VERSION}.sh"
+          cp ./assets/install-scripts/install-connect.sh "./build/artifacts/install-connect-v${RELEASE_VERSION}.sh"
+          cp ./assets/install-scripts/license-check.sh "./build/artifacts/license-check-v${RELEASE_VERSION}.sh"
       
       # Generate the manifests
       - name: Assume AWS ECR pull role
