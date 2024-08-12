@@ -1118,6 +1118,69 @@ func TestCredentialBackupFlags(t *testing.T) {
 	})
 }
 
+func TestPasswordlessFlow_backfillResidentKey(t *testing.T) {
+	t.Parallel()
+
+	key, err := mocku2f.Create()
+	require.NoError(t, err, "Create failed")
+	key.SetPasswordless()
+	key.SetBackupFlags = true // BE=1 and BS=1
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+	ctx := context.Background()
+
+	// Register passwordless device as MFA.
+	// (Providers might make it passwordless regardless.)
+	rf := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := rf.Begin(ctx, user, false /* passwordless */)
+	require.NoError(t, err, "Begin failed")
+	ccr, err := key.SignCredentialCreation(origin, cc)
+	require.NoError(t, err, "SignCredentialCreation failed")
+	mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "mydevice",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err, "Finish failed")
+	// Sanity check.
+	require.False(t,
+		mfaDev.GetWebauthn().ResidentKey,
+		"MFA device unexpectedly marked as resident key",
+	)
+
+	// Set the UserHandle in our fake key. A "regular" authenticator would save
+	// the handle during registration, but our fake only does that for
+	// "passwordless" registrations.
+	wla, err := webIdentity.GetWebauthnLocalAuth(ctx, user)
+	require.NoError(t, err, "GetWebauthnLocalAuth failed")
+	key.UserHandle = wla.UserID
+
+	t.Run("ok", func(t *testing.T) {
+		lf := &wanlib.PasswordlessFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+
+		// Login.
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin failed")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Verify that we corrected the ResidentKey field.
+		mfaDev := loginData.Device
+		assert.True(t, mfaDev.GetWebauthn().ResidentKey, "ResidentKey field not corrected")
+	})
+}
+
 type fakeIdentity struct {
 	User *types.UserV2
 	// MappedUser is used as the reply to GetTeleportUserByWebauthnID.
