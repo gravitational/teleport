@@ -2383,16 +2383,6 @@ func (f *fakeFIDO2Device) Assertion(
 		privilegedAccess = true
 	}
 
-	// Simulate "internal error" on unknown credential handles.
-	// Sometimes happens with Yubikeys firmware 4.1.8.
-	if f.errorOnUnknownCredential {
-		for _, cid := range credentialIDs {
-			if !bytes.Equal(cid, f.key.KeyHandle) {
-				return nil, fmt.Errorf("failed to get assertion: %w", libfido2.ErrInternal)
-			}
-		}
-	}
-
 	// U2F only: exit without user interaction if there are no credentials.
 	if f.u2fOnly {
 		found := false
@@ -2429,6 +2419,13 @@ func (f *fakeFIDO2Device) Assertion(
 	credIDs := make(map[string]struct{})
 	for _, cred := range credentialIDs {
 		credIDs[string(cred)] = struct{}{}
+
+		// Simulate "internal error" on unknown credential handles.
+		// Sometimes happens with Yubikeys firmware 4.1.8.
+		// Requires a tap to happen.
+		if f.errorOnUnknownCredential && !bytes.Equal(cred, f.key.KeyHandle) {
+			return nil, fmt.Errorf("failed to get assertion: %w", libfido2.ErrInternal)
+		}
 	}
 
 	// Assemble one assertion for each allowed credential we hold.
