@@ -126,7 +126,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ .Release.Name }}
+            name: {{ include "tbot.fullname" . }}
         - name: join-sa-token
           projected:
             sources:

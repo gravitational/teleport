@@ -116,7 +116,7 @@ should match the snapshot (full):
             operator: Exists
           volumes:
           - configMap:
-              name: RELEASE-NAME
+              name: RELEASE-NAME-tbot
             name: config
           - name: join-sa-token
             projected:
@@ -207,7 +207,7 @@ should match the snapshot (simple):
           serviceAccountName: RELEASE-NAME-tbot
           volumes:
           - configMap:
-              name: RELEASE-NAME
+              name: RELEASE-NAME-tbot
             name: config
           - name: join-sa-token
             projected:
