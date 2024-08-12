@@ -2023,7 +2023,7 @@ func TestFIDO2Login_u2fInternalError(t *testing.T) {
 		[]byte(`55cde2973243a946b85a477d2e164a35d2e4f3daaeb11ac5e9a1c4cf3297033e`), // clientDataHash
 		[][]byte{
 			u2fDev.credentialID(),
-			[]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+			bytes.Repeat([]byte("A"), 96),
 		},
 		"", // pin
 		&libfido2.AssertionOpts{UP: libfido2.False},
