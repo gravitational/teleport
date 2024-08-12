@@ -59,6 +59,8 @@ const (
 	storeGCP       = "gcp_kms"
 	storeAWS       = "aws_kms"
 	storeSoftware  = "software"
+
+	labelCryptoAlgorithm = "key_algorithm"
 )
 
 var (
@@ -79,13 +81,13 @@ var (
 		Subsystem: keystoreSubsystem,
 		Name:      "create",
 		Help:      "Total number of key create requests",
-	}, []string{labelKeyType, labelStoreType})
+	}, []string{labelKeyType, labelStoreType, labelCryptoAlgorithm})
 	createErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: keystoreSubsystem,
 		Name:      "create_error",
 		Help:      "Total number of key create request errors",
-	}, []string{labelKeyType, labelStoreType})
+	}, []string{labelKeyType, labelStoreType, labelCryptoAlgorithm})
 )
 
 // Manager provides an interface to interact with teleport CA private keys,
@@ -417,20 +419,20 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
-	createCounter.WithLabelValues(keyTypeSSH).Inc()
-	key, err := m.newSSHKeyPair(ctx, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
 	if err != nil {
-		createErrorCounter.WithLabelValues(keyTypeSSH).Inc()
+		return nil, trace.Wrap(err)
+	}
+	createCounter.WithLabelValues(keyTypeSSH, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newSSHKeyPair(ctx, alg)
+	if err != nil {
+		createErrorCounter.WithLabelValues(keyTypeSSH, m.backendForNewKeys.name(), alg.String()).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
 }
 
-func (m *Manager) newSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (m *Manager) newSSHKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.SSHKeyPair, error) {
 	// The default hash length for SSH signers is 512 bits.
 	sshKey, cryptoSigner, err := m.backendForNewKeys.generateKey(ctx, alg, withRSADigestAlgorithm(crypto.SHA512))
 	if err != nil {
@@ -450,8 +452,12 @@ func (m *Manager) newSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 
 // NewTLSKeyPair creates a new TLS keypair in the keystore backend and returns it.
 func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error) {
-	createCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name()).Inc()
-	key, err := m.newTLSKeyPair(ctx, clusterName, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	createCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newTLSKeyPair(ctx, clusterName, alg)
 	if err != nil {
 		createErrorCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name()).Inc()
 		return nil, trace.Wrap(err)
@@ -459,11 +465,7 @@ func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose
 	return key, nil
 }
 
-func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cryptosuites.Algorithm) (*types.TLSKeyPair, error) {
 	tlsKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -487,20 +489,20 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, purpose
 // New JWTKeyPair create a new JWT keypair in the keystore backend and returns
 // it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
-	createCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name()).Inc()
-	key, err := m.newJWTKeyPair(ctx, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
 	if err != nil {
-		createErrorCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name()).Inc()
+		return nil, trace.Wrap(err)
+	}
+	createCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newJWTKeyPair(ctx, alg)
+	if err != nil {
+		createErrorCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name(), alg.String()).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
 }
 
-func (m *Manager) newJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (m *Manager) newJWTKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.JWTKeyPair, error) {
 	jwtKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
