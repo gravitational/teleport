@@ -20,4 +20,4 @@ roleRef:
   kind: Role
   name:  {{ include "tbot.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
-{{- end }}
+{{ end }}
