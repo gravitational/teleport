@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
-	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 type stubUser struct {
@@ -190,21 +189,6 @@ func TestStartNewParker(t *testing.T) {
 	}
 }
 
-func newSocketPair(t *testing.T) (localConn *net.UnixConn, remoteFD *os.File) {
-	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, remoteConn.Close())
-		require.NoError(t, localConn.Close())
-	})
-	remoteFD, err = remoteConn.File()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, remoteFD.Close())
-	})
-	return localConn, remoteFD
-}
-
 func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 	var err error
 	if listener == nil {
@@ -272,14 +256,7 @@ func testNetworkingCommand(t *testing.T, login string) {
 	})
 
 	t.Run("x11 forward", func(t *testing.T) {
-		// TODO(Joerger): This test only works when the networking process
-		// runs as the same user due to some unsolved issue with a
-		// "timeout in locking authority file". TestRootX11ForwardPermissions
-		// covers for this, but ideally we'd replace that test with this newer
-		// more unitized test.
-		if login == "" {
-			testX11Forward(ctx, t, proc)
-		}
+		testX11Forward(ctx, t, proc, login)
 	})
 }
 
@@ -357,18 +334,33 @@ func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Proces
 	require.Len(t, keys, 1)
 }
 
-func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process) {
+func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process, login string) {
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
 
-	xauthTempFile := filepath.Join(t.TempDir(), "Xauthority")
+	localUser, err := user.Current()
+	if login != "" {
+		localUser, err = user.Lookup(login)
+	}
+	require.NoError(t, err)
+
+	cred, err := getCmdCredential(localUser)
+	require.NoError(t, err)
+
+	// Create a temporary xauth file path belonging to the user.
+	tempDir, err := os.MkdirTemp("", "xauth-temp")
+	require.NoError(t, err)
+	err = os.Chown(tempDir, int(cred.Uid), int(cred.Gid))
+	require.NoError(t, err)
+	xauthTempFilePath := filepath.Join(tempDir, ".Xauthority")
+
 	fakeXauthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
 
 	// Request a listener from the networking process.
 	listener, err := proc.ListenX11(ctx, networking.X11Request{
-		XauthFile: xauthTempFile,
+		XauthFile: xauthTempFilePath,
 		ForwardRequestPayload: x11.ForwardRequestPayload{
 			AuthProtocol: fakeXauthEntry.Proto,
 			AuthCookie:   fakeXauthEntry.Cookie,
@@ -406,9 +398,15 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process)
 	require.NoError(t, err)
 	require.Equal(t, echoMsg, buf)
 
-	// Check that the xauth entry was stored for the listener's corresponding x11 display.
+	// Check that the xauth entry was stored for the listener's corresponding x11 display
+	// in the user's xauth file.
 	fakeXauthEntry.Display = display
-	readXauthEntry, err := x11.NewXAuthCommand(ctx, xauthTempFile).ReadEntry(display)
+	xauthCmd := x11.NewXAuthCommand(ctx, xauthTempFilePath)
+	xauthCmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid:     true,
+		Credential: cred,
+	}
+	readXauthEntry, err := xauthCmd.ReadEntry(display)
 	require.NoError(t, err)
 	require.Equal(t, fakeXauthEntry, readXauthEntry)
 }
