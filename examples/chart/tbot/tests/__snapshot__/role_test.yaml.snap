@@ -1,5 +1,6 @@
 should match the snapshot (full):
   1: |
+    apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
       annotations:
@@ -17,6 +18,7 @@ should match the snapshot (full):
       - '*'
 should match the snapshot (simple):
   1: |
+    apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
     metadata:
       name: RELEASE-NAME-tbot

@@ -29,7 +29,7 @@ storage:
   type: memory
 {{- else if eq .Values.persistence "secret" }}
 storage:
-  type: kubernetes-secret
+  type: kubernetes_secret
   name: {{ include "tbot.fullname" . }}
 {{- else }}
   {{- required "'persistence' must be 'secret' or 'disabled'" "" }}
@@ -39,7 +39,7 @@ outputs:
 {{- if .Values.defaultOutput.enabled }}
   - type: identity
     destination:
-      type: kubernetes-secret
+      type: kubernetes_secret
       name: {{ .Values.defaultOutput.secretName }}
 {{- end }}
 {{- if .Values.outputs }}

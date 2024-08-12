@@ -17,7 +17,7 @@ it should match the snapshot (custom):
           type: bar
         storage:
           name: RELEASE-NAME-tbot
-          type: kubernetes-secret
+          type: kubernetes_secret
         version: v2
         xyzzy: foo
         yxzyy: 17
@@ -65,12 +65,12 @@ should match the snapshot (simple):
         outputs:
         - destination:
             name: test-output
-            type: kubernetes-secret
+            type: kubernetes_secret
           type: identity
         proxy_server: test.teleport.sh:443
         storage:
           name: RELEASE-NAME-tbot
-          type: kubernetes-secret
+          type: kubernetes_secret
         version: v2
     kind: ConfigMap
     metadata:

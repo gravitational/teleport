@@ -49,7 +49,7 @@ spec:
     {{- end }}
       containers:
         - name: tbot
-          image: {{ .Values.image }}:{{ .Chart.Version }}
+          image: {{ .Values.image }}:{{ template "tbot.version" . }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           args:
             - start

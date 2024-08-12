@@ -42,3 +42,11 @@ This is done to avoid naming conflicts when including the chart in other charts.
         {{- end }}
     {{- end }}
 {{- end }}
+
+{{- define "tbot.version" -}}
+{{- if .Values.teleportVersionOverride -}}
+  {{- .Values.teleportVersionOverride -}}
+{{- else -}}
+  {{- .Chart.Version -}}
+{{- end -}}
+{{- end -}}
