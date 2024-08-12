@@ -2540,7 +2540,7 @@
     },
     {
       "source": "/management/operations/db-ca-rotation/",
-      "destination": "/admin-guides/management/operations/db-ca-rotation/",
+      "destination": "/admin-guides/management/operations/ca-rotation/",
       "permanent": true
     },
     {
