@@ -66,7 +66,7 @@ jobs:
       - name: Construct Summary
         shell: bash
         run: |
-          echo "```" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
           | sed -E -e 's/^pkg:\s+(github.*)/\n```## \1\n\n```/'  >> "$GITHUB_STEP_SUMMARY"
 
