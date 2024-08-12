@@ -81,7 +81,7 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 	if len(reqData.User) > 0 {
 		msgFieldToBuilder(&builder, "User", reqData.User)
 	}
-	if len(reqData.Roles) > 0 {
+	if len(reqData.LoginsByRole) > 0 {
 		for role, logins := range reqData.LoginsByRole {
 			var loginStr string
 			if len(logins) > 0 {
@@ -92,7 +92,8 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 			msgFieldToBuilder(&builder, "Role", lib.MarkdownEscapeInLine(role, requestInlineLimit),
 				"Login(s)", lib.MarkdownEscapeInLine(loginStr, requestInlineLimit))
 		}
-
+	} else if len(reqData.Roles) > 0 {
+		msgFieldToBuilder(&builder, "Role(s)", lib.MarkdownEscapeInLine(strings.Join(reqData.Roles, ","), requestInlineLimit))
 	}
 	if len(reqData.Resources) > 0 {
 		msgFieldToBuilder(&builder, "Resource(s)", lib.MarkdownEscapeInLine(strings.Join(reqData.Resources, ","), requestInlineLimit))

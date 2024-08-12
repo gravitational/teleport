@@ -235,7 +235,9 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	loginsByRole, err := a.getLoginsByRole(ctx, req)
-	if err != nil {
+	if trace.IsAccessDenied(err) {
+		log.Warnf("failed to get logins by role. error: %s", err)
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -499,6 +501,7 @@ func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map
 
 	for _, role := range req.GetRoles() {
 		currentRole, err := a.apiClient.GetRole(ctx, role)
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
