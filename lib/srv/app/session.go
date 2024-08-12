@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -175,7 +176,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	if traits == nil {
 		traits = make(wrappers.Traits)
 	}
-	traits[teleport.TraitJWT] = []string{jwt}
+	traits[constants.TraitJWT] = []string{jwt}
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
