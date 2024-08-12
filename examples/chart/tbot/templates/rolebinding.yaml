@@ -3,7 +3,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "tbot.fullname" . }}
   namespace: {{ .Release.Namespace }}
 {{- if .Values.extraLabels.roleBinding }}
   labels:
@@ -18,6 +18,6 @@ subjects:
   namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
-  name:  {{ .Release.Name }}
+  name:  {{ include "tbot.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
 {{- end }}

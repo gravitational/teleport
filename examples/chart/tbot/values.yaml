@@ -10,6 +10,9 @@ image: public.ecr.aws/gravitational/tbot-distroless
 # For example: `clusterName: "test.teleport.sh"`
 clusterName: ""
 
+nameOverride: ""
+fullnameOverride: ""
+
 # teleportAuthAddress(string)
 # Mutually exclusive with teleportProxyAddress.
 # Ignored if `customConfig` is set.
