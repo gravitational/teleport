@@ -20,9 +20,11 @@ package aws_sync
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -107,8 +109,22 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 			if err != nil {
 				collect(nil, trace.Wrap(err, "failed to fetch bucket %q acls policies", aws.ToString(bucket.Name)))
 			}
+
+			tagsOutput, err := s3Client.GetBucketTaggingWithContext(ctx, &s3.GetBucketTaggingInput{
+				Bucket: bucket.Name,
+			})
+			var awsErr awserr.Error
+			const noSuchTagSet = "NoSuchTagSet" // error code when there are no tags or the bucket does not support them
+			if errors.As(err, &awsErr) && awsErr.Code() == noSuchTagSet {
+				// If there are no tags, set the error to nil.
+				err = nil
+			}
+			if err != nil {
+				collect(nil, trace.Wrap(err, "failed to fetch bucket %q tags", aws.ToString(bucket.Name)))
+			}
+
 			collect(
-				awsS3Bucket(aws.ToString(bucket.Name), policy, policyStatus, acls, a.AccountID),
+				awsS3Bucket(aws.ToString(bucket.Name), policy, policyStatus, acls, tagsOutput, a.AccountID),
 				nil)
 			return nil
 		})
@@ -119,7 +135,7 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 	return s3s, trace.Wrap(err)
 }
 
-func awsS3Bucket(name string, policy *s3.GetBucketPolicyOutput, policyStatus *s3.GetBucketPolicyStatusOutput, acls *s3.GetBucketAclOutput, accountID string) *accessgraphv1alpha.AWSS3BucketV1 {
+func awsS3Bucket(name string, policy *s3.GetBucketPolicyOutput, policyStatus *s3.GetBucketPolicyStatusOutput, acls *s3.GetBucketAclOutput, tags *s3.GetBucketTaggingOutput, accountID string) *accessgraphv1alpha.AWSS3BucketV1 {
 	s3 := &accessgraphv1alpha.AWSS3BucketV1{
 		Name:      name,
 		AccountId: accountID,
@@ -132,6 +148,14 @@ func awsS3Bucket(name string, policy *s3.GetBucketPolicyOutput, policyStatus *s3
 	}
 	if acls != nil {
 		s3.Acls = awsACLsToProtoACLs(acls.Grants)
+	}
+	if tags != nil {
+		for _, tag := range tags.TagSet {
+			s3.Tags = append(s3.Tags, &accessgraphv1alpha.AWSTag{
+				Key:   aws.ToString(tag.Key),
+				Value: strPtrToWrapper(tag.Value),
+			})
+		}
 	}
 	return s3
 }
