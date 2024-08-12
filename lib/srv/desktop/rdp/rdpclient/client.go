@@ -689,7 +689,6 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 	default:
 		c.cfg.Log.Warnf(
 			"Skipping unimplemented TDP message: %T", msg,
-
 		)
 	}
 
