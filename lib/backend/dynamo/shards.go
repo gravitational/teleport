@@ -164,7 +164,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				}
 				delete(set, event.shardID)
 				if event.err != io.EOF {
-					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
+					b.Debugf("Shard ID %v closed with error: %v, resetting buffers.", event.shardID, event.err)
 					return trace.Wrap(event.err)
 				}
 				b.Tracef("Shard ID %v exited gracefully.", event.shardID)
