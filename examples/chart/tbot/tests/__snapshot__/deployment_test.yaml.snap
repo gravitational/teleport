@@ -8,25 +8,27 @@ should match the snapshot (full):
       labels:
         app.kubernetes.io/name: RELEASE-NAME
         test-key: test-label-deployment
-      name: RELEASE-NAME
+      name: RELEASE-NAME-tbot
       namespace: NAMESPACE
     spec:
       replicas: 1
       selector:
         matchLabels:
           app.kubernetes.io/component: tbot
-          app.kubernetes.io/name: RELEASE-NAME
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: tbot
       strategy:
         type: Recreate
       template:
         metadata:
           annotations:
-            checksum/config: b5e9b3c0749c124a3a90e9d2c3f52ca389a1690dff6ea5c6f71b24591129e2c3
+            checksum/config: b078c5cad5358b9aff608dca5c097e479945ad1d3c41c150dfa836c3e919f1f0
             test-key: test-annotation-pod
           labels:
             app.kubernetes.io/component: tbot
+            app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
-            app.kubernetes.io/name: RELEASE-NAME
+            app.kubernetes.io/name: tbot
             helm.sh/chart: tbot-17.0.0-dev
             test-key: test-label-pod
         spec:
@@ -75,6 +77,7 @@ should match the snapshot (full):
                 port: diagnostics
               initialDelaySeconds: 10
               periodSeconds: 10
+              timeoutSeconds: 5
             name: tbot
             ports:
             - containerPort: 3001
@@ -87,6 +90,7 @@ should match the snapshot (full):
                 port: diagnostics
               initialDelaySeconds: 5
               periodSeconds: 10
+              timeoutSeconds: 5
             resources:
               limits:
                 cpu: 500m
@@ -130,24 +134,26 @@ should match the snapshot (simple):
     metadata:
       labels:
         app.kubernetes.io/name: RELEASE-NAME
-      name: RELEASE-NAME
+      name: RELEASE-NAME-tbot
       namespace: NAMESPACE
     spec:
       replicas: 1
       selector:
         matchLabels:
           app.kubernetes.io/component: tbot
-          app.kubernetes.io/name: RELEASE-NAME
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: tbot
       strategy:
         type: Recreate
       template:
         metadata:
           annotations:
-            checksum/config: 0001a5b40fb7579fa213fbbe8502e21cb502aa3fc0223e33c14917c962b897fc
+            checksum/config: be229e8d0a10198d74a678d2b93354e0135ac2f4edd6997bffcbaf9d4c1cd215
           labels:
             app.kubernetes.io/component: tbot
+            app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
-            app.kubernetes.io/name: RELEASE-NAME
+            app.kubernetes.io/name: tbot
             helm.sh/chart: tbot-17.0.0-dev
         spec:
           containers:
@@ -179,6 +185,7 @@ should match the snapshot (simple):
                 port: diagnostics
               initialDelaySeconds: 10
               periodSeconds: 10
+              timeoutSeconds: 5
             name: tbot
             ports:
             - containerPort: 3001
@@ -191,12 +198,13 @@ should match the snapshot (simple):
                 port: diagnostics
               initialDelaySeconds: 5
               periodSeconds: 10
+              timeoutSeconds: 5
             volumeMounts:
             - mountPath: /config
               name: config
             - mountPath: /var/run/secrets/tokens
               name: join-sa-token
-          serviceAccountName: RELEASE-NAME
+          serviceAccountName: RELEASE-NAME-tbot
           volumes:
           - configMap:
               name: RELEASE-NAME

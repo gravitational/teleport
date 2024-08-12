@@ -1,0 +1,19 @@
+{{ if not (or .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
+  {{- required "`teleportAuthAddress` or `teleportProxyAddress` must be provided" "" }}
+{{ end }}
+{{ if not .Values.clusterName }}
+  {{- required "`clusterName` must be provided" "" }}
+{{ end }}
+{{ if not .Values.token }}
+  {{- required "`token` must be provided" "" }}
+{{ end }}
+{{ if and (.Values.defaultOutput.enabled) (not .Values.defaultOutput.secretName) }}
+  {{- required "`defaultOutput.secretName` must be provided" "" }}
+{{ end }}
+{{ if (and .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
+  {{- required "`teleportAuthAddress` and `teleportProxyAddress` are mutually exclusive" "" }}
+{{ end }}
+{{- $validPersistence := list "secret" "disabled" -}}
+{{ if not (has .Values.persistence $validPersistence ) }}
+  {{- required "`persistence` must be `secret` or `disabled`" "" }}
+{{ end }}

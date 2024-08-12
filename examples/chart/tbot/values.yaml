@@ -31,6 +31,14 @@ defaultOutput:
   # that the default output will be written to.
   secretName: ""
 
+# persistence -- controls how the tbot agent stores its data.
+#
+# Options:
+# - "secret": uses a Kubernetes Secret.
+# - "disabled": does not persist data. May impact ability to track bot
+#    deployment across its lifetime.
+persistence: "secret"
+
 # tbotConfig(object) -- contains YAML teleport configuration to pass to the
 # tbot pods. The configuration will be merged with the chart-generated
 # configuration and will take precedence in case of conflict. Try to prefer to

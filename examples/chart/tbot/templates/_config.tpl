@@ -9,8 +9,14 @@ auth_server: {{ .Values.teleportAuthAddress }}
 onboarding:
   join_method: {{ .Values.joinMethod }}
   token: {{ .Values.token }}
+{{- if eq .Values.persistence "disabled" }}
 storage:
   type: memory
+{{- else if eq .Values.persistence "secret" }}
+storage:
+  type: kubernetes-secret
+  name: {{ include "tbot.fullname" . }}
+{{- end }}
 {{- if or (.Values.defaultOutput.enabled) (.Values.outputs) }}
 outputs:
 {{- if .Values.defaultOutput.enabled }}

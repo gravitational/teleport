@@ -14,7 +14,8 @@ tests:
       - matchSnapshot: {}
   - it: it should match the snapshot (custom)
     set:
-      customConfig:
+      token: foo
+      tbotConfig:
         xyzzy: foo
         yxzyy: 17
         outputs:

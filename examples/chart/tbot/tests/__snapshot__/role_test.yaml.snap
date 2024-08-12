@@ -6,7 +6,7 @@ should match the snapshot (full):
         test-key: test-annotation-role
       labels:
         test-key: test-label-role
-      name: RELEASE-NAME
+      name: RELEASE-NAME-tbot
       namespace: NAMESPACE
     rules:
     - apiGroups:
@@ -19,7 +19,7 @@ should match the snapshot (simple):
   1: |
     kind: Role
     metadata:
-      name: RELEASE-NAME
+      name: RELEASE-NAME-tbot
       namespace: NAMESPACE
     rules:
     - apiGroups:
