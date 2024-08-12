@@ -32,10 +32,10 @@ token: "my-token"
 ### Customization
 
 When customizing the configuration of `tbot` using this chart, you can either
-choose to leverage the more granular values or use the `customConfig` value
-to completely override the configuration. We recommend using the granular
-values where possible to benefit from any configuration tweaks we may introduce
-in the future.
+choose to leverage the more granular values or use the `tbotConfig` value
+to inject custom configuration into any field. We recommend using the granular
+values where possible to better benefit from changes we may introduce in future
+updates.
 
 ## Contributing to the chart
 
