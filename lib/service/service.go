@@ -2598,6 +2598,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.SecReports = services.SecReports
 	cfg.SnowflakeSession = services.Identity
 	cfg.SPIFFEFederations = services.SPIFFEFederations
+	cfg.StaticHostUsers = services.StaticHostUser
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
 	cfg.UserLoginStates = services.UserLoginStates
@@ -2640,6 +2641,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.SAMLIdPSession = client
 	cfg.SecReports = client.SecReportsClient()
 	cfg.SnowflakeSession = client
+	cfg.StaticHostUsers = client.StaticHostUserClient()
 	cfg.Trust = client
 	cfg.UserGroups = client
 	cfg.UserLoginStates = client.UserLoginStateClient()

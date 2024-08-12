@@ -5415,6 +5415,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	staticHostUserServer, err := statichostuserv1.NewService(statichostuserv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
