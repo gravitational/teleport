@@ -372,6 +372,9 @@ func findFirstKnownCredential(
 	}
 	for _, cred := range allowedCreds {
 		_, err := dev.Assertion(rpID, ccdHash, [][]byte{cred}, pin, opts)
+		// FIDO2 devices return err=nil on up=false queries; U2F devices return
+		// libfido2.ErrUserPresenceRequired.
+		// https://github.com/Yubico/libfido2/blob/03c18d396eb209a42bbf62f5f4415203cba2fc50/src/u2f.c#L787-L791.
 		if err == nil || (!info.fido2 && errors.Is(err, libfido2.ErrUserPresenceRequired)) {
 			return cred, true
 		}
