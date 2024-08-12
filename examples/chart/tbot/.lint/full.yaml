@@ -24,6 +24,8 @@ services:
 
 imagePullPolicy: "Always"
 
+persistence: "disabled"
+
 extraLabels:
   role:
     test-key: test-label-role

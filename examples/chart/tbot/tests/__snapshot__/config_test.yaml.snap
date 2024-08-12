@@ -44,8 +44,7 @@ should match the snapshot (full):
         - param: boo
           type: example-service
         storage:
-          name: RELEASE-NAME-tbot
-          type: kubernetes-secret
+          type: memory
         version: v2
     kind: ConfigMap
     metadata:

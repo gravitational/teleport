@@ -16,6 +16,8 @@ storage:
 storage:
   type: kubernetes-secret
   name: {{ include "tbot.fullname" . }}
+{{- else }}
+  {{- required "'persistence' must be 'secret' or 'disabled'" "" }}
 {{- end }}
 {{- if or (.Values.defaultOutput.enabled) (.Values.outputs) }}
 outputs:

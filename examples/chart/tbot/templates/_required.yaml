@@ -13,7 +13,3 @@
 {{ if (and .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
   {{- required "`teleportAuthAddress` and `teleportProxyAddress` are mutually exclusive" "" }}
 {{ end }}
-{{- $validPersistence := list "secret" "disabled" -}}
-{{ if not (has .Values.persistence $validPersistence ) }}
-  {{- required "`persistence` must be `secret` or `disabled`" "" }}
-{{ end }}
