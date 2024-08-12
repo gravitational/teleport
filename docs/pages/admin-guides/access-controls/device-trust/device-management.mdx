@@ -15,6 +15,14 @@ The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
+<Admonition type="tip" title="Self enrollment">
+  Users with the preset `editor` or `device-admin` role
+  can register and enroll their device in a single step with the following command:
+  ```code
+  $ tsh device enroll --current-device
+  ```
+</Admonition>
+
 <Admonition type="tip" title="Sync with Jamf Pro">
 Teleport supports device synchronization with [Jamf Pro](./jamf-integration.mdx). Once configured, devices
 are automatically updated in Teleport's device inventory.
