@@ -62,35 +62,19 @@ follow the steps below:
 If all of the above steps are done, try logging out from the Web UI and logging
 in again.
 
-#### Successful device trust authentication
+### Checking Device Trust authentication status in the web UI
 
-When successfully authenticated to use device trust in the web UI, the user will see a green
-shield icon next to the logged-in username at the top right of the screen:
+When successfully authenticated to use Device Trust in the web UI, the user will see a green
+shield icon next to the logged-in username at the top right of the screen. Additionally, clicking
+on the username to show the user menu will indicate that the session is authorized with Device Trust.
 
-<Figure width="257" height="76" bordered>
-![device-trust-web-ui-success-1.png](../../../img/device-trust/device-trust-web-ui-success-1.png)
-</Figure>
+If the user is not authenticated to use Device Trust in the web UI, but either the cluster-wide
+configuration or their assigned role(s) require the use of a trusted device, the user will see a
+yellow warning shield next to the logged-in username at the top right of the screen. Additionally,
+clicking on the username to show the user menu will indicate that the session is not authorized
+with Device Trust, so the user's access is restricted.
 
-Additionally, clicking on the username to show the user menu will indicate that the session
-is authorized with device trust:
-
-<Figure width="306" height="346" bordered>
-![device-trust-web-ui-success-2.png](../../../img/device-trust/device-trust-web-ui-success-2.png)
-</Figure>
-
-#### Unsuccessful device trust authentication
-
-If the user is not authenticated to use device trust in the web UI, but either the cluster-wide
-configuration or their assigned role(s) require device trust, the user will see a yellow warning
-shield next to the logged-in username at the top right of the screen:
-
-<Figure width="207" height="70" bordered>
-![device-trust-web-ui-failure-1.png](../../../img/device-trust/device-trust-web-ui-failure-1.png)
-</Figure>
-
-Additionally, clicking on the username to show the user menu will indicate that the session is not
-authorized with device trust, so the user's access is restricted:
-
-<Figure width="304" height="368" bordered>
-![device-trust-web-ui-failure-2.png](../../../img/device-trust/device-trust-web-ui-failure-2.png)
-</Figure>
+| Theme | Successfully authenticated | Not successfully authenticated |
+| - | - | - |
+| Light | ![device-trust-trusted-shield-light-success.png](../../../img/device-trust/device-trust-shield-light-success.png) | ![device-trust-trusted-shield-light-failure.png](../../../img/device-trust/device-trust-shield-light-failure.png) |
+| Dark | ![device-trust-trusted-shield-dark-success.png](../../../img/device-trust/device-trust-shield-dark-success.png) |  ![device-trust-trusted-shield-dark-failure.png](../../../img/device-trust/device-trust-shield-dark-failure.png) |
