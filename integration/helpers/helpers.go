@@ -138,15 +138,14 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-// CreateAgent creates a SSH agent with the passed in private key and
-// certificate that can be used in tests. This is useful so tests don't
-// clobber your system agent.
-func CreateAgent(key *client.KeyRing) (*teleagent.AgentServer, string, string, error) {
+// CreateAgent creates a SSH agent with the passed in key ring that can be used
+// in tests. This is useful so tests don't clobber your system agent.
+func CreateAgent(keyRing *client.KeyRing) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
 
-	agentKey, err := key.AsAgentKey()
+	agentKey, err := keyRing.AsAgentKey()
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
@@ -189,13 +188,13 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
-	key, err := client.GenerateRSAKey()
+func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
+	keyRing, err := client.GenerateRSAKeyRing()
 	require.NoError(t, err)
-	key.ClusterName = tc.Secrets.SiteName
+	keyRing.ClusterName = tc.Secrets.SiteName
 
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            key.PrivateKey.MarshalSSHPublicKey(),
+		Key:            keyRing.PrivateKey.MarshalSSHPublicKey(),
 		Username:       username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -203,22 +202,22 @@ func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time
 	})
 	require.NoError(t, err)
 
-	key.Cert = sshCert
-	key.TLSCert = tlsCert
+	keyRing.Cert = sshCert
+	keyRing.TLSCert = tlsCert
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
-	return key
+	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	return keyRing
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key := MustCreateUserKey(t, tc, username, ttl)
+	keyRing := MustCreateUserKeyRing(t, tc, username, ttl)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
 	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
 	})
 	require.NoError(t, err)

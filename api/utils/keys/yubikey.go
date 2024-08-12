@@ -174,12 +174,12 @@ func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string
 	fingerPrint := hex.EncodeToString(sum[:])
 	return fmt.Sprintf(`Certificate in YubiKey PIV slot %q is not a Teleport client cert:
 Slot %s:
-	Algorithm:		%v	
-	Subject DN:		%v	
-	Issuer DN:		%v	
-	Serial:			%v	
-	Fingerprint:	%v	
-	Not before:		%v	
+	Algorithm:		%v
+	Subject DN:		%v
+	Issuer DN:		%v
+	Serial:			%v
+	Fingerprint:	%v
+	Not before:		%v
 	Not after:		%v
 `,
 		slot, slot,
@@ -874,4 +874,13 @@ func setPINAndPUKFromDefault(ctx context.Context, yk *piv.YubiKey) (string, erro
 	}
 
 	return pin, nil
+}
+
+// IsHardware returns true if [k] is a hardware PIV key.
+func (k *PrivateKey) IsHardware() bool {
+	switch k.Signer.(type) {
+	case *YubiKeyPrivateKey:
+		return true
+	}
+	return false
 }

@@ -131,6 +131,16 @@ export const requestSearchPending: AccessRequest = {
         friendlyName: 'Some Friendly Name',
       },
     },
+    {
+      id: {
+        kind: 'saml_idp_service_provider',
+        name: 'raw-saml-id',
+        clusterName: 'cluster-name',
+      },
+      details: {
+        friendlyName: 'app-saml',
+      },
+    },
   ],
 };
 

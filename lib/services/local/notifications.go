@@ -229,15 +229,20 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	globalNotification.Metadata = &headerv1.Metadata{Name: uuid.String()}
-	globalNotification.Spec.Notification.Metadata.Name = uuid.String()
 
 	if err := CheckAndSetExpiry(globalNotification.Spec.Notification, s.clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	globalNotification.Spec.Notification.Spec.Created = timestamppb.New(s.clock.Now())
+	globalNotification.Metadata = &headerv1.Metadata{
+		Name: uuid.String(),
+		// Set the same expiry on the outer GlobalNotification wrapper's metadata. This is necessary for the sqlite cleanup routine
+		// to be able to delete this notification when it expires.
+		Expires: globalNotification.GetSpec().GetNotification().GetMetadata().Expires,
+	}
 
+	globalNotification.Spec.Notification.Spec.Created = timestamppb.New(s.clock.Now())
+	globalNotification.Spec.Notification.Metadata.Name = uuid.String()
 	globalNotification.Spec.Notification.Metadata.Labels[types.NotificationScope] = "global"
 
 	created, err := s.globalNotificationService.CreateResource(ctx, globalNotification)

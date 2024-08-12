@@ -22,6 +22,9 @@ import { Platform } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
+// When adding a new config property, add it to the docs too
+// (teleport-connect.mdx#configuration).
+
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
@@ -54,6 +57,22 @@ export const createAppConfigSchema = (platform: Platform) => {
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
+    'terminal.windowsBackend': z
+      .enum(['auto', 'winpty'])
+      .default('auto')
+      .describe(
+        '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
+      ),
+    'terminal.rightClick': z
+      .enum(['paste', 'copyPaste', 'menu'])
+      .default(platform === 'win32' ? 'copyPaste' : 'menu')
+      .describe(
+        '`paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.'
+      ),
+    'terminal.copyOnSelect': z
+      .boolean()
+      .default(false)
+      .describe('Automatically copies selected text to the clipboard.'),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -94,6 +113,16 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.newTerminalTab': shortcutSchema
       .default(defaultKeymap['newTerminalTab'])
       .describe(getShortcutDesc('open a new terminal tab')),
+    // Even if this is set to a non-default copy shortcut for a given platform,
+    // the default shortcut will still work (for example, Command+C on Macs).
+    'keymap.terminalCopy': shortcutSchema
+      .default(defaultKeymap['terminalCopy'])
+      .describe(getShortcutDesc('copy text in the terminal')),
+    // Even if this is set to a non-default paste shortcut for a given platform,
+    // the default shortcut will still work (for example, Command+V on Macs).
+    'keymap.terminalPaste': shortcutSchema
+      .default(defaultKeymap['terminalPaste'])
+      .describe(getShortcutDesc('paste text in the terminal')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
@@ -122,10 +151,6 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
-    'feature.vnetDaemon': z
-      .boolean()
-      .default(false)
-      .describe('Use daemon instead of osascript for VNet'),
   });
 };
 
@@ -147,7 +172,9 @@ export type KeyboardShortcutAction =
   | 'openSearchBar'
   | 'openConnections'
   | 'openClusters'
-  | 'openProfiles';
+  | 'openProfiles'
+  | 'terminalCopy'
+  | 'terminalPaste';
 
 const getDefaultKeymap = (
   platform: Platform
@@ -173,6 +200,8 @@ const getDefaultKeymap = (
         openConnections: 'Ctrl+Shift+P',
         openClusters: 'Ctrl+Shift+E',
         openProfiles: 'Ctrl+Shift+I',
+        terminalCopy: 'Ctrl+Shift+C',
+        terminalPaste: 'Ctrl+Shift+V',
       };
     case 'linux':
       return {
@@ -194,6 +223,8 @@ const getDefaultKeymap = (
         openConnections: 'Ctrl+Shift+P',
         openClusters: 'Ctrl+Shift+E',
         openProfiles: 'Ctrl+Shift+I',
+        terminalCopy: 'Ctrl+Shift+C',
+        terminalPaste: 'Ctrl+Shift+V',
       };
     case 'darwin':
       return {
@@ -215,6 +246,8 @@ const getDefaultKeymap = (
         openConnections: 'Command+P',
         openClusters: 'Command+E',
         openProfiles: 'Command+I',
+        terminalCopy: 'Command+C',
+        terminalPaste: 'Command+V',
       };
   }
 };

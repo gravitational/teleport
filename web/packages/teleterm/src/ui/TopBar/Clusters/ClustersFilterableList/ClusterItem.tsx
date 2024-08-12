@@ -59,7 +59,7 @@ export function ClusterItem(props: ClusterItemProps) {
         width="100%"
         minWidth="0"
       >
-        <Text typography="body1" title={clusterName}>
+        <Text typography="body2" title={clusterName}>
           {clusterName}
         </Text>
         <Flex>

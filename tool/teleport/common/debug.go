@@ -176,9 +176,10 @@ func newDebugClient(configPath string) (DebugClient, string, string, error) {
 	}
 
 	// ReadConfigFile returns nil configuration if the file doesn't exists.
-	// In that case, fallback to default data dir path.
+	// In that case, fallback to default data dir path. The data directory
+	// is not required so should use the default if not specified.
 	dataDir := defaults.DataDir
-	if cfg != nil {
+	if cfg != nil && cfg.DataDir != "" {
 		dataDir = cfg.DataDir
 	}
 

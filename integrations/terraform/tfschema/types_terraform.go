@@ -35,6 +35,7 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
+	_ "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -2582,7 +2583,7 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				},
 				"traits": GenSchemaTraits(ctx),
 				"trusted_device_ids": {
-					Description: "TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user. Managed by the Device Trust subsystem, avoid manual edits.",
+					Description: "TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.  Note that SSO users are transient and thus may contain an empty TrustedDeviceIDs field, even though the user->device association exists under the Device Trust subsystem. Do not rely on this field to determine device associations or ownership, it exists for legacy/informative purposes only.  Managed by the Device Trust subsystem, avoid manual edits.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
@@ -2709,11 +2710,18 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"client_redirect_settings": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allowed_https_hostnames": {
-						Description: "a list of hostnames allowed for https client redirect URLs",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_https_hostnames": {
+							Description: "a list of hostnames allowed for https client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"insecure_allowed_cidr_ranges": {
+							Description: "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
 					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
 					Optional:    true,
 				},
@@ -2918,11 +2926,18 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"client_redirect_settings": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allowed_https_hostnames": {
-						Description: "a list of hostnames allowed for https client redirect URLs",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_https_hostnames": {
+							Description: "a list of hostnames allowed for https client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"insecure_allowed_cidr_ranges": {
+							Description: "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
 					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
 					Optional:    true,
 				},
@@ -3085,11 +3100,18 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"client_redirect_settings": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allowed_https_hostnames": {
-						Description: "a list of hostnames allowed for https client redirect URLs",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_https_hostnames": {
+							Description: "a list of hostnames allowed for https client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"insecure_allowed_cidr_ranges": {
+							Description: "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
 					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
 					Optional:    true,
 				},
@@ -28154,6 +28176,33 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["insecure_allowed_cidr_ranges"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.InsecureAllowedCidrRanges = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.InsecureAllowedCidrRanges[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -29042,6 +29091,59 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 											}
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["insecure_allowed_cidr_ranges"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["insecure_allowed_cidr_ranges"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges))
+													}
+												}
+												if obj.InsecureAllowedCidrRanges != nil {
+													t := o.ElemType
+													if len(obj.InsecureAllowedCidrRanges) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges))
+													}
+													for k, a := range obj.InsecureAllowedCidrRanges {
+														v, ok := tf.Attrs["insecure_allowed_cidr_ranges"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.InsecureAllowedCidrRanges) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["insecure_allowed_cidr_ranges"] = c
+											}
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["client_redirect_settings"] = v
@@ -29669,6 +29771,33 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 																t = string(v.Value)
 															}
 															obj.AllowedHttpsHostnames[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["insecure_allowed_cidr_ranges"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.InsecureAllowedCidrRanges = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.InsecureAllowedCidrRanges[k] = t
 														}
 													}
 												}
@@ -30622,6 +30751,59 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 											}
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["insecure_allowed_cidr_ranges"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["insecure_allowed_cidr_ranges"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges))
+													}
+												}
+												if obj.InsecureAllowedCidrRanges != nil {
+													t := o.ElemType
+													if len(obj.InsecureAllowedCidrRanges) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges))
+													}
+													for k, a := range obj.InsecureAllowedCidrRanges {
+														v, ok := tf.Attrs["insecure_allowed_cidr_ranges"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.InsecureAllowedCidrRanges) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["insecure_allowed_cidr_ranges"] = c
+											}
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["client_redirect_settings"] = v
@@ -31225,6 +31407,33 @@ func CopyGithubConnectorV3FromTerraform(_ context.Context, tf github_com_hashico
 																t = string(v.Value)
 															}
 															obj.AllowedHttpsHostnames[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["insecure_allowed_cidr_ranges"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.InsecureAllowedCidrRanges = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.InsecureAllowedCidrRanges[k] = t
 														}
 													}
 												}
@@ -32155,6 +32364,59 @@ func CopyGithubConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravi
 												}
 												c.Unknown = false
 												tf.Attrs["allowed_https_hostnames"] = c
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["insecure_allowed_cidr_ranges"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["insecure_allowed_cidr_ranges"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges))
+													}
+												}
+												if obj.InsecureAllowedCidrRanges != nil {
+													t := o.ElemType
+													if len(obj.InsecureAllowedCidrRanges) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.InsecureAllowedCidrRanges))
+													}
+													for k, a := range obj.InsecureAllowedCidrRanges {
+														v, ok := tf.Attrs["insecure_allowed_cidr_ranges"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"GithubConnectorV3.Spec.ClientRedirectSettings.insecure_allowed_cidr_ranges", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.InsecureAllowedCidrRanges) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["insecure_allowed_cidr_ranges"] = c
 											}
 										}
 									}

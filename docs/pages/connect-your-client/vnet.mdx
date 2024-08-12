@@ -10,7 +10,7 @@ This guide explains how to use VNet to connect to TCP applications available thr
 VNet automatically proxies connections from your computer to TCP apps available through Teleport. A
 program on your device can connect to `tcp-app.teleport.example.com`, without having to know about
 Teleport. Underneath, VNet authenticates the connection with your credentials, using [the same TLS
-routing technology](../architecture/tls-routing.mdx) as `tsh proxy app`. This is all done
+routing technology](../reference/architecture/tls-routing.mdx) as `tsh proxy app`. This is all done
 client-side – VNet sets up a local DNS name server and a virtual network device.
 
 VNet is available in Teleport Connect and tsh on macOS, with Windows and Linux version in the works.
@@ -32,9 +32,10 @@ have `tcp://` as the protocol in their addresses.
 Click "Connect" next to the TCP app. This starts VNet if it's not already running. Alternatively,
 you can start VNet through the connection list in the top left.
 
-VNet needs to set up a network device and configure DNS on your device, so it'll ask for admin
-permissions. For now your password is needed each time you start VNet, but we're working on showing
-the prompt only once.
+During the first launch, macOS will prompt you to enable a background item for tsh.app. VNet needs
+this background item in order to configure DNS on your device. To enable the background item, either
+interact with the system notification or go to System Settings > General > Login Items and look for
+tsh.app under "Allow in the Background".
 
 ![VNet starting up](../../img/use-teleport/vnet-starting@2x.png)
 

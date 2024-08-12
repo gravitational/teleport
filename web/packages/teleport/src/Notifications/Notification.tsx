@@ -22,7 +22,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 
 import * as Icons from 'design/Icon';
 
-import Text from 'design/Text';
+import Text, { P3 } from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
 
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
@@ -107,6 +107,27 @@ export function Notification({
   // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
   // it should not be shown.
   if (!content || (view === 'Unread' && notification.clicked)) {
+    // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
+    // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
+    if (content.kind == 'text') {
+      return (
+        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
+          <DialogHeader>
+            <DialogTitle>{content.title}</DialogTitle>
+          </DialogHeader>
+          <DialogContent>{content.textContent}</DialogContent>
+          <DialogFooter>
+            <ButtonSecondary
+              onClick={() => setShowTextContentDialog(false)}
+              size="small"
+              className={IGNORE_CLICK_CLASSNAME}
+            >
+              Close
+            </ButtonSecondary>
+          </DialogFooter>
+        </Dialog>
+      );
+    }
     return null;
   }
 
@@ -140,6 +161,7 @@ export function Notification({
   function onClick() {
     if (content.kind === 'text') {
       setShowTextContentDialog(true);
+      onMarkAsClicked();
       return;
     }
     onMarkAsClicked();
@@ -179,21 +201,21 @@ export function Notification({
               <content.QuickAction markAsClicked={onMarkAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
-              <Text typography="subtitle3" color="error.main">
+              <Text typography="body4" color="error.main">
                 Failed to hide notification:{' '}
                 {hideNotificationAttempt.statusText}
               </Text>
             )}
             {markAsClickedAttempt.status === 'error' && (
-              <Text typography="subtitle3" color="error.main">
+              <P3 color="error.main">
                 Failed to mark notification as read:{' '}
                 {markAsClickedAttempt.statusText}
-              </Text>
+              </P3>
             )}
           </ContentBody>
           <SideContent>
             {!content?.hideDate && (
-              <Text typography="subtitle3">{formattedDate}</Text>
+              <Text typography="body4">{formattedDate}</Text>
             )}
             {!notification.localNotification && (
               <MenuIcon

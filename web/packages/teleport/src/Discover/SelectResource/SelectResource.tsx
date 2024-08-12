@@ -21,7 +21,7 @@ import { useHistory, useLocation } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Link, Text } from 'design';
+import { Box, Flex, Link, P3, Text } from 'design';
 import { getPlatform, Platform } from 'design/platform';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
@@ -82,14 +82,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
-    const split = s.split(' ').map(s => s.toLowerCase());
-    const foundResources = list.filter(r => {
-      const match = split.every(s => r.keywords.includes(s));
-      if (match) {
-        return r;
-      }
-    });
-    setResources(foundResources);
+    const search = s.split(' ').map(s => s.toLowerCase());
+    const found = list.filter(r =>
+      search.every(s => r.keywords.some(k => k.toLowerCase().includes(s)))
+    );
+
+    setResources(found);
     setSearch(s);
   }
 
@@ -177,7 +175,17 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
 
-              let resourceCardProps;
+              let resourceCardProps:
+                | {
+                    onClick?: () => void;
+                  }
+                | {
+                    as: typeof Link;
+                    href: string | null;
+                    target: string;
+                    style: Record<string, string>;
+                  };
+
               if (r.kind === ResourceKind.Application && r.isDialog) {
                 resourceCardProps = {
                   onClick: () => {
@@ -229,7 +237,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="text.slightlyMuted">
+                        <Text typography="body3" color="text.slightlyMuted">
                           {pretitle}
                         </Text>
                       )}
@@ -246,7 +254,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
               );
             })}
           </Grid>
-          <Text mt={6} fontSize="12px">
+          <P3 mt={6}>
             Looking for something else?{' '}
             <Link
               href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
@@ -255,7 +263,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
             >
               Request a feature
             </Link>
-          </Text>
+          </P3>
         </>
       )}
       {showApp && <AddApp onClose={() => setShowApp(false)} />}

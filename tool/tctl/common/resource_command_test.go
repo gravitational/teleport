@@ -34,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -1411,6 +1412,17 @@ func TestCreateResources(t *testing.T) {
 			test.create(t, rootClient)
 		})
 	}
+
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, rootClient, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: github")
+	assert.Contains(t, s, "kind: cluster_auth_preference")
+	assert.Contains(t, s, "kind: cluster_networking_config")
+	assert.Contains(t, s, "kind: user")
+	assert.Contains(t, s, "kind: role")
 }
 
 func testCreateGithubConnector(t *testing.T, clt *authclient.Client) {
@@ -2051,6 +2063,13 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		})
 	}
 
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, clt, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: saml")
+	assert.Contains(t, s, "kind: oidc")
 }
 
 func testCreateOIDCConnector(t *testing.T, clt *authclient.Client) {

@@ -310,13 +310,47 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.bcryptCostOverride = &minCost
 
 	if cfg.CacheEnabled {
-		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
-			Context:   srv.AuthServer.CloseContext(),
-			Services:  srv.AuthServer.Services,
-			Setup:     cache.ForAuth,
-			CacheName: []string{teleport.ComponentAuth},
-			Events:    true,
-			Unstarted: true,
+		svces := srv.AuthServer.Services
+		srv.AuthServer.Cache, err = accesspoint.NewCache(accesspoint.Config{
+			Context:      srv.AuthServer.CloseContext(),
+			Setup:        cache.ForAuth,
+			CacheName:    []string{teleport.ComponentAuth},
+			EventsSystem: true,
+			Unstarted:    true,
+
+			Access:                  svces.Access,
+			AccessLists:             svces.AccessLists,
+			AccessMonitoringRules:   svces.AccessMonitoringRules,
+			AppSession:              svces.Identity,
+			Apps:                    svces.Apps,
+			ClusterConfig:           svces.ClusterConfiguration,
+			CrownJewels:             svces.CrownJewels,
+			DatabaseObjects:         svces.DatabaseObjects,
+			DatabaseServices:        svces.DatabaseServices,
+			Databases:               svces.Databases,
+			DiscoveryConfigs:        svces.DiscoveryConfigs,
+			DynamicAccess:           svces.DynamicAccessExt,
+			Events:                  svces.Events,
+			Integrations:            svces.Integrations,
+			KubeWaitingContainers:   svces.KubeWaitingContainer,
+			Kubernetes:              svces.Kubernetes,
+			Notifications:           svces.Notifications,
+			Okta:                    svces.Okta,
+			Presence:                svces.PresenceInternal,
+			Provisioner:             svces.Provisioner,
+			Restrictions:            svces.Restrictions,
+			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
+			SAMLIdPSession:          svces.Identity,
+			SecReports:              svces.SecReports,
+			SnowflakeSession:        svces.Identity,
+			SPIFFEFederations:       svces.SPIFFEFederations,
+			Trust:                   svces.TrustInternal,
+			UserGroups:              svces.UserGroups,
+			UserLoginStates:         svces.UserLoginStates,
+			Users:                   svces.Identity,
+			WebSession:              svces.Identity.WebSessions(),
+			WebToken:                svces.WebTokens(),
+			WindowsDesktops:         svces.WindowsDesktops,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -961,8 +995,9 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
-			Role:     role,
-			Username: serverID,
+			Role:                  types.RoleInstance,
+			Username:              serverID,
+			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
 				Username: serverID,
 			},

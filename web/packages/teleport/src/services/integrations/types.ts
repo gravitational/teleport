@@ -143,6 +143,13 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id';
 
+export type PluginStatus<S = any> = {
+  name: string;
+  type: PluginKind;
+  statusCode: IntegrationStatusCode;
+  stats?: S;
+};
+
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
   // to authenticate SCIM requests
@@ -290,6 +297,23 @@ export type ListAwsRdsDatabaseResponse = {
   nextToken?: string;
 };
 
+export type ListAwsRdsFromAllEnginesResponse = {
+  databases: AwsRdsDatabase[];
+  /**
+   * next page for rds instances.
+   */
+  instancesNextToken?: string;
+  /**
+   * next page for rds clusters.
+   */
+  clustersNextToken?: string;
+  /**
+   * set if fetching rds instances OR rds clusters
+   * returned an error
+   */
+  oneOfError?: string;
+};
+
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
@@ -324,6 +348,8 @@ type DeployDatabaseServiceDeployment = {
 // -account-id: <AccountID>s
 // -vpc-id: <Deployments[].VPCID>
 export type AwsOidcDeployDatabaseServicesRequest = {
+  // The AWS account to deploy the db service to.
+  accountId: string;
   // Region is the AWS Region for the Service.
   region: string;
   // TaskRoleARN is the AWS Role's ARN used within the Task execution.
@@ -458,6 +484,36 @@ export type DeployEc2InstanceConnectEndpointResponse = {
   endpoints: AwsEc2InstanceConnectEndpoint[];
 };
 
+export type Subnet = {
+  /**
+   * Subnet name.
+   * This is just a friendly name and should not be used for further API calls.
+   * It can be empty if the subnet was not given a "Name" tag.
+   */
+  name?: string;
+  /**
+   * Subnet ID, for example "subnet-0b3ca383195ad2cc7".
+   * This is the value that should be used when doing further API calls.
+   */
+  id: string;
+  /**
+   *  AWS availability zone of the subnet, for example
+   * "us-west-1a".
+   */
+  availabilityZone: string;
+};
+
+export type ListAwsSubnetsRequest = {
+  vpcId: string;
+  region: Regions;
+  nextToken?: string;
+};
+
+export type ListAwsSubnetsResponse = {
+  subnets: Subnet[];
+  nextToken?: string;
+};
+
 export type ListAwsSecurityGroupsRequest = {
   // VPCID is the VPC to filter Security Groups.
   vpcId: string;
@@ -511,4 +567,18 @@ export type Cidr = {
 export type IntegrationUrlLocationState = {
   kind: IntegrationKind;
   redirectText: string;
+};
+
+export type Vpc = {
+  id: string;
+  name?: string;
+  /**
+   * if defined, a database service is already deployed for this vpc.
+   */
+  ecsServiceDashboardURL?: string;
+};
+
+export type AwsDatabaseVpcsResponse = {
+  vpcs: Vpc[];
+  nextToken: string;
 };
