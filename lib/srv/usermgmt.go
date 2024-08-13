@@ -106,6 +106,8 @@ type HostUsersBackend interface {
 	DeleteUser(name string) error
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
 	CreateHomeDirectory(userHome string, uid, gid string) error
+	// GetDefaultHomeDirectory returns the default home directory path for the given user
+	GetDefaultHomeDirectory(user string) (string, error)
 }
 
 type userCloser struct {
@@ -350,9 +352,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 
 	var home string
 	if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-		//nolint:staticcheck // SA4023. False positive on macOS.
-		home, err = readDefaultHome(name)
-		//nolint:staticcheck // SA4023. False positive on macOS.
+		home, err = u.backend.GetDefaultHomeDirectory(name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
