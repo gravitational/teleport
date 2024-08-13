@@ -13,7 +13,9 @@ state: draft
 
 ## What
 
-This RFD proposes a new mechanism for Teleport agents to automatically update to a version scheduled by an operator via tctl.
+This RFD proposes a new mechanism for scheduled, automatic updates of Teleport agents.
+
+Users of Teleport will be able to use the tctl CLI to specify desired versions and update schedules.
 
 All agent installations are in-scope for this proposal, including agents installed on Linux servers and Kubernetes.
 
@@ -43,19 +45,25 @@ The existing mechanism for automatic agent updates does not provide a hands-off 
 10. Teleport contains logic that is specific to Teleport Cloud upgrade workflows.
 11. The existing auto-updater is not self-updating.
 12. It is difficult and undocumented to automate agent upgrades with custom automation (e.g., with JamF). 
+13. There is no phased rollout mechanism for updates.
+14. There is no way to automatically detect and halt failed updates.
 
-We must provide a seamless, hands-off experience for auto-updates of Teleport Agents that is easy to maintain.
+We must provide a seamless, hands-off experience for auto-updates of Teleport Agents that is easy to maintain and safer for production use.
 
 ## Details - Teleport API
 
 Teleport proxies will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
-The version and edition served from that endpoint will be configured using new `cluster_autoupdate_config` and `autoupdate_version` resources.
-Whether the Teleport updater querying the endpoint is instructed to upgrade (via `agent_autoupdate`) is dependent on the `host=[uuid]` parameter sent to `/v1/webapi/find`.
+The version and edition served from that endpoint will be configured using new `autoupdate_version` resource.
+
+Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is dependent on:
+- The `host=[uuid]` parameter sent to `/v1/webapi/find`
+- The schedule defined in the new `cluster_autoupdate_config` resource
+- The status of past agent upgrades for the given version
 
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
 Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID.
 
-Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier.
+Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `teleport.yaml` file.
 ```
 teleport:
   upgrade_group: staging
@@ -65,7 +73,7 @@ At the start of a group rollout, the Teleport auth server captures the desired g
 An fixed number of hosts (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
 Additional hosts are instructed to update as earlier updates complete, timeout, or fail, never exceeding `max_in_flight`.
 The group rollout is halted if timeouts or failures exceed their specified thresholds.
-Group rollouts may be retried with `tctl autoupdate run`.
+Rollouts may be retried with `tctl autoupdate run`.
 
 ### Scalability
 
