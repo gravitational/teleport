@@ -190,15 +190,21 @@ type HandlerDecs struct {
 	// terminating the TLS connection.
 	HandlerWithConnInfo HandlerFuncWithInfo
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
-	// TLS termination to the protocol handler (Used in Kube handler case)
+	// TLS termination to the protocol handler (Used in Kube handler case).
+	//
+	// It is the upstream servers responsibility to provide the appropriate [tls.Config.NextProtos]
+	// to confirm the negotiated protocol.
 	ForwardTLS bool
 	// MatchFunc is a routing route match function based on ALPN SNI TLS values.
 	// If is evaluated to true the current HandleDesc will be used
 	// for connection handling.
 	MatchFunc MatchFunc
 	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
-	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
-	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
+	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connections,
+	// but if [HandlerDecs.TLSConfig] is present, it will take precedence over [ProxyConfig.WebTLSConfig].
+	//
+	// It is the responsibility of the creator of the [tls.Config] to provide the appropriate [tls.Config.NextProtos]
+	// to confirm the negotiated protocol.
 	TLSConfig *tls.Config
 }
 
