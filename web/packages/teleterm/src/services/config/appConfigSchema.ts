@@ -31,6 +31,15 @@ export type AppConfig = z.infer<AppConfigSchema>;
 /** ID of the custom shell. When it is set, the shell path should be read from `terminal.customShell`. */
 export const CUSTOM_SHELL_ID = 'custom' as const;
 
+/**
+ * List of properties that can be modified from the renderer process.
+ * The motivation for adding this was to make it impossible to change
+ * `terminal.customShell` from the renderer.
+ */
+export const CONFIG_MODIFIABLE_FROM_RENDERER: (keyof AppConfig)[] = [
+  'usageReporting.enabled',
+];
+
 export const createAppConfigSchema = (settings: RuntimeSettings) => {
   const defaultKeymap = getDefaultKeymap(settings.platform);
   const defaultTerminalFont = getDefaultTerminalFont(settings.platform);
