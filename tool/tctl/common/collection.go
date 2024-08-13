@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -1485,23 +1484,6 @@ func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
 	t.AddRow([]string{
 		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
 		strings.Join(dnsZoneSuffixes, ", "),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type accessGraphSettings struct {
-	accessGraphSettings *clusterconfigrec.AccessGraphSettings
-}
-
-func (c *accessGraphSettings) resources() []types.Resource {
-	return []types.Resource{c.accessGraphSettings}
-}
-
-func (c *accessGraphSettings) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"SSH Keys Scan"})
-	t.AddRow([]string{
-		c.accessGraphSettings.Spec.SecretsScanConfig,
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
