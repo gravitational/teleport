@@ -1986,6 +1986,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			DynamicLabels:      dynamicLabels,
 			InsecureSkipVerify: application.InsecureSkipVerify,
 			Cloud:              application.Cloud,
+			RequiredApps:       application.RequiredApps,
 		}
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.

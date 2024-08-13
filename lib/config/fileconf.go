@@ -1996,6 +1996,10 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// RequiredApps is a list of app public_addr that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredApps []string `yaml:"required_apps,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
