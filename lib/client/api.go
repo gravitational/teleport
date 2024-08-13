@@ -3724,7 +3724,10 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	keyRing.ProxyHost = tc.WebProxyHost()
 
 	if tc.KubernetesCluster != "" {
-		keyRing.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+		keyRing.KubeTLSCredentials[tc.KubernetesCluster] = TLSCredential{
+			Cert:       response.TLSCert,
+			PrivateKey: priv,
+		}
 	}
 	if tc.DatabaseService != "" {
 		keyRing.DBTLSCredentials[tc.DatabaseService] = TLSCredential{
