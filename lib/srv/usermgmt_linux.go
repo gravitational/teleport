@@ -96,12 +96,15 @@ func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error 
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, uid, gid string) error {
-	home, err := readDefaultHome(name)
-	if err != nil {
-		return trace.Wrap(err)
+func (u *HostUsersProvisioningBackend) CreateUser(name string, groups []string, home, uid, gid string) error {
+	if home == "" {
+		var err error
+		home, err = u.GetDefaultHomeDirectory(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	_, err = host.UserAdd(name, groups, home, uid, gid)
+	_, err := host.UserAdd(name, groups, home, uid, gid)
 	return trace.Wrap(err)
 }
 
@@ -202,16 +205,16 @@ func readDefaultKey(key string, defaultValue string) (string, error) {
 	return defaultValue, nil
 }
 
-// readDefaultHome reads /etc/default/useradd for the HOME key,
+// GetDefaultHomeDirectory reads /etc/default/useradd for the HOME key,
 // defaulting to "/home" and join it with the user for the user
 // home directory
-func readDefaultHome(user string) (string, error) {
+func (u *HostUsersProvisioningBackend) GetDefaultHomeDirectory(user string) (string, error) {
 	const defaultHome = "/home"
 	home, err := readDefaultKey("HOME", defaultHome)
 	return filepath.Join(home, user), trace.Wrap(err)
 }
 
-// readDefaultHome reads /etc/default/useradd for the SKEL key, defaulting to "/etc/skel"
+// readDefaultSkel reads /etc/default/useradd for the SKEL key, defaulting to "/etc/skel"
 func readDefaultSkel() (string, error) {
 	const defaultSkel = "/etc/skel"
 	skel, err := readDefaultKey("SKEL", defaultSkel)
@@ -228,7 +231,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(user string, uidS, gi
 		return trace.Wrap(err)
 	}
 
-	userHome, err := readDefaultHome(user)
+	userHome, err := u.GetDefaultHomeDirectory(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
