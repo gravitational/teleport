@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "17.0.0-dev"
+const Version = "17.0.0-dev.gus-sign-plugins.1"
 
 var SemVersion = semver.New(Version)
