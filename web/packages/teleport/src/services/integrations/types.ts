@@ -368,7 +368,7 @@ export type EnrollEksClustersResponse = {
   results: {
     clusterName: string;
     resourceId: string;
-    error: { message: string };
+    error: string;
   }[];
 };
 
