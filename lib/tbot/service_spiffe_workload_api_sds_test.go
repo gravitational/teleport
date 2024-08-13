@@ -76,7 +76,8 @@ func TestSDS_FetchSecrets(t *testing.T) {
 	clientAuthenticator := func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
 		return log, workloadattest.Attestation{
 			Unix: workloadattest.UnixAttestation{
-				UID: uid,
+				Attested: true,
+				UID:      uid,
 			},
 		}, nil
 	}
