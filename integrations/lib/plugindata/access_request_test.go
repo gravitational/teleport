@@ -49,8 +49,9 @@ func TestEncodeAccessRequestData(t *testing.T) {
 	assert.Equal(t, "3", dataMap["reviews_count"])
 	assert.Equal(t, "APPROVED", dataMap["resolution"])
 	assert.Equal(t, "foo ok", dataMap["resolve_reason"])
-	assert.Equal(t, "[\"foouser\"]", dataMap["suggested_reviewers"])
-	assert.Equal(t, "{\"role-foo\":[\"login-foo\",\"login-bar\"]}", dataMap["logins_by_role"])
+	assert.Equal(t, `["foouser"]`, dataMap["suggested_reviewers"])
+	assert.Equal(t, `{"role-foo":["login-foo","login-bar"]}`, dataMap["logins_by_role"])
+
 }
 
 func TestDecodeAccessRequestData(t *testing.T) {
@@ -62,8 +63,8 @@ func TestDecodeAccessRequestData(t *testing.T) {
 		"reviews_count":       "3",
 		"resolution":          "APPROVED",
 		"resolve_reason":      "foo ok",
-		"suggested_reviewers": "[\"foouser\"]",
-		"logins_by_role":      "{\"role-foo\":[\"login-foo\",\"login-bar\"]}",
+		"suggested_reviewers": `["foouser"]`,
+		"logins_by_role":      `{"role-foo":["login-foo","login-bar"]}`,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessRequestData, pluginData)
