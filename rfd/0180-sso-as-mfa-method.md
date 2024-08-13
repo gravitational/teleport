@@ -126,8 +126,8 @@ yubi     WebAuthn ...      ...
 okta-mfa SSO      ...      ...
 ```
 
-Note: The SSO MFA device will correspond to an actual SSO MFA device created
-for the user. This will be important for technical reasons explained later.
+Note: The SSO MFA device will correspond to a dedicated resource in Teleport
+created for the user. This will be important for technical reasons explained later.
 It also means a could remove the MFA method temporarily, or maintain other
 states such as "preferred MFA method", "disabled MFA method", etc., if such
 states are ever added.
@@ -169,7 +169,7 @@ Or tap any security key
 #### Enable SSO connector as MFA method.
 
 IdP connectors will gain a new `allow_as_mfa_method` field with possible values
-`no`, `yes`, and `only`. 
+`no`, `yes`, and `only`. The default value is `no`.
 
 When set to `no`, the connector cannot be used for MFA checks, and vice versa
 for `yes`.
@@ -214,8 +214,8 @@ If `mfa_connector_name` is not set, but `connector_name` is set, that connector
 will be used as an MFA method if `allow_as_mfa_method` is set to `yes`.
 
 If neither of the fields above are set, Teleport will look through all
-registered connectors and return the first one with `allow_as_mfa_method` set
-to `yes` or`only`.
+registered connectors in lexical order and return the first one with 
+`allow_as_mfa_method` set to `yes` or`only`.
 
 #### Bad configuration
 
@@ -323,7 +323,6 @@ message AuthPreferenceSpecV2 {
 +  ALLOW_AS_MFA_METHOD_ONLY = 3;
 +}
 
-// U2F defines settings for U2F device.
 message OIDCConnectorSpecV3 {
   ...
 +  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
