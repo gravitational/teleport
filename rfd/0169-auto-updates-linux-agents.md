@@ -82,7 +82,7 @@ Rollouts may be retried with `tctl autoupdate run`.
 Instance heartbeats will be cached by auth servers using a dedicated cache.
 This cache is updated using rate-limited backend reads that occur in the background, to avoid mass-reads of instance heartbeats.
 The rate is modulated by the total number of instance heartbeats, to avoid putting too much load on the backend on large clusters.
-The cache is considered healthy when all instance heartbeats present on the backend have been read in a time period that is also modulated by the total number of heartbeats.
+The cache is considered healthy when all instance heartbeats present on the backend have been read within a time period that is also modulated by the total number of heartbeats.
 
 At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
 This plan is protected by optimistic locking, and contains the following data:
@@ -95,7 +95,8 @@ Data value JSON:
 - `schedule`: type of schedule that triggered the rollout
 - `hosts`: list of host UUIDs in randomized order
 - `next_page`: additional UUIDs, if list is greater than 100,000 UUIDs
-- `expiry`: 2 weeks
+
+Expiration time of each key is 2 weeks.
 
 At a fixed interval, auth servers will check the plan to determine if a new plan is needed by comparing `start_time` to the current time and the desired window.
 If a new plan is needed, auth servers will query their cache of instance heartbeats and attempt to write the new plan.
@@ -103,6 +104,8 @@ The first auth server to write the plan wins; others will be rejected by the opt
 Auth servers will only write the plan if their instance heartbeat cache is healthy.
 
 If the resource size is greater than 100 KiB, auth servers will divide the resource into pages no greater than 100 KiB each.
+This is necessary to support backends with a value size limit.
+
 Each page will duplicate all values besides `hosts`, which will be different for each page.
 All pages besides the first page will be suffixed with a randomly generated number.
 Pages will be written in reverse order, in a linked-link, before the final atomic non-suffixed write of the first page.
@@ -130,7 +133,8 @@ The rollout logic is progressed by instance heartbeat backend writes, as changes
 The following data related to the rollout are stored in each instance heartbeat:
 - `agent_upgrade_start_time`: timestamp of individual agent's upgrade time
 - `agent_upgrade_version`: current agent version
-- `expiry`: expiration time of the heartbeat (extended to 24 hours at `agent_upgrade_start_time`)
+
+Expiration time of the heartbeat is extended to 24 hours when `agent_upgrade_start_time` is written.
 
 Additionally, an in-memory data structure is maintained based on the cache, and kept up-to-date by a background process.
 This data structure contains the number of unfinished (pending and ongoing) upgrades preceding each instance heartbeat in the rollout plan.
@@ -184,7 +188,7 @@ Upgrading all agents generates the following additional backend write load:
 Notes:
 - Agents will only upgrade if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
-- The host UUID is ready from `/var/lib/teleport` by the updater.
+- The host UUID is read from `/var/lib/teleport/host_uuid` by the updater.
 
 ### Teleport Resources
 
@@ -289,7 +293,7 @@ spec:
   # ...
 ```
 
-To allow `agent_default_schedules` and `agent_group_schedules` to co-exist, a reserved `default` `agent_rollout_plan` will be created.
+To allow `agent_default_schedules` and `agent_group_schedules` to co-exist, a reserved `agent_rollout_plan` named `default` will be employed.
 
 ```shell
 # configuration
