@@ -39,7 +39,9 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
+import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 
+import type { Shell } from 'teleterm/mainProcess/shell';
 import type * as types from 'teleterm/ui/services/workspacesService';
 import type * as uri from 'teleterm/ui/uri';
 import type * as tsh from 'teleterm/services/tshd/types';
@@ -247,7 +249,12 @@ async function setUpPtyProcess(
     getClusterName()
   );
 
-  const { process: ptyProcess, windowsPty } = await createPtyProcess(ctx, cmd);
+  const {
+    process: ptyProcess,
+    windowsPty,
+    openedShell,
+  } = await createPtyProcess(ctx, cmd);
+  documentsService.update(doc.uri, { shellId: openedShell.id });
 
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse({
@@ -276,8 +283,10 @@ async function setUpPtyProcess(
 
   const refreshTitle = async () => {
     documentsService.refreshPtyTitle(doc.uri, {
+      shell: openedShell,
       cwd: await ptyProcess.getCwd(),
       clusterName: getClusterName(),
+      runtimeSettings: ctx.mainProcessClient.getRuntimeSettings(),
     });
   };
 
@@ -331,8 +340,12 @@ async function setUpPtyProcess(
 async function createPtyProcess(
   ctx: IAppContext,
   cmd: PtyCommand
-): Promise<{ process: IPtyProcess; windowsPty: WindowsPty }> {
-  const { process, creationStatus, windowsPty } =
+): Promise<{
+  process: IPtyProcess;
+  windowsPty: WindowsPty;
+  openedShell: Shell;
+}> {
+  const { process, creationStatus, windowsPty, openedShell } =
     await ctx.terminalsService.createPtyProcess(cmd);
 
   if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
@@ -344,7 +357,24 @@ async function createPtyProcess(
     });
   }
 
-  return { process, windowsPty };
+  if (
+    cmd.kind === 'pty.shell' &&
+    creationStatus === PtyProcessCreationStatus.ShellNotResolved
+  ) {
+    if (cmd.shellId === CUSTOM_SHELL_ID) {
+      ctx.notificationsService.notifyWarning({
+        title: 'Custom shell is not configured correctly',
+        description:
+          'Make sure the path to the shell is set correctly in the config file (terminal.customShell).',
+      });
+    } else {
+      ctx.notificationsService.notifyWarning({
+        title: `Requested shell (${cmd.shellId}) is not available`,
+      });
+    }
+  }
+
+  return { process, windowsPty, openedShell };
 }
 
 // TODO(ravicious): Instead of creating cmd within useDocumentTerminal, make useDocumentTerminal

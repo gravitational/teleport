@@ -246,6 +246,12 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.ResolveShellEnvTimeout,
     windowsPty: undefined,
+    openedShell: {
+      id: 'zsh',
+      friendlyName: 'zsh',
+      binPath: '/bin/zsh',
+      binName: 'zsh',
+    },
   });
   jest.spyOn(notificationsService, 'notifyWarning');
 
@@ -584,6 +590,12 @@ const testSetup = (
         process: getPtyProcessMock(),
         creationStatus: PtyProcessCreationStatus.Ok,
         windowsPty: undefined,
+        openedShell: {
+          id: 'zsh',
+          friendlyName: 'zsh',
+          binPath: '/bin/zsh',
+          binName: 'zsh',
+        },
       };
     });
 
@@ -620,6 +632,12 @@ test('shellId is set to a config default when empty', async () => {
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.Ok,
     windowsPty: undefined,
+    openedShell: {
+      id: 'zsh',
+      friendlyName: 'zsh',
+      binPath: '/bin/zsh',
+      binName: 'zsh',
+    },
   });
 
   const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });

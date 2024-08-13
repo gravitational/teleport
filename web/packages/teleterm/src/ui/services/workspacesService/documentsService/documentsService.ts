@@ -47,6 +47,7 @@ import {
 } from './types';
 
 import type { Shell } from 'teleterm/mainProcess/shell';
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 export class DocumentsService {
   constructor(
@@ -376,21 +377,30 @@ export class DocumentsService {
   refreshPtyTitle(
     uri: DocumentUri,
     {
+      shell,
       cwd,
       clusterName,
+      runtimeSettings,
     }: {
+      shell: Shell;
       cwd: string;
       clusterName: string;
+      runtimeSettings: Pick<RuntimeSettings, 'platform' | 'defaultOsShellId'>;
     }
   ) {
     const doc = this.getDocument(uri);
     if (!doc) {
       return;
     }
+    const omitShellName =
+      runtimeSettings.platform === 'linux' ||
+      (runtimeSettings.platform === 'darwin' &&
+        shell.id === runtimeSettings.defaultOsShellId);
+    const shellBinName = !omitShellName && shell.binName;
     if (doc.kind === 'doc.terminal_shell') {
       this.update(doc.uri, {
         cwd,
-        title: [doc.shellId, cwd, clusterName].filter(Boolean).join(' · '),
+        title: [shellBinName, cwd, clusterName].filter(Boolean).join(' · '),
       });
       return;
     }
@@ -398,7 +408,7 @@ export class DocumentsService {
     if (doc.kind === 'doc.gateway_kube') {
       const { params } = routing.parseKubeUri(doc.targetUri);
       this.update(doc.uri, {
-        title: [doc.shellId, cwd, params.kubeId].filter(Boolean).join(' · '),
+        title: [shellBinName, cwd, params.kubeId].filter(Boolean).join(' · '),
       });
     }
   }

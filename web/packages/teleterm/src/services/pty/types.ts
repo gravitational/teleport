@@ -17,12 +17,14 @@
  */
 
 import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { Shell } from 'teleterm/mainProcess/shell';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
 export enum PtyProcessCreationStatus {
   Ok = 'Ok',
   ResolveShellEnvTimeout = 'ResolveShellEnvTimeout',
+  ShellNotResolved = 'ShellNotResolved',
 }
 
 export interface PtyHostClient {
@@ -38,6 +40,7 @@ export type PtyServiceClient = {
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
     windowsPty: WindowsPty;
+    openedShell: Shell;
   }>;
 };
 

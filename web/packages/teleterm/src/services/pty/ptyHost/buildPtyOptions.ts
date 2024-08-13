@@ -17,21 +17,22 @@
  */
 
 import path, { delimiter } from 'path';
+import fs from 'fs/promises';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
-import Logger from 'teleterm/logger';
-
-import { Shell } from 'teleterm/mainProcess/shell';
+import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
+import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 
 import {
   PtyCommand,
   PtyProcessCreationStatus,
   TshKubeLoginCommand,
-  SshOptions,
   WindowsPty,
+  ShellCommand,
+  SshOptions,
 } from '../types';
 
 import {
@@ -51,6 +52,7 @@ export async function buildPtyOptions(
   cmd: PtyCommand
 ): Promise<{
   processOptions: PtyProcessOptions;
+  openedShell: Shell;
   creationStatus: PtyProcessCreationStatus;
 }> {
   // Get the full shell object by the shell ID.
@@ -60,10 +62,15 @@ export async function buildPtyOptions(
     s => s.id === settings.defaultOsShellId
   );
   let shell = defaultShell;
+  let failedToResolveShell = false;
 
   if (cmd.kind === 'pty.shell') {
     const resolvedShell = await resolveShell(cmd, settings, options);
-    shell = resolvedShell;
+    if (!resolvedShell) {
+      failedToResolveShell = true;
+    } else {
+      shell = resolvedShell;
+    }
   }
 
   return resolveShellEnvCached(shell.binPath)
@@ -99,7 +106,10 @@ export async function buildPtyOptions(
           env: combinedEnv,
           shellBinPath: shell.binPath,
         }),
-        creationStatus,
+        openedShell: shell,
+        creationStatus: failedToResolveShell
+          ? PtyProcessCreationStatus.ShellNotResolved
+          : creationStatus,
       };
     });
 }

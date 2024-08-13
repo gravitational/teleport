@@ -40,7 +40,7 @@ export function createPtyService(
       const windowsPty = getWindowsPty(runtimeSettings, {
         windowsBackend: configService.get('terminal.windowsBackend').value,
       });
-      const { processOptions, creationStatus } =
+      const { processOptions, creationStatus, openedShell } =
         await buildPtyOptions(
           runtimeSettings,
           {
@@ -56,6 +56,7 @@ export function createPtyService(
       return {
         process: createPtyProcess(ptyHostClient, ptyId),
         creationStatus,
+        openedShell,
         windowsPty,
       };
     },
