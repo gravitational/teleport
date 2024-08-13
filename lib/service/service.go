@@ -141,6 +141,7 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -6494,18 +6495,19 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
-	accessGraphProxySvc, err := secretsscannerproxy.New(
-		secretsscannerproxy.ServiceConfig{
-			AuthClient: conn.Client,
-			Log:        process.logger,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if secscanconstants.Enabled {
+		accessGraphProxySvc, err := secretsscannerproxy.New(
+			secretsscannerproxy.ServiceConfig{
+				AuthClient: conn.Client,
+				Log:        process.logger,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
 
+		}
+
+		accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
 	}
-
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
-
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())
 		return trace.Wrap(server.Serve(listener))

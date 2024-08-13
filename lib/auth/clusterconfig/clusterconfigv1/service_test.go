@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1944,8 +1945,13 @@ func TestGetAccessGraphConfig(t *testing.T) {
 
 			got, err := env.GetClusterAccessGraphConfig(context.Background(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
 			test.errorAssertion(t, err)
-
-			require.Empty(t, cmp.Diff(test.responseAssertion, got, protocmp.Transform()))
+			opts := []cmp.Option{
+				protocmp.Transform(),
+			}
+			if !secscanconstants.Enabled {
+				opts = append(opts, protocmp.IgnoreFields(&clusterconfigpb.AccessGraphSecretsScanConfiguration{}, "ssh_scan_enabled"))
+			}
+			require.Empty(t, cmp.Diff(test.responseAssertion, got, opts...))
 		})
 	}
 }
