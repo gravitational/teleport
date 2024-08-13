@@ -4535,7 +4535,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.KeyRing)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4631,7 +4631,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.KeyRing)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4728,7 +4728,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start an agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.KeyRing)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
 			require.NoError(t, err)
 			t.Cleanup(func() { helpers.CloseAgent(teleAgent, socketDirPath) })
 
@@ -4746,7 +4746,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 					}
 
 					// Create and run an exec command twice. When ControlPath is set, this will cause
-					// re-use of the connection and creation of two sessions within  the connection.
+					// re-use of the connection and creation of two sessions within the connection.
 					for i := 0; i < 2; i++ {
 						execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 							ForcePTY:      true,
