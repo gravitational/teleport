@@ -56,7 +56,7 @@ High-availability Teleport clusters require two load balancers:
   from users and services in a variety of application-layer protocols.
 - **Auth Service load balancer:** A load balancer to forward traffic from a
   Proxy Service instance to an available Auth Service instance. This handles TLS
-  traffic to the Auth Service instances gRPC endpoint.
+  traffic to the Auth Service’s gRPC API.
 
 Both load balancers must transparently forward the TCP traffic they receive,
 without terminating TLS. In other words, these must be Layer 4 load balancers,

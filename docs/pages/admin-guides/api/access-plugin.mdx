@@ -171,13 +171,13 @@ $ tctl auth sign --user=access-plugin --out=auth.pem
 ```
 
 Teleport's Access Request plugins listen for new and updated Access Requests by
-connecting to the Teleport Auth Service instances gRPC endpoint over TLS.
+connecting to the Teleport Auth Service’s gRPC API over TLS.
 
 The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
 Access Request plugin uses the SSH credentials to connect to the Proxy Service,
 which establishes a reverse tunnel connection to the Auth Service. The plugin
 uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service instances gRPC endpoint.
+Auth Service’s gRPC API.
 
 You will refer to this file later when configuring the plugin.
 
