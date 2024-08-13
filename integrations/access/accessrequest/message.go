@@ -21,6 +21,7 @@ package accessrequest
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -71,6 +72,8 @@ func MsgStatusText(tag pd.ResolutionTag, reason string) string {
 	return statusText
 }
 
+// MsgFields constructs and returns the Access Request message. List values are
+// constructed in sorted order.
 func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, webProxyURL *url.URL) string {
 	var builder strings.Builder
 	builder.Grow(128)
@@ -78,25 +81,27 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 	msgFieldToBuilder(&builder, "ID", reqID)
 	msgFieldToBuilder(&builder, "Cluster", clusterName)
 
+	sortedRoles := sortList(reqData.Roles)
+
 	if len(reqData.User) > 0 {
 		msgFieldToBuilder(&builder, "User", reqData.User)
 	}
 	if len(reqData.LoginsByRole) > 0 {
-		for role, logins := range reqData.LoginsByRole {
-			var loginStr string
-			if len(logins) > 0 {
-				loginStr = strings.Join(logins, ", ")
-			} else {
-				loginStr = "none"
+		for _, role := range sortedRoles {
+			sortedLogins := sortList(reqData.LoginsByRole[role])
+			loginStr := "_none_"
+			if len(sortedLogins) > 0 {
+				loginStr = strings.Join(sortedLogins, ", ")
 			}
 			msgFieldToBuilder(&builder, "Role", lib.MarkdownEscapeInLine(role, requestInlineLimit),
 				"Login(s)", lib.MarkdownEscapeInLine(loginStr, requestInlineLimit))
 		}
 	} else if len(reqData.Roles) > 0 {
-		msgFieldToBuilder(&builder, "Role(s)", lib.MarkdownEscapeInLine(strings.Join(reqData.Roles, ","), requestInlineLimit))
+		msgFieldToBuilder(&builder, "Role(s)", lib.MarkdownEscapeInLine(strings.Join(sortedRoles, ","), requestInlineLimit))
 	}
 	if len(reqData.Resources) > 0 {
-		msgFieldToBuilder(&builder, "Resource(s)", lib.MarkdownEscapeInLine(strings.Join(reqData.Resources, ","), requestInlineLimit))
+		sortedResources := sortList(reqData.Resources)
+		msgFieldToBuilder(&builder, "Resource(s)", lib.MarkdownEscapeInLine(strings.Join(sortedResources, ","), requestInlineLimit))
 	}
 	if reqData.RequestReason != "" {
 		msgFieldToBuilder(&builder, "Reason", lib.MarkdownEscape(reqData.RequestReason, requestReasonLimit))
@@ -162,4 +167,12 @@ func msgFieldToBuilder(b *strings.Builder, field, value string, additionalFields
 	}
 
 	b.WriteString("\n")
+}
+
+// sortedList returns a sorted copy of the src.
+func sortList(src []string) []string {
+	sorted := make([]string, len(src))
+	copy(sorted, src)
+	slices.Sort(sorted)
+	return sorted
 }

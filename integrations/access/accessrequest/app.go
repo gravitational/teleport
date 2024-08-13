@@ -578,11 +578,10 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 }
 
 func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
-	loginsByRole := make(map[string][]string)
+	loginsByRole := make(map[string][]string, len(req.GetRoles()))
 
 	for _, role := range req.GetRoles() {
 		currentRole, err := a.apiClient.GetRole(ctx, role)
-
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
