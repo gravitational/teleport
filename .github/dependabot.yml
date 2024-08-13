@@ -198,7 +198,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
       - rosstimothy
       - zmb3
     labels:
@@ -220,7 +219,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
       - rosstimothy
       - zmb3
     labels:
@@ -239,10 +237,15 @@ updates:
       - "ui"
       - "no-changelog"
     groups:
+      electron:
+        patterns:
+        - "electron*"
       ui:
         update-types:
           - "minor"
           - "patch"
+        exclude-patterns:
+          - "electron*"
     open-pull-requests-limit: 20
     reviewers:
       - avatus

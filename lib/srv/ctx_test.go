@@ -232,6 +232,22 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				UserKind: apievents.UserKind_USER_KIND_HUMAN,
 			},
 		},
+		{
+			name: "bot metadata",
+			idCtx: IdentityContext{
+				TeleportUser:  "bot-alpaca",
+				Login:         "alpaca1",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123-123",
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-alpaca",
+				Login:         "alpaca1",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "alpaca",
+				BotInstanceID: "123-123-123",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

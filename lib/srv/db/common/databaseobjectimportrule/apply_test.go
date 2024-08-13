@@ -17,10 +17,12 @@
 package databaseobjectimportrule
 
 import (
+	"context"
+	"log/slog"
 	"maps"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -32,51 +34,54 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 )
 
+func mkDatabase(t *testing.T, name string, labels map[string]string) *types.DatabaseV3 {
+	t.Helper()
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name:   name,
+		Labels: labels,
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5252",
+	})
+	require.NoError(t, err)
+	return db
+}
+
+type option func(db *dbobjectv1.DatabaseObject) error
+
+func mkDatabaseObject(t *testing.T, name string, spec *dbobjectv1.DatabaseObjectSpec, options ...option) *dbobjectv1.DatabaseObject {
+	t.Helper()
+	spec.Name = name
+	out, err := databaseobject.NewDatabaseObject(name, spec)
+	require.NoError(t, err)
+	for _, opt := range options {
+		require.NoError(t, opt(out))
+	}
+
+	return out
+}
+
+func mkImportRule(t *testing.T, name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
+	t.Helper()
+	out, err := NewDatabaseObjectImportRule(name, spec)
+	require.NoError(t, err)
+	return out
+}
+
+func mkImportRuleNoValidation(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
+	out := &databaseobjectimportrulev1.DatabaseObjectImportRule{
+		Kind:    types.KindDatabaseObjectImportRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+		Spec: spec,
+	}
+	return out
+}
+
 func TestApplyDatabaseObjectImportRules(t *testing.T) {
-	mkDatabase := func(name string, labels map[string]string) *types.DatabaseV3 {
-		db, err := types.NewDatabaseV3(types.Metadata{
-			Name:   name,
-			Labels: labels,
-		}, types.DatabaseSpecV3{
-			Protocol: "postgres",
-			URI:      "localhost:5252",
-		})
-		require.NoError(t, err)
-		return db
-	}
-
-	type option func(db *dbobjectv1.DatabaseObject) error
-
-	mkDatabaseObject := func(name string, spec *dbobjectv1.DatabaseObjectSpec, options ...option) *dbobjectv1.DatabaseObject {
-		spec.Name = name
-		out, err := databaseobject.NewDatabaseObject(name, spec)
-		require.NoError(t, err)
-		for _, opt := range options {
-			require.NoError(t, opt(out))
-		}
-
-		return out
-	}
-
-	mkImportRule := func(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
-		out, err := NewDatabaseObjectImportRule(name, spec)
-		require.NoError(t, err)
-		return out
-	}
-
-	mkImportRuleNoValidation := func(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
-		out := &databaseobjectimportrulev1.DatabaseObjectImportRule{
-			Kind:    types.KindDatabaseObjectImportRule,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name:      name,
-				Namespace: defaults.Namespace,
-			},
-			Spec: spec,
-		}
-		return out
-	}
-
 	tests := []struct {
 		name     string
 		rules    []*databaseobjectimportrulev1.DatabaseObjectImportRule
@@ -88,14 +93,14 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		{
 			name:     "empty inputs",
 			rules:    []*databaseobjectimportrulev1.DatabaseObjectImportRule{},
-			database: mkDatabase("dummy", map[string]string{"env": "prod"}),
+			database: mkDatabase(t, "dummy", map[string]string{"env": "prod"}),
 			objs:     nil,
 			want:     nil,
 		},
 		{
 			name: "database labels are matched by the rules",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule("foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
@@ -110,7 +115,7 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 						},
 					},
 				}),
-				mkImportRule("bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
@@ -126,12 +131,12 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 					},
 				}),
 			},
-			database: mkDatabase("dummy", map[string]string{"env": "prod"}),
+			database: mkDatabase(t, "dummy", map[string]string{"env": "prod"}),
 			objs: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
 			},
 			want: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"},
+				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"},
 					func(db *dbobjectv1.DatabaseObject) error {
 						db.Metadata.Labels = map[string]string{
 							"dev_access":     "ro",
@@ -144,7 +149,7 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		{
 			name: "rule priorities are applied",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule("foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
@@ -160,7 +165,7 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 					},
 				}),
 
-				mkImportRule("bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
@@ -176,12 +181,12 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 					},
 				}),
 			},
-			database: mkDatabase("dummy", map[string]string{}),
+			database: mkDatabase(t, "dummy", map[string]string{}),
 			objs: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
 			},
 			want: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
+				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
 					db.Metadata.Labels = map[string]string{
 						"dev_access":     "ro",
 						"flag_from_dev":  "dummy",
@@ -194,7 +199,7 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		{
 			name: "errors are counted",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule("foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
@@ -230,14 +235,14 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 					},
 				}),
 			},
-			database: mkDatabase("dummy", map[string]string{}),
+			database: mkDatabase(t, "dummy", map[string]string{}),
 			objs: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
-				mkDatabaseObject("bar", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
-				mkDatabaseObject("baz", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "bar", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "baz", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
 			},
 			want: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
+				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
 					db.Metadata.Labels = map[string]string{
 						"dev_access":     "ro",
 						"flag_from_dev":  "dummy",
@@ -252,7 +257,7 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, errCount := ApplyDatabaseObjectImportRules(logrus.StandardLogger(), tt.rules, tt.database, tt.objs)
+			out, errCount := ApplyDatabaseObjectImportRules(context.Background(), slog.Default(), tt.rules, tt.database, tt.objs)
 			require.Len(t, out, len(tt.want))
 			for i, obj := range out {
 				require.Equal(t, tt.want[i].String(), obj.String())
@@ -699,6 +704,145 @@ func Test_splitExpression(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestFilterRulesForDatabase(t *testing.T) {
+	tests := []struct {
+		name  string
+		rules []*databaseobjectimportrulev1.DatabaseObjectImportRule
+
+		want []*databaseobjectimportrulev1.DatabaseObjectImportRule
+	}{
+		{
+			name: "all matching",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       10,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+				}),
+				mkImportRuleNoValidation("rule2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       20,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+				}),
+			},
+			want: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       10,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+				}),
+				mkImportRuleNoValidation("rule2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       20,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+				}),
+			},
+		},
+		{
+			name: "one matching",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       10,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+				}),
+				mkImportRuleNoValidation("rule2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       20,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
+				}),
+			},
+			want: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       10,
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+				}),
+			},
+		},
+		{
+			name:  "empty rules",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{},
+			want:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			database := mkDatabase(t, "testdb", map[string]string{"env": "prod"})
+			result := filterRulesForDatabase(tt.rules, database)
+			require.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestCalculateDatabaseNameFilter(t *testing.T) {
+	tests := []struct {
+		name     string
+		rules    []*databaseobjectimportrulev1.DatabaseObjectImportRule
+		database *types.DatabaseV3
+		dbNames  map[string]bool
+	}{
+		{
+			name: "accept any database",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRule(t, "rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+								// empty list => match any database name.
+								DatabaseNames: []string{},
+							},
+						},
+					},
+				}),
+			},
+			database: mkDatabase(t, "testdb", map[string]string{"env": "prod"}),
+			dbNames:  map[string]bool{"random-name-" + uuid.New().String(): true},
+		},
+		{
+			name: "match specific database name",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRule(t, "rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+								DatabaseNames: []string{"testdb", "devdb"},
+							},
+						},
+					},
+				}),
+			},
+			database: mkDatabase(t, "testdb", map[string]string{"env": "prod"}),
+			dbNames:  map[string]bool{"testdb": true, "devdb": true, "baddb": false},
+		},
+		{
+			name: "no matching rules",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRule(t, "rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}), // env:dev does not match env:prod below.
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+								DatabaseNames: []string{"devdb"},
+							},
+						},
+					},
+				}),
+			},
+			database: mkDatabase(t, "testdb", map[string]string{"env": "prod"}),
+			dbNames:  map[string]bool{"testdb": false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := CalculateDatabaseNameFilter(tt.rules, tt.database)
+			for dbName, expected := range tt.dbNames {
+				t.Run(dbName, func(tt *testing.T) {
+					result := filter(dbName)
+					require.Equal(t, expected, result)
+				})
 			}
 		})
 	}

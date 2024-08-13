@@ -25,14 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 )
 
-const (
-	// OriginalRolesAndTraitsSet is an annotation that will indicate that the original roles and traits have been
-	// set for this objects. For existing user login states, this will not be set, indicating that we can't
-	// use these fields reliably.
-	// DELETE IN 17 (mdwn)
-	OriginalRolesAndTraitsSet = types.TeleportInternalLabelPrefix + "original-set"
-)
-
 // UserLoginState is the ephemeral user login state. This will hold data to differentiate
 // from the User object. This will allow us to store derived roles and traits from
 // access lists, login rules, and other mechanisms to more easily incorporate these
@@ -103,12 +95,6 @@ func (u *UserLoginState) GetOriginalRoles() []string {
 // GetOriginalTraits returns the original traits that the user login state was derived from.
 func (u *UserLoginState) GetOriginalTraits() map[string][]string {
 	return u.Spec.OriginalTraits
-}
-
-// IsOriginalRolesAndTraitsSet will return true if the original roles and traits annotation is present.
-func (u *UserLoginState) IsOriginalRolesAndTraitsSet() bool {
-	_, isSet := u.GetLabel(OriginalRolesAndTraitsSet)
-	return isSet
 }
 
 // GetRoles returns the roles attached to the user login state.

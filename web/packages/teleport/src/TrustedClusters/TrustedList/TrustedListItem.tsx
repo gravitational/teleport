@@ -63,8 +63,7 @@ export default function TrustedListItem(props: Props) {
           color="text.main"
         />
         <Text
-          bold
-          caps
+          typography="h3"
           mb="1"
           textAlign="center"
           title={name}
@@ -74,7 +73,7 @@ export default function TrustedListItem(props: Props) {
         </Text>
       </Flex>
       <ButtonPrimary mt="auto" px="1" size="medium" block onClick={onClickEdit}>
-        EDIT TRUSTED CLUSTER
+        Edit Trusted Cluster
       </ButtonPrimary>
     </Flex>
   );

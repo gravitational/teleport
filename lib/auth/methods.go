@@ -30,16 +30,17 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -628,36 +629,17 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:             user.GetName(),
-		LoginIP:          loginIP,
-		Roles:            user.GetRoles(),
-		Traits:           user.GetTraits(),
-		LoginTime:        a.clock.Now().UTC(),
-		AttestWebSession: true,
+		User:                 user.GetName(),
+		LoginIP:              loginIP,
+		LoginUserAgent:       userAgent,
+		Roles:                user.GetRoles(),
+		Traits:               user.GetTraits(),
+		LoginTime:            a.clock.Now().UTC(),
+		AttestWebSession:     true,
+		CreateDeviceWebToken: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
-		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
 	}
 
 	return sess, nil
@@ -715,17 +697,32 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := req.PublicKey
+	publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPublicKeyAttestationStatement := req.AttestationStatement
+	tlsPublicKeyAttestationStatement := req.AttestationStatement
+
 	certReq := certRequest{
-		user:                 user,
-		ttl:                  req.TTL,
-		publicKey:            req.PublicKey,
-		compatibility:        req.CompatibilityMode,
-		checker:              checker,
-		traits:               user.GetTraits(),
-		routeToCluster:       req.RouteToCluster,
-		kubernetesCluster:    req.KubernetesCluster,
-		loginIP:              clientIP,
-		attestationStatement: req.AttestationStatement,
+		user:                             user,
+		ttl:                              req.TTL,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		compatibility:                    req.CompatibilityMode,
+		checker:                          checker,
+		traits:                           user.GetTraits(),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		loginIP:                          clientIP,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
 	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.

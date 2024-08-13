@@ -1,27 +1,17 @@
-{{ attachToRole="TeleportRole" attachToUser="TeleportUser" account="123456789012" output="/etc/teleport.yaml" }}
+{{ attachToRole="TeleportRole" account="123456789012" output="/etc/teleport.yaml" }}
 
 Teleport can bootstrap IAM permissions for the Database Service based on its
 configuration using the `teleport db configure bootstrap` command. You can use
 this command in automatic or manual mode:
 
 - In automatic mode, Teleport will attempt to create appropriate IAM policies
-  and attach them to the specified IAM identity (user or role). This requires
+  and attach them to the specified IAM identity role. This requires
   IAM permissions to create and attach IAM policies.
 - In manual mode, Teleport will print required IAM policies. You can then create
   and attach them manually using the AWS management console.
 
 <Tabs>
-  <TabItem label="Automatic / IAM User">
-  Use this command to bootstrap the permissions automatically when
-  your Teleport Database Service runs as an IAM user (for example, uses an AWS
-  credentials file).
-
-  ```code
-  $ teleport db configure bootstrap -c {{ output }} --attach-to-user {{ attachToUser }}
-  ```
-  </TabItem>
-
-  <TabItem label="Automatic / IAM Role">
+  <TabItem label="Automatic IAM setup">
   Use this command to bootstrap the permissions automatically when
   your Teleport Database Service runs as an IAM role (for example, on an EC2
   instance with an attached IAM role).
@@ -31,15 +21,7 @@ this command in automatic or manual mode:
   ```
   </TabItem>
 
-  <TabItem label="Manual / IAM User">
-  Use this command to display required IAM policies which you will then create in your AWS console:
-
-  ```code
-  $ teleport db configure bootstrap -c {{ output }} --manual --attach-to-user arn:aws:iam::{{ account }}:user/{{ attachToUser }}
-  ```
-  </TabItem>
-
-  <TabItem label="Manual / IAM Role">
+  <TabItem label="Manual IAM setup">
   Use this command to display required IAM policies which you will then create in your AWS console:
 
   ```code

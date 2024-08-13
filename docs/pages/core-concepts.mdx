@@ -17,7 +17,7 @@ within your infrastructure, such as Kubernetes clusters and Windows desktops.
 A minimal Teleport cluster consists of the **Teleport Auth Service** and
 **Teleport Proxy Service**. In a demo environment, you can run these two
 services from a single `teleport` process on a [Linux
-host](./index.mdx).
+host](admin-guides/deploy-a-cluster/linux-demo.mdx).
 
 ### Teleport Auth Service
 
@@ -33,8 +33,8 @@ Service via a gRPC API.
 
 You can run multiple Auth Service instances in a cluster for high availability.
 
-Read our guides to how [authorization](./architecture/authorization.mdx) and
-[authentication](./architecture/authentication.mdx) work in Teleport.
+Read our guides to how [authorization](reference/architecture/authorization.mdx) and
+[authentication](reference/architecture/authentication.mdx) work in Teleport.
 
 ### Teleport Proxy Service
 
@@ -50,7 +50,7 @@ You can also configure clients to bypass Proxy Service instances and connect to
 resources with Teleport-issued certificates directly. 
 
 Read our guide to [how the Teleport Proxy Service
-works](./architecture/proxy.mdx).
+works](reference/architecture/proxy.mdx).
 
 ## Teleport services
 
@@ -68,7 +68,7 @@ Proxies HTTP and TCP traffic to user-configured endpoints, e.g., internal web
 applications or the AWS Console.
 
 Read more about the [Teleport Application
-Service](./application-access/introduction.mdx).
+Service](./enroll-resources/application-access/introduction.mdx).
 
 ### Teleport Database Service
 
@@ -76,21 +76,21 @@ Proxies TCP traffic in the native protocols of popular databases, including
 PostgreSQL and MySQL. 
 
 Read more about the [Teleport Database
-Service](./database-access/introduction.mdx).
+Service](./enroll-resources/database-access/database-access.mdx).
 
 ### Teleport Desktop Service
 
 Proxies Remote Desktop Protocol traffic to Windows desktops.
 
 Read more about the [Teleport Desktop
-Service](./desktop-access/introduction.mdx).
+Service](./enroll-resources/desktop-access/introduction.mdx).
 
 ### Teleport Kubernetes Service
 
 Proxies HTTP traffic to the Kubernetes API server.
 
 Read more about the [Teleport Kubernetes
-Service](./kubernetes-access/introduction.mdx)
+Service](./enroll-resources/kubernetes-access/introduction.mdx)
 
 ### Teleport SSH Service 
 
@@ -98,7 +98,7 @@ An SSH server implementation that allows users to execute commands on remote
 machines while taking advantage of Teleport's built-in access controls,
 auditing, and session recording.
 
-Read more about the [Teleport SSH Service](./server-access/introduction.mdx).
+Read more about the [Teleport SSH Service](./enroll-resources/server-access/introduction.mdx).
 
 ### Machine ID
 
@@ -113,7 +113,7 @@ vulnerable to attacks the longer they remain in use.
 Unlike other **Teleport services**, Machine ID runs via the `tbot` binary,
 rather than the `teleport` binary.
 
-Read more in our [Machine ID guide](./machine-id/introduction.mdx).
+Read more in our [Machine ID guide](./enroll-resources/machine-id/introduction.mdx).
 
 ### Agent
 
@@ -130,7 +130,7 @@ source core, which is available at the
 on GitHub.
 
 You can find a detailed comparison of the features available in each Teleport 
-edition in [Choose an edition](./choose-an-edition/introduction.mdx).
+edition in [Choose an edition](index.mdx).
 
 ### Teleport Enterprise Cloud
 
@@ -142,8 +142,7 @@ and **Proxy Service**, including upgrades and certificate management. Each
 customer account, known as a **Teleport Enterprise Cloud tenant**, has its own
 subdomain of `.teleport.sh`, e.g., `mytenant.teleport.sh`.
 
-Read more in our [Teleport Enterprise Cloud
-guide](./choose-an-edition/teleport-cloud/introduction.mdx).
+Read more in our [Teleport Enterprise (Cloud) getting started guide](./get-started.mdx).
 
 ### Teleport Enterprise
 
@@ -154,7 +153,7 @@ Standards (FIPS) and a hardware security module (HSM). Teleport Enterprise
 includes a support agreement with Teleport.
 
 Read more in our [Teleport Enterprise
-guide](./choose-an-edition/teleport-enterprise/introduction.mdx).
+guide](index.mdx).
 
 ### Teleport Community Edition
 
@@ -176,7 +175,7 @@ privileges within a cluster. Teleport's role-based access control (RBAC) is
 restrictive by default, and a user needs explicit permissions before they can
 access a resource or perform management tasks on a cluster.
 
-Read our [guide to Teleport roles](./access-controls/guides/role-templates.mdx).
+Read our [guide to Teleport roles](admin-guides/access-controls/guides/role-templates.mdx).
 
 ### Teleport users
 
@@ -195,15 +194,15 @@ attempting to connect has a valid Teleport-issued certificate. It then uses the
 subject of the certificate—including its username and Teleport roles—to
 authorize the user.  
 
-Read more about [local users](./reference/authentication.mdx) and how [SSO
-authentication works in Teleport](./access-controls/sso.mdx).
+Read more about [local users](reference/access-controls/authentication.mdx) and how [SSO
+authentication works in Teleport](admin-guides/access-controls/sso.mdx).
 
 ### Authentication connector
 
 An authentication connector is a **configuration resource** that allows users to
 authenticate to Teleport via a Single Sign-On (SSO) solution. 
 
-See our guide to [Authentication Options](./reference/authentication.mdx).
+See our guide to [Authentication Options](reference/access-controls/authentication.mdx).
 
 ### Trusted clusters
 
@@ -216,6 +215,6 @@ users, roles, and resources, but the trust relationship allows users with certai
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 
 For more information about how to configure a trust relationship between clusters,
-see [Configure Trusted Clusters](./management/admin/trustedclusters.mdx). 
+see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx). 
 For an overview of the architecture used in a trusted cluster relationship, see 
-[Trusted Cluster Architecture](./architecture/trustedclusters.mdx).
+[Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).

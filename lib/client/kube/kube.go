@@ -34,7 +34,7 @@ var log = logrus.WithFields(logrus.Fields{
 // defined. If not, it returns an error.
 // This is a safety check in order to print a better message to the user even
 // before hitting Teleport Kubernetes Proxy.
-func CheckIfCertsAreAllowedToAccessCluster(k *client.Key, rootCluster, teleportCluster, kubeCluster string) error {
+func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, teleportCluster, kubeCluster string) error {
 	// This is a safety check in order to print a better message to the user even
 	// before hitting Teleport Kubernetes Proxy.
 	// We only enforce this check for root clusters, since we don't have knowledge

@@ -45,8 +45,10 @@ export function StatePill({ state, 'data-testid': testId }: StatePillProps) {
 
 const StatePillBody = styled.span<StatePillProps>`
   font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
   display: inline-block;
-  padding: 0 ${props => props.theme.space[3]}px;
+  padding: 6px ${props => props.theme.space[3]}px;
   border-radius: 1000px;
 
   ${statePillStyles}

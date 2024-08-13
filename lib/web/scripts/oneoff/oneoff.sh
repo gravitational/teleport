@@ -45,7 +45,7 @@ main() {
     mkdir -p ${tempDir}/bin
     mv ${tempDir}/${teleportFlavor}/teleport ${tempDir}/bin/teleport
     echo "> ${tempDir}/bin/teleport ${teleportArgs} $@"
-    ${tempDir}/bin/teleport ${teleportArgs} $@ && echo $successMessage
+    {{.TeleportCommandPrefix}} ${tempDir}/bin/teleport ${teleportArgs} $@ && echo $successMessage
 }
 
 main $@

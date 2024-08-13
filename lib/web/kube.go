@@ -211,14 +211,18 @@ func (p *podHandler) handler(r *http.Request) error {
 	// Start sending ping frames through websocket to the client.
 	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.log, p.Close)
 
-	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
 		return trace.Wrap(err, "failed getting user private key from the session")
 	}
-	userKey := &client.Key{
-		PrivateKey: pk,
-		Cert:       p.sctx.cfg.Session.GetPub(),
-		TLSCert:    p.sctx.cfg.Session.GetTLSCert(),
+
+	privateKeyPEM, err := pk.SoftwarePrivateKeyPEM()
+	if err != nil {
+		return trace.Wrap(err, "failed getting software private key")
+	}
+	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal public key")
 	}
 
 	resizeQueue := newTermSizeQueue(ctx, remotecommand.TerminalSize{
@@ -228,7 +232,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]terminal.WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
 
 	certsReq := clientproto.UserCertsRequest{
-		PublicKey:         userKey.MarshalSSHPublicKey(),
+		TLSPublicKey:      publicKeyPEM,
 		Username:          p.sctx.GetUser(),
 		Expires:           p.sctx.cfg.Session.GetExpiryTime(),
 		Format:            constants.CertificateFormatStandard,
@@ -252,7 +256,6 @@ func (p *podHandler) handler(r *http.Request) error {
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: &certsReq,
-		Key:      userKey,
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return trace.Wrap(err, "failed performing mfa ceremony")
@@ -265,12 +268,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		}
 	}
 
-	rsaKey, err := userKey.PrivateKey.RSAPrivateKeyPEM()
-	if err != nil {
-		return trace.Wrap(err, "failed getting rsa private key")
-	}
-
-	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, certs.TLS, rsaKey)
+	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, certs.TLS, privateKeyPEM)
 	if err != nil {
 		return trace.Wrap(err, "failed creating Kubernetes rest config")
 	}

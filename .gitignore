@@ -103,3 +103,6 @@ web/certs/
 
 # Files produced by tests
 *.avi
+
+# We have switched to pnpm, ignore Yarn lockfile
+yarn.lock

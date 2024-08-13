@@ -28,6 +28,8 @@ import {
   Text,
   Alert,
   Input,
+  H2,
+  Subtitle2,
 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
@@ -200,13 +202,11 @@ export function LockCheckout({
         {attempt.status === 'success' ? (
           <Box>
             <Box mt={2} mb={7} textAlign="center">
-              <Text typography="h4" color="text.primary" bold>
-                Resources Locked Successfully
-              </Text>
-              <Text typography="subtitle1" color="text.secondary">
+              <H2 mb={1}>Resources Locked Successfully</H2>
+              <Subtitle2 color="text.secondary">
                 You've successfully locked {createdLocks.length}{' '}
                 {pluralize(createdLocks.length, 'resource')}
-              </Text>
+              </Subtitle2>
             </Box>
             <Flex justifyContent="center" mb={3}>
               <Image src={shieldCheck} width="250px" height="179px" />
@@ -221,9 +221,9 @@ export function LockCheckout({
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text typography="h4" color="text.primary" bold>
+              <H2>
                 {locks.length} {pluralize(locks.length, 'Target')} Added
-              </Text>
+              </H2>
             </Box>
           </Flex>
         )}

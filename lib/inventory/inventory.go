@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -55,6 +55,9 @@ type DownstreamHandle interface {
 	// stream instance. If not currently healthy, this blocks indefinitely until a healthy control
 	// stream is established.
 	Sender() <-chan DownstreamSender
+	// GetSender provides the last known, if any, DownstreamSender. If the control
+	// stream has never been established the returned boolean will be false.
+	GetSender() (s DownstreamSender, ok bool)
 	// RegisterPingHandler registers a handler for downstream ping messages, returning
 	// a de-registration function.
 	RegisterPingHandler(DownstreamPingHandler) (unregister func())
@@ -62,6 +65,12 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
+	// SendGoodbye indicates the downstream half of the connection is terminating. This
+	// has no impact on the health of the inventory control stream, nor does it perform
+	// any clean up of the connection. A Goodbye is merely information so that the
+	// upstream half of the connection may take different actions when the downstream
+	// half of the connection is shutting down for good vs. restarting.
+	SendGoodbye(context.Context) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -94,23 +103,8 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 	return handle
 }
 
-func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.InventoryHeartbeat, retry retryutils.Retry) {
-	for {
-		select {
-		case sender := <-handle.Sender():
-			if err := sender.Send(ctx, hb); err != nil {
-				continue
-			}
-			return
-		case <-ctx.Done():
-			return
-		case <-handle.CloseContext().Done():
-			return
-		}
-	}
-}
-
 type downstreamHandle struct {
+	sender            atomic.Pointer[downstreamSender]
 	mu                sync.Mutex
 	handlerNonce      uint64
 	pingHandlers      map[uint64]DownstreamPingHandler
@@ -124,23 +118,27 @@ func (h *downstreamHandle) closing() bool {
 	return h.closeContext.Err() != nil
 }
 
+var metadataGetter = metadata.Get
+
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
-	metadata, err := metadata.Get(h.CloseContext())
+	md, err := metadataGetter(h.CloseContext())
 	if err != nil {
-		log.Warnf("Failed to get agent metadata: %v", err)
+		if !errors.Is(err, context.Canceled) {
+			log.Warnf("Failed to get agent metadata: %v", err)
+		}
 		return
 	}
 	msg := proto.UpstreamInventoryAgentMetadata{
-		OS:                    metadata.OS,
-		OSVersion:             metadata.OSVersion,
-		HostArchitecture:      metadata.HostArchitecture,
-		GlibcVersion:          metadata.GlibcVersion,
-		InstallMethods:        metadata.InstallMethods,
-		ContainerRuntime:      metadata.ContainerRuntime,
-		ContainerOrchestrator: metadata.ContainerOrchestrator,
-		CloudEnvironment:      metadata.CloudEnvironment,
+		OS:                    md.OS,
+		OSVersion:             md.OSVersion,
+		HostArchitecture:      md.HostArchitecture,
+		GlibcVersion:          md.GlibcVersion,
+		InstallMethods:        md.InstallMethods,
+		ContainerRuntime:      md.ContainerRuntime,
+		ContainerOrchestrator: md.ContainerOrchestrator,
+		CloudEnvironment:      md.CloudEnvironment,
 	}
 	for {
 		// Wait for stream to be opened.
@@ -152,7 +150,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		}
 
 		// Send metadata.
-		if err := sender.Send(h.CloseContext(), msg); err != nil {
+		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
 			log.Warnf("Failed to send agent metadata: %v", err)
 		}
 
@@ -231,6 +229,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	}
 
 	sender := downstreamSender{stream, downstreamHello}
+	h.sender.Swap(&sender)
 
 	// handle incoming messages and distribute sender references
 	for {
@@ -300,6 +299,15 @@ func (h *downstreamHandle) GetUpstreamLabels(kind proto.LabelUpdateKind) map[str
 	return nil
 }
 
+func (h *downstreamHandle) GetSender() (s DownstreamSender, ok bool) {
+	sender := h.sender.Load()
+	if sender == nil {
+		return nil, false
+	}
+
+	return sender, true
+}
+
 func (h *downstreamHandle) Sender() <-chan DownstreamSender {
 	return h.senderC
 }
@@ -311,6 +319,29 @@ func (h *downstreamHandle) CloseContext() context.Context {
 func (h *downstreamHandle) Close() error {
 	h.cancel()
 	return nil
+}
+
+func (h *downstreamHandle) SendGoodbye(ctx context.Context) error {
+	select {
+	case sender := <-h.Sender():
+		// Only send the goodbye if the other half of the stream
+		// has indicated that it supports cleanup. Otherwise, the
+		// upstream will receive an unknown message and terminate
+		// the stream.
+		capabilities := sender.Hello().Capabilities
+		switch {
+		case capabilities == nil:
+			return nil
+		case !capabilities.AppCleanup:
+			return nil
+		}
+
+		return trace.Wrap(sender.Send(ctx, proto.UpstreamInventoryGoodbye{DeleteResources: true}))
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-h.CloseContext().Done():
+		return nil
+	}
 }
 
 type downstreamSender struct {
@@ -502,7 +533,8 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
-	hello proto.UpstreamInventoryHello
+	hello   proto.UpstreamInventoryHello
+	goodbye proto.UpstreamInventoryGoodbye
 
 	agentMDLock   sync.RWMutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata

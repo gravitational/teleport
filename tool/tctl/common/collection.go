@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -1489,6 +1490,23 @@ func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
+type accessGraphSettings struct {
+	accessGraphSettings *clusterconfigrec.AccessGraphSettings
+}
+
+func (c *accessGraphSettings) resources() []types.Resource {
+	return []types.Resource{c.accessGraphSettings}
+}
+
+func (c *accessGraphSettings) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"SSH Keys Scan"})
+	t.AddRow([]string{
+		c.accessGraphSettings.Spec.SecretsScanConfig,
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type accessRequestCollection struct {
 	accessRequests []types.AccessRequest
 }
@@ -1647,6 +1665,36 @@ func (c *pluginCollection) writeText(w io.Writer, verbose bool) error {
 			plugin.GetStatus().GetCode().String(),
 		})
 	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type botInstanceCollection struct {
+	items []*machineidv1pb.BotInstance
+}
+
+func (c *botInstanceCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *botInstanceCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Bot Name", "Instance ID"}
+
+	// TODO: consider adding additional (possibly verbose) fields showing
+	// last heartbeat, last auth, etc.
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

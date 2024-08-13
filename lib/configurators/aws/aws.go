@@ -278,6 +278,12 @@ var (
 		},
 		authBoundary: stsActions,
 	}
+	// docdbActions contains IAM actions for types.AWSMatcherDocumentDB.
+	docdbActions = databaseActions{
+		discovery:    []string{"rds:DescribeDBClusters"},
+		metadata:     []string{"rds:DescribeDBClusters"},
+		authBoundary: stsActions,
+	}
 )
 
 // awsConfigurator defines the AWS database configurator.
@@ -659,9 +665,9 @@ func buildIAMARN(partitionID, accountID, resourceType, resource string) string {
 // Rather than returning errors about why it failed, this message suggests a
 // simple fix for the user to specify a role or user to attach policies to.
 func failedToResolveAssumeRoleARN(roleIdentity string) string {
-	return fmt.Sprintf("Running with assumed-role credentials for %s. "+
-		"Policies cannot be attached to an assumed-role. "+
-		"Provide the name or ARN of the IAM user (--atttach-to-user) or role (--atttach-to-role) to attach policies to. ",
+	return fmt.Sprintf("running with assumed-role credentials for %s, but "+
+		"policies cannot be attached to an assumed-role; "+
+		"provide the name or ARN of an IAM role (--attach-to-role) or user (--attach-to-user) to attach policies to",
 		roleIdentity)
 }
 
@@ -731,6 +737,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	}
 	if hasOpenSearchDatabases(flags, targetCfg) {
 		allActions = append(allActions, opensearchActions)
+	}
+	if hasDocumentDBDatabases(flags, targetCfg) {
+		allActions = append(allActions, docdbActions)
 	}
 
 	dbOption := makeDatabaseActionsBuildOption(flags, targetCfg, boundary)
@@ -885,6 +894,16 @@ func hasOpenSearchDatabases(flags configurators.BootstrapFlags, targetCfg target
 		findDatabaseIs(targetCfg.databases, func(db *servicecfg.Database) bool {
 			return db.Protocol == defaults.ProtocolOpenSearch
 		})
+}
+
+// hasDocumentDBDatabases checks if the agent needs permission for DocumentDB
+// databases.
+func hasDocumentDBDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceDocumentDBPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherDocumentDB, targetCfg.awsMatchers) ||
+		findEndpointIs(targetCfg.databases, apiawsutils.IsDocumentDBEndpoint)
 }
 
 // hasAWSKeyspacesDatabases checks if the agent needs permission for AWS Keyspaces.

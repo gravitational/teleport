@@ -18,7 +18,7 @@
 
 import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
-import { sendUnaryData, ServerUnaryCall } from 'grpc';
+import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
 
 import { Logger, LoggerService } from 'teleterm/services/logger/types';
 import { FileStorage } from 'teleterm/services/fileStorage';

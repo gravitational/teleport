@@ -18,7 +18,10 @@
 
 package bot
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Destination can persist renewable certificates.
 type Destination interface {
@@ -53,4 +56,13 @@ type Destination interface {
 	// MarshalYAML enables the yaml package to correctly marshal the Destination
 	// as YAML including the type header.
 	MarshalYAML() (interface{}, error)
+
+	// IsPersistent indicates whether this destination is persistent.
+	// This is true for most production destinations, but will be false for
+	// Nop or Memory destinations.
+	IsPersistent() bool
+
+	// Stringer so that Destination's implements fmt.Stringer which allows for
+	// better logging.
+	fmt.Stringer
 }

@@ -18,7 +18,7 @@ This script will configure your Active Directory system to integrate with Telepo
    - Enabling RemoteFX for improved remote desktop performance.
 
 Ensure you've reviewed this script itself and/or the equivalent manual documentation before proceeding.
-For the manual documentation, see: https://goteleport.com/docs/desktop-access/active-directory
+For the manual documentation, see: https://goteleport.com/docs/enroll-resources/desktop-access/active-directory
 
 Press 'Y' to acknowledge and continue, or any other key to exit.
 "@
@@ -223,9 +223,9 @@ connections.
 
 The next step is to connect a Windows Desktop Service to your Teleport cluster and configure
 it to connect to the LDAP server of this domain. Instructions for this can be found starting at
-https://goteleport.com/docs/desktop-access/active-directory/#step-67-configure-teleport. You may
-use the `ldap` section printed above as the basis for your Windows Desktop Service configuration,
-which contains values derived from the configuration of this domain.`n
+https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#step-67-configure-teleport.
+You may use the `ldap` section printed above as the basis for your Windows Desktop Service
+configuration, which contains values derived from the configuration of this domain.`n
 "@ -f $LDAP_CONFIG_YAML
 
 Write-Output $OUTPUT
@@ -234,7 +234,7 @@ if ($host.name -match 'ISE')
 {
   $WHITESPACE_WARNING=@'
 # WARNING:
-# If you'r copying and pasting the ldap config from above, PowerShell ISE will add whitespace to the start - delete this before you save the config.
+# If you're copying and pasting the ldap config from above, PowerShell ISE will add whitespace to the start - delete this before you save the config.
 '@
 
   Write-Output $WHITESPACE_WARNING

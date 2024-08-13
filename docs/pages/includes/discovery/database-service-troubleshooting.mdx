@@ -1,0 +1,40 @@
+### Database Service
+
+If the `tctl get db` command returns the discovered databases you expect, but
+the `tctl db ls` command does not include them, check that you have set the 
+`db_service.resources` section correctly, for example:
+
+```yaml
+db_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "env": "prod"
+```
+
+If the section is correctly configured, but databases still do not appear,
+check that you have the correct permissions to list databases in Teleport.
+
+If there are connection errors when you try to connect to a database, then
+first check if there are multiple `db_server` heartbeat resources for the target
+database: `tctl get db_server/yourDatabaseName`.
+If there are, it means that multiple Teleport Database Service instances are
+proxying the database - this is an HA setup that will complicate
+troubleshooting.
+Teleport will choose one of those Database Service instances at random to proxy
+the connection and if one of them can't reach the database endpoint or lacks 
+permissions, then you will see random connection errors.
+{/* TODO(gavin): once we add healthchecks, we can remove this advice. HA shouldn't make connections randomly fail. */}
+
+Even if connection errors are consistent, you should scale down or reconfigure
+your Teleport Database Service instances such that only one matches the target `db`
+while you are troubleshooting errors.
+Verify that there is only one `db_server` with `tctl get db_server/yourDatabaseName`
+and then try the connection again.
+
+Check the Teleport Database Service logs with DEBUG level logging enabled and
+look for network or permissions errors.
+
+There may be more specific troubleshooting steps for a particular type of
+database in the
+[database access guides](../../enroll-resources/database-access/database-access.mdx).

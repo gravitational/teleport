@@ -47,6 +47,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -130,7 +131,7 @@ type ReissueParams struct {
 	//
 	// TODO(awly): refactor lib/web to use a Keystore implementation that
 	// mimics LocalKeystore and remove this.
-	ExistingCreds *Key
+	ExistingCreds *KeyRing
 
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
@@ -205,16 +206,16 @@ const (
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *keys.PrivateKey) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		rsaKeyPEM, err := pk.PrivateKey.RSAPrivateKeyPEM()
+		keyPEM, err := pk.SoftwarePrivateKeyPEM()
 		if err == nil {
-			return append(cert, rsaKeyPEM...), nil
+			return append(cert, keyPEM...), nil
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a non-rsa private key.")
+		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a hardware private key.")
 	}
 	return cert, nil
 }

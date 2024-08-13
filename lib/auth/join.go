@@ -30,8 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -346,24 +349,7 @@ func (a *Server) generateCertsBot(
 		expires = *req.Expires
 	}
 
-	certs, err := a.generateInitialBotCerts(
-		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if shouldDeleteToken {
-		// delete ephemeral bot join tokens so they can't be re-used
-		if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
-			log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
-				provisionToken.GetSafeName(),
-			)
-		}
-	}
-
-	// Emit audit event for bot join.
-	log.Infof("Bot %q has joined the cluster.", botName)
+	// Construct a Join event to be sent later.
 	joinEvent := &apievents.BotJoin{
 		Metadata: apievents.Metadata{
 			Type: events.BotJoinEvent,
@@ -380,6 +366,19 @@ func (a *Server) generateCertsBot(
 			RemoteAddr: req.RemoteAddr,
 		},
 	}
+
+	auth := &machineidv1pb.BotInstanceStatusAuthentication{
+		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
+		// TODO: GetSafeName may not return an appropriate value for later
+		// comparison / locking purposes, and this also shouldn't contain
+		// secrets. Should we hash it?
+		JoinToken:  provisionToken.GetSafeName(),
+		JoinMethod: string(provisionToken.GetJoinMethod()),
+		// TODO(nklaassen): consider logging the SSH public key as well, for now
+		// the SSH and TLS public keys are still identical for tbot.
+		PublicKey: req.PublicTLSKey,
+	}
+
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()
 		if err != nil {
@@ -389,7 +388,42 @@ func (a *Server) generateCertsBot(
 		if err != nil {
 			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
 		}
+
+		auth.Metadata, err = structpb.NewStruct(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode struct value for join metadata.")
+		}
 	}
+
+	certs, botInstanceID, err := a.generateInitialBotCerts(
+		ctx,
+		botName,
+		machineidv1.BotResourceName(botName),
+		req.RemoteAddr,
+		req.PublicSSHKey,
+		req.PublicTLSKey,
+		expires,
+		renewable,
+		auth,
+		req.BotInstanceID,
+		req.BotGeneration,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	joinEvent.BotInstanceID = botInstanceID
+
+	if shouldDeleteToken {
+		// delete ephemeral bot join tokens so they can't be re-used
+		if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+			log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
+				provisionToken.GetSafeName(),
+			)
+		}
+	}
+
+	// Emit audit event for bot join.
+	log.Infof("Bot %q (instance: %s) has joined the cluster.", botName, botInstanceID)
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}

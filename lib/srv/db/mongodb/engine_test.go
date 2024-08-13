@@ -19,12 +19,12 @@
 package mongodb
 
 import (
+	"log/slog"
 	"net"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -47,7 +47,7 @@ func TestEngineReplyError(t *testing.T) {
 
 		e := NewEngine(common.EngineConfig{
 			Clock: clockwork.NewRealClock(),
-			Log:   logrus.StandardLogger(),
+			Log:   slog.Default(),
 		}).(*Engine)
 
 		enginePipeEndConn, clientPipeEndConn := net.Pipe()
@@ -69,7 +69,7 @@ func TestEngineReplyError(t *testing.T) {
 
 		e := NewEngine(common.EngineConfig{
 			Clock: clockwork.NewRealClock(),
-			Log:   logrus.StandardLogger(),
+			Log:   slog.Default(),
 		}).(*Engine)
 		e.serverConnected = true
 

@@ -20,11 +20,11 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -110,7 +110,7 @@ type EngineConfig struct {
 	// Clock is the clock interface.
 	Clock clockwork.Clock
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Users handles database users.
 	Users Users
 	// DataDir is the Teleport data directory
@@ -145,7 +145,7 @@ func (c *EngineConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Log == nil {
-		c.Log = logrus.StandardLogger()
+		c.Log = slog.Default()
 	}
 	return nil
 }

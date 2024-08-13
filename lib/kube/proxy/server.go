@@ -112,16 +112,6 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	c.TLS.ClientAuth = tls.RequireAndVerifyClientCert
-	if c.TLS.ClientCAs == nil {
-		return trace.BadParameter("missing parameter TLS.ClientCAs")
-	}
-	if c.TLS.RootCAs == nil {
-		return trace.BadParameter("missing parameter TLS.RootCAs")
-	}
-	if len(c.TLS.Certificates) == 0 {
-		return trace.BadParameter("missing parameter TLS.Certificates")
-	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}

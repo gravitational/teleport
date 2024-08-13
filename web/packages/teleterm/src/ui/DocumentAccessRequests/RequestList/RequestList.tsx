@@ -235,7 +235,7 @@ const Layout = styled(Box)`
   flex: 1;
   max-width: 1248px;
 
-  ::after {
+  &::after {
     content: ' ';
     padding-bottom: 24px;
   }

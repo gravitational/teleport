@@ -66,8 +66,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
 	AccessPoint authclient.ProxyAccessPoint
-	// HostSigners is a signer for the host private key.
-	HostSigner ssh.Signer
+	// AuthMethods contains SSH credentials that this pool connects as.
+	AuthMethods []ssh.AuthMethod
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -97,8 +97,8 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint in RemoteClusterTunnelManagerConfig")
 	}
-	if c.HostSigner == nil {
-		return trace.BadParameter("missing HostSigner in RemoteClusterTunnelManagerConfig")
+	if len(c.AuthMethods) == 0 {
+		return trace.BadParameter("missing AuthMethods in RemoteClusterTunnelManagerConfig")
 	}
 	if c.HostUUID == "" {
 		return trace.BadParameter("missing HostUUID in RemoteClusterTunnelManagerConfig")
@@ -225,7 +225,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		// Configs for our cluster.
 		Client:              cfg.AuthClient,
 		AccessPoint:         cfg.AccessPoint,
-		HostSigner:          cfg.HostSigner,
+		AuthMethods:         cfg.AuthMethods,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
 		Clock:               cfg.Clock,

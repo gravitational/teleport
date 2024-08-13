@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -58,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -572,12 +575,42 @@ func (a *ServerWithRoles) GetClusterCACert(
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+	if !isProxy || req.RemoteAddr == "" {
 		if err := setRemoteAddrFromContext(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// Similarly, do not trust bot instance IDs or generation values in the
+	// request unless from a component with the proxy role (e.g. the join
+	// service). They will be derived from the client certificate otherwise.
+	if !isProxy {
+		if req.BotInstanceID != "" {
+			log.WithFields(logrus.Fields{
+				"bot_instance_id": req.BotInstanceID,
+			}).Warnf("Untrusted client attempted to provide a bot instance ID, this will be ignored")
+
+			req.BotInstanceID = ""
+		}
+
+		if req.BotGeneration > 0 {
+			log.WithFields(logrus.Fields{
+				"bot_generation": req.BotGeneration,
+			}).Warnf("Untrusted client attempted to provide a bot generation, this will be ignored")
+
+			req.BotGeneration = 0
+		}
+	}
+
+	// If the identity has a BotInstanceID or BotGeneration included, copy it
+	// onto the request - but only if one wasn't already passed along via the
+	// proxy.
+	ident := a.context.Identity.GetIdentity()
+	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
+	req.BotGeneration = cmp.Or(req.BotGeneration, int32(ident.Generation))
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -1274,10 +1307,6 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	if resourceKind == types.KindSAMLIdPServiceProvider {
-		return true, nil
-	}
-
 	// check access normally if base checker doesnt exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
@@ -1466,6 +1495,13 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if d := r.GetAppServer(); d != nil {
+				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
+				if err != nil {
+					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
+					continue
+				}
+				r.Logins = logins
 			}
 		}
 	}
@@ -1558,7 +1594,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
-	if cfg, err := a.authServer.GetClusterNetworkingConfig(ctx); err == nil {
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
@@ -1887,7 +1923,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				var serviceProviders []types.SAMLIdPServiceProvider
 				var startKey string
 				for {
-					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
+					sps, nextKey, err := a.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -2951,11 +2987,11 @@ func getBotName(user types.User) string {
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
-	authPref, err := a.authServer.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3053,7 +3089,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
+			sessionTTL := roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration())
 			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
@@ -3185,6 +3221,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 				MFAVerified:       verifiedMFADeviceID,
 				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+				AppName:           req.RouteToApp.Name,
+				AppURI:            req.RouteToApp.URI,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3217,30 +3255,63 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	var sshPublicKey, tlsPublicKey []byte
+	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+	if sharedPublicKey != nil {
+		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
+		}
+		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
+			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
+		}
+		sshPublicKey = sharedPublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
+	} else {
+		sshPublicKey = req.SSHPublicKey
+		tlsPublicKey = req.TLSPublicKey
+		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
+		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
+	}
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
-		mfaVerified:       verifiedMFADeviceID,
-		user:              user,
-		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:     req.Format,
-		publicKey:         req.PublicKey,
-		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		dbService:         req.RouteToDatabase.ServiceName,
-		dbProtocol:        req.RouteToDatabase.Protocol,
-		dbUser:            req.RouteToDatabase.Username,
-		dbName:            req.RouteToDatabase.Database,
-		dbRoles:           req.RouteToDatabase.Roles,
-		appSessionID:      appSessionID,
-		appName:           req.RouteToApp.Name,
-		appPublicAddr:     req.RouteToApp.PublicAddr,
-		appClusterName:    req.RouteToApp.ClusterName,
-		awsRoleARN:        req.RouteToApp.AWSRoleARN,
-		azureIdentity:     req.RouteToApp.AzureIdentity,
-		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
-		checker:           checker,
+		mfaVerified:                      verifiedMFADeviceID,
+		user:                             user,
+		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:                    req.Format,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		dbService:                        req.RouteToDatabase.ServiceName,
+		dbProtocol:                       req.RouteToDatabase.Protocol,
+		dbUser:                           req.RouteToDatabase.Username,
+		dbName:                           req.RouteToDatabase.Database,
+		dbRoles:                          req.RouteToDatabase.Roles,
+		appSessionID:                     appSessionID,
+		appName:                          req.RouteToApp.Name,
+		appPublicAddr:                    req.RouteToApp.PublicAddr,
+		appURI:                           req.RouteToApp.URI,
+		appClusterName:                   req.RouteToApp.ClusterName,
+		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
+		azureIdentity:                    req.RouteToApp.AzureIdentity,
+		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		checker:                          checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP: a.context.Identity.GetIdentity().LoginIP,
@@ -3249,9 +3320,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
-		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
+
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
 	} else if isRoleImpersonation(req) {
@@ -3297,10 +3374,24 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.renewable = true
 	}
 
-	// If the cert is renewable, process any certificate generation counter.
+	// If the cert is renewable, process any bot instance updates (generation
+	// counter, auth records, etc). `updateBotInstance()` may modify certain
+	// `certReq` attributes (generation, botInstanceID).
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
+
+		// If we're handling a renewal for a bot, we want to return the
+		// Host CAs as well as the User CAs.
+		if certReq.botName != "" {
+			certReq.includeHostCA = true
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.authServer.updateBotInstance(
+			ctx, &certReq, user.GetName(), certReq.botName,
+			certReq.botInstanceID, nil, int32(currentIdentityGeneration),
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3487,7 +3578,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3508,7 +3599,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3528,7 +3619,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3572,7 +3663,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3646,7 +3737,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3669,7 +3760,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3687,7 +3778,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3733,7 +3824,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4482,8 +4573,11 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GetAuthPreference(ctx)
+	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
@@ -4582,6 +4676,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := newAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4594,6 +4692,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4619,12 +4718,17 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = a.authServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	defaultAuthPref := types.DefaultAuthPreference()
+	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
 
 	var msg string
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := defaultAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4637,6 +4741,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4661,7 +4766,11 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx)
+	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -6760,12 +6869,12 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 // enforceGlobalModeTrustedDevice is used to enforce global device trust requirements
 // for key endpoints.
 func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) error {
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 
@@ -6846,13 +6955,38 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
+// TODO(sshah): set MFARequired for SAML IdP admin actions?
+func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
+	return a.context.Checker.CheckAccess(
+		sp,
+		// MFA is not required for operations on SAML resources but
+		// will be enforced at the connection time.
+		services.AccessState{})
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+	sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Filter out service providers the caller doesn't have access to.
+	var filtered []types.SAMLIdPServiceProvider
+	for _, sp := range sps {
+		err := a.checkAccessToSAMLIdPServiceProvider(sp)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, "", trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, sp)
+		}
+
+	}
+	return filtered, nextKey, nil
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -6861,7 +6995,16 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sp, nil
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
@@ -6896,6 +7039,10 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	// Support reused MFA for bulk tctl create requests.
 	if err = a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6935,6 +7082,17 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	existingSP, err := a.authServer.GetSAMLIdPServiceProvider(ctx, sp.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = a.checkAccessToSAMLIdPServiceProvider(existingSP); err != nil {
+		return trace.Wrap(err)
+	}
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6990,6 +7148,10 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
+	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
 	name = sp.GetName()
 	entityID = sp.GetEntityID()
 
@@ -6999,6 +7161,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+// Returns without deleting any resource if user role denies access to any one of the listed resource.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
 	defer func() {
 		code := events.SAMLIdPServiceProviderDeleteAllCode
@@ -7025,6 +7188,23 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	var startKey string
+	for {
+		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, sp := range sps {
+			if err := a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 
 	err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)

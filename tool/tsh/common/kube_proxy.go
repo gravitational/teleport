@@ -342,6 +342,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
 		Logger:       log,
+		CloseContext: cf.Context,
 	})
 
 	localProxy, err := alpnproxy.NewLocalProxy(
@@ -483,7 +484,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	for _, cluster := range clusters {
 		// Try load from store.
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
-			cert, err := kubeCertFromKey(key, cluster.KubeCluster)
+			cert, err := kubeCertFromKeyRing(key, cluster.KubeCluster)
 			if err == nil {
 				log.Debugf("Client cert loaded from keystore for %v.", cluster)
 				certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
@@ -506,27 +507,27 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	return certs, nil
 }
 
-func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.Key, error) {
-	kubeKeys := map[string]*client.Key{}
+func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.KeyRing, error) {
+	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
-		key, err := tc.LocalAgent().GetKey(teleportCluster, client.WithKubeCerts{})
+		keyRing, err := tc.LocalAgent().GetKeyRing(teleportCluster, client.WithKubeCerts{})
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		kubeKeys[teleportCluster] = key
+		kubeKeys[teleportCluster] = keyRing
 	}
 	return kubeKeys, nil
 }
 
-func kubeCertFromKey(key *client.Key, kubeCluster string) (tls.Certificate, error) {
-	x509cert, err := key.KubeX509Cert(kubeCluster)
+func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
+	x509cert, err := keyRing.KubeX509Cert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if time.Until(x509cert.NotAfter) <= time.Minute {
 		return tls.Certificate{}, trace.NotFound("TLS cert is expiring in a minute")
 	}
-	cert, err := key.KubeTLSCert(kubeCluster)
+	cert, err := keyRing.KubeTLSCert(kubeCluster)
 	return cert, trace.Wrap(err)
 }
 
@@ -607,7 +608,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 
 	// Save it if MFA was not required.
 	if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-		if err := tc.LocalAgent().AddKubeKey(key); err != nil {
+		if err := tc.LocalAgent().AddKubeKeyRing(key); err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 	}
@@ -677,8 +678,8 @@ kubectl version
 var proxyKubeHeadlessTemplate = template.Must(template.New("").
 	Parse(fmt.Sprintf(`Started local proxy for Kubernetes Access in the background.
 
-%v Teleport will initiate a new shell configured with kubectl for local proxy access. 
-To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored, 
+%v Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
 the local proxy will be closed, and future access through this headless session won't be possible.
 
 {{ if .multipleContexts}} To work with different contexts use "kubectl --context", for example:

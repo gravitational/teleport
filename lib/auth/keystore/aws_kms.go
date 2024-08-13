@@ -19,6 +19,8 @@ package keystore
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -43,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -108,13 +111,20 @@ func (a *awsKMSKeystore) keyTypeDescription() string {
 	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
-// generateRSA creates a new RSA private key and returns its identifier and a crypto.Signer. The returned
+// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (a *awsKMSKeystore) generateRSA(ctx context.Context, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, opts ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+	alg, err := awsAlgorithm(algorithm)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	a.logger.InfoContext(ctx, "Creating new AWS KMS keypair.", "algorithm", alg)
+
 	output, err := a.kms.CreateKey(&kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
-		KeySpec:     aws.String("RSA_2048"),
-		KeyUsage:    aws.String("SIGN_VERIFY"),
+		KeySpec:     &alg,
+		KeyUsage:    aws.String(kms.KeyUsageTypeSignVerify),
 		Tags: []*kms.Tag{
 			{
 				TagKey:   aws.String(clusterTagKey),
@@ -139,6 +149,16 @@ func (a *awsKMSKeystore) generateRSA(ctx context.Context, _ ...rsaKeyOption) ([]
 		region:  a.awsRegion,
 	}.marshal()
 	return keyID, signer, nil
+}
+
+func awsAlgorithm(alg cryptosuites.Algorithm) (string, error) {
+	switch alg {
+	case cryptosuites.RSA2048:
+		return kms.KeySpecRsa2048, nil
+	case cryptosuites.ECDSAP256:
+		return kms.KeySpecEccNistP256, nil
+	}
+	return "", trace.BadParameter("unsupported algorithm: %v", alg)
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
@@ -236,16 +256,23 @@ func (a *awsKMSSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpt
 	var signingAlg string
 	switch opts.HashFunc() {
 	case crypto.SHA256:
-		signingAlg = "RSASSA_PKCS1_V1_5_SHA_256"
+		switch a.pub.(type) {
+		case *rsa.PublicKey:
+			signingAlg = kms.SigningAlgorithmSpecRsassaPkcs1V15Sha256
+		case *ecdsa.PublicKey:
+			signingAlg = kms.SigningAlgorithmSpecEcdsaSha256
+		default:
+			return nil, trace.BadParameter("unsupported hash func %q for AWS KMS key type %T", opts.HashFunc(), a.pub)
+		}
 	case crypto.SHA512:
-		signingAlg = "RSASSA_PKCS1_V1_5_SHA_512"
+		signingAlg = kms.SigningAlgorithmSpecRsassaPkcs1V15Sha512
 	default:
 		return nil, trace.BadParameter("unsupported hash func %q for AWS KMS key", opts.HashFunc())
 	}
 	output, err := a.kms.Sign(&kms.SignInput{
 		KeyId:            aws.String(a.keyARN),
 		Message:          digest,
-		MessageType:      aws.String("DIGEST"),
+		MessageType:      aws.String(kms.MessageTypeDigest),
 		SigningAlgorithm: aws.String(signingAlg),
 	})
 	if err != nil {
@@ -344,8 +371,10 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			}
 			return trace.Wrap(err, "failed to fetch tags for AWS KMS key %q", keyARN)
 		}
+
+		clusterName := a.clusterName.GetClusterName()
 		if !slices.ContainsFunc(output.Tags, func(tag *kms.Tag) bool {
-			return aws.StringValue(tag.TagKey) == clusterTagKey && aws.StringValue(tag.TagValue) == a.clusterName.GetClusterName()
+			return aws.StringValue(tag.TagKey) == clusterTagKey && aws.StringValue(tag.TagValue) == clusterName
 		}) {
 			// This key was not created by this Teleport cluster, never delete it.
 			return nil

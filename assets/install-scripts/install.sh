@@ -195,7 +195,7 @@ install_via_zypper() {
   fi
 
   $SUDO rpm --import https://zypper.releases.teleport.dev/gpg
-  $SUDO zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/$CHANNEL/teleport-zypper.repo")
+  $SUDO zypper addrepo --refresh --repo "$(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/$CHANNEL/teleport-zypper.repo")"
   $SUDO zypper --gpg-auto-import-keys refresh teleport
   $SUDO zypper install -y "teleport$TELEPORT_SUFFIX"
 
@@ -220,7 +220,8 @@ install_via_curl() {
 
   set -x
   cd "$TEMP_DIR"
-  $SUDO "$SHA_COMMAND" -c "$TMP_CHECKSUM"
+  # shellcheck disable=SC2086
+  $SUDO $SHA_COMMAND -c "$TMP_CHECKSUM"
   cd -
 
   $SUDO tar -xzf "${TEMP_DIR}/${TELEPORT_FILENAME}" -C "$TEMP_DIR"

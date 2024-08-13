@@ -100,7 +100,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) (
 	}
 	defer client.Disconnect(ctx)
 
-	e.Log.Infof("Activating MongoDB user %q with roles %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles)
+	e.Log.InfoContext(e.Context, "Activating MongoDB user.", "user", sessionCtx.DatabaseUser, "roles", sessionCtx.DatabaseRoles)
 
 	// Call activate.
 	defer func() { e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, errOut) }()
@@ -124,7 +124,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) (
 		if !slices.Equal(user.Roles, userRoles) {
 			return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.DatabaseUser)
 		}
-		e.Log.Debugf("User %q is active and roles are the same.", sessionCtx.DatabaseUser)
+		e.Log.DebugContext(e.Context, "User is active and roles are the same.", "user", sessionCtx.DatabaseUser)
 		return nil
 
 	default:
@@ -134,7 +134,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) (
 
 // DeactivateUser disables the database user.
 func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	e.Log.Infof("Deactivating MongoDB user %q.", sessionCtx.DatabaseUser)
+	e.Log.InfoContext(e.Context, "Deactivating MongoDB user.", "user", sessionCtx.DatabaseUser)
 
 	client, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
@@ -148,7 +148,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return trace.Wrap(err)
 
 	case isActive:
-		e.Log.Debugf("Failed to deactivate user %q: user has active connections.", sessionCtx.DatabaseUser)
+		e.Log.DebugContext(e.Context, "Failed to deactivate user: user has active connections.", "user", sessionCtx.DatabaseUser)
 		return nil
 
 	default:
@@ -163,7 +163,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
-	e.Log.Infof("Deleting MongoDB user %q.", sessionCtx.DatabaseUser)
+	e.Log.InfoContext(e.Context, "Deleting MongoDB user.", "user", sessionCtx.DatabaseUser)
 
 	client, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
@@ -177,7 +177,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.Wrap(err)
 
 	case isActive:
-		e.Log.Debugf("Failed to delete user %q: user has active connections.", sessionCtx.DatabaseUser)
+		e.Log.DebugContext(e.Context, "Failed to delete user: user has active connections.", "user", sessionCtx.DatabaseUser)
 		return nil
 
 	default:
@@ -188,7 +188,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 }
 
 func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, client adminClient) (bool, error) {
-	e.Log.Debugf("Checking if user %q is active.", sessionCtx.DatabaseUser)
+	e.Log.DebugContext(e.Context, "Checking if user is active.", "user", sessionCtx.DatabaseUser)
 	var resp struct {
 		Inprog []interface{} `bson:"inprog"`
 	}
@@ -220,14 +220,14 @@ func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, c
 func (e *Engine) isShowCustomDataSupported(ctx context.Context, client adminClient) bool {
 	serverVersion, err := client.ServerVersion(ctx)
 	if err != nil {
-		e.Log.Debugf("Failed to get server version: %v. Assuming showCustomData is supported.", err)
+		e.Log.DebugContext(e.Context, "Failed to get server version. Assuming showCustomData is supported.", "error", err)
 		return false
 	}
 	return serverVersion.Compare(*semver.New("5.2.0")) >= 0
 }
 
 func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client adminClient) (*user, bool, error) {
-	e.Log.Debugf("Getting user info for %q.", sessionCtx.DatabaseUser)
+	e.Log.DebugContext(e.Context, "Getting user info.", "user", sessionCtx.DatabaseUser)
 	var resp struct {
 		Users []user `bson:"users"`
 	}
@@ -257,7 +257,7 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 }
 
 func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole) error {
-	e.Log.Debugf("Creating user %q.", sessionCtx.DatabaseUser)
+	e.Log.DebugContext(e.Context, "Creating user.", "user", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "createUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
@@ -267,7 +267,7 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 }
 
 func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole, authRestrictions []userAuthRestriction) error {
-	e.Log.Debugf("Updating user %q.", sessionCtx.DatabaseUser)
+	e.Log.DebugContext(e.Context, "Updating user.", "user", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "updateUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
@@ -276,7 +276,7 @@ func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, cli
 }
 
 func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, client adminClient) error {
-	e.Log.Debugf("Dropping user %q.", sessionCtx.DatabaseUser)
+	e.Log.DebugContext(e.Context, "Dropping user.", "user", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "dropUser", Value: x509Username(sessionCtx)},
 	}).Err())

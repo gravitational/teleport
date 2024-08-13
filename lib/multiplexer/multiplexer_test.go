@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -1225,7 +1224,6 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	clock := clockwork.NewFakeClockAt(time.Now())
 	jwtSigner, err := jwt.New(&jwt.Config{
 		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  proxyPriv,
 	})
@@ -1329,7 +1327,6 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 			jwtVerifier, err := jwt.New(&jwt.Config{
 				Clock:       clock,
 				PublicKey:   cert.PublicKey,
-				Algorithm:   defaults.ApplicationTokenAlgorithm,
 				ClusterName: clusterName,
 			})
 			require.NoError(b, err, "Could not create JWT verifier")

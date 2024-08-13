@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Card, CardSuccess, Text } from 'design';
+import { Card, CardSuccess, H1 } from 'design';
 import { CircleStop } from 'design/Icon';
 import React from 'react';
 
@@ -24,11 +24,7 @@ export function CardDenied({ title, children }) {
   return (
     <Card width="540px" p={7} my={4} mx="auto" textAlign="center">
       <CircleStop mb={3} size={64} color="red" />
-      {title && (
-        <Text typography="h2" mb="4">
-          {title}
-        </Text>
-      )}
+      {title && <H1 mb="4">{title}</H1>}
       {children}
     </Card>
   );

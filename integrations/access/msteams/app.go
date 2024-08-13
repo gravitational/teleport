@@ -29,6 +29,7 @@ import (
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -227,7 +228,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		return pong, trace.Wrap(err)
 	}
 
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 
 	return pong, trace.Wrap(err)
 }

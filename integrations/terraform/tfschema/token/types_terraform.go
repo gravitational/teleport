@@ -35,6 +35,7 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
+	_ "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -198,12 +199,12 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"project_ids": {
-								Description: "ProjectIDs is a list of project IDs (e.g. \"<example-id-123456>\").",
+								Description: "ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"service_accounts": {
-								Description: "ServiceAccounts is a list of service account emails (e.g. \"<project-number>-compute@developer.gserviceaccount.com\").",
+								Description: "ServiceAccounts is a list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
@@ -366,7 +367,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Optional:    true,
 				},
 				"join_method": {
-					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include \"token\", \"ec2\", and \"iam\".",
+					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},

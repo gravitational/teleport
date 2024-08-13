@@ -57,7 +57,7 @@ export function PasswordBox({
       <SingleRowBox>
         <Header
           title={
-            <Flex gap={2}>
+            <Flex gap={2} alignItems="center">
               Password
               <StatePill
                 data-testid="password-state-pill"

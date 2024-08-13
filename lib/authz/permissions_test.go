@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1110,7 +1111,7 @@ type fakeCtxChecker struct {
 	state services.AccessState
 }
 
-func (c *fakeCtxChecker) GetAccessState(_ types.AuthPreference) services.AccessState {
+func (c *fakeCtxChecker) GetAccessState(_ readonly.AuthPreference) services.AccessState {
 	return c.state
 }
 

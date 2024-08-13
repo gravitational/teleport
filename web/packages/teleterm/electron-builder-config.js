@@ -204,6 +204,10 @@ module.exports = {
         from: env.CONNECT_TSH_BIN_PATH,
         to: './bin/tsh',
       },
+      {
+        from: 'build_resources/linux/apparmor-profile',
+        to: './apparmor-profile',
+      },
     ].filter(Boolean),
   },
   directories: {

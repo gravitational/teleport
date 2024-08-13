@@ -260,6 +260,67 @@ func TestRewind(t *testing.T) {
 	p.Close()
 }
 
+func TestUseDatabaseTranslator(t *testing.T) {
+	t.Run("SupportedProtocols", func(t *testing.T) {
+		for _, protocol := range player.SupportedDatabaseProtocols {
+			queryEventCount := 3
+			t.Run(protocol, func(t *testing.T) {
+				clk := clockwork.NewFakeClock()
+				p, err := player.New(&player.Config{
+					Clock:     clk,
+					SessionID: "test-session",
+					Streamer:  &databaseStreamer{protocol: protocol, count: int64(queryEventCount)},
+				})
+				require.NoError(t, err)
+				require.NoError(t, p.Play())
+
+				count := 0
+				for evt := range p.C() {
+					// When using translator, the only returned events are
+					// prints. Everything else indicates a translator was not
+					// used.
+					switch evt.(type) {
+					case *apievents.SessionPrint:
+					default:
+						require.Fail(t, "expected only session start/end and session print events but got %T", evt)
+					}
+					count++
+				}
+
+				// Queries + start/end
+				require.Equal(t, queryEventCount+2, count)
+				require.NoError(t, p.Err())
+			})
+		}
+	})
+
+	t.Run("UnsupportedProtocol", func(t *testing.T) {
+		queryEventCount := 3
+		clk := clockwork.NewFakeClock()
+		p, err := player.New(&player.Config{
+			Clock:     clk,
+			SessionID: "test-session",
+			Streamer:  &databaseStreamer{protocol: "random-protocol", count: int64(queryEventCount)},
+		})
+		require.NoError(t, err)
+		require.NoError(t, p.Play())
+
+		count := 0
+		for evt := range p.C() {
+			switch evt.(type) {
+			case *apievents.DatabaseSessionStart, *apievents.DatabaseSessionEnd, *apievents.DatabaseSessionQuery:
+			default:
+				require.Fail(t, "expected only database events but got %T", evt)
+			}
+			count++
+		}
+
+		// Queries + start/end
+		require.Equal(t, queryEventCount+2, count)
+		require.NoError(t, p.Err())
+	})
+}
+
 // simpleStreamer streams a fake session that contains
 // count events, emitted at a particular interval
 type simpleStreamer struct {
@@ -297,4 +358,59 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 	}()
 
 	return evts, errors
+}
+
+type databaseStreamer struct {
+	protocol string
+	count    int64
+	idx      int64
+}
+
+func (d *databaseStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	errors := make(chan error, 1)
+	evts := make(chan apievents.AuditEvent)
+
+	go func() {
+		defer close(evts)
+
+		d.sendEvent(ctx, evts, &apievents.DatabaseSessionStart{
+			Metadata: apievents.Metadata{
+				Type:  events.DatabaseSessionStartEvent,
+				Index: d.idx,
+			},
+			DatabaseMetadata: apievents.DatabaseMetadata{
+				DatabaseProtocol: d.protocol,
+			},
+		})
+
+		for i := int64(0); i < d.count; i++ {
+			if ctx.Err() != nil {
+				return
+			}
+
+			d.sendEvent(ctx, evts, &apievents.DatabaseSessionQuery{
+				Metadata: apievents.Metadata{
+					Type:  events.DatabaseSessionQueryEvent,
+					Index: d.idx + i,
+				},
+			})
+		}
+
+		d.sendEvent(ctx, evts, &apievents.DatabaseSessionEnd{
+			Metadata: apievents.Metadata{
+				Type:  events.DatabaseSessionEndEvent,
+				Index: d.idx,
+			},
+		})
+	}()
+
+	return evts, errors
+}
+
+func (d *databaseStreamer) sendEvent(ctx context.Context, evts chan apievents.AuditEvent, evt apievents.AuditEvent) {
+	select {
+	case <-ctx.Done():
+	case evts <- evt:
+		d.idx++
+	}
 }

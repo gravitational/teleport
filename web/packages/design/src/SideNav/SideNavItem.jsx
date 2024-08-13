@@ -23,6 +23,8 @@ import Flex from './../Flex';
 
 const fromTheme = ({ theme }) => {
   return {
+    paddingLeft: `${theme.space[9]}px`,
+    paddingRight: `${theme.space[5]}px`,
     background: theme.colors.levels.surface,
     color: theme.colors.text.slightlyMuted,
     fontSize: theme.fontSizes[1],
@@ -53,12 +55,5 @@ const SideNavItem = styled(Flex)`
 `;
 
 SideNavItem.displayName = 'SideNavItem';
-
-SideNavItem.defaultProps = {
-  pl: 9,
-  pr: 5,
-  bg: 'levels.surfaceSecondary',
-  color: 'text.main',
-};
 
 export default SideNavItem;

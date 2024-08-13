@@ -21,6 +21,7 @@ package cert
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"time"
@@ -51,9 +52,7 @@ func CreateCertificate(principal string, certType uint32) (*ssh.Certificate, ssh
 	return cert, certSigner, nil
 }
 
-// CreateEllipticCertificate creates a valid, but not supported, ECDSA
-// SSH certificate. This certificate is used to make sure Teleport rejects
-// such certificates.
+// CreateEllipticCertificate creates a valid ECDSA P-256 certificate.
 func CreateEllipticCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
 	// Create ECDSA key for CA and certificate to be signed by CA.
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -61,6 +60,27 @@ func CreateEllipticCertificate(principal string, certType uint32) (*ssh.Certific
 		return nil, nil, trace.Wrap(err)
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	cert, certSigner, err := createCertificate(principal, certType, caKey, key)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return cert, certSigner, nil
+}
+
+// CreateEd25519Certificate creates an Ed25519 certificate which should be
+// rejected in FIPS mode.
+func CreateEd25519Certificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
+	// Create Ed25519 key for CA and certificate to be signed by CA.
+	_, caKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -55,6 +55,7 @@ const Input = styled.input<InputProps>`
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;
@@ -67,20 +68,20 @@ const Input = styled.input<InputProps>`
     border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
-  ::-ms-clear {
+  &::-ms-clear {
     display: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${props => props.theme.colors.text.muted};
     opacity: 1;
   }
 
-  :read-only {
+  &:read-only {
     cursor: not-allowed;
   }
 
-  :disabled {
+  &:disabled {
     color: ${props => props.theme.colors.text.disabled};
     border-color: ${props => props.theme.colors.text.disabled};
   }

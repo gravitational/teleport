@@ -196,6 +196,8 @@ func TryRun(commands []CLICommand, args []string) error {
 		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
 	}
 
+	cfg.Debug = ccf.Debug
+
 	// configure all commands with Teleport configuration (they share 'cfg')
 	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
@@ -442,14 +444,14 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
-	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
-	key, err := clientStore.GetKey(idx, client.WithSSHCerts{})
+	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Auth config can be created only using a key associated with the root cluster.
-	rootCluster, err := key.RootClusterName()
+	rootCluster, err := keyRing.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -458,13 +460,13 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 
 	authConfig := &authclient.Config{}
-	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
+	authConfig.TLS, err = keyRing.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 	authConfig.Insecure = ccf.Insecure
-	authConfig.SSH, err = key.ProxyClientSSHConfig(rootCluster)
+	authConfig.SSH, err = keyRing.ProxyClientSSHConfig(rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

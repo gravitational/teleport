@@ -394,31 +394,18 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
-  private wasSuccessful(errCode: SharedDirectoryErrCode) {
-    if (errCode === SharedDirectoryErrCode.Nil) {
-      return true;
-    }
-
-    this.handleError(
-      new Error(`Encountered shared directory error: ${errCode}`),
-      TdpClientEvent.CLIENT_ERROR
-    );
-    return false;
-  }
-
   handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
-
-    if (!this.wasSuccessful(ack.errCode)) {
+    if (ack.errCode !== SharedDirectoryErrCode.Nil) {
+      // TODO(zmb3): get a better error message here
+      this.handleError(
+        new Error(`Encountered shared directory error: ${ack.errCode}`),
+        TdpClientEvent.CLIENT_ERROR
+      );
       return;
     }
-    try {
-      this.logger.info(
-        'Started sharing directory: ' + this.sdManager.getName()
-      );
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+
+    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
   }
 
   async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
