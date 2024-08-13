@@ -396,7 +396,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
-	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
 		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
