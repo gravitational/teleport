@@ -396,6 +396,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
+	if cf.LocalProxyPort == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
+
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
 			log.WithError(err).Error("Failed to close app proxy.")

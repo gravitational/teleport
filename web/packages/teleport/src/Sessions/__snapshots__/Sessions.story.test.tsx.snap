@@ -484,7 +484,7 @@ exports[`active sessions CTA 1`] = `
       <a
         class="c10"
         height="36px"
-        href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
+        href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
         rel="noreferrer"
         style="text-transform: none;"

@@ -21,15 +21,22 @@
 package regular
 
 import (
+	"context"
 	"net"
 	"os"
+	"os/user"
+	"sync"
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -127,4 +134,75 @@ func TestValidateListenerSocket(t *testing.T) {
 			tc.assert(t, err)
 		})
 	}
+}
+
+// BenchmarkRootExecCommand measures performance of running multiple exec requests
+// over a single ssh connection. The same test is run with and without host user
+// creation support to catch any performance degradation caused by user provisioning.
+func BenchmarkRootExecCommand(b *testing.B) {
+	utils.RequireRoot(b)
+
+	b.ReportAllocs()
+
+	cases := []struct {
+		name       string
+		createUser bool
+	}{
+		{
+			name: "no user creation",
+		},
+		{
+			name:       "with user creation",
+			createUser: true,
+		},
+	}
+
+	for _, test := range cases {
+		b.Run(test.name, func(b *testing.B) {
+			var opts []ServerOption
+			if test.createUser {
+				opts = []ServerOption{SetCreateHostUser(true)}
+			}
+
+			f := newFixtureWithoutDiskBasedLogging(b, opts...)
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				username := f.user
+				if test.createUser {
+					username = utils.GenerateLocalUsername(b)
+					b.Cleanup(func() { _, _ = host.UserDel(username) })
+				}
+
+				_, err := newUpack(f.testSrv, username, []string{username, f.user}, wildcardAllow)
+				require.NoError(b, err)
+
+				clt := f.newSSHClient(context.Background(), b, &user.User{Username: username})
+
+				executeCommand(b, clt, "uptime", 10)
+			}
+		})
+	}
+}
+
+func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executions int) {
+	tb.Helper()
+
+	var wg sync.WaitGroup
+	for i := 0; i < executions; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			ctx := context.Background()
+
+			se, err := clt.NewSession(ctx)
+			assert.NoError(tb, err)
+			defer se.Close()
+
+			assert.NoError(tb, se.Run(ctx, command))
+		}()
+	}
+
+	wg.Wait()
 }

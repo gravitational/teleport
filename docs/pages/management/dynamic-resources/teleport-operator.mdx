@@ -45,6 +45,33 @@ follow [the guide for Helm-deployed clusters](./teleport-operator-helm.mdx).
 If you are hosting Teleport out of Kubernetes (Teleport Cloud, Terraform, ...),
 follow [the standalone operator guide](./teleport-operator-standalone.mdx).
 
+### Control reconciliation with annotations
+
+The operator supports two annotations on CRs:
+
+#### `teleport.dev/keep`
+
+This annotation instructs the operator to keep the Teleport resource if the CR is deleted.
+This is useful if you want to migrate between two resource versions.
+
+For example, to migrate from `TeleportRoleV6` to `TeleportRoleV7`:
+- Annotate the existing `TeleportRoleV6` resource with `teleport.dev/keep: "true"`
+- Delete the `TeleportRoleV6` CR, the operator won't delete the associated Teleport role
+- Create a `TeleportRoleV7` CR with the same name, the operator will find the existing v6 role and adopt it.
+
+Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
+
+#### `teleport.dev/ignore`
+
+This annotation instructs the operator to ignore the CR when reconciling.
+This means the resource will not be created, updated, or deleted in Teleport.
+
+This also means the operator will not remove its finalizer if you try to delete an ignored CR.
+The finalizer will stay and the deletion be blocked until you patch the resource to remove the
+finalizer or remove the ignore annotation.
+
+Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
+
 ### Troubleshooting
 
 (!docs/pages/includes/diagnostics/kubernetes-operator-troubleshooting.mdx!)

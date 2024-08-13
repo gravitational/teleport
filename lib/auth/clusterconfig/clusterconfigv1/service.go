@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -929,7 +930,7 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 	}
 
 	// If the policy feature is disabled in the license, return a disabled response.
-	if !modules.GetModules().Features().Policy.Enabled && !modules.GetModules().Features().AccessGraph {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
 		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 			AccessGraph: &clusterconfigpb.AccessGraphConfig{
 				Enabled: false,
@@ -1030,7 +1031,8 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().Policy.Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1074,7 +1076,8 @@ func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().Policy.Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1118,7 +1121,8 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().Policy.Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 

@@ -34,7 +34,7 @@ running Teleport on UNIX variants other than Linux \[1].
 | - | - | - | - | - | - |
 | Linux v2.6.23+ (RHEL/CentOS 7+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
 | macOS v10.15+  (Catalina)| yes | yes | yes | yes | yes |
-| Windows 10+ (rev. 1607) \[4] | no | no | yes | yes | no |
+| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | no |
 
 \[1] *Teleport is written in Go and many of these system requirements are due to the requirements
 of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
@@ -126,7 +126,7 @@ Download and run the installation script on the server where you want to install
 Teleport:
 
 ```code
-$ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?}
+$ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?}
 ```
 
 ### Package repositories
@@ -757,7 +757,7 @@ chart.
 |Chart|Included Services|Values Reference|
 |-|-|-|
 |`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](reference/helm-reference/teleport-cluster.mdx)
-|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service|[Reference](reference/helm-reference/teleport-kube-agent.mdx)|
+|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service<br/>Discovery Service<br/>Jamf Service|[Reference](reference/helm-reference/teleport-kube-agent.mdx)|
 
 ## macOS
 

@@ -77,15 +77,14 @@ class TeleportContext implements types.Context {
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: !(cfg.oidc && cfg.saml),
-    // Below should be locked for the following cases:
-    //  1) feature disabled in the cluster features
-    //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
-    accessRequests:
-      !cfg.accessRequests || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
-    trustedDevices:
-      !cfg.trustedDevices || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+    authConnectors: !(
+      cfg.entitlements.OIDC.enabled && cfg.entitlements.SAML.enabled
+    ),
+    accessRequests: !cfg.entitlements.AccessRequests.enabled,
+    trustedDevices: !cfg.entitlements.DeviceTrust.enabled,
   };
+  // entitlements define a customer’s access to a specific features
+  entitlements = cfg.entitlements;
 
   // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.
   hasExternalAuditStorage = false;

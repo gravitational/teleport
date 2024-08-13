@@ -121,14 +121,14 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
 	// If the kube already exists but has an empty discovery group, update it.
-	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
-		func() (types.ResourceWithLabels, error) {
-			return s.AccessPoint.GetKubernetesCluster(ctx, kubeCluster.GetName())
-		}) {
-		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
-	}
 	if err != nil {
-		return trace.Wrap(err)
+		err := s.resolveCreateErr(err, types.OriginCloud, func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetKubernetesCluster(ctx, kubeCluster.GetName())
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		kubeEventPrefix + kubeCluster.GetName(): {

@@ -1583,7 +1583,8 @@ type DeployDatabaseServiceResponse struct {
 
 	// ClusterArn identifies the cluster where the deployment was made.
 	ClusterArn string `protobuf:"bytes,1,opt,name=cluster_arn,json=clusterArn,proto3" json:"cluster_arn,omitempty"`
-	// ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
+	// ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
+	// specific cluster service if a single deployment was requested.
 	ClusterDashboardUrl string `protobuf:"bytes,2,opt,name=cluster_dashboard_url,json=clusterDashboardUrl,proto3" json:"cluster_dashboard_url,omitempty"`
 }
 

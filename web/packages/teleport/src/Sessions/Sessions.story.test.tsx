@@ -33,8 +33,7 @@ test('loaded', () => {
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('active sessions CTA', () => {
-  cfg.isTeam = true;
+test('active sessions CTA', async () => {
   cfg.isEnterprise = true;
   const { container } = render(<ActiveSessionsCTA />);
   expect(container.firstChild).toMatchSnapshot();

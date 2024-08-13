@@ -192,6 +192,7 @@
     "SECURITYADMIN",
     "SIEM",
     "SIGINT",
+    "SIGUSR",
     "SLAVEOF",
     "SLES",
     "SLOWLOG",
@@ -958,6 +959,7 @@
     "winadj",
     "windowsaccountname",
     "windowsdesktop",
+    "winpty",
     "winscp",
     "winserver",
     "workgroups",
@@ -984,5 +986,7 @@
   "flagWords": [
     "hte"
   ],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }

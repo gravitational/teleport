@@ -348,27 +348,27 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: 1.25.1
         version: 1.25.1
+      '@xterm/addon-canvas':
+        specifier: ^0.7.0
+        version: 0.7.0(@xterm/xterm@5.5.0)
+      '@xterm/addon-fit':
+        specifier: ^0.10.0
+        version: 0.10.0(@xterm/xterm@5.5.0)
+      '@xterm/addon-web-links':
+        specifier: ^0.11.0
+        version: 0.11.0(@xterm/xterm@5.5.0)
+      '@xterm/addon-webgl':
+        specifier: ^0.18.0
+        version: 0.18.0(@xterm/xterm@5.5.0)
+      '@xterm/xterm':
+        specifier: ^5.5.0
+        version: 5.5.0
       create-react-class:
         specifier: ^15.6.3
         version: 15.7.0
       events:
         specifier: 3.3.0
         version: 3.3.0
-      xterm:
-        specifier: ^5.3.0
-        version: 5.3.0
-      xterm-addon-canvas:
-        specifier: ^0.5.0
-        version: 0.5.0(xterm@5.3.0)
-      xterm-addon-fit:
-        specifier: ^0.8.0
-        version: 0.8.0(xterm@5.3.0)
-      xterm-addon-web-links:
-        specifier: ^0.9.0
-        version: 0.9.0(xterm@5.3.0)
-      xterm-addon-webgl:
-        specifier: ^0.16.0
-        version: 0.16.0(xterm@5.3.0)
     devDependencies:
       '@gravitational/build':
         specifier: workspace:*
@@ -446,12 +446,18 @@ importers:
       '@types/whatwg-url':
         specifier: ^11.0.5
         version: 11.0.5
+      '@xterm/addon-fit':
+        specifier: ^0.10.0
+        version: 0.10.0(@xterm/xterm@5.5.0)
+      '@xterm/xterm':
+        specifier: ^5.5.0
+        version: 5.5.0
       electron:
-        specifier: 31.1.0
-        version: 31.1.0
+        specifier: 31.3.1
+        version: 31.3.1
       electron-builder:
-        specifier: ^25.0.1
-        version: 25.0.1(electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1))
+        specifier: ^25.0.3
+        version: 25.0.3(electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3))
       electron-notarize:
         specifier: ^1.2.2
         version: 1.2.2
@@ -476,12 +482,6 @@ importers:
       whatwg-url:
         specifier: ^13.0.0
         version: 13.0.0
-      xterm:
-        specifier: ^5.3.0
-        version: 5.3.0
-      xterm-addon-fit:
-        specifier: ^0.8.0
-        version: 0.8.0(xterm@5.3.0)
       zod:
         specifier: ^3.23.8
         version: 3.23.8
@@ -2899,6 +2899,29 @@ packages:
     resolution: {integrity: sha512-2WALfTl4xo2SkGCYRt6rDTFfk9R1czmBvUQy12gK2KuRKIpWEhcbbzy8EZXtz/jkRqHX8bFEc6FC1HjX4TUWYw==}
     engines: {node: '>=10.0.0'}
 
+  '@xterm/addon-canvas@0.7.0':
+    resolution: {integrity: sha512-LF5LYcfvefJuJ7QotNRdRSPc9YASAVDeoT5uyXS/nZshZXjYplGXRECBGiznwvhNL2I8bq1Lf5MzRwstsYQ2Iw==}
+    peerDependencies:
+      '@xterm/xterm': ^5.0.0
+
+  '@xterm/addon-fit@0.10.0':
+    resolution: {integrity: sha512-UFYkDm4HUahf2lnEyHvio51TNGiLK66mqP2JoATy7hRZeXaGMRDr00JiSF7m63vR5WKATF605yEggJKsw0JpMQ==}
+    peerDependencies:
+      '@xterm/xterm': ^5.0.0
+
+  '@xterm/addon-web-links@0.11.0':
+    resolution: {integrity: sha512-nIHQ38pQI+a5kXnRaTgwqSHnX7KE6+4SVoceompgHL26unAxdfP6IPqUTSYPQgSwM56hsElfoNrrW5V7BUED/Q==}
+    peerDependencies:
+      '@xterm/xterm': ^5.0.0
+
+  '@xterm/addon-webgl@0.18.0':
+    resolution: {integrity: sha512-xCnfMBTI+/HKPdRnSOHaJDRqEpq2Ugy8LEj9GiY4J3zJObo3joylIFaMvzBwbYRg8zLtkO0KQaStCeSfoaI2/w==}
+    peerDependencies:
+      '@xterm/xterm': ^5.0.0
+
+  '@xterm/xterm@5.5.0':
+    resolution: {integrity: sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==}
+
   '@xtuc/ieee754@1.2.0':
     resolution: {integrity: sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA==}
 
@@ -3063,15 +3086,15 @@ packages:
     resolution: {integrity: sha512-P43ePfOAIupkguHUycrc4qJ9kz8ZiuOUijaETwX7THt0Y/GNK7v0aa8rY816xWjZ7rJdA5XdMcpVFTKMq+RvWg==}
     engines: {node: '>= 8'}
 
-  app-builder-bin@5.0.0-alpha.6:
-    resolution: {integrity: sha512-KVrQQpaYHTlzuj1TE8k+qwwu/o/R8bsFyglUl/3guc2MUbSYvVqeAlxucotAxfp4SnNNBdNE6GGMbhqAKagakQ==}
+  app-builder-bin@5.0.0-alpha.7:
+    resolution: {integrity: sha512-ww2mK4ITUvqisnqOuUWAeHzokpPidyZ7a0ZkwW+V7sF5/Pdi2OldkRjAWqEzn6Xtmj3SLVT84as4wB59A6jJ4g==}
 
-  app-builder-lib@25.0.1:
-    resolution: {integrity: sha512-zpSaCgGnv1D+dv9IC/ry/x4JAuqHsW/VFDp7lg+IzvTOIgLJkfqyavyP5gEOtUFI5rOO3bwB2TENV5i6lLIpIQ==}
+  app-builder-lib@25.0.3:
+    resolution: {integrity: sha512-c0LJCJMGgDDGmZUSKeyDYKI5rYc6sQ4PS0Ak62HWArotHDwgAk9qIIewNnvIn/9KskEGwHQr8Y/TumWRqUKRwQ==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      dmg-builder: 25.0.1
-      electron-builder-squirrel-windows: 25.0.1
+      dmg-builder: 25.0.3
+      electron-builder-squirrel-windows: 25.0.3
 
   app-root-dir@1.0.2:
     resolution: {integrity: sha512-jlpIfsOoNoafl92Sz//64uQHGSyMrD2vYG5d8o2a4qGvyNCvXur7bzIsWtAC/6flI2RYAp3kv8rsfBtaLm7w0g==}
@@ -3435,8 +3458,8 @@ packages:
     resolution: {integrity: sha512-HjIDfhvqx/8B3TDN4GbABQcgpewTU4LMRTQPkVpKYV3lsuxEJoIfvg09GyWTNmfVNSUAYf+fbTN//JX4TH20pg==}
     engines: {node: '>=12.0.0'}
 
-  builder-util@25.0.1:
-    resolution: {integrity: sha512-bxT7+1rnxEGIZGrzBdMAL0brasBmQV4bon3sZC0XC4V2Za4FZ7CXAO9tuetuVpFXYFau+6BL63UbN9HFGMmV5g==}
+  builder-util@25.0.3:
+    resolution: {integrity: sha512-eH5c1ukdY2xjtFQWQ6jlzEuXuqcuAVc3UQ6V6fdYu9Kg3CkDbCR82Mox42uaJDmee9WXSbP/88cOworFdOHPhw==}
 
   bytes@3.0.0:
     resolution: {integrity: sha512-pMhOfFDPiv9t5jjIXkHosWmkSyQbvsgEVNkz0ERHbuLh2T/7j4Mqqpz523Fe8MVY89KC6Sh/QfS2sM+SjgFDcw==}
@@ -4100,8 +4123,8 @@ packages:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
 
-  dmg-builder@25.0.1:
-    resolution: {integrity: sha512-9mGcvQeQBsXOAuqJf5Z0xTsa0LQZmqaLbc5n6TucviN16OjyRsieNv2ogvEvJPScL8jyPSM062FHAhxsVys0Hg==}
+  dmg-builder@25.0.3:
+    resolution: {integrity: sha512-RAzB1NSOkzDA19Kl+R/rndYFfMCZDN4pmg5TNwQPeV+ICig12xQDqlPoql1Eay79pXM45CG74aTuBOcK/thGJg==}
 
   dmg-license@1.0.11:
     resolution: {integrity: sha512-ZdzmqwKmECOWJpqefloC5OJy1+WZBBse5+MR88z9g9Zn4VY+WYUkAyojmhzJckH5YbbZGcYIuGAkY5/Ys5OM2Q==}
@@ -4182,11 +4205,11 @@ packages:
     engines: {node: '>=0.10.0'}
     hasBin: true
 
-  electron-builder-squirrel-windows@25.0.1:
-    resolution: {integrity: sha512-MsfO7wHky5aYf72i9wFd1hZINyQHvnB4o2CHcXnEzsM21WHZJpXol62NBJhp+1pk6fuARA0jF1DtAcBco+y9YA==}
+  electron-builder-squirrel-windows@25.0.3:
+    resolution: {integrity: sha512-VeKeCKn8VgMG3loPnCtxPcximwpyb9a1YVubsyYMN/0CDGlsjfwdQEjrU5FD2/DkbZT7ghjei4QGjCQkRlZ1Cg==}
 
-  electron-builder@25.0.1:
-    resolution: {integrity: sha512-1ft2JHDQeXRicAC8Icqf0ErzeY5cDXesmkKZsI9EWzOlvm+Dm6z8oRpPt39IFl7LbPlJ2yRrLE7DahktiRTFrg==}
+  electron-builder@25.0.3:
+    resolution: {integrity: sha512-CToK0oEH/vxTbnEhXgInQWAuPEgkj11nQ3Jlse/Pc/aPNULxRSimH2UodZHrVlmVLozI4XVJqqh+pTVFXXZBaw==}
     engines: {node: '>=14.0.0'}
     hasBin: true
 
@@ -4195,8 +4218,8 @@ packages:
     engines: {node: '>= 10.0.0'}
     deprecated: Please use @electron/notarize moving forward.  There is no API change, just a package name change
 
-  electron-publish@25.0.1:
-    resolution: {integrity: sha512-9ADYaKARy9rfCgiaFt/q2YJxZdx26WAZbnq06LBaZEg48YnlyPBo2ZwcIVbt6+RszTOgKvaZY/KqT6GkDRiikw==}
+  electron-publish@25.0.3:
+    resolution: {integrity: sha512-wSGm+TFK2lArswIFBPLuIRHbo945s3MCvG5y1xVC57zL/PsrElUkaGH2ERtRrcKNpaDNq77rDA9JnMJhAFJjUg==}
 
   electron-to-chromium@1.4.805:
     resolution: {integrity: sha512-8W4UJwX/w9T0QSzINJckTKG6CYpAUTqsaWcWIsdud3I1FYJcMgW9QqT1/4CBff/pP/TihWh13OmiyY8neto6vw==}
@@ -4212,8 +4235,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@31.1.0:
-    resolution: {integrity: sha512-TBOwqLxSxnx6+pH6GMri7R3JPH2AkuGJHfWZS0p1HsmN+Qr1T9b0IRJnnehSd/3NZAmAre4ft9Ljec7zjyKFJA==}
+  electron@31.3.1:
+    resolution: {integrity: sha512-9fiuWlRhBfygtcT+auRd/WdBK/f8LZZcrpx0RjpXhH2DPTP/PfnkC4JB1PW55qCbGbh4wAgkYbf4ExIag8oGCA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -8264,34 +8287,6 @@ packages:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
 
-  xterm-addon-canvas@0.5.0:
-    resolution: {integrity: sha512-QOo/eZCMrCleAgMimfdbaZCgmQRWOml63Ued6RwQ+UTPvQj3Av9QKx3xksmyYrDGRO/AVRXa9oNuzlYvLdmoLQ==}
-    deprecated: This package is now deprecated. Move to @xterm/addon-canvas instead.
-    peerDependencies:
-      xterm: ^5.0.0
-
-  xterm-addon-fit@0.8.0:
-    resolution: {integrity: sha512-yj3Np7XlvxxhYF/EJ7p3KHaMt6OdwQ+HDu573Vx1lRXsVxOcnVJs51RgjZOouIZOczTsskaS+CpXspK81/DLqw==}
-    deprecated: This package is now deprecated. Move to @xterm/addon-fit instead.
-    peerDependencies:
-      xterm: ^5.0.0
-
-  xterm-addon-web-links@0.9.0:
-    resolution: {integrity: sha512-LIzi4jBbPlrKMZF3ihoyqayWyTXAwGfu4yprz1aK2p71e9UKXN6RRzVONR0L+Zd+Ik5tPVI9bwp9e8fDTQh49Q==}
-    deprecated: This package is now deprecated. Move to @xterm/addon-web-links instead.
-    peerDependencies:
-      xterm: ^5.0.0
-
-  xterm-addon-webgl@0.16.0:
-    resolution: {integrity: sha512-E8cq1AiqNOv0M/FghPT+zPAEnvIQRDbAbkb04rRYSxUym69elPWVJ4sv22FCLBqM/3LcrmBLl/pELnBebVFKgA==}
-    deprecated: This package is now deprecated. Move to @xterm/addon-webgl instead.
-    peerDependencies:
-      xterm: ^5.0.0
-
-  xterm@5.3.0:
-    resolution: {integrity: sha512-8QqjlekLUFTrU6x7xck1MsPzPA571K5zNqWm0M0oroYEWVOptZ0+ubQSkQ3uxIEhcIHRujJy6emDWX4A7qyFzg==}
-    deprecated: This package is now deprecated. Move to @xterm/xterm instead.
-
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -11846,6 +11841,24 @@ snapshots:
 
   '@xmldom/xmldom@0.8.10': {}
 
+  '@xterm/addon-canvas@0.7.0(@xterm/xterm@5.5.0)':
+    dependencies:
+      '@xterm/xterm': 5.5.0
+
+  '@xterm/addon-fit@0.10.0(@xterm/xterm@5.5.0)':
+    dependencies:
+      '@xterm/xterm': 5.5.0
+
+  '@xterm/addon-web-links@0.11.0(@xterm/xterm@5.5.0)':
+    dependencies:
+      '@xterm/xterm': 5.5.0
+
+  '@xterm/addon-webgl@0.18.0(@xterm/xterm@5.5.0)':
+    dependencies:
+      '@xterm/xterm': 5.5.0
+
+  '@xterm/xterm@5.5.0': {}
+
   '@xtuc/ieee754@1.2.0': {}
 
   '@xtuc/long@4.2.2': {}
@@ -12000,9 +12013,9 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.1
 
-  app-builder-bin@5.0.0-alpha.6: {}
+  app-builder-bin@5.0.0-alpha.7: {}
 
-  app-builder-lib@25.0.1(dmg-builder@25.0.1(electron-builder-squirrel-windows@25.0.1))(electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1)):
+  app-builder-lib@25.0.3(dmg-builder@25.0.3(electron-builder-squirrel-windows@25.0.3))(electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3)):
     dependencies:
       '@develar/schema-utils': 2.6.5
       '@electron/notarize': 2.3.2
@@ -12013,14 +12026,14 @@ snapshots:
       '@types/fs-extra': 9.0.13
       async-exit-hook: 2.0.1
       bluebird-lst: 1.0.9
-      builder-util: 25.0.1
+      builder-util: 25.0.3
       builder-util-runtime: 9.2.5
       chromium-pickle-js: 0.2.0
       debug: 4.3.4(supports-color@5.5.0)
-      dmg-builder: 25.0.1(electron-builder-squirrel-windows@25.0.1)
+      dmg-builder: 25.0.3(electron-builder-squirrel-windows@25.0.3)
       ejs: 3.1.10
-      electron-builder-squirrel-windows: 25.0.1(dmg-builder@25.0.1)
-      electron-publish: 25.0.1
+      electron-builder-squirrel-windows: 25.0.3(dmg-builder@25.0.3)
+      electron-publish: 25.0.3
       form-data: 4.0.0
       fs-extra: 10.1.0
       hosted-git-info: 4.1.0
@@ -12563,11 +12576,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  builder-util@25.0.1:
+  builder-util@25.0.3:
     dependencies:
       7zip-bin: 5.2.0
       '@types/debug': 4.1.8
-      app-builder-bin: 5.0.0-alpha.6
+      app-builder-bin: 5.0.0-alpha.7
       bluebird-lst: 1.0.9
       builder-util-runtime: 9.2.5
       chalk: 4.1.2
@@ -13320,10 +13333,10 @@ snapshots:
     dependencies:
       path-type: 4.0.0
 
-  dmg-builder@25.0.1(electron-builder-squirrel-windows@25.0.1):
+  dmg-builder@25.0.3(electron-builder-squirrel-windows@25.0.3):
     dependencies:
-      app-builder-lib: 25.0.1(dmg-builder@25.0.1(electron-builder-squirrel-windows@25.0.1))(electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1))
-      builder-util: 25.0.1
+      app-builder-lib: 25.0.3(dmg-builder@25.0.3(electron-builder-squirrel-windows@25.0.3))(electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3))
+      builder-util: 25.0.3
       builder-util-runtime: 9.2.5
       fs-extra: 10.1.0
       iconv-lite: 0.6.3
@@ -13421,24 +13434,24 @@ snapshots:
     dependencies:
       jake: 10.8.5
 
-  electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1):
+  electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3):
     dependencies:
-      app-builder-lib: 25.0.1(dmg-builder@25.0.1(electron-builder-squirrel-windows@25.0.1))(electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1))
+      app-builder-lib: 25.0.3(dmg-builder@25.0.3(electron-builder-squirrel-windows@25.0.3))(electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3))
       archiver: 5.3.2
-      builder-util: 25.0.1
+      builder-util: 25.0.3
       fs-extra: 10.1.0
     transitivePeerDependencies:
       - bluebird
       - dmg-builder
       - supports-color
 
-  electron-builder@25.0.1(electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1)):
+  electron-builder@25.0.3(electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3)):
     dependencies:
-      app-builder-lib: 25.0.1(dmg-builder@25.0.1(electron-builder-squirrel-windows@25.0.1))(electron-builder-squirrel-windows@25.0.1(dmg-builder@25.0.1))
-      builder-util: 25.0.1
+      app-builder-lib: 25.0.3(dmg-builder@25.0.3(electron-builder-squirrel-windows@25.0.3))(electron-builder-squirrel-windows@25.0.3(dmg-builder@25.0.3))
+      builder-util: 25.0.3
       builder-util-runtime: 9.2.5
       chalk: 4.1.2
-      dmg-builder: 25.0.1(electron-builder-squirrel-windows@25.0.1)
+      dmg-builder: 25.0.3(electron-builder-squirrel-windows@25.0.3)
       fs-extra: 10.1.0
       is-ci: 3.0.1
       lazy-val: 1.0.5
@@ -13457,10 +13470,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-publish@25.0.1:
+  electron-publish@25.0.3:
     dependencies:
       '@types/fs-extra': 9.0.13
-      builder-util: 25.0.1
+      builder-util: 25.0.3
       builder-util-runtime: 9.2.5
       chalk: 4.1.2
       fs-extra: 10.1.0
@@ -13485,7 +13498,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@31.1.0:
+  electron@31.3.1:
     dependencies:
       '@electron/get': 2.0.2
       '@types/node': 20.14.9
@@ -18378,24 +18391,6 @@ snapshots:
   xmlchars@2.2.0: {}
 
   xtend@4.0.2: {}
-
-  xterm-addon-canvas@0.5.0(xterm@5.3.0):
-    dependencies:
-      xterm: 5.3.0
-
-  xterm-addon-fit@0.8.0(xterm@5.3.0):
-    dependencies:
-      xterm: 5.3.0
-
-  xterm-addon-web-links@0.9.0(xterm@5.3.0):
-    dependencies:
-      xterm: 5.3.0
-
-  xterm-addon-webgl@0.16.0(xterm@5.3.0):
-    dependencies:
-      xterm: 5.3.0
-
-  xterm@5.3.0: {}
 
   y18n@5.0.8: {}
 

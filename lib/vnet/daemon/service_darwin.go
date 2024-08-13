@@ -77,6 +77,7 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 		"ipv6_prefix", config.IPv6Prefix,
 		"dns_addr", config.DNSAddr,
 		"home_path", config.HomePath,
+		"client_cred", config.ClientCred,
 	)
 
 	return trace.Wrap(workFn(ctx, config))
@@ -101,8 +102,10 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 			C.free(unsafe.Pointer(result.home_path))
 		}()
 
+		var clientCred C.ClientCred
+
 		// This call gets unblocked when the daemon gets stopped through C.DaemonStop.
-		C.WaitForVnetConfig(&result)
+		C.WaitForVnetConfig(&result, &clientCred)
 		if !result.ok {
 			errC <- trace.Wrap(errors.New(C.GoString(result.error_description)))
 			return
@@ -113,6 +116,11 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 			IPv6Prefix: C.GoString(result.ipv6_prefix),
 			DNSAddr:    C.GoString(result.dns_addr),
 			HomePath:   C.GoString(result.home_path),
+			ClientCred: ClientCred{
+				Valid: bool(clientCred.valid),
+				Egid:  int(clientCred.egid),
+				Euid:  int(clientCred.euid),
+			},
 		}
 		errC <- nil
 	}()

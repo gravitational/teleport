@@ -75,3 +75,21 @@ export type SamlGcpWorkforce = {
   poolName: string;
   poolProviderName: string;
 };
+
+/**
+ * SamlAppToDelete is used to define the name of an
+ * SAML app item to be deleted and its deletion state in the
+ * backend. Intended to be used in the unified resource view.
+ */
+export type SamlAppToDelete = {
+  /**
+   * name is the name of Saml app item to delete.
+   */
+  name: string;
+  // kind: string;
+  /**
+   * backendDeleted specifies if the item is deleted
+   * in the backend.
+   */
+  backendDeleted: boolean;
+};

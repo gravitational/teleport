@@ -37,8 +37,20 @@ export type PtyServiceClient = {
   createPtyProcess: (cmd: PtyCommand) => Promise<{
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
+    windowsPty: WindowsPty;
   }>;
 };
+
+/**
+ * Pty information for Windows.
+ * undefined for non-Windows OS.
+ */
+export type WindowsPty =
+  | {
+      useConpty: boolean;
+      buildNumber: number;
+    }
+  | undefined;
 
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
@@ -106,4 +118,13 @@ export type SshOptions = {
    * (by adding the `--no-resume` option).
    */
   noResume: boolean;
+};
+
+export type TerminalOptions = {
+  windowsBackend: 'auto' | 'winpty';
+};
+
+export type PtyOptions = {
+  ssh: SshOptions;
+  terminal: TerminalOptions;
 };
