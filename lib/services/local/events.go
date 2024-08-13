@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -210,10 +211,19 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindInstance:
 			parser = newInstanceParser()
 		case types.KindDevice:
+			if !secscanconstants.Enabled {
+				continue
+			}
 			parser = newDeviceParser()
 		case types.KindAccessGraphSecretPrivateKey:
+			if !secscanconstants.Enabled {
+				continue
+			}
 			parser = newAccessGraphSecretPrivateKeyParser()
 		case types.KindAccessGraphSecretAuthorizedKey:
+			if !secscanconstants.Enabled {
+				continue
+			}
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
