@@ -405,7 +405,7 @@ spec:
     rules:
     # ... and then limit that access via a deny rule.
     # Deny rules take precedence over allow rules, so the resulting role allows
-    # users to create SSH sessions but to only view their own sessions.
+    # users to create sessions including SSH ones but to only view their own sessions.
     - resources: [session_tracker]
       verbs: [list, read, update, delete]
       where: '!contains(session_tracker.participants, user.metadata.name)'
@@ -586,7 +586,7 @@ within this guide:
 | -------------------------- | ------------------------------------------------- |
 | `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `session_tracker.participants` | The list of participants from an SSH session      |
+| `session_tracker.participants` | The list of participants from an SSH or Kubernetes session      |
 | `user.metadata.name`       | The user's name                                   |
 
 Read the [predicate
