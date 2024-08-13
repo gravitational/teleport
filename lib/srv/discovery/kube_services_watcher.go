@@ -45,7 +45,7 @@ func (s *Server) startKubeAppsWatchers() error {
 	)
 
 	reconciler, err := services.NewReconciler(
-		services.ReconcilerConfig[types.Application]{
+		services.ReconcilerConfig[string, types.Application]{
 			Matcher: func(_ types.Application) bool { return true },
 			GetCurrentResources: func() map[string]types.Application {
 				apps, err := s.AccessPoint.GetApps(s.ctx)

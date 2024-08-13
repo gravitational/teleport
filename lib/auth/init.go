@@ -306,8 +306,10 @@ type InitConfig struct {
 
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
-	
+
 	ProvisioningStates services.ProvisioningStates
+
+	IdentityCenter services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer

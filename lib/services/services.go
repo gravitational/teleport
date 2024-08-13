@@ -59,6 +59,7 @@ type Services interface {
 	CrownJewelClient() CrownJewels
 	DatabaseObjectsClient() DatabaseObjects
 	ProvisioningStatesClient() ProvisioningStates
+	IdentityCenterClient() IdentityCenter
 }
 
 // RotationGetter returns the rotation state.

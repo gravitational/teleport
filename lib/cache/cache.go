@@ -1216,9 +1216,6 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	c.Logger.Debug("Entering Cache.fetchAndWatch()")
-	defer c.Logger.Debug("Leaving Cache.fetchAndWatch()")
-
 	requestKinds := c.watchKinds()
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,

@@ -1,0 +1,154 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.identitycenter.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
+
+// Account is an AWS account
+message Account {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AccountSpec spec = 5;
+}
+
+// AccountSpec holds non-changing data about an AWS Account
+message AccountSpec {
+  // Id is the AWS-assigned PermissionSet ID
+  string id = 1;
+
+  // Arn is the unique ARN for this permission set
+  string arn = 2;
+
+  // Title is the human-readable name of the permission set
+  string name = 3;
+
+  // Description is a heman-readable description of the AWS Permission Set
+  string description = 4;
+}
+
+// PermissionSet identifies a single permission set by name and ARN
+message PermissionSet {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  PermissionSetSpec spec = 5;
+}
+
+// PermissionSetSpec holds rarely-changing information about ans AWS pwermission
+// set
+message PermissionSetSpec {
+  // Arn is the unique ARN for this permission set
+  string arn = 1;
+
+  // Title is the human-readable name of the permission set
+  string name = 2;
+
+  // Description is a human-readable description of the AWS Permission Set
+  string description = 3;
+}
+
+// AccountPermissionSet holds information about a permission sets available
+// for a given AWS account
+message AccountPermissionSet {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AccountPermissionSetsSpec spec = 5;
+}
+
+// AccountPermissionSetsSpec holds the Account and Permission Set data for an
+// AccountPermissionSets resource
+message AccountPermissionSetsSpec {
+  // ID is the AWS-assigned account ID
+  string id = 1;
+
+  // Arn is the AWS-assigned account ARN
+  string arn = 2;
+
+  // Title is the human-readable name of the account
+  string title = 3;
+
+  // PermissionSets is the lit of permission sets available for this account
+  repeated PermissionSet permission_sets = 4;
+}
+
+// PrincipalAssignment relates a collection of PermissionSets and Applications
+// to a given principal
+message PrincipalAssignment {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  PrincipalAssignmentSpec spec = 5;
+  PrincipalAssignmentStatus status = 6;
+}
+
+// PrincipalType indicates the type of principal represented by a PrincipalAssignment
+enum PrincipalType {
+  PRINCIPAL_TYPE_UNSPECIFIED = 0;
+  PRINCIPAL_TYPE_USER = 1;
+  PRINCIPAL_TYPE_ACCESS_LIST = 2;
+}
+
+// PrincipalAssignmentSpec
+message PrincipalAssignmentSpec {
+  // PrincipalId identifies what kind of principal this assignment applies to, either
+  // a User or a Group (i.e. AccessList)
+  PrincipalType principal_type = 1;
+
+  // PrincipalId identifies the Teleport User or Access List that this assignment
+  // applies to
+  string principal_id = 2;
+
+  // ExternalIdSource
+  string external_id_source = 3;
+
+  // ExternalID identifies the user or group within AWS
+  string external_id = 4;
+}
+
+// State indicates the current stage of the provisioning pipeline a resource is
+// in.
+enum State {
+  STATE_UNSPECIFIED = 0;
+  STATE_STALE = 1;
+  STATE_PROVISIONED = 2;
+  STATE_DELETED = 3;
+}
+
+// AccountAssignment describes the provisioning of a specific permision set on
+// a specific AWS account
+message AccountAssignment {
+  // PermissionSetArn holds the permission set assgnment ARN
+  string permission_set_arn = 1;
+
+  // AccountId holds the AWS account ID fo thr target account
+  string account_id = 2;
+}
+
+// PrincipalAssignmentAssignmentStatus
+message PrincipalAssignmentStatus {
+  State state = 1;
+  repeated AccountAssignment assignments = 2;
+  repeated string applications = 3;
+}

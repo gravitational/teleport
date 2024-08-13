@@ -171,9 +171,6 @@ func (cc *CredentialsCache) Run(ctx context.Context) {
 }
 
 func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
-	cc.log.DebugContext(ctx, "Entering credentialCache.refreshIfNeeded()")
-	defer cc.log.DebugContext(ctx, "Exiting credentialCache.refreshIfNeeded()")
-
 	credsFromCache, err := cc.Retrieve(ctx)
 	if err == nil &&
 		credsFromCache.HasKeys() &&

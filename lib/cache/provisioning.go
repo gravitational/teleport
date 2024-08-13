@@ -22,21 +22,22 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 	"github.com/gravitational/trace"
 )
 
 type provisioningStateGetter interface {
 	GetProvisioningState(context.Context, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
-	ListProvisioningStates(context.Context, services.PageToken) ([]*provisioningv1.PrincipalState, services.PageToken, error)
+	ListProvisioningStates(context.Context, pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
 }
 
 type provisioningStateExecutor struct{}
 
 func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
-	var nextPage services.PageToken
+	var page pagination.PageRequestToken
 	var resources []*provisioningv1.PrincipalState
 	for {
-		var page []*provisioningv1.PrincipalState
+		var resourcesPage []*provisioningv1.PrincipalState
 		var err error
 
 		if cache == nil {
@@ -47,16 +48,17 @@ func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadS
 			panic("Cache ProvisioningStates is nil")
 		}
 
-		page, nextPage, err := cache.ProvisioningStates.ListProvisioningStates(ctx, nextPage)
+		resourcesPage, nextPage, err := cache.ProvisioningStates.ListProvisioningStates(ctx, page)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		resources = append(resources, page...)
+		resources = append(resources, resourcesPage...)
 
-		if nextPage == services.EndOfList {
+		if nextPage == pagination.EndOfList {
 			break
 		}
+		page = pagination.PageRequestToken(nextPage)
 	}
 	return resources, nil
 }

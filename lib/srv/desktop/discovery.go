@@ -43,7 +43,7 @@ import (
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
 // registering and unregistering them as necessary.
 func (s *WindowsService) startDesktopDiscovery() error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[string, types.WindowsDesktop]{
 		// Use a matcher that matches all resources, since our desktops are
 		// pre-filtered by nature of using an LDAP search with filters.
 		Matcher: func(d types.WindowsDesktop) bool { return true },

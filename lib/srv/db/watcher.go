@@ -36,7 +36,7 @@ import (
 // databases according to the up-to-date list of database resources and
 // databases imported from the cloud.
 func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[string, types.Database]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredDatabases.get,

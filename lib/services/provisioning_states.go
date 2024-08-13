@@ -20,19 +20,14 @@ import (
 	"context"
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
-
-type PageToken string
 
 type ProvisioningStateID string
 
-const (
-	EndOfList PageToken = ""
-)
-
 type ProvisioningStates interface {
 	GetProvisioningState(context.Context, ProvisioningStateID) (*provisioningv1.PrincipalState, error)
-	ListProvisioningStates(context.Context, PageToken) ([]*provisioningv1.PrincipalState, PageToken, error)
+	ListProvisioningStates(context.Context, pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
 	CreateProvisioningState(context.Context, *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error)
 	UpdateProvisioningState(context.Context, *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error)
 	DeleteProvisioningState(context.Context, ProvisioningStateID) error

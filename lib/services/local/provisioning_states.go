@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 	"github.com/gravitational/trace"
 )
 
@@ -109,12 +110,12 @@ func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, na
 	return state, nil
 }
 
-func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, page services.PageToken) ([]*provisioningv1.PrincipalState, services.PageToken, error) {
+func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, page pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
 	resp, nextPage, err := ss.service.ListResources(ctx, provisioningStatePageSize, string(page))
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
-	return resp, services.PageToken(nextPage), nil
+	return resp, pagination.NextPageToken(nextPage), nil
 }
 
 func (ss *ProvisioningStateService) DeleteProvisioningState(ctx context.Context, name services.ProvisioningStateID) error {

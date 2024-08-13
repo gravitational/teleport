@@ -540,6 +540,12 @@ const (
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
 
+	KindIdentityCenterAccount = "aws_iam_ic_account"
+
+	KindIdentityCenterPermissionSet = "aws_iam_ic_permission_set"
+
+	KindIdentityCenterPrincipalAssignment = "aws_iam_ic_principal_assignment"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

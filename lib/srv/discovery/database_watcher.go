@@ -44,7 +44,7 @@ func (s *Server) startDatabaseWatchers() error {
 	)
 
 	reconciler, err := services.NewReconciler(
-		services.ReconcilerConfig[types.Database]{
+		services.ReconcilerConfig[string, types.Database]{
 			Matcher:             func(database types.Database) bool { return true },
 			GetCurrentResources: s.getCurrentDatabases,
 			GetNewResources: func() map[string]types.Database {

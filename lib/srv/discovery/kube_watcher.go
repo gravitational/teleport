@@ -44,7 +44,7 @@ func (s *Server) startKubeWatchers() error {
 	)
 
 	reconciler, err := services.NewReconciler(
-		services.ReconcilerConfig[types.KubeCluster]{
+		services.ReconcilerConfig[string, types.KubeCluster]{
 			Matcher: func(_ types.KubeCluster) bool { return true },
 			GetCurrentResources: func() map[string]types.KubeCluster {
 				kcs, err := s.AccessPoint.GetKubernetesClusters(s.ctx)

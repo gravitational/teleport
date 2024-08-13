@@ -333,6 +333,18 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.IdentityCenter == nil {
+		svcCfg := local.IdentityCenterServiceConfig{
+			Backend: cfg.Backend,
+			Mode:    local.IdentityCenterServiceModeStrict,
+			Logger:  slog.Default().With(),
+		}
+		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
+		if err != nil {
+			return nil, trace.Wrap(err, "Creating identity center service")
+		}
+	}
+
 	if cfg.CloudClients == nil {
 		cfg.CloudClients, err = cloud.NewClients()
 		if err != nil {
@@ -438,6 +450,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
 		ProvisioningStates:        cfg.ProvisioningStates,
+		IdentityCenter:            cfg.IdentityCenter,
 	}
 
 	as := Server{
@@ -630,6 +643,8 @@ type Services struct {
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
 	services.ProvisioningStates
+
+	IdentityCenter services.IdentityCenter
 }
 
 // SecReportsClient returns the security reports client.
@@ -714,6 +729,10 @@ func (r *Services) GetDevicesGetter() services.DevicesGetter {
 
 func (r *Services) ProvisioningStatesClient() services.ProvisioningStates {
 	return r
+}
+
+func (r *Services) IdentityCenterClient() services.IdentityCenter {
+	return r.IdentityCenter
 }
 
 var (
