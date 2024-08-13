@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -67,7 +68,7 @@ type App struct {
 	serviceNow            ServiceNowClient
 	mainJob               lib.ServiceJob
 	conf                  Config
-	accessMonitoringRules *common.AccessMonitoringRuleHandler
+	accessMonitoringRules *accessmonitoring.RuleHandler
 }
 
 // NewServicenowApp initializes a new teleport-servicenow app and returns it.
@@ -80,10 +81,9 @@ func NewServiceNowApp(ctx context.Context, conf *Config) (*App, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serviceNowApp.accessMonitoringRules = common.NewAccessMonitoringRuleHandler(common.AccessMonitoringRuleHandlerConfig{
+	serviceNowApp.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
 		Client:              teleClient,
 		PluginType:          string(conf.PluginType),
-		RuleAppliesCallback: app.amrAppliesToThisPlugin,
 		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
 			return &common.Recipient{
 				Name: name,
@@ -91,7 +91,6 @@ func NewServiceNowApp(ctx context.Context, conf *Config) (*App, error) {
 				Kind: common.RecipientKindSchedule,
 			}, nil
 		},
-		MatchAccessRequestCallback: accessrequest.MatchAccessRequest,
 	})
 	serviceNowApp.mainJob = lib.NewServiceJob(serviceNowApp.run)
 	return serviceNowApp, nil
@@ -298,6 +297,14 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 
 	if isNew {
 		log.Infof("Creating servicenow incident")
+		recipientAssignee := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+		assignees := []string{}
+		recipientAssignee.ForEach(func(r common.Recipient) {
+			assignees = append(assignees, r.Name)
+		})
+		if len(assignees) > 0 {
+			reqData.SuggestedReviewers = assignees
+		}
 		if err = a.createIncident(ctx, reqID, reqData); err != nil {
 			// Even if we failed to create the incident we try to auto-approve
 			return trace.NewAggregate(
@@ -357,16 +364,6 @@ func (a *App) getOnCallServiceNames(ctx context.Context, req types.AccessRequest
 
 // createIncident posts an incident with request information.
 func (a *App) createIncident(ctx context.Context, reqID string, reqData RequestData) error {
-	recipientSetAssignee := common.NewRecipientSet()
-	recipientAssignee := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
-	assignees := []string{}
-	recipientAssignee.ForEach(func(r common.Recipient) {
-		assignees = append(assignees, r.Name)
-	})
-	if len(assignees) > 0 {
-		reqData.SuggestedReviewers = assignees
-	}
-
 	data, err := a.serviceNow.CreateIncident(ctx, reqID, reqData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -439,7 +436,7 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) error {
 	log := logger.Get(ctx)
 
-	serviceNames, err := a.getOnCallServiceNames(req)
+	serviceNames, err := a.getOnCallServiceNames(ctx, req)
 	if err != nil {
 		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
