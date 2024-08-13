@@ -273,7 +273,17 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	context.AfterFunc(ctx, func() { requestConn.Close() })
+
+	// Close the request stream once the context is closed or the process is closed.
+	// This avoids a race condition where the process is closed mid request and thus
+	// fails to close the stream, resulting in a deadlock on read below.
+	go func() {
+		defer requestConn.Close()
+		select {
+		case <-ctx.Done():
+		case <-p.done:
+		}
+	}()
 
 	remoteFD, err := remoteConn.File()
 	remoteConn.Close()
