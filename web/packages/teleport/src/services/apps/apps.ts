@@ -84,7 +84,7 @@ const service = {
 
 type AppDetails = {
   fqdn: string;
-  requiredApps: string[];
+  requiredApps?: string[];
 };
 
 export default service;

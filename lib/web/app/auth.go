@@ -39,7 +39,12 @@ type fragmentRequest struct {
 	StateValue         string `json:"state_value"`
 	CookieValue        string `json:"cookie_value"`
 	SubjectCookieValue string `json:"subject_cookie_value"`
+	RequiredApps       string `json:"required_apps"`
 }
+
+// TeleportNextAppRedirectUrlHeader is used to tell the browser which URL to navigate to
+// next in the chain of required app authentication redirects
+const TeleportNextAppRedirectUrlHeader = "X-Teleport-NextAppRedirectUrl"
 
 // startAppAuthExchange will do two actions depending on the following:
 //
@@ -55,6 +60,20 @@ type fragmentRequest struct {
 func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 	q := r.URL.Query()
 
+	requiredApps := strings.Split(q.Get("required-apps"), ",")
+	if len(requiredApps) > 1 && q.Get("addr") != "" && requiredApps[0] != q.Get("addr") {
+		nextRequiredApp := requiredApps[0]
+
+		webLauncherURLParams := launcherURLParams{
+			clusterName:         q.Get("cluster"),
+			publicAddr:          nextRequiredApp,
+			arn:                 q.Get("arn"),
+			path:                q.Get("path"),
+			requiredApps:        strings.Join(requiredApps, ","),
+			requiresAppRedirect: true,
+		}
+		return h.redirectToLauncher(w, r, webLauncherURLParams)
+	}
 	// Initiate auth exchange.
 	if q.Get("state") == "" {
 		// secretToken is the token we will look for in both the cookie
@@ -89,6 +108,8 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 			//   - secretToken to compare against the one stored in cookie
 			//   - cookieIdentifier to look up cookie sent by browser.
 			stateToken: fmt.Sprintf("%s_%s", secretToken, cookieIdentifier),
+			// required apps
+			requiredApps: q.Get("required-apps"),
 		}
 		return h.redirectToLauncher(w, r, webLauncherURLParams)
 	}
@@ -194,6 +215,26 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	})
+
+	requiredApps := strings.Split(req.RequiredApps, ",")
+	if len(requiredApps) > 1 {
+		requiredApps := requiredApps[1:]
+		nextRequiredApp := requiredApps[0]
+
+		webLauncherURLParams := launcherURLParams{
+			publicAddr:          nextRequiredApp,
+			clusterName:         h.c.ProxyPublicAddrs[0].Host(),
+			requiredApps:        strings.Join(requiredApps, ","),
+			requiresAppRedirect: true,
+		}
+		addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), webLauncherURLParams)
+		// this request does not return a response, so we can pass this value through a custom header instead
+		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
+	}
 
 	return nil
 }

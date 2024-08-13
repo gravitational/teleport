@@ -46,7 +46,7 @@ export function AppLauncher() {
       // address. Compare the resolved fqdn with the one that was passed,
       // if they don't match then the public address was used to find the
       // resolved fqdn, and the passed fdqn isn't valid.
-      const resolvedApp = await service.getAppFqdn({
+      const resolvedApp = await service.getAppDetails({
         fqdn: params.fqdn,
         clusterId: params.clusterId,
         publicAddr: params.publicAddr,
@@ -75,15 +75,26 @@ export function AppLauncher() {
         }
       }
 
+      let requiredApps = resolvedApp.requiredApps || [];
+      const isRedirectFlow = queryParams.get('required-apps');
+      if (isRedirectFlow !== null) {
+        requiredApps = isRedirectFlow.split(',');
+      }
+
       // Let the target app know of a new auth exchange.
       const stateToken = queryParams.get('state');
       if (!stateToken) {
-        initiateNewAuthExchange({ fqdn, port, path, params });
+        initiateNewAuthExchange({
+          fqdn,
+          port,
+          path,
+          params,
+          requiredApps,
+        });
         return;
       }
 
       // Continue the auth exchange.
-
       if (params.arn) {
         params.arn = decodeURIComponent(params.arn);
       }
@@ -93,6 +104,9 @@ export function AppLauncher() {
       const url = getXTeleportAuthUrl({ fqdn, port });
       url.searchParams.set('state', stateToken);
       url.searchParams.set('subject', session.subjectCookieValue);
+      if (requiredApps.length > 1) {
+        url.searchParams.set('required-apps', requiredApps.join(','));
+      }
       url.hash = `#value=${session.cookieValue}`;
 
       if (path) {
@@ -186,6 +200,7 @@ function initiateNewAuthExchange({
   port,
   params,
   path,
+  requiredApps,
 }: {
   fqdn: string;
   port: string;
@@ -199,11 +214,16 @@ function initiateNewAuthExchange({
   // The path preserves both the path and query params of
   // the original request.
   path: string;
+  requiredApps: string[];
 }) {
   const url = getXTeleportAuthUrl({ fqdn, port });
 
   if (path) {
     url.searchParams.set('path', path);
+  }
+
+  if (requiredApps.length > 1) {
+    url.searchParams.set('required-apps', requiredApps.join(','));
   }
 
   // Preserve "params" so that the initial auth exchange can

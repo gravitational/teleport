@@ -630,10 +630,13 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 	}
 
 	// Presence of a stateToken means we are beginning an app auth exchange.
-	if req.stateToken != "" {
+	if req.stateToken != "" || req.requiresAppRedirect {
 		v := url.Values{}
-		v.Add("state", req.stateToken)
+		if req.stateToken != "" {
+			v.Add("state", req.stateToken)
+		}
 		v.Add("path", req.path)
+		v.Add("required-apps", req.requiredApps)
 		u.RawQuery = v.Encode()
 
 		urlPath := []string{"web", "launch", hostname}
@@ -666,6 +669,7 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 		// So Encode() will just encode it once (note that spaces will be convereted to `+`)
 		v := url.Values{}
 		v.Add("path", r.URL.Path)
+		v.Add("required-apps", req.requiredApps)
 
 		if len(r.URL.RawQuery) > 0 {
 			v.Add("query", r.URL.RawQuery)
