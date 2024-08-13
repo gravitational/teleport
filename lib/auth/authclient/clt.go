@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -546,10 +545,6 @@ func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
 }
 
-func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient {
-	return accessgraphsecretsv1pb.NewSecretsScannerServiceClient(c.APIClient.GetConnection())
-}
-
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
@@ -701,31 +696,6 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// GetAccessGraphSettings gets the access graph settings from the backend.
-func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// CreateAccessGraphSettings creates the access graph settings in the backend.
-func (c *Client) CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// UpdateAccessGraphSettings updates the access graph settings in the backend.
-func (c *Client) UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
-func (c *Client) UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAccessGraphSettings deletes the access graph settings from the backend.
-func (c *Client) DeleteAccessGraphSettings(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 type WebSessionReq struct {
@@ -1419,8 +1389,6 @@ type ClientI interface {
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
-
-	AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient

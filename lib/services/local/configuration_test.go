@@ -70,18 +70,6 @@ func TestAuthPreference(t *testing.T) {
 	suite.AuthPreference(t)
 }
 
-func TestAccessGraphSettings(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
-
-	clusterConfig, err := NewClusterConfigurationService(tt.bk)
-	require.NoError(t, err)
-
-	suite := &suite.ServicesTestSuite{
-		ConfigS: clusterConfig,
-	}
-	suite.AccessGraphSettings(t)
-}
-
 func TestClusterName(t *testing.T) {
 	tt := setupConfigContext(context.Background(), t)
 
