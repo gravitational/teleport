@@ -18,6 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
+import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
@@ -165,5 +166,7 @@ message Event {
     teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
     // DatabaseObject is a database object resource.
     teleport.dbobject.v1.DatabaseObject DatabaseObject = 59;
+    // AccessGraphSettings is a resource for access graph settings.
+    teleport.clusterconfig.v1.AccessGraphSettings AccessGraphSettings = 61;
   }
 }
