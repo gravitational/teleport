@@ -437,3 +437,42 @@ func TestUpdateUserGroups(t *testing.T) {
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
 }
+
+func Test_DropExistingUser(t *testing.T) {
+	t.Parallel()
+
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+	}
+
+	allGroups := []string{"foo", "bar", "baz", "quux"}
+	for _, group := range allGroups {
+		require.NoError(t, backend.CreateGroup(group, ""))
+	}
+
+	userinfo := &services.HostUsersInfo{
+		// mutations were escaping back to allGroups when this wasn't copied
+		Groups: append([]string{}, allGroups[:2]...),
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+	}
+
+	// Create a user with some groups.
+	closer, err := users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Nil(t, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+
+	// Upsert the user in INSECURE_DROP mode
+	userinfo.Mode = types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Nil(t, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+}
