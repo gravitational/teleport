@@ -123,6 +123,22 @@ services:
       - 10.0.0.1
 ```
 
+You will also need to modify the Role to explicitly grant the Bot permission to
+request an SVID including a DNS or IP SAN. For example:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: spiffe-issuer
+spec:
+  allow:
+    spiffe:
+    - path: "/svc/foo"
+      dns_sans: ["example.com"]
+      ip_sans: ["10.0.0.1/32"]
+```
+
 ### Configuring Unix Workload Attestation
 
 By default, an SVID listed under the Workload API service will be issued to any
