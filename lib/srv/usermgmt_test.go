@@ -409,9 +409,11 @@ func TestUpdateUserGroups(t *testing.T) {
 	}
 
 	userinfo := &services.HostUsersInfo{
-		Groups: allGroups[:2],
+		// mutations were escaping back to allGroups when this wasn't copied
+		Groups: append([]string{}, allGroups[:2]...),
 		Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 	}
+
 	// Create a user with some groups.
 	closer, err := users.UpsertUser("alice", userinfo)
 	assert.NoError(t, err)
@@ -420,7 +422,8 @@ func TestUpdateUserGroups(t *testing.T) {
 	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
 
 	// Update user with new groups.
-	userinfo.Groups = allGroups[2:]
+	userinfo.Groups = append([]string{}, allGroups[2:]...)
+
 	closer, err = users.UpsertUser("alice", userinfo)
 	assert.NoError(t, err)
 	assert.Nil(t, closer)
