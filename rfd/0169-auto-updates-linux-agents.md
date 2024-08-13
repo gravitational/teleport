@@ -921,13 +921,14 @@ message AutoupdateVersionSpec {
 
 // Schedule type for the rollout
 enum Schedule {
-  Schedule_UNSPECIFIED = 0;
+  // UNSPECIFIED update schedule
+  SCHEDULE_UNSPECIFIED = 0;
   // REGULAR update schedule
-  Schedule_REGULAR = 1;
+  SCHEDULE_REGULAR = 1;
   // CRITICAL update schedule for critical bugs and vulnerabilities
-  Schedule_CRITICAL = 2;
+  SCHEDULE_CRITICAL = 2;
   // IMMEDIATE update schedule for updating all agents immediately
-  Schedule_IMMEDIATE = 3;
+  SCHEDULE_IMMEDIATE = 3;
 }
 
 // GetAgentRolloutPlanRequest requests an agent_rollout_plan.
