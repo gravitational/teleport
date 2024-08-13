@@ -6105,3 +6105,34 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		})
 	}
 }
+
+// TestCompatibilityFlags
+func TestCompatibilityFlags(t *testing.T) {
+	t.Parallel()
+
+	connector := mockConnector(t)
+	alice, err := types.NewUser("foo")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(t.TempDir()), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"ssh",
+		"-V",
+	}, setHomePath(t.TempDir()))
+	require.NoError(t, err)
+
+	fmt.Printf("--> Done!\n")
+}
