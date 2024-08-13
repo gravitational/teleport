@@ -46,6 +46,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -605,12 +606,16 @@ func Main() {
 		cmdLine = cmdLineOrig
 	}
 
-	// "-V Display the version number and exit."
+	// The following flags are OpenSSH compatibility flags. They are used for
+	// people that alias "ssh" to "tsh ssh." The following OpenSSH flags are
+	// implemented. From "man 1 ssh":
+	//
+	// * "-V Display the version number and exit."
+	// * "-T Disable pseudo-terminal allocation."
 	if slices.Contains(cmdLine, "-V") {
 		modules.GetModules().PrintVersion()
 		os.Exit(0)
 	}
-	// "-T Disable pseudo-terminal allocation."
 	i := slices.Index(cmdLine, "-T")
 	if i > 0 {
 		slices.Replace(cmdLine, i, i+1, []string{"--no-tty"}...)
@@ -805,6 +810,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	// The following flags are OpenSSH compatibility flags. They are not
+	// implemented in Kingpin but are registered here to inform developers that
+	// they are being used. Their behavior is implemented in 000000.
+	ssh.Flag(uuid.New().String(), "").Hidden().Short('T').StringVar(nil)
+	ssh.Flag(uuid.New().String(), "").Hidden().Short('V').StringVar(nil)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
