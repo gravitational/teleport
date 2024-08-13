@@ -84,8 +84,10 @@ func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
 
 // TLSCredential holds a signed TLS certificate and matching private key.
 type TLSCredential struct {
+	// PrivateKey is the private key of the credential.
 	PrivateKey *keys.PrivateKey
-	Cert       []byte
+	// Cert is a PEM-encoded signed X509 certificate.
+	Cert []byte
 }
 
 // TLSCertificate returns a valid [tls.Certificate] ready to be used in a TLS

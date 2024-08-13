@@ -36,6 +36,9 @@ const (
 	fileExtTLSCertLegacy = "-x509.pem"
 	// FileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
 	FileExtTLSCert = ".crt"
+	// FileExtKubeCred is the suffix/extension of a file where a kubernetes
+	// credential is stored (TLS key and cert combined in a single file).
+	FileExtKubeCred = ".cred"
 	// fileExtTLSKey is the suffix/extension of a file where a TLS private key is stored.
 	fileExtTLSKey = ".key"
 	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
@@ -327,20 +330,12 @@ func KubeCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(KubeDir(baseDir, proxy, username), cluster)
 }
 
-// KubeCertPath returns the path to the user's TLS certificate
-// for the given proxy, cluster, and kube cluster.
+// KubeCredPath returns the path to the user's TLS credential for the given
+// proxy, cluster, and kube cluster.
 //
-// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.crt
-func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+FileExtTLSCert)
-}
-
-// KubeKeyPath returns the path to the user's TLS private key
-// for the given proxy, cluster, and kube cluster.
-//
-// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.key
-func KubeKeyPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+fileExtTLSKey)
+// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.cred
+func KubeCredPath(baseDir, proxy, username, cluster, kubename string) string {
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+FileExtKubeCred)
 }
 
 // KubeConfigPath returns the path to the user's standalone kubeconfig

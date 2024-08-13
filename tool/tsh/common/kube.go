@@ -638,16 +638,16 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	//
 	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
 	// cf.GetProfile call above.
-	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
+	if keyPEM, certPEM, err := client.LoadKeysToKubeFromStore(
 		profile,
 		cf.HomePath,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
-		crt, _ := tlsca.ParseCertificatePEM(kubeCert)
+		crt, _ := tlsca.ParseCertificatePEM(certPEM)
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
-			return c.writeByteResponse(cf.Stdout(), kubeCert, privKey, crt.NotAfter)
+			return c.writeByteResponse(cf.Stdout(), certPEM, keyPEM, crt.NotAfter)
 		}
 	}
 

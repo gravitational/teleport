@@ -19,12 +19,14 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -162,14 +164,9 @@ func (fs *FSKeyStore) databaseKeyPath(idx KeyRingIndex, dbname string) string {
 	return keypaths.DatabaseKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
 }
 
-// kubeCertPath returns the TLS certificate path for the given KeyRingIndex and kube cluster name.
-func (fs *FSKeyStore) kubeCertPath(idx KeyRingIndex, kubename string) string {
-	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
-}
-
-// kubeKeyPath returns the private key path for the given KeyRingIndex and kube cluster name.
-func (fs *FSKeyStore) kubeKeyPath(idx KeyRingIndex, kubename string) string {
-	return keypaths.KubeKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+// kubeCredPath returns the TLS credential path for the given KeyRingIndex and kube cluster name.
+func (fs *FSKeyStore) kubeCredPath(idx KeyRingIndex, kubename string) string {
+	return keypaths.KubeCredPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
 // AddKeyRing adds the given key ring to the store.
@@ -220,9 +217,8 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 
-		keyPath := fs.kubeKeyPath(keyRing.KeyRingIndex, kubeCluster)
-		certPath := fs.kubeCertPath(keyRing.KeyRingIndex, kubeCluster)
-		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
+		credPath := fs.kubeCredPath(keyRing.KeyRingIndex, kubeCluster)
+		if err := fs.writeKubeCredential(cred, credPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -336,6 +332,53 @@ func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() e
 			return nil, trace.Wrap(err, "could not acquire lock for TLS credential at %s", path)
 		}
 	}
+}
+
+// writeKubeCredential writes a kube key and cert to a single file, both
+// PEM-encoded, with exactly 2 newlines between them. Compared to using separate files
+// it is more efficient for reading/writing and avoids file locks.
+func (fs *FSKeyStore) writeKubeCredential(cred TLSCredential, path string) error {
+	credFileContents := bytes.Join([][]byte{
+		bytes.TrimRight(cred.PrivateKey.PrivateKeyPEM(), "\n"),
+		bytes.TrimLeft(cred.Cert, "\n"),
+	}, []byte("\n\n"))
+	return trace.Wrap(fs.writeBytes(credFileContents, path))
+}
+
+// readKubeCredential reads a kube key and cert from a single file written by
+// [(*FSKeyStore).writeKubeCredential]. Compared to using separate files it is
+// more efficient for reading/writing and avoids file locks.
+func readKubeCredential(path string) (TLSCredential, error) {
+	keyPEM, certPEM, err := readKubeCredentialFile(path)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	privateKey, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	return TLSCredential{
+		PrivateKey: privateKey,
+		Cert:       certPEM,
+	}, nil
+}
+
+// readKubeCredentialFile reads kube key and cert PEM blocks from a single
+// file written by [(*FSKeyStore).writeKubeCredential]. Compared to using
+// separate files it is more efficient for reading/writing and avoids file
+// locks.
+func readKubeCredentialFile(path string) (keyPEM, certPEM []byte, err error) {
+	credFileContents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+
+	pems := bytes.Split(credFileContents, []byte("\n\n"))
+	if len(pems) != 2 {
+		return nil, nil, trace.BadParameter("expect key and cert PEM blocks separated by two newlines")
+	}
+	keyPEM, certPEM = pems[0], pems[1]
+	return keyPEM, certPEM, nil
 }
 
 func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
@@ -519,6 +562,25 @@ func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error
 	return credsByName, nil
 }
 
+func getKubeCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
+	files, err := os.ReadDir(credentialDir)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	credsByName := make(map[string]TLSCredential, len(files))
+	for _, file := range files {
+		if credName := strings.TrimSuffix(file.Name(), keypaths.FileExtKubeCred); credName != file.Name() {
+			credPath := filepath.Join(credentialDir, file.Name())
+			cred, err := readKubeCredential(credPath)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			credsByName[credName] = cred
+		}
+	}
+	return credsByName, nil
+}
+
 // CertOption is an additional step to run when loading/deleting user certificates.
 type CertOption interface {
 	// updateKeyRing is used by [FSKeyStore] to add the relevant credentials
@@ -563,7 +625,7 @@ type WithKubeCerts struct{}
 
 func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
 	credentialDir := keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getCredentialsByName(credentialDir)
+	credsByName, err := getKubeCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}

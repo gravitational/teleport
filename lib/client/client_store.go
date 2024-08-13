@@ -257,22 +257,19 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 // Store transverses the entire store to find the keys. This operation takes a long time
 // when the store has a lot of keys and when we call the function multiple times in
 // parallel.
-// Although this function speeds up the process since it removes all transversals,
-// it still has to read 2 different files and acquire a read lock on the key file:
-// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
-// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
-func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+// This function speeds up the process since it removes all transversals, and
+// only reads 1 file:
+// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.cred
+func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) (keyPEM, certPEM []byte, err error) {
 	fsKeyStore := NewFSKeyStore(dirPath)
 
-	keyPath := fsKeyStore.kubeKeyPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
-	certPath := fsKeyStore.kubeCertPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
-	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
+	credPath := fsKeyStore.kubeCredPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
+	keyPEM, certPEM, err = readKubeCredentialFile(credPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
 	if err := keys.AssertSoftwarePrivateKey(keyPEM); err != nil {
 		return nil, nil, trace.Wrap(err, "unsupported private key type")
 	}
-	return certPEM, keyPEM, nil
+	return keyPEM, certPEM, nil
 }

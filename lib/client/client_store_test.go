@@ -434,7 +434,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 			for _, kubeClusterName := range kubeClusterNames {
 				go func() {
 					defer wg.Done()
-					certPEM, keyPEM, err := LoadKeysToKubeFromStore(&profile.Profile{
+					keyPEM, certPEM, err := LoadKeysToKubeFromStore(&profile.Profile{
 						SiteName: "teleport.example.com",
 						Username: "tester",
 					}, dir, "teleportcluster", kubeClusterName)
