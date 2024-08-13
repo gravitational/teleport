@@ -28,6 +28,9 @@ import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
+/** ID of the custom shell. When it is set, the shell path should be read from `terminal.customShell`. */
+export const CUSTOM_SHELL_ID = 'custom' as const;
+
 export const createAppConfigSchema = (settings: RuntimeSettings) => {
   const defaultKeymap = getDefaultKeymap(settings.platform);
   const defaultTerminalFont = getDefaultTerminalFont(settings.platform);
@@ -71,10 +74,18 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       )
       .refine(
         configuredShell =>
-          settings.availableShells.some(shell => shell.id === configuredShell),
+          settings.availableShells.some(
+            shell => shell.id === configuredShell || CUSTOM_SHELL_ID
+          ),
         configuredShell => ({
           message: `Cannot find the shell "${configuredShell}". Available options are: [${settings.availableShells.map(({ id }) => id).join(', ')}]. Using platform default (${settings.defaultOsShellId}).`,
         })
+      ),
+    'terminal.customShell': z
+      .string()
+      .default('')
+      .describe(
+        'Path to a custom shell that is used when terminal.shell is set to "custom".'
       ),
     'usageReporting.enabled': z
       .boolean()

@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 
 import which from 'which';
 
 import Logger from 'teleterm/logger';
+import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 
 export interface Shell {
   /**
@@ -30,11 +31,13 @@ export interface Shell {
    * Used as an identifier in the app config or in a document.
    * Must be unique.
    * */
-  id: string;
-  /** Friendly name, for example, Windows PowerShell, zsh. */
-  friendlyName: string;
+  id: typeof CUSTOM_SHELL_ID | string;
   /** Shell executable, for example, C:\\Windows\system32\pwsh.exe, /bin/zsh. */
   binPath: string;
+  /** Binary name of the shell executable, for example, pwsh.exe, zsh. */
+  binName: string;
+  /** Friendly name, for example, Windows PowerShell, zsh. */
+  friendlyName: string;
 }
 
 export async function getAvailableShells(): Promise<Shell[]> {
@@ -49,25 +52,11 @@ export async function getAvailableShells(): Promise<Shell[]> {
 }
 
 export function getDefaultShell(availableShells: Shell[]): string {
-  const logger = new Logger();
   switch (process.platform) {
     case 'linux':
     case 'darwin': {
-      const fallbackShell = 'bash';
-      const { shell } = os.userInfo();
-      const shellId = availableShells.find(
-        availableShell => availableShell.binPath === shell
-      )?.id;
-
-      if (!shellId) {
-        logger.error(
-          `Failed to read ${process.platform} platform default shell, using fallback: ${fallbackShell}.\n`
-        );
-
-        return fallbackShell;
-      }
-
-      return shellId;
+      // There is always a default shell.
+      return availableShells.at(0).id;
     }
     case 'win32':
       if (availableShells.find(shell => shell.id === 'pwsh.exe')) {
@@ -78,55 +67,70 @@ export function getDefaultShell(availableShells: Shell[]): string {
 }
 
 async function getUnixShells(): Promise<Shell[]> {
-  const shells = await fs.promises.readFile('/etc/shells', {
-    encoding: 'utf-8',
-  });
-  return shells
-    .split(os.EOL)
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('#'))
-    .map(binPath => {
-      const name = binPath.split('/').at(-1);
-      return {
-        id: name,
-        friendlyName: name,
-        binPath: binPath,
-      };
-    });
+  const logger = new Logger();
+  const { shell } = os.userInfo();
+  const binName = path.basename(shell);
+  if (!shell) {
+    const fallbackShell = 'bash';
+    logger.error(
+      `Failed to read ${process.platform} platform default shell, using fallback: ${fallbackShell}.\n`
+    );
+    return [
+      {
+        id: fallbackShell,
+        binPath: fallbackShell,
+        friendlyName: fallbackShell,
+        binName: fallbackShell,
+      },
+    ];
+  }
+
+  return [{ id: binName, binPath: shell, friendlyName: binName, binName }];
 }
 
 async function getWindowsShells(): Promise<Shell[]> {
   const shells = await Promise.all(
     [
       {
-        id: 'powershell.exe',
+        binName: 'powershell.exe',
         friendlyName: 'Windows PowerShell (powershell.exe)',
       },
       {
-        id: 'pwsh.exe',
+        binName: 'pwsh.exe',
         friendlyName: 'PowerShell (pwsh.exe)',
       },
       {
-        id: 'cmd.exe',
+        binName: 'cmd.exe',
         friendlyName: 'Command Prompt (cmd.exe)',
       },
       {
-        id: 'wsl.exe',
+        binName: 'wsl.exe',
         friendlyName: 'WSL (wsl.exe)',
       },
     ].map(async shell => {
-      const binPath = await which(shell.id, { nothrow: true });
+      const binPath = await which(shell.binName, { nothrow: true });
       if (!binPath) {
         return;
       }
 
       return {
         binPath,
-        id: shell.id,
+        binName: shell.binName,
+        id: shell.binName,
         friendlyName: shell.friendlyName,
       };
     })
   );
 
   return shells.filter(Boolean);
+}
+
+export function makeCustomShellFromPath(shellPath: string): Shell {
+  const shellBinName = path.basename(shellPath);
+  return {
+    id: CUSTOM_SHELL_ID,
+    binPath: shellPath,
+    binName: shellBinName,
+    friendlyName: shellBinName,
+  };
 }

@@ -151,7 +151,9 @@ export const makeRuntimeSettings = (
   kubeConfigsDir: '',
   logsDir: '',
   defaultOsShellId: 'zsh',
-  availableShells: [{ id: 'zsh', friendlyName: 'zsh', binPath: '/bin/zsh' }],
+  availableShells: [
+    { id: 'zsh', friendlyName: 'zsh', binPath: '/bin/zsh', binName: 'zsh' },
+  ],
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
