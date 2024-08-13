@@ -33,7 +33,7 @@ import (
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	"github.com/gravitational/teleport/api/types/accessgraph"
-	scantestdata "github.com/gravitational/teleport/lib/secretsscanner/scaner/testdata"
+	scantestdata "github.com/gravitational/teleport/lib/secretsscanner/scanner/testdata"
 )
 
 var (
