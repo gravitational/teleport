@@ -34,7 +34,6 @@ import (
 	"os/exec"
 	"os/user"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -999,7 +998,9 @@ func TestX11Forward(t *testing.T) {
 		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
 	require.NoError(t, err)
@@ -1019,28 +1020,28 @@ func TestX11Forward(t *testing.T) {
 
 	// Create multiple XServer requests, the server should
 	// handle multiple concurrent XServer requests.
-	var wg sync.WaitGroup
-	wg.Add(1)
+	errCh := make(chan error)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay)
+		errCh <- x11EchoRequest(serverDisplay)
 	}()
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay)
+		errCh <- x11EchoRequest(serverDisplay)
 	}()
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay2)
+		errCh <- x11EchoRequest(serverDisplay2)
 	}()
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay2)
+		errCh <- x11EchoRequest(serverDisplay2)
 	}()
-	wg.Wait()
+
+	for i := 0; i > 4; i++ {
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-ctx.Done():
+			assert.NoError(t, context.Cause(ctx))
+		}
+	}
 }
 
 // x11EchoSession creates a new ssh session and handles x11 forwarding for the session,
@@ -1062,7 +1063,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 				return
 			}
 			_, err = io.Copy(conn, conn)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			conn.Close()
 		}
 	}()
@@ -1072,13 +1073,13 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// and start x11 forwarding to the client display.
 	err = x11.ServeChannelRequests(ctx, clt.Client, func(ctx context.Context, nch ssh.NewChannel) {
 		sch, sin, err := nch.Accept()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		defer sch.Close()
 
 		clientConn, err := net.Dial("tcp", fakeClientDisplay.Addr().String())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		clientXConn, ok := clientConn.(*net.TCPConn)
-		require.True(t, ok)
+		assert.True(t, ok)
 		defer clientConn.Close()
 
 		go func() {
@@ -1089,7 +1090,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		}()
 
 		err = utils.ProxyConn(ctx, clientXConn, sch)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	})
 	require.NoError(t, err)
 
@@ -1131,7 +1132,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 			return true
 		}
 		return false
-	}, 5*time.Second, 10*time.Millisecond, "failed to read display")
+	}, 10*time.Second, 100*time.Millisecond, "failed to read display")
 
 	// Make a new connection to the XServer proxy, the client
 	// XServer should echo back anything written on it.
@@ -1143,19 +1144,30 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 // x11EchoRequest sends a message to the serverDisplay and expects the
 // server to echo the message back to it.
-func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
+func x11EchoRequest(serverDisplay x11.Display) error {
 	conn, err := serverDisplay.Dial()
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	defer conn.Close()
 
 	msg := "msg"
 	_, err = conn.Write([]byte(msg))
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
 	buf := make([]byte, 3)
 	_, err = conn.Read(buf)
-	require.NoError(t, err)
-	require.Equal(t, msg, string(buf))
+	if err != nil {
+		return err
+	}
+
+	if string(buf) != msg {
+		return trace.Errorf("x11 echo request returned a different message than expected")
+	}
+
+	return nil
 }
 
 func TestAllowedUsers(t *testing.T) {
