@@ -382,12 +382,17 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appInfo, clusterClient, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := appInfo.GetApp(cf.Context, clusterClient.AuthClient)
+	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, nil /*matchRouteToApp*/)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	app, err := appInfo.GetApp(cf.Context, tc, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -50,12 +50,17 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appInfo, clusterClient, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := appInfo.GetApp(cf.Context, clusterClient.AuthClient)
+	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, nil /*matchRouteToApp*/)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	app, err := appInfo.GetApp(cf.Context, tc, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -497,21 +502,15 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 // getAppInfo fetches app information using the user's tsh profile,
 // command line args, and the list resources endpoint if necessary. If
 // provided, the matcher will be used to filter active apps in the
-// tsh profile. In addition, it also returns the cluster client used, so callers
-// can reuse the established connection.
-func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, *client.ClusterClient, error) {
+// tsh profile.
+func getAppInfo(cf *CLIConf, tc *client.TeleportClient, clt authclient.ClientI, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
 	var profile *client.ProfileStatus
-	var clusterClient *client.ClusterClient
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
 		profile, err = tc.ProfileStatus()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	}); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	activeRoutes := profile.Apps
@@ -530,19 +529,19 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 			profile:    profile,
 			RouteToApp: route,
 			isActive:   true,
-		}, clusterClient, nil
+		}, nil
 	} else if !trace.IsNotFound(err) {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, logins, err := getApp(cf.Context, clusterClient.AuthClient, cf.AppName)
+	app, logins, err := getApp(cf.Context, tc, clt, cf.AppName)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if len(logins) == 0 && app.IsAWSConsole() {
-		logins = getARNFromRoles(cf, tc, clusterClient.AuthClient, profile, app)
+		logins = getARNFromRoles(cf, tc, clt, profile, app)
 	}
 
 	appInfo := &appInfo{
@@ -561,14 +560,14 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	case app.IsAWSConsole():
 		awsRoleARN, err := getARNFromFlags(cf, app, logins)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		appInfo.AWSRoleARN = awsRoleARN
 
 	case app.IsAzureCloud():
 		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		log.Debugf("Azure identity is %q", azureIdentity)
 		appInfo.AzureIdentity = azureIdentity
@@ -576,13 +575,13 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	case app.IsGCP():
 		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
 		appInfo.GCPServiceAccount = gcpServiceAccount
 	}
 
-	return appInfo, clusterClient, nil
+	return appInfo, nil
 }
 
 // appInfo wraps a RouteToApp and the corresponding app.
@@ -607,14 +606,14 @@ func (a *appInfo) appLocalCAPath(cluster string) string {
 
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
-func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) (types.Application, error) {
+func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient) (types.Application, error) {
 	a.appMu.Lock()
 	defer a.appMu.Unlock()
 	if a.app != nil {
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, _, err := getApp(ctx, clt, a.Name)
+	app, _, err := getApp(ctx, tc, clt, a.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -623,16 +622,24 @@ func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) 
 }
 
 // getApp returns the registered application with the specified name.
-func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
-	// When listing a single app we only need to grab one page.
-	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindAppServer,
-		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
-		Limit:               1,
-		IncludeLogins:       true,
-	})
-	if err != nil {
+func getApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
+	var res apiclient.ResourcePage[*types.EnrichedResource]
+	// Fetching the app from the auth server needs to be done on a
+	// RetryWithRelogin block for cases where the certificates expired or a
+	// login is required (e.g., configuration change). We don't need a new
+	// instance of GetResourcesClient since it will reconnect using credentials
+	// from the updated TeleportClient.
+	if err := client.RetryWithRelogin(ctx, tc, func() error {
+		// When listing a single app we only need to grab one page.
+		res, err = apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
+			ResourceType:        types.KindAppServer,
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+			Limit:               1,
+			IncludeLogins:       true,
+		})
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
