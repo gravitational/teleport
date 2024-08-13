@@ -98,6 +98,22 @@ export async function buildPtyOptions(
         TELEPORT_PROXY: cmd.proxyHost,
       };
 
+      // The regular env vars are not available in WSL,
+      // they need to be passed via the special variable WSLENV.
+      // Note that path variables have /p postfix which translates the paths from Win32 to WSL.
+      // https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
+      if (settings.platform === 'win32' && shell.binName === 'wsl.exe') {
+        const wslEnv = [
+          'TERM_PROGRAM',
+          'TERM_PROGRAM_VERSION',
+          'TELEPORT_CLUSTER',
+          'TELEPORT_PROXY',
+          'TELEPORT_HOME/p',
+          'KUBECONFIG/p',
+        ];
+        combinedEnv['WSLENV'] = wslEnv.join(':');
+      }
+
       return {
         processOptions: getPtyProcessOptions({
           settings: settings,
