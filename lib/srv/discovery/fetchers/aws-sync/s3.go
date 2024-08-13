@@ -85,7 +85,9 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		ctx,
 		&s3.ListBucketsInput{},
 	)
-
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, bucket := range rsp.Buckets {
 		bucket := bucket
 		eG.Go(func() error {
