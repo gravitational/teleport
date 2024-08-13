@@ -106,7 +106,7 @@ func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (res
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
 
-	credentials, err := tc.LocalAgent().GetCoreKey()
+	credentials, err := tc.LocalAgent().GetCoreKeyRing()
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}

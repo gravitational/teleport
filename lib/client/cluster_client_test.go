@@ -99,21 +99,21 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	key := ca.makeSignedKey(t, KeyIndex{
+	keyRing := ca.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "test",
 		ClusterName: "test",
 		Username:    "alice",
 	}, false)
 
-	require.NoError(t, agent.clientStore.AddKey(key))
+	require.NoError(t, agent.clientStore.AddKeyRing(keyRing))
 
-	leafKey := ca.makeSignedKey(t, KeyIndex{
+	leafKeyRing := ca.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "test",
 		ClusterName: "leaf",
 		Username:    "alice",
 	}, false)
 
-	require.NoError(t, agent.clientStore.AddKey(leafKey))
+	require.NoError(t, agent.clientStore.AddKeyRing(leafKeyRing))
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok, "RSA key not found in fixtures")
@@ -129,15 +129,15 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 		agent       *LocalKeyAgent
 		params      ReissueParams
 		prompt      fakePrompt
-		assertion   func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error)
+		assertion   func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error)
 	}{
 		{
 			name:        "ssh no mfa",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
 			params:      ReissueParams{NodeName: "test"},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
 			},
 		},
@@ -145,9 +145,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			name:        "ssh mfa success",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{NodeName: "test"},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},
@@ -156,9 +156,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{NodeName: "test"},
 			prompt:      failedPrompt,
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
-				require.Nil(t, key)
+				require.Nil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},
@@ -166,9 +166,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			name:        "kube no mfa",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
 			params:      ReissueParams{KubernetesCluster: "test"},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
 			},
 		},
@@ -176,9 +176,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			name:        "kube mfa success",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{KubernetesCluster: "test"},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},
@@ -187,9 +187,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{KubernetesCluster: "test"},
 			prompt:      failedPrompt,
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
-				require.Nil(t, key)
+				require.Nil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		}, {
@@ -201,9 +201,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					Database: "test",
 				},
 			},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
 			},
 		},
@@ -216,9 +216,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					Database: "test",
 				},
 			},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},
@@ -232,9 +232,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				},
 			},
 			prompt: failedPrompt,
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
-				require.Nil(t, key)
+				require.Nil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},
@@ -243,18 +243,18 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			agent: &LocalKeyAgent{
 				clientStore: NewMemClientStore(),
 			},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
-				require.Nil(t, key)
+				require.Nil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, mfaRequired)
 			},
 		},
 		{
 			name:   "existing credentials used",
-			params: ReissueParams{NodeName: "test", ExistingCreds: key},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			params: ReissueParams{NodeName: "test", ExistingCreds: keyRing},
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
-				require.Nil(t, key)
+				require.Nil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, mfaRequired)
 			},
 		},
@@ -262,9 +262,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			name:        "mfa unknown",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_UNSPECIFIED,
 			params:      ReissueParams{NodeName: "test"},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
-				require.Nil(t, key)
+				require.Nil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, mfaRequired)
 			},
 		},
@@ -280,9 +280,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					},
 				},
 			},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
 			},
 		},
@@ -298,9 +298,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					},
 				},
 			},
-			assertion: func(t *testing.T, key *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, key)
+				require.NotNil(t, keyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},

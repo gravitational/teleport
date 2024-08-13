@@ -501,7 +501,7 @@ export default class MainProcess {
       }
     );
 
-    subscribeToTerminalContextMenuEvent();
+    subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent(
       this.settings.availableShells,
       this.configService

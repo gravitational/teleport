@@ -70,13 +70,13 @@ func NewMemClientStore() *Store {
 	}
 }
 
-// AddKey adds the given key to the key store. The key's trusted certificates are
+// AddKeyRing adds the given key ring to the key store. The key's trusted certificates are
 // added to the trusted certs store.
-func (s *Store) AddKey(key *KeyRing) error {
-	if err := s.KeyStore.AddKey(key); err != nil {
+func (s *Store) AddKeyRing(keyRing *KeyRing) error {
+	if err := s.KeyStore.AddKeyRing(keyRing); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.TrustedCertsStore.SaveTrustedCerts(key.ProxyHost, key.TrustedCerts); err != nil {
+	if err := s.TrustedCertsStore.SaveTrustedCerts(keyRing.ProxyHost, keyRing.TrustedCerts); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -99,27 +99,27 @@ func IsNoCredentialsError(err error) bool {
 	return errors.Is(err, ErrNoCredentials) || errors.Is(err, ErrNoProfile)
 }
 
-// GetKey gets the requested key with trusted the requested certificates. The key's
-// trusted certs will be retrieved from the trusted certs store. If the key is not
-// found or is missing data (certificates, etc.), then an ErrNoCredentials error
-// is returned.
-func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error) {
-	key, err := s.KeyStore.GetKey(idx, opts...)
+// GetKeyRing gets the requested key ring with trusted the requested
+// certificates. The key ring's trusted certs will be retrieved from the trusted
+// certs store. If the key ring is not found or is missing data (certificates, etc.),
+// then an ErrNoCredentials error is returned.
+func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
+	keyRing, err := s.KeyStore.GetKeyRing(idx, opts...)
 	if trace.IsNotFound(err) {
 		return nil, trace.Wrap(ErrNoCredentials, err.Error())
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
+	tlsCertExpiration, err := keyRing.TeleportTLSCertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	s.log.Debugf("Teleport TLS certificate valid until %q.", tlsCertExpiration)
 
 	// Validate the SSH certificate.
-	if key.Cert != nil {
-		if err := key.CheckCert(); err != nil {
+	if keyRing.Cert != nil {
+		if err := keyRing.CheckCert(); err != nil {
 			if !utils.IsCertExpiredError(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -130,8 +130,8 @@ func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key.TrustedCerts = trustedCerts
-	return key, nil
+	keyRing.TrustedCerts = trustedCerts
+	return keyRing, nil
 }
 
 // AddTrustedHostKeys is a helper function to add ssh host keys directly, rather than through SaveTrustedCerts.
@@ -173,16 +173,16 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
-	idx := KeyIndex{
+	idx := KeyRingIndex{
 		ProxyHost:   profileName,
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
-	key, err := s.GetKey(idx, WithAllCerts...)
+	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			// If we can't find a key to match the profile, or can't connect to
-			// the key (hardware key), return a partial status. This is used for
+			// If we can't find a keyRing to match the profile, or can't connect to
+			// the keyRing (hardware key), return a partial status. This is used for
 			// some superficial functions `tsh logout` and `tsh status`.
 			return &ProfileStatus{
 				Name: profileName,
@@ -204,7 +204,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	return profileStatusFromKey(key, profileOptions{
+	return profileStatusFromKeyRing(keyRing, profileOptions{
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
@@ -265,13 +265,13 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
 	fsKeyStore := NewFSKeyStore(dirPath)
 
-	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
+	certPath := fsKeyStore.kubeCertPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
 	kubeCert, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	privKeyPath := fsKeyStore.userKeyPath(KeyIndex{ProxyHost: profile.SiteName, Username: profile.Username})
+	privKeyPath := fsKeyStore.userKeyPath(KeyRingIndex{ProxyHost: profile.SiteName, Username: profile.Username})
 	privKey, err := os.ReadFile(privKeyPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -59,7 +59,10 @@ jobs:
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
               # rendered doc changes
+              - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
+              - 'docs/pages/reference/operator-resources/**'
+              - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
 
   lint-go:
     name: Lint (Go)
@@ -201,7 +204,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@aceb106d2419c4cff48863df90161d92decb8591 # v1.35.1
+      - uses: bufbuild/buf-setup-action@bdb594084c95f0638c76c891ccb75bf4b75ef61c # v1.36.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}

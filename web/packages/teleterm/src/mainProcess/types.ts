@@ -245,6 +245,7 @@ export enum FileStorageEventType {
   Write = 'Write',
   Replace = 'Replace',
   GetFilePath = 'GetFilePath',
+  GetFileName = 'GetFileName',
   GetFileLoadingError = 'GetFileLoadingError',
 }
 

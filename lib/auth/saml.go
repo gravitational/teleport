@@ -105,7 +105,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
 	// not empty (cert is set) but the private key is missing. In this case we want to look up the existing SAML
-	// connector and populate the singing key from it if it's the same certificate. This avoids accidentally clearing
+	// connector and populate the signing key from it if it's the same certificate. This avoids accidentally clearing
 	// the private key and creating an unusable connector.
 	if connector.GetSigningKeyPair().PrivateKey == "" {
 		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)

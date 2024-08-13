@@ -3,7 +3,7 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.22.5
+GOLANG_VERSION ?= go1.22.6
 GOLANGCI_LINT_VERSION ?= v1.59.1
 
 NODE_VERSION ?= 20.14.0
@@ -17,7 +17,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
-BUF_VERSION ?= v1.35.1
+BUF_VERSION ?= v1.36.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4

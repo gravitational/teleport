@@ -214,7 +214,7 @@ func (s *IdentityOutputService) render(
 	)
 	defer span.End()
 
-	key, err := NewClientKey(id, hostCAs)
+	keyRing, err := NewClientKeyRing(id, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,7 +223,7 @@ func (s *IdentityOutputService) render(
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, key, s.cfg.Destination); err != nil {
+	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(

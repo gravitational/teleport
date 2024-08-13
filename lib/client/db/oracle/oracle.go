@@ -42,8 +42,8 @@ import (
 // wallet.jks   - Java Wallet format used by JDBC Drivers.
 // sqlnet.ora   - Generic Oracle Client Configuration File allowing to specify Wallet Location.
 // tnsnames.ora - Oracle Net Service mapped to connections descriptors.
-func GenerateClientConfiguration(key *client.KeyRing, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
-	walletPath := profile.OracleWalletDir(key.ClusterName, db.ServiceName)
+func GenerateClientConfiguration(keyRing *client.KeyRing, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
+	walletPath := profile.OracleWalletDir(keyRing.ClusterName, db.ServiceName)
 	if err := os.MkdirAll(walletPath, teleport.PrivateDirMode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func GenerateClientConfiguration(key *client.KeyRing, db tlsca.RouteToDatabase, 
 		return trace.ConvertSystemError(err)
 	}
 
-	jksWalletPath, err := createClientWallet(key, localProxyCAPem, password, walletPath)
+	jksWalletPath, err := createClientWallet(keyRing, localProxyCAPem, password, walletPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -73,8 +73,8 @@ func GenerateClientConfiguration(key *client.KeyRing, db tlsca.RouteToDatabase, 
 	return nil
 }
 
-func createClientWallet(key *client.KeyRing, certPem []byte, password string, walletPath string) (string, error) {
-	buff, err := createJKSWallet(key.PrivateKey.PrivateKeyPEM(), certPem, certPem, password)
+func createClientWallet(keyRing *client.KeyRing, certPem []byte, password string, walletPath string) (string, error) {
+	buff, err := createJKSWallet(keyRing.PrivateKey.PrivateKeyPEM(), certPem, certPem, password)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
