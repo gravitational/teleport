@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -436,11 +437,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
 
-	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
-		defer span.End()
-		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
-	})
+	if secscanconstants.Enabled {
+		g.Go(func() error {
+			ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+			defer span.End()
+			return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+		})
+	}
 
 	g.Go(func() error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
