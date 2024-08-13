@@ -93,7 +93,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	for {
 		var accessLists []*accesslist.AccessList
 		var err error
-		accessLists, nextToken, err = a.Services.AccessListClient().ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		accessLists, nextToken, err = a.Services.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}

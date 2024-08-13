@@ -128,7 +128,8 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go namespace.go
+	go build -trimpath -o bin/manager main.go namespace.go
+
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

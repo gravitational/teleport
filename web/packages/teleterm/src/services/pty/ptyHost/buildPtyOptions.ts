@@ -56,6 +56,8 @@ export async function buildPtyOptions(
       const combinedEnv = {
         ...process.env,
         ...shellEnv,
+        TERM_PROGRAM: 'Teleport_Connect',
+        TERM_PROGRAM_VERSION: settings.appVersion,
         TELEPORT_HOME: settings.tshd.homeDir,
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,

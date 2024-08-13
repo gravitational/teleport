@@ -33,11 +33,11 @@ ENV GOPATH="/go" \
 # Install protoc.
 ARG PROTOC_VERSION # eg, "3.20.2"
 RUN VERSION="$PROTOC_VERSION" && \
-  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
-  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
-  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
-  unzip "$PB_FILE" -d /usr/local && \
-  rm -f "$PB_FILE"
+    PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+    PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+    curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+    unzip "$PB_FILE" -d /usr/local && \
+    rm -f "$PB_FILE"
 
 ## Build the operator
 
@@ -75,7 +75,7 @@ ARG TARGETARCH
 # CGO is required for github.com/gravitational/teleport/lib/system
 RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
     CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
+    go build -trimpath -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
