@@ -99,7 +99,7 @@ function render(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getOSSFeatures()}>
-          <UserMenuNav iconSize={24} username="llama" />
+          <UserMenuNav username="llama" />
         </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>

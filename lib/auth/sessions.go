@@ -103,7 +103,7 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	session, sessionChecker, err := a.newWebSession(ctx, req, nil /* opts */)
+	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,19 +119,6 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	// Assign the TrustedDeviceRequirement to the session, but do not persist it,
-	// so only the initial session gets it.
-	// This avoids persisting a possibly stale value.
-	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		return sessionChecker.Roles(), nil
-	}); err != nil {
-		log.
-			WithError(err).
-			Warnf("Failed to calculate trusted device mode for session")
-	} else {
-		session.SetTrustedDeviceRequirement(tdr)
 	}
 
 	return session, nil
@@ -324,6 +311,17 @@ func (a *Server) newWebSession(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+		return checker.Roles(), nil
+	}); err != nil {
+		log.
+			WithError(err).
+			Warn("Failed to calculate trusted device mode for session")
+	} else {
+		sess.SetTrustedDeviceRequirement(tdr)
+	}
+
 	return sess, checker, nil
 }
 

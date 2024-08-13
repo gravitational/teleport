@@ -20,7 +20,7 @@ import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
-import { Text } from 'design';
+import { Text, Box } from 'design';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
 
@@ -40,11 +40,10 @@ import {
   STARTING_TRANSITION_DELAY,
   INCREMENT_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
-import { DeviceTrustIcon } from 'teleport/TopBar/DeviceTrustIcon';
+import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 
 interface UserMenuNavProps {
   username: string;
-  iconSize: number;
 }
 
 const Container = styled.div`
@@ -101,7 +100,7 @@ const StyledAvatar = styled.div`
 
 const Arrow = styled.div`
   line-height: 0;
-  padding-left: 32px;
+  padding-left: ${p => p.theme.space[3]}px;
 
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
@@ -114,7 +113,7 @@ const Arrow = styled.div`
   }
 `;
 
-export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
+export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
@@ -165,7 +164,9 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>
-        <DeviceTrustIcon iconSize={iconSize} />
+        <Box ml={3}>
+          <DeviceTrustStatus iconOnly />
+        </Box>
 
         <Arrow open={open}>
           <ChevronDown size="medium" />
@@ -173,6 +174,7 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
       </UserInfo>
 
       <Dropdown open={open}>
+        <DeviceTrustStatus />
         {items}
 
         <DropdownDivider />

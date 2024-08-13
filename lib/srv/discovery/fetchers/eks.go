@@ -563,6 +563,9 @@ func (a *eksFetcher) upsertRoleAndBinding(ctx context.Context, cluster *eks.Clus
 }
 
 func (a *eksFetcher) createKubeClient(cluster *eks.Cluster) (*kubernetes.Clientset, error) {
+	if a.stsClient == nil {
+		return nil, trace.BadParameter("STS client is not set")
+	}
 	token, _, err := kubeutils.GenAWSEKSToken(a.stsClient, aws.StringValue(cluster.Name), a.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to generate EKS token for cluster %q", aws.StringValue(cluster.Name))
@@ -666,10 +669,6 @@ func (a *eksFetcher) upsertAccessEntry(ctx context.Context, client eksiface.EKSA
 }
 
 func (a *eksFetcher) setCallerIdentity(ctx context.Context) error {
-	if a.AssumeRole.RoleARN != "" {
-		a.callerIdentity = a.AssumeRole.RoleARN
-		return nil
-	}
 	var err error
 	a.stsClient, err = a.ClientGetter.GetAWSSTSClient(
 		ctx,
@@ -678,6 +677,11 @@ func (a *eksFetcher) setCallerIdentity(ctx context.Context) error {
 	)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if a.AssumeRole.RoleARN != "" {
+		a.callerIdentity = a.AssumeRole.RoleARN
+		return nil
 	}
 	identity, err := a.stsClient.GetCallerIdentityWithContext(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {

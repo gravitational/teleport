@@ -9,12 +9,12 @@ import (
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	github_com_gravitational_teleport_api_constants "github.com/gravitational/teleport/api/constants"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	_ "github.com/gravitational/teleport/api/types/wrappers"
 	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
-	_ "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -9832,9 +9832,6 @@ type WebSessionSpecV2 struct {
 	//
 	// If during login a device is required and DeviceWebToken is nil, then it's
 	// likely the user needs to enroll their device to avoid impacting access.
-	//
-	// Transient, only set in certain situations (such as the initial session
-	// returned during login).
 	TrustedDeviceRequirement TrustedDeviceRequirement `protobuf:"varint,14,opt,name=TrustedDeviceRequirement,proto3,enum=types.TrustedDeviceRequirement" json:"trusted_device_requirement,omitempty"`
 	XXX_NoUnkeyedLiteral     struct{}                 `json:"-"`
 	XXX_unrecognized         []byte                   `json:"-"`

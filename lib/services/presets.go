@@ -177,6 +177,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAppServer, RW()),
 					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindBotInstance, RW()),
+					types.NewRule(types.KindAccessGraphSettings, RW()),
 				},
 			},
 		},

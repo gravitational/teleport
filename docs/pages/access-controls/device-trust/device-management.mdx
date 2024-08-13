@@ -144,6 +144,11 @@ integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 - User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
 
+<Admonition type="tip">
+  Since Teleport v16.1.1 users don't need the device/enroll permission to
+  benefit from auto-enrollment.
+</Admonition>
+
 Enable auto-enrollment in your cluster settings:
 
 <Tabs dropDownCaption="Teleport Deployment">
@@ -179,9 +184,8 @@ After saving the changes, restart the Teleport service.
 </TabItem>
 </Tabs>
 
-Once enabled, user's with their device registered in Teleport and with the required permission
-(preset `editor` or `device-enroll` role) will have their device enrolled to Teleport in
-their next login.
+Once enabled, users with their device registered in Teleport will have their
+device enrolled to Teleport in their next login.
 
 ```code
 $ tsh logout
