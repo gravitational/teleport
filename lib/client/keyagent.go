@@ -506,8 +506,8 @@ func (a *LocalKeyAgent) AddKeyRing(keyRing *KeyRing) error {
 // AddDatabaseKeyRing activates a new signed database key by adding it into the keystore.
 // key must contain at least one db cert. ssh cert is not required.
 func (a *LocalKeyAgent) AddDatabaseKeyRing(keyRing *KeyRing) error {
-	if len(keyRing.DBTLSCerts) == 0 {
-		return trace.BadParameter("key must contains at least one database access certificate")
+	if len(keyRing.DBTLSCredentials) == 0 {
+		return trace.BadParameter("key ring must contain at least one Database access certificate")
 	}
 	return a.addKeyRing(keyRing)
 }
@@ -516,7 +516,7 @@ func (a *LocalKeyAgent) AddDatabaseKeyRing(keyRing *KeyRing) error {
 // key must contain at least one Kubernetes cert. ssh cert is not required.
 func (a *LocalKeyAgent) AddKubeKeyRing(keyRing *KeyRing) error {
 	if len(keyRing.KubeTLSCerts) == 0 {
-		return trace.BadParameter("key must contains at least one Kubernetes access certificate")
+		return trace.BadParameter("key ring must contain at least one Kubernetes access certificate")
 	}
 	return a.addKeyRing(keyRing)
 }
@@ -525,7 +525,7 @@ func (a *LocalKeyAgent) AddKubeKeyRing(keyRing *KeyRing) error {
 // key must contain at least one app credential. ssh cert is not required.
 func (a *LocalKeyAgent) AddAppKeyRing(keyRing *KeyRing) error {
 	if len(keyRing.AppTLSCredentials) == 0 {
-		return trace.BadParameter("key must contains at least one App access certificate")
+		return trace.BadParameter("key ring must contain at least one App access certificate")
 	}
 	return a.addKeyRing(keyRing)
 }
@@ -533,7 +533,7 @@ func (a *LocalKeyAgent) AddAppKeyRing(keyRing *KeyRing) error {
 // addKeyRing activates a new signed session key ring by adding it into the keystore.
 func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 	if keyRing == nil {
-		return trace.BadParameter("key is nil")
+		return trace.BadParameter("key ring is nil")
 	}
 	if keyRing.ProxyHost == "" {
 		keyRing.ProxyHost = a.proxyHost

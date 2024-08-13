@@ -99,11 +99,14 @@ const (
 //    │   │       └── appC.key         --> private key for app service "appC"
 //    │   ├── foo-db                   --> Database access certs for user "foo"
 //    │   │   ├── root                 --> Database access certs for cluster "root"
-//    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
-//    │   │   │   ├── dbB-x509.pem     --> TLS cert for database service "dbB"
+//    │   │   │   ├── dbA.crt          --> TLS cert for database service "dbA"
+//    │   │   │   ├── dbA.key          --> private key for database service "dbA"
+//    │   │   │   ├── dbB.crt          --> TLS cert for database service "dbB"
+//    │   │   │   ├── dbB.key          --> private key for database service "dbB"
 //    │   │   │   └── dbC-wallet       --> Oracle Client wallet Configuration directory.
 //    │   │   ├── leaf                 --> Database access certs for cluster "leaf"
-//    │   │   │   └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   │   │   ├── dbC.crt          --> TLS cert for database service "dbC"
+//    │   │   │   └── dbC.key          --> private key for database service "dbC"
 //    │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
 //    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
@@ -274,27 +277,35 @@ func DatabaseDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+dbDirSuffix)
 }
 
-// DatabaseCertDir returns the path to the user's database cert directory
+// DatabaseCredentialDir returns the path to the user's database cert directory
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>
-func DatabaseCertDir(baseDir, proxy, username, cluster string) string {
+func DatabaseCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(DatabaseDir(baseDir, proxy, username), cluster)
 }
 
 // DatabaseCertPath returns the path to the user's TLS certificate
 // for the given proxy, cluster, and database.
 //
-// <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>-x509.pem
+// <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>.crt
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
-	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCertLegacy)
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCert)
+}
+
+// DatabaseKeyPath returns the path to the user's TLS private key
+// for the given proxy, cluster, and database.
+//
+// <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>.key
+func DatabaseKeyPath(baseDir, proxy, username, cluster, dbname string) string {
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+fileExtTLSKey)
 }
 
 // DatabaseOracleWalletDirectory returns the path to the user's Oracle Wallet configuration directory.
 // for the given proxy, cluster and database.
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/dbname-wallet/
 func DatabaseOracleWalletDirectory(baseDir, proxy, username, cluster, dbname string) string {
-	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+oracleWalletDirSuffix)
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+oracleWalletDirSuffix)
 }
 
 // KubeDir returns the path to the user's kube directory

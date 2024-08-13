@@ -47,6 +47,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -205,10 +206,10 @@ const (
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert []byte, pk *KeyRing) ([]byte, error) {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *keys.PrivateKey) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		keyPEM, err := pk.PrivateKey.SoftwarePrivateKeyPEM()
+		keyPEM, err := pk.SoftwarePrivateKeyPEM()
 		if err == nil {
 			return append(cert, keyPEM...), nil
 		} else if !trace.IsBadParameter(err) {

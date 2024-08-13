@@ -155,6 +155,11 @@ func (fs *FSKeyStore) databaseCertPath(idx KeyRingIndex, dbname string) string {
 	return keypaths.DatabaseCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
 }
 
+// databaseCertPath returns the private key path for the given KeyRingIndex and database name.
+func (fs *FSKeyStore) databaseKeyPath(idx KeyRingIndex, dbname string) string {
+	return keypaths.DatabaseKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
+}
+
 // kubeCertPath returns the TLS certificate path for the given KeyRingIndex and kube cluster name.
 func (fs *FSKeyStore) kubeCertPath(idx KeyRingIndex, kubename string) string {
 	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
@@ -214,9 +219,14 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 			return trace.Wrap(err)
 		}
 	}
-	for db, cert := range keyRing.DBTLSCerts {
-		path := fs.databaseCertPath(keyRing.KeyRingIndex, filepath.Clean(db))
-		if err := fs.writeBytes(cert, path); err != nil {
+	for db, cred := range keyRing.DBTLSCredentials {
+		db = filepath.Clean(db)
+		certPath := fs.databaseCertPath(keyRing.KeyRingIndex, db)
+		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
+			return trace.Wrap(err)
+		}
+		keyPath := fs.databaseKeyPath(keyRing.KeyRingIndex, db)
+		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -520,12 +530,12 @@ type WithDBCerts struct {
 }
 
 func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
-	certDir := keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	certsByName, err := getCertsByName(certDir)
+	credentialDir := keypaths.DatabaseCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing.DBTLSCerts = certsByName
+	keyRing.DBTLSCredentials = credsByName
 	return nil
 }
 
@@ -534,13 +544,16 @@ func (o WithDBCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 		return []string{keypaths.DatabaseDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
 	if o.dbName == "" {
-		return []string{keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+		return []string{keypaths.DatabaseCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 	}
-	return []string{keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName)}
+	return []string{
+		keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName),
+		keypaths.DatabaseKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName),
+	}
 }
 
 func (o WithDBCerts) deleteFromKeyRing(keyRing *KeyRing) {
-	keyRing.DBTLSCerts = make(map[string][]byte)
+	keyRing.DBTLSCredentials = make(map[string]TLSCredential)
 }
 
 // WithAppCerts is a CertOption for handling application access certificates.
@@ -650,7 +663,7 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRin
 		case WithKubeCerts:
 			retKeyRing.KubeTLSCerts = keyRing.KubeTLSCerts
 		case WithDBCerts:
-			retKeyRing.DBTLSCerts = keyRing.DBTLSCerts
+			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:
 			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
 		}

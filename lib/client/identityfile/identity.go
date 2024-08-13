@@ -767,7 +767,11 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 
 		// If this identity file has any database certs, copy it into the DBTLSCerts map.
 		if parsedIdent.RouteToDatabase.ServiceName != "" {
-			keyRing.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+			keyRing.DBTLSCredentials[parsedIdent.RouteToDatabase.ServiceName] = client.TLSCredential{
+				// Identity files only have room for one private key, it must match the db cert.
+				PrivateKey: priv,
+				Cert:       ident.Certs.TLS,
+			}
 		}
 
 		// Similarly, if this identity has any app certs, copy them in.

@@ -143,6 +143,13 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id';
 
+export type PluginStatus<S = any> = {
+  name: string;
+  type: PluginKind;
+  statusCode: IntegrationStatusCode;
+  stats?: S;
+};
+
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
   // to authenticate SCIM requests

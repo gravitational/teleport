@@ -82,14 +82,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
-    const split = s.split(' ').map(s => s.toLowerCase());
-    const foundResources = list.filter(r => {
-      const match = split.every(s => r.keywords.includes(s));
-      if (match) {
-        return r;
-      }
-    });
-    setResources(foundResources);
+    const search = s.split(' ').map(s => s.toLowerCase());
+    const found = list.filter(r =>
+      search.every(s => r.keywords.some(k => k.toLowerCase().includes(s)))
+    );
+
+    setResources(found);
     setSearch(s);
   }
 
@@ -177,7 +175,17 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
 
-              let resourceCardProps;
+              let resourceCardProps:
+                | {
+                    onClick?: () => void;
+                  }
+                | {
+                    as: typeof Link;
+                    href: string | null;
+                    target: string;
+                    style: Record<string, string>;
+                  };
+
               if (r.kind === ResourceKind.Application && r.isDialog) {
                 resourceCardProps = {
                   onClick: () => {

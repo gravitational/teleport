@@ -268,7 +268,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":      listener.Addr().String(),
 			"ca":           profile.CACertPathForCluster(rootCluster),
 			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":          profile.KeyPath(),
+			"key":          profile.DatabaseKeyPathForCluster(cf.SiteName, dbInfo.ServiceName),
 			"randomPort":   randomPort,
 			"databaseUser": dbInfo.Username,
 			"databaseName": dbInfo.Database,

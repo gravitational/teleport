@@ -824,10 +824,20 @@ func TestVirtualPathNames(t *testing.T) {
 		{
 			name:   "database",
 			kind:   VirtualPathDatabase,
-			params: VirtualPathDatabaseParams("foo"),
+			params: VirtualPathDatabaseCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_DB_FOO",
 				"TSH_VIRTUAL_PATH_DB",
+			},
+		},
+		{
+			name:   "database key",
+			kind:   VirtualPathKey,
+			params: VirtualPathDatabaseKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_DB_FOO",
+				"TSH_VIRTUAL_PATH_KEY_DB",
+				"TSH_VIRTUAL_PATH_KEY",
 			},
 		},
 		{

@@ -544,10 +544,16 @@ func VirtualPathCAParams(caType types.CertAuthType) VirtualPathParams {
 	}
 }
 
-// VirtualPathDatabaseParams returns parameters for selecting specific database
-// certificates.
-func VirtualPathDatabaseParams(databaseName string) VirtualPathParams {
+// VirtualPathDatabaseCertParams returns parameters for selecting a specific database
+// certificate by name.
+func VirtualPathDatabaseCertParams(databaseName string) VirtualPathParams {
 	return VirtualPathParams{databaseName}
+}
+
+// VirtualPathDatabaseKeyParams returns parameters for selecting a specific database
+// key by name.
+func VirtualPathDatabaseKeyParams(databaseName string) VirtualPathParams {
+	return VirtualPathParams{"DB", databaseName}
 }
 
 // VirtualPathAppCertParams returns parameters for selecting specific app cert by name.
@@ -605,6 +611,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	case tc.NonInteractive:
 		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
 	case !IsErrorResolvableWithRelogin(fnErr):
+		// If the connection to Auth was unexpectedly cut, see if the client is too
+		// old to interact with the cluster.
+		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
+			// The results are intentionally ignored - Ping prints warnings
+			// related to versions, and that's all that is needed here.
+			_, _ = tc.Ping(ctx)
+		}
+
 		return trace.Wrap(fnErr)
 	}
 	opt := defaultRetryWithReloginOptions()
@@ -1468,8 +1482,8 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
-	return key, trace.Wrap(err)
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	return keyRing, trace.Wrap(err)
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
@@ -3713,7 +3727,10 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		keyRing.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
 	}
 	if tc.DatabaseService != "" {
-		keyRing.DBTLSCerts[tc.DatabaseService] = response.TLSCert
+		keyRing.DBTLSCredentials[tc.DatabaseService] = TLSCredential{
+			Cert:       response.TLSCert,
+			PrivateKey: priv,
+		}
 	}
 
 	// Store the requested cluster name in the keyring.
@@ -4150,7 +4167,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// Verify server->client and client->server compatibility.
 	if tc.CheckVersions {
-		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
+		if !utils.MeetsMinVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
 WARNING
 Detected potentially incompatible client and server versions.
@@ -4162,9 +4179,25 @@ Future versions of tsh will fail when incompatible versions are detected.
 				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 
+		if !utils.MeetsMaxVersion(teleport.Version, pr.ServerVersion) {
+			serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(pr.ServerVersion)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			fmt.Fprintf(tc.Stderr, `
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is %v but you are using %v.
+Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+				serverVersionWithWildcards, teleport.Version, serverVersionWithWildcards)
+		}
+
 		// Recent `tsh mfa` changes require at least Teleport v15.
 		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
-		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
+		if !utils.MeetsMinVersion(pr.ServerVersion, minServerVersion) {
 			fmt.Fprintf(tc.Stderr, `
 WARNING
 Detected incompatible client and server versions.
