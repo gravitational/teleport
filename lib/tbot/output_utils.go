@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -102,15 +103,15 @@ func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
 // identityfile.ConfigWriter interface
 var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
-// NewClientKey returns a sane client.Key for the given bot identity.
-func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
+// NewClientKeyRing returns a sane client.KeyRing for the given bot identity.
+func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &client.Key{
-		KeyIndex: client.KeyIndex{
+	return &client.KeyRing{
+		KeyRingIndex: client.KeyRingIndex{
 			ClusterName: ident.ClusterName,
 		},
 		PrivateKey:   pk,
@@ -121,13 +122,13 @@ func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*cli
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted
 		// on tsh's end based on cert fields, though.)
-		KubeTLSCerts: make(map[string][]byte),
-		DBTLSCerts:   make(map[string][]byte),
+		KubeTLSCerts:     make(map[string][]byte),
+		DBTLSCredentials: make(map[string]client.TLSCredential),
 	}, nil
 }
 
 func writeIdentityFile(
-	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -138,7 +139,7 @@ func writeIdentityFile(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.IdentityFilePath,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -159,7 +160,7 @@ func writeIdentityFile(
 // useful when writing out TLS certificates with alternative prefix and file
 // extensions for application compatibility reasons.
 func writeIdentityFileTLS(
-	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -170,7 +171,7 @@ func writeIdentityFileTLS(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultTLSPrefix,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -232,6 +233,8 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 
 // generateKeys generates TLS and SSH keypairs.
 func generateKeys() (private, sshpub, tlspub []byte, err error) {
+	// TODO(nklaassen): split SSH and TLS keys, support configurable key
+	// algorithms.
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -273,9 +276,16 @@ func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.
 		}
 	}
 
+	botDesc := ""
+	if tlsIdent.BotInstanceID != "" {
+		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
+	}
+
 	duration := cert.NotAfter.Sub(cert.NotBefore)
 	return fmt.Sprintf(
-		"valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		tlsIdent.BotName,
+		botDesc,
 		cert.NotBefore.Format(time.RFC3339),
 		cert.NotAfter.Format(time.RFC3339),
 		duration,
@@ -315,13 +325,26 @@ func generateIdentity(
 	// Generate a fresh keypair for the impersonated identity. We don't care to
 	// reuse keys here: impersonated certs might not be as well-protected so
 	// constantly rotating private keys
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	// TODO(nklaassen): split SSH and TLS keys, support configurable algorithms.
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	req := proto.UserCertsRequest{
-		PublicKey:      publicKey,
+		SSHPublicKey:   sshPublicKey,
+		TLSPublicKey:   tlsPublicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
 		Expires:        time.Now().Add(ttl),
 		RoleRequests:   roles,
@@ -372,9 +395,14 @@ func generateIdentity(
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = currentIdentity.SSHCACertBytes
 
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKey,
-		PublicKeyBytes:  publicKey,
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  sshPublicKey,
 	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)

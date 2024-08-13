@@ -29,9 +29,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -246,8 +248,10 @@ type cacheCollections struct {
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	userNotifications        collectionReader[notificationGetter]
+	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
+	spiffeFederations        collectionReader[SPIFFEFederationReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -731,6 +735,24 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
+		case types.KindAccessGraphSettings:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections.accessGraphSettings = &genericCollection[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter, accessGraphSettingsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.accessGraphSettings
+		case types.KindSPIFFEFederation:
+			if c.Config.SPIFFEFederations == nil {
+				return nil, trace.BadParameter("missing parameter SPIFFEFederations")
+			}
+			collections.spiffeFederations = &genericCollection[*machineidv1.SPIFFEFederation, SPIFFEFederationReader, spiffeFederationExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.spiffeFederations
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -3228,3 +3250,42 @@ type accessMonitoringRuleGetter interface {
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
+
+type accessGraphSettingsExecutor struct{}
+
+func (accessGraphSettingsExecutor) getAll(ctx context.Context, cache *Cache, _ bool) ([]*clusterconfigpb.AccessGraphSettings, error) {
+	set, err := cache.ClusterConfig.GetAccessGraphSettings(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []*clusterconfigpb.AccessGraphSettings{set}, nil
+}
+
+func (accessGraphSettingsExecutor) upsert(ctx context.Context, cache *Cache, resource *clusterconfigpb.AccessGraphSettings) error {
+	_, err := cache.clusterConfigCache.UpsertAccessGraphSettings(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessGraphSettingsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.clusterConfigCache.DeleteAccessGraphSettings(ctx))
+}
+
+func (accessGraphSettingsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.clusterConfigCache.DeleteAccessGraphSettings(ctx))
+}
+
+func (accessGraphSettingsExecutor) isSingleton() bool { return false }
+
+func (accessGraphSettingsExecutor) getReader(cache *Cache, cacheOK bool) accessGraphSettingsGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type accessGraphSettingsGetter interface {
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+}
+
+var _ executor[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter] = accessGraphSettingsExecutor{}

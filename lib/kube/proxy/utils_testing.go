@@ -20,6 +20,8 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
@@ -313,6 +315,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	proxyTLSConfig, err := proxyServerIdentity.TLSConfig(nil)
 	require.NoError(t, err)
+	require.Len(t, proxyTLSConfig.Certificates, 1)
+	require.NotNil(t, proxyTLSConfig.RootCAs)
+
 	// Create kubernetes service server.
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -349,8 +354,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			LockWatcher:       testCtx.lockWatcher,
 			Clock:             clockwork.NewRealClock(),
 			ClusterFeatures:   features,
-			ConnTLSConfig:     proxyTLSConfig.Clone(),
-			PROXYSigner:       &multiplexer.PROXYSigner{},
+			GetConnTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyTLSConfig.Certificates[0], nil
+			},
+			GetConnTLSRoots: func() (*x509.CertPool, error) {
+				return proxyTLSConfig.RootCAs, nil
+			},
+			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
 		AccessPoint:              client,

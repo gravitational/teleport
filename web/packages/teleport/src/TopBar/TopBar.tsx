@@ -203,10 +203,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
-          <UserMenuNav
-            username={ctx.storeUser.state.username}
-            iconSize={iconSize}
-          />
+          <UserMenuNav username={ctx.storeUser.state.username} />
         </Flex>
       )}
     </TopBarContainer>

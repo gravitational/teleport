@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
 
@@ -88,6 +89,8 @@ type SPIFFEWorkloadAPIService struct {
 	client *authclient.Client
 
 	trustDomain spiffeid.TrustDomain
+
+	attestor *workloadattest.Attestor
 
 	// trustBundle is protected by trustBundleMu. Use setTrustBundle and
 	// getTrustBundle to access it.
@@ -186,6 +189,11 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 
 	if err := s.fetchBundle(ctx); err != nil {
 		return trace.Wrap(err)
+	}
+
+	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
+	if err != nil {
+		return trace.Wrap(err, "setting up workload attestation")
 	}
 
 	return nil
@@ -449,11 +457,16 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 
 // filterSVIDRequests filters the SVID requests based on the workload
 // attestation.
+//
+// TODO(noah): In a future PR, we need to totally refactor this to a more
+// flexible rules engine otherwise this is going to get absurdly large as
+// we add more types. Ideally, something that would be compatible with a
+// predicate language would be great.
 func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	udsCreds *uds.Creds,
+	att workloadattest.Attestation,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -472,33 +485,91 @@ func filterSVIDRequests(
 		match := false
 		for _, rule := range req.Rules {
 			log := log.With("rule", rule)
+			logMismatch := func(field string, want any, got any) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", field,
+					"want", want,
+					"got", got,
+				)
+			}
+			logNotAttested := func(requiredAttestor string) {
+				log.DebugContext(
+					ctx,
+					"Workload did not complete attestation required for this rule",
+					"required_attestor", requiredAttestor,
+				)
+			}
 			log.DebugContext(
 				ctx,
 				"Evaluating rule against workload attestation",
 			)
-			if rule.Unix.UID != nil && (udsCreds == nil || *rule.Unix.UID != udsCreds.UID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.uid",
-				)
-				continue
+			if rule.Unix.UID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.UID != att.Unix.UID {
+					logMismatch("unix.uid", *rule.Unix.UID, att.Unix.UID)
+					continue
+				}
+				// Rule field matched!
 			}
-			if rule.Unix.PID != nil && (udsCreds == nil || *rule.Unix.PID != udsCreds.PID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.pid",
-				)
-				continue
+			if rule.Unix.PID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.PID != att.Unix.PID {
+					logMismatch("unix.pid", *rule.Unix.PID, att.Unix.PID)
+					continue
+				}
+				// Rule field matched!
 			}
-			if rule.Unix.GID != nil && (udsCreds == nil || *rule.Unix.GID != udsCreds.GID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.gid",
-				)
-				continue
+			if rule.Unix.GID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.GID != att.Unix.GID {
+					logMismatch("unix.gid", *rule.Unix.GID, att.Unix.GID)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.Namespace != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.Namespace != att.Kubernetes.Namespace {
+					logMismatch("kubernetes.namespace", rule.Kubernetes.Namespace, att.Kubernetes.Namespace)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.PodName != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.PodName != att.Kubernetes.PodName {
+					logMismatch("kubernetes.pod_name", rule.Kubernetes.PodName, att.Kubernetes.PodName)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.ServiceAccount != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.ServiceAccount != att.Kubernetes.ServiceAccount {
+					logMismatch("kubernetes.service_account", rule.Kubernetes.ServiceAccount, att.Kubernetes.ServiceAccount)
+					continue
+				}
+				// Rule field matched!
 			}
 
 			log.DebugContext(
@@ -519,32 +590,34 @@ func filterSVIDRequests(
 	return filtered
 }
 
-func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, *uds.Creds, error) {
+func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
+	// The zero value of the attestation is equivalent to no attestation.
+	var att workloadattest.Attestation
+
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, nil, trace.BadParameter("peer not found in context")
+		return nil, att, trace.BadParameter("peer not found in context")
 	}
 	log := s.log
 	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+
 	if ok && authInfo.Creds != nil {
+		var err error
+		att, err = s.attestor.Attest(ctx, authInfo.Creds.PID)
+		if err != nil {
+			return nil, att, trace.Wrap(err, "performing workload attestation")
+		}
 		log = log.With(
-			slog.Group("workload",
-				slog.Group("unix",
-					"pid", authInfo.Creds.PID,
-					"uid", authInfo.Creds.UID,
-					"gid", authInfo.Creds.GID,
-				),
-			),
+			"workload", slog.LogValuer(att),
 		)
 	}
 	if p.Addr.String() != "" {
 		log = log.With(
-			slog.Group("workload",
-				slog.String("addr", p.Addr.String()),
-			),
+			slog.String("remote_addr", p.Addr.String()),
 		)
 	}
-	return log, authInfo.Creds, nil
+
+	return log, att, nil
 }
 
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.

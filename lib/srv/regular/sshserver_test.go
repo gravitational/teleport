@@ -21,6 +21,7 @@ package regular
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -126,7 +127,7 @@ func newFixture(t *testing.T) *sshTestFixture {
 	return newCustomFixture(t, func(*auth.TestServerConfig) {})
 }
 
-func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *sshTestFixture {
+func newFixtureWithoutDiskBasedLogging(t testing.TB, sshOpts ...ServerOption) *sshTestFixture {
 	t.Helper()
 
 	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
@@ -143,7 +144,7 @@ func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *s
 	return f
 }
 
-func (f *sshTestFixture) newSSHClient(ctx context.Context, t *testing.T, user *user.User) *tracessh.Client {
+func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *user.User) *tracessh.Client {
 	// set up SSH client using the user private key for signing
 	up, err := newUpack(f.testSrv, user.Username, []string{user.Username}, wildcardAllow)
 	require.NoError(t, err)
@@ -172,7 +173,7 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t *testing.T, user *u
 	return client
 }
 
-func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
+func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
 	ctx := context.Background()
 
 	u, err := user.Current()
@@ -236,6 +237,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
+		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -1488,8 +1490,10 @@ func TestProxyRoundRobin(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ClusterName:           f.testSrv.ClusterName(),
-		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		Listener:              listener,
 		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
@@ -1625,7 +1629,9 @@ func TestProxyDirectAccess(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2338,7 +2344,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-			ClientTLS:             proxyClient.TLSConfig(),
+			GetClientTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyClient.TLSConfig().Certificates[0], nil
+			},
 			ID:                    hostID,
 			ClusterName:           f.testSrv.ClusterName(),
 			Listener:              listener,
@@ -2600,7 +2608,9 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
+		GetClientTLSCertificate: func() (*tls.Certificate, error) {
+			return &proxyClient.TLSConfig().Certificates[0], nil
+		},
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2878,6 +2888,7 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
+	opts.CreateHostUser = types.NewBoolOption(true)
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)
 	role.SetNodeLabels(types.Allow, allowedLabels)
@@ -2926,7 +2937,7 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	}, nil
 }
 
-func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *services.LockWatcher {
+func newLockWatcher(ctx context.Context, t testing.TB, client types.Events) *services.LockWatcher {
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
@@ -2964,7 +2975,7 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.
-func newSigner(t *testing.T, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
+func newSigner(t testing.TB, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
 	t.Helper()
 
 	priv, pub, err := testauthority.New().GenerateKeyPair()

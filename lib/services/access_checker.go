@@ -259,8 +259,8 @@ type AccessChecker interface {
 	// Supports the following resource types:
 	//
 	// - types.Server with GetKind() == types.KindNode
-	//
 	// - types.KindWindowsDesktop
+	// - types.KindApp with IsAWSConsole() == true
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 
 	// CheckSPIFFESVID checks if the role set has access to generating the
@@ -767,8 +767,8 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 // Supports the following resource types:
 //
 // - types.Server with GetKind() == types.KindNode
-//
 // - types.KindWindowsDesktop
+// - types.KindApp with IsAWSConsole() == true
 func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
 	// Create a map indexed by all logins in the RoleSet,
 	// mapped to false if any role has it in its deny section,
@@ -1228,14 +1228,15 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Set internal traits for the remote user. This allows Teleport to work by
-	// passing exact logins, Kubernetes users/groups and database users/names
-	// to the remote cluster.
+	// passing exact logins, Kubernetes users/groups, database users/names, and
+	// AWS Role ARNs to the remote cluster.
 	traits := map[string][]string{
-		constants.TraitLogins:     identity.Principals,
-		constants.TraitKubeGroups: identity.KubernetesGroups,
-		constants.TraitKubeUsers:  identity.KubernetesUsers,
-		constants.TraitDBNames:    identity.DatabaseNames,
-		constants.TraitDBUsers:    identity.DatabaseUsers,
+		constants.TraitLogins:      identity.Principals,
+		constants.TraitKubeGroups:  identity.KubernetesGroups,
+		constants.TraitKubeUsers:   identity.KubernetesUsers,
+		constants.TraitDBNames:     identity.DatabaseNames,
+		constants.TraitDBUsers:     identity.DatabaseUsers,
+		constants.TraitAWSRoleARNs: identity.AWSRoleARNs,
 	}
 	// Prior to Teleport 6.2 no user traits were passed to remote clusters
 	// except for the internal ones specified above.

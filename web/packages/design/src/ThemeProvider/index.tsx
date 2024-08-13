@@ -20,6 +20,7 @@ import React, { useEffect, useState } from 'react';
 import {
   StyleSheetManager,
   ThemeProvider as StyledThemeProvider,
+  WebTarget,
 } from 'styled-components';
 
 import { KeysEnum, storageService } from 'teleport/services/storageService';
@@ -27,6 +28,8 @@ import { KeysEnum, storageService } from 'teleport/services/storageService';
 import cfg from 'teleport/config';
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
+import isPropValid from '@emotion/is-prop-valid';
 
 import { darkTheme, lightTheme, bblpTheme } from '../theme';
 
@@ -110,7 +113,7 @@ const ThemeProvider = props => {
 
   return (
     <StyledThemeProvider theme={theme}>
-      <StyleSheetManager disableVendorPrefixes>
+      <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <React.Fragment>
           <GlobalStyle />
           {props.children}
@@ -119,5 +122,24 @@ const ThemeProvider = props => {
     </StyledThemeProvider>
   );
 };
+
+/**
+ * This function has been taken from the [styled-components library
+ * FAQ](https://styled-components.com/docs/faqs#shouldforwardprop-is-no-longer-provided-by-default).
+ * It implements the default behavior from styled-components v5. It's required,
+ * because it would be otherwise incompatible with styled-system (or at least
+ * the way we are using it). Not using this function would cause a lot of props
+ * being passed unnecessarily to the underlying elements. Not only it's
+ * unnecessary and potentially a buggy behavior, it also causes a lot of
+ * warnings printed on the console, which in turn causes test failures.
+ */
+export function shouldForwardProp(propName: string, target: WebTarget) {
+  if (typeof target === 'string') {
+    // For HTML elements, forward the prop if it is a valid HTML attribute
+    return isPropValid(propName);
+  }
+  // For other elements, forward all props
+  return true;
+}
 
 export default ThemeProvider;

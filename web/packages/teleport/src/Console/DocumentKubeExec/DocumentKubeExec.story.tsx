@@ -131,6 +131,5 @@ const session: Session = {
   addr: '',
   participantModes: [],
   moderated: false,
-  isInteractive: true,
   command: '/bin/bash',
 };

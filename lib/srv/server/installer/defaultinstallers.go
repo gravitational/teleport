@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
@@ -47,5 +48,5 @@ func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
 		panic(err)
 	}
 
-	return types.MustNewInstallerV1(types.DefaultInstallerScriptName, script)
+	return types.MustNewInstallerV1(installers.InstallerScriptName, script)
 }

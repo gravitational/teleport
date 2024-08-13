@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonBorder, Box, Flex, Text } from 'design';
+import { ButtonBorder, Box, Flex, Text, Button } from 'design';
 import * as Icons from 'design/Icon';
 import {
   FileTransferRequest,
@@ -130,18 +130,25 @@ const ResponseForm = ({
         {getPendingText(request)}
       </Text>
       <Flex gap={2}>
-        <ButtonBorder
+        <Button
+          fill="border"
+          intent="success"
           disabled={request.approvers.includes(currentUser.username)}
           block
           onClick={() => onApprove(request.requestID, true)}
         >
           <Icons.Check size="small" mr={2} />
           Approve
-        </ButtonBorder>
-        <ButtonBorder block onClick={() => onDeny(request.requestID, false)}>
+        </Button>
+        <Button
+          fill="border"
+          intent="danger"
+          block
+          onClick={() => onDeny(request.requestID, false)}
+        >
           <Icons.Cross size="small" mr={2} />
           Deny
-        </ButtonBorder>
+        </Button>
       </Flex>
     </Box>
   );

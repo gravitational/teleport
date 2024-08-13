@@ -257,9 +257,9 @@ spec:
                     type: string
                 type: object
               join_method:
-                description: JoinMethod is the joining method required in order to
-                  use this token. Supported joining methods include "token", "ec2",
-                  and "iam".
+                description: 'JoinMethod is the joining method required in order to
+                  use this token. Supported joining methods include: azure, circleci,
+                  ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm'
                 type: string
               kubernetes:
                 description: Kubernetes allows the configuration of options specific

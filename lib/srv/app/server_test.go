@@ -52,11 +52,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -395,9 +396,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
 
+	// Explicitly send a heartbeat for any statically defined apps.
 	for _, app := range apps {
-		_, err := s.authServer.AuthServer.UpsertApplicationServer(s.closeContext, s.appServer.getServerInfo(app))
-		require.NoError(t, err)
+		select {
+		case sender := <-inventoryHandle.Sender():
+			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
+				AppServer: s.appServer.getServerInfo(app),
+			}))
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for inventory handle sender")
+		}
 	}
 
 	t.Cleanup(func() {
@@ -412,10 +420,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 }
 
 func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN string) tls.Certificate {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+
 	req := auth.AppTestCertRequest{
-		PublicKey:   publicKey,
+		PublicKey:   publicKeyPEM,
 		Username:    user.GetName(),
 		TTL:         1 * time.Hour,
 		PublicAddr:  publicAddr,
@@ -427,7 +440,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, a
 	}
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(req)
 	require.NoError(t, err)
-	tlsCertificate, err := tls.X509KeyPair(certificate, privateKey)
+	tlsCertificate, err := tls.X509KeyPair(certificate, privateKeyPEM)
 	require.NoError(t, err)
 
 	return tlsCertificate
@@ -439,8 +452,18 @@ func TestStart(t *testing.T) {
 	s := SetUpSuite(t)
 
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
-	require.NoError(t, err)
+	var servers []types.AppServer
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		if !assert.Len(t, apps, 3) {
+			return
+		}
+		servers = apps
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
@@ -529,31 +552,47 @@ func TestShutdown(t *testing.T) {
 				Apps: types.Apps{app0},
 			})
 
-			// Validate heartbeat is present after start.
-			_, err = s.authServer.AuthServer.UpsertApplicationServer(ctx, s.appServer.getServerInfo(app0))
-			require.NoError(t, err)
-
-			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
-			require.NoError(t, err)
-			require.Len(t, appServers, 1)
-			require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
+			// Validate that the heartbeat is eventually emitted and that
+			// the configured applications exist in the inventory.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, appServers, 1) {
+					return
+				}
+				if !assert.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+					return
+				}
+			}, 10*time.Second, 100*time.Millisecond)
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			t.Cleanup(cancel)
-			if test.hasForkedChild {
-				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
-			}
+			require.NoError(t, s.appServer.Shutdown(ctx))
 
-			require.NoError(t, s.appServer.Shutdown(shutdownCtx))
+			// Send a Goodbye to simulate process shutdown.
+			if !test.hasForkedChild {
+				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
+			}
+			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.
-			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
-			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
+				appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, appServersAfterShutdown, 1)
 				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
-				require.Empty(t, appServersAfterShutdown)
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if !assert.Empty(t, appServersAfterShutdown) {
+						return
+					}
+				}, 10*time.Second, 100*time.Millisecond)
+
 			}
 		})
 	}

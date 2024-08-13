@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/uds"
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -73,9 +73,11 @@ func TestSDS_FetchSecrets(t *testing.T) {
 
 	uid := 100
 	notUID := 200
-	clientAuthenticator := func(ctx context.Context) (*slog.Logger, *uds.Creds, error) {
-		return log, &uds.Creds{
-			UID: uid,
+	clientAuthenticator := func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
+		return log, workloadattest.Attestation{
+			Unix: workloadattest.UnixAttestation{
+				UID: uid,
+			},
 		}, nil
 	}
 

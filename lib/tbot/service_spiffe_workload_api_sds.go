@@ -40,7 +40,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/uds"
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -68,7 +68,7 @@ type spiffeSDSHandler struct {
 	cfg    *config.SPIFFEWorkloadAPIService
 	botCfg *config.BotConfig
 
-	clientAuthenticator         func(ctx context.Context) (*slog.Logger, *uds.Creds, error)
+	clientAuthenticator         func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
 	trustBundleGetter           func() *x509bundle.Bundle
 	trustBundleUpdateSubscriber func() (ch chan struct{}, unsubscribe func())
 	svidFetcher                 func(
@@ -332,7 +332,7 @@ func elementsMatch(a, b []string) bool {
 func (s *spiffeSDSHandler) generateResponse(
 	ctx context.Context,
 	log *slog.Logger,
-	creds *uds.Creds,
+	attest workloadattest.Attestation,
 	tb *x509bundle.Bundle,
 	req *discoveryv3pb.DiscoveryRequest,
 ) (*discoveryv3pb.DiscoveryResponse, error) {
@@ -352,7 +352,7 @@ func (s *spiffeSDSHandler) generateResponse(
 	var resources []*anyv1pb.Any
 
 	// Filter SVIDs down to those accessible to this workload
-	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
+	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, attest)
 	// Fetch the SVIDs and convert them into the SDS cert type.
 	svids, err := s.svidFetcher(ctx, log, availableSVIDs)
 	if err != nil {

@@ -31,14 +31,14 @@ export const ConnectionStatusIndicator = (props: {
   return <StyledStatus {...styles} $status={status} $inline={inline} />;
 };
 
-const StyledStatus = styled(Box)`
+const StyledStatus = styled(Box)<{ $inline?: boolean; $status: Status }>`
   position: relative;
   ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
   border-radius: 50%;
 
-  ${(props: { $status: Status; [key: string]: any }) => {
+  ${props => {
     const { $status, theme } = props;
 
     switch ($status) {

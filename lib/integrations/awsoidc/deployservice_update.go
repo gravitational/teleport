@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
@@ -44,7 +45,7 @@ type UpdateServiceRequest struct {
 	// TeleportVersionTag specifies the desired teleport version in the format "13.4.0"
 	TeleportVersionTag string
 	// OwnershipTags specifies ownership tags
-	OwnershipTags AWSTags
+	OwnershipTags tags.AWSTags
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -90,7 +91,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 	return nil
 }
 
-func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags AWSTags) error {
+func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags tags.AWSTags) error {
 	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -166,7 +167,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 	return ret, nil
 }
 
-func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags AWSTags) ([]ecsTypes.Service, error) {
+func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags tags.AWSTags) ([]ecsTypes.Service, error) {
 	// The Cluster name is created using the Teleport Cluster Name.
 	// Check the DeployDatabaseServiceRequest.CheckAndSetDefaults
 	// and DeployServiceRequest.CheckAndSetDefaults.
@@ -224,7 +225,7 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.
 	return ecsServices, nil
 }
 
-func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags AWSTags) (*ecsTypes.TaskDefinition, error) {
+func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags tags.AWSTags) (*ecsTypes.TaskDefinition, error) {
 	describeTaskDefinitionOut, err := clt.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
 		TaskDefinition: aws.String(taskDefinitionName),
 		Include:        []ecsTypes.TaskDefinitionField{ecsTypes.TaskDefinitionFieldTags},

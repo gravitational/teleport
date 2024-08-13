@@ -581,9 +581,6 @@ const (
 	// membership information
 	TraitTeams = "github_teams"
 
-	// TraitJWT is the name of the trait containing JWT header for app access.
-	TraitJWT = "jwt"
-
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -674,6 +671,10 @@ const (
 	// The role is used as a basis for requiring trusted device access to
 	// resources.
 	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
+
+	// PresetTerraformProviderRoleName is a name of a default role that allows the Terraform provider
+	// to configure all its supported Teleport resources.
+	PresetTerraformProviderRoleName = "terraform-provider"
 
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request

@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,6 +47,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
@@ -1046,6 +1048,23 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	certs, err := c.grpc.GenerateUserCerts(ctx, &req)
 	if err != nil {
+		// Try to print a nicer error message when newer clients connect to
+		// older auth servers that don't recognize the new public key fields.
+		// This could be a v17+ client connecting to a v16- auth (which we
+		// officially don't support), or a difference between commits on master
+		// during the v17 dev cycle.
+		usingLegacyPubKey := req.PublicKey != nil //nolint:staticcheck // SA1019: intentional reference to deprecated field.
+		usingNewPubKey := req.TLSPublicKey != nil || req.SSHPublicKey != nil
+		if !usingLegacyPubKey && usingNewPubKey && strings.Contains(err.Error(), "ssh: no key found") {
+			authVersion := "unknown"
+			if pingResp, err := c.Ping(ctx); err == nil && pingResp.ServerVersion != "" {
+				authVersion = pingResp.ServerVersion
+			}
+			return nil, trace.Wrap(err, "auth server did not recognize new public key fields, "+
+				"client version (%s) is likely newer than your auth server version (%s), "+
+				"consider downgrading your client or upgrading your auth server",
+				api.Version, authVersion)
+		}
 		return nil, trace.Wrap(err)
 	}
 	return certs, nil
@@ -3651,7 +3670,7 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
@@ -4784,6 +4803,30 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 func (c *Client) ListNotifications(ctx context.Context, req *notificationsv1pb.ListNotificationsRequest) (*notificationsv1pb.ListNotificationsResponse, error) {
 	rsp, err := c.NotificationServiceClient().ListNotifications(ctx, req)
 	return rsp, trace.Wrap(err)
+}
+
+// CreateGlobalNotification creates a global notification.
+func (c *Client) CreateGlobalNotification(ctx context.Context, req *notificationsv1pb.CreateGlobalNotificationRequest) (*notificationsv1pb.GlobalNotification, error) {
+	rsp, err := c.NotificationServiceClient().CreateGlobalNotification(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// CreateUserNotification creates a user-specific notification.
+func (c *Client) CreateUserNotification(ctx context.Context, req *notificationsv1pb.CreateUserNotificationRequest) (*notificationsv1pb.Notification, error) {
+	rsp, err := c.NotificationServiceClient().CreateUserNotification(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// DeleteGlobalNotification deletes a global notification.
+func (c *Client) DeleteGlobalNotification(ctx context.Context, req *notificationsv1pb.DeleteGlobalNotificationRequest) error {
+	_, err := c.NotificationServiceClient().DeleteGlobalNotification(ctx, req)
+	return trace.Wrap(err)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, req *notificationsv1pb.DeleteUserNotificationRequest) error {
+	_, err := c.NotificationServiceClient().DeleteUserNotification(ctx, req)
+	return trace.Wrap(err)
 }
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.

@@ -67,6 +67,8 @@ export const UserGroups = () => (
   <ResourceList {...props} agents={userGroups} selectedResource="user_group" />
 );
 
+export const SamlApps = () => <ResourceList {...props} agents={samlApp} />;
+
 const props: ResourceListProps = {
   agents: [],
   selectedResource: 'app',
@@ -166,5 +168,30 @@ const userGroups: UserGroup[] = [
     name: 'group id 2',
     description: 'admin group',
     labels: [{ name: 'env', value: 'dev' }],
+  },
+];
+
+const samlApp: App[] = [
+  {
+    name: 'app_saml',
+    kind: 'app',
+    uri: 'https://example.com/saml',
+    publicAddr: 'example.com',
+    addrWithProtocol: 'https://example.com/saml',
+    labels: [
+      {
+        name: 'env',
+        value: 'dev',
+      },
+    ],
+    description: 'This is a SAML app',
+    awsConsole: false,
+    samlApp: true,
+    awsRoles: [],
+    clusterId: 'one',
+    fqdn: 'example.com',
+    id: 'example.com/saml',
+    launchUrl: '',
+    userGroups: [],
   },
 ];

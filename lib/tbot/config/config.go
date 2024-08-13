@@ -250,12 +250,6 @@ func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
 }
 
-// RenewableJoinMethod indicates that certificate renewal should be used with
-// this join method rather than rejoining each time.
-func (conf *OnboardingConfig) RenewableJoinMethod() bool {
-	return conf.JoinMethod == types.JoinMethodToken
-}
-
 // SetToken stores the value for --token or auth_token in the config
 //
 // In the case of the token value pointing to a file, this allows us to
@@ -445,6 +439,15 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		)
 	}
 
+	if conf.CertificateTTL > defaults.MaxRenewableCertTTL {
+		log.WarnContext(
+			context.TODO(),
+			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			"requested_ttl", conf.CertificateTTL,
+			"maximum_ttl", defaults.MaxRenewableCertTTL,
+		)
+	}
+
 	return nil
 }
 
@@ -524,6 +527,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case IdentityOutputType:
 			v := &IdentityOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case ApplicationTunnelServiceType:
+			v := &ApplicationTunnelService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -625,6 +634,27 @@ func destinationFromURI(uriString string) (bot.Destination, error) {
 			)
 		}
 		return &DestinationMemory{}, nil
+	case "kubernetes-secret":
+		if uri.Host != "" {
+			return nil, trace.BadParameter(
+				"kubernetes-secret scheme should not be specified with host",
+			)
+		}
+		if uri.Path == "" {
+			return nil, trace.BadParameter(
+				"kubernetes-secret scheme should have a path specified",
+			)
+		}
+		// kubernetes-secret:///my-secret
+		// TODO(noah): Eventually we'll support namespace in the host part of
+		// the URI. For now, we'll default to the namespace tbot is running in.
+
+		// Path will be prefixed with '/' so we'll strip it off.
+		secretName := strings.TrimPrefix(uri.Path, "/")
+
+		return &DestinationKubernetesSecret{
+			Name: secretName,
+		}, nil
 	default:
 		return nil, trace.BadParameter(
 			"unrecognized data storage scheme",

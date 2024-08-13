@@ -518,9 +518,10 @@ func TestKubeMiddleware(t *testing.T) {
 				ServerName: "kube1",
 			},
 		}
-		// we set request context to a context that will expired immediately.
-		reqCtx, cancel := context.WithDeadline(context.Background(), time.Now())
-		defer cancel()
+		// we set request context to a context that is already canceled, so handler function will start reissuing
+		// certificate goroutine and then will exit immediately.
+		reqCtx, cancel := context.WithCancel(context.Background())
+		cancel()
 		req = req.WithContext(reqCtx)
 
 		km := NewKubeMiddleware(KubeMiddlewareConfig{
@@ -532,13 +533,19 @@ func TestKubeMiddleware(t *testing.T) {
 		err := km.CheckAndSetDefaults()
 		require.NoError(t, err)
 
-		rw := responsewriters.NewMemoryResponseWriter()
-		// HandleRequest will reissue certificate if needed.
-		km.HandleRequest(rw, req)
+		var rw *responsewriters.MemoryResponseWriter
+		// We use `require.Eventually` to avoid a very rare test flakiness case when reissue goroutine manages to
+		// successfully finish before the parent goroutine has a chance to check the context (and see that it's expired).
+		require.Eventually(t, func() bool {
+			rw = responsewriters.NewMemoryResponseWriter()
+			// HandleRequest will reissue certificate if needed.
+			km.HandleRequest(rw, req)
 
-		// request timed out.
-		require.Equal(t, http.StatusInternalServerError, rw.Status())
-		require.Contains(t, rw.Buffer().String(), "context deadline exceeded")
+			// request timed out.
+			return rw.Status() == http.StatusInternalServerError
+
+		}, 5*time.Second, 100*time.Millisecond)
+		require.Contains(t, rw.Buffer().String(), "context canceled")
 
 		// just let the reissuing goroutine some time to replace certs.
 		time.Sleep(10 * time.Millisecond)

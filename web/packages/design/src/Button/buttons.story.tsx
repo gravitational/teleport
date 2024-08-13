@@ -47,7 +47,7 @@ export default {
 export const Buttons = () => {
   const fills: ButtonFill[] = ['filled', 'minimal', 'border'];
   return (
-    <Flex gap={4} flexDirection="column" alignItems="flex-start">
+    <Flex gap={5} flexDirection="column" alignItems="flex-start">
       <Table>
         <thead>
           <tr>
@@ -100,19 +100,24 @@ export const Buttons = () => {
         <Button size="medium">Medium</Button>
         <Button size="small">Small</Button>
       </Flex>
-      <Input defaultValue="Some text" />
-      <Button size="extra-large" inputAlignment>
-        Extra large with input alignment
-      </Button>
-      <Button size="large" inputAlignment>
-        Large with input alignment
-      </Button>
-      <Button size="medium" inputAlignment>
-        Medium with input alignment
-      </Button>
-      <Button size="small" inputAlignment>
-        Small with input alignment
-      </Button>
+      <Flex flexDirection="column" gap={3} alignItems="flex-start">
+        <Input
+          defaultValue="Padding of buttons below should match padding of this input"
+          width="480px"
+        />
+        <Button size="extra-large" inputAlignment>
+          Extra large with input alignment
+        </Button>
+        <Button size="large" inputAlignment>
+          Large with input alignment
+        </Button>
+        <Button size="medium" inputAlignment>
+          Medium with input alignment
+        </Button>
+        <Button size="small" inputAlignment>
+          Small with input alignment
+        </Button>
+      </Flex>
       <Button block>block = true</Button>
       <Flex gap={3}>
         <Button disabled>Disabled</Button>
@@ -167,19 +172,21 @@ export const Buttons = () => {
         <ButtonLink href="">Button Link</ButtonLink>
         <ButtonText>Button Text</ButtonText>
       </Flex>
-      {[2, 1, 0].map(size => (
-        <Flex gap={3} key={`size-${size}`}>
-          <ButtonIcon size={size}>
-            <icons.AddUsers />
-          </ButtonIcon>
-          <ButtonIcon size={size}>
-            <icons.Ellipsis />
-          </ButtonIcon>
-          <ButtonIcon size={size} disabled>
-            <icons.Trash />
-          </ButtonIcon>
-        </Flex>
-      ))}
+      <Flex gap={3} flexDirection="column" alignItems="flex-start">
+        {[2, 1, 0].map(size => (
+          <Flex gap={3} key={`size-${size}`}>
+            <ButtonIcon size={size}>
+              <icons.AddUsers />
+            </ButtonIcon>
+            <ButtonIcon size={size}>
+              <icons.Ellipsis />
+            </ButtonIcon>
+            <ButtonIcon size={size} disabled>
+              <icons.Trash />
+            </ButtonIcon>
+          </Flex>
+        ))}
+      </Flex>
     </Flex>
   );
 };

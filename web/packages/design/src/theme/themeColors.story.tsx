@@ -19,7 +19,9 @@
 import React from 'react';
 import { useTheme } from 'styled-components';
 
-import { Flex, Box, Text, Link } from '..';
+import { H2 } from 'design';
+
+import { Flex, Box, Text, Link, H1 } from '..';
 
 export default {
   title: 'Design/Theme/Colors',
@@ -33,9 +35,7 @@ const ColorsComponent = () => {
   return (
     <Flex flexDirection="column" p="4">
       <Flex flexDirection="column">
-        <Text mb="2" typography="h3">
-          Levels
-        </Text>
+        <H1 mb="2">Levels</H1>
         <Text mb="2">
           Levels are used to reflect the perceived depth of elements in the UI.
           The further back an element is, the more "sunken" it is, and the more
@@ -54,9 +54,7 @@ const ColorsComponent = () => {
           </Link>
         </Text>
         <ColorsBox mb="4" colors={theme.colors.levels} themeType="levels" />
-        <Text mb="2" typography="h3">
-          Interactive Colors
-        </Text>
+        <H1 mb="2">Interactive Colors</H1>
         <Text mb="2">
           <p>
             Interactive colors are used for hover states, indicators, etc. An
@@ -85,9 +83,7 @@ const ColorsComponent = () => {
             )
           )}
         </Flex>
-        <Text mb="1" typography="h4">
-          Tonal color variants
-        </Text>
+        <H2 mb="1">Tonal color variants</H2>
         <Text mb="2">
           Tonal color variants are used as highlights or accents. They are not
           solid colours, instead, they are a slightly transparent mask that
@@ -111,18 +107,14 @@ const ColorsComponent = () => {
             )
           )}
         </Flex>
-        <Text mb="2" typography="h3">
-          Brand
-        </Text>
+        <H1 mb="2">Brand</H1>
         <SingleColorBox
           mb="4"
           path="theme.colors.brand"
           bg={theme.colors.brand}
           color={theme.colors.text.primaryInverse}
         />
-        <Text mb="2" typography="h3">
-          Shadows
-        </Text>
+        <H1 mb="2">Shadows</H1>
         <Flex>
           <Box
             mb={4}
@@ -176,9 +168,7 @@ const ColorsComponent = () => {
             <Text>theme.boxShadow[2]</Text>
           </Box>
         </Flex>
-        <Text mb="2" typography="h3">
-          Text Colors
-        </Text>
+        <H1 mb="2">Text Colors</H1>
         <Flex width="fit-content" flexDirection="row" mb={4}>
           <Flex
             flexDirection="column"
@@ -201,7 +191,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.main}>
+            <Text typography="body1" color={theme.colors.text.main}>
               Primary
             </Text>
           </Flex>
@@ -226,10 +216,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text
-              typography="paragraph"
-              color={theme.colors.text.slightlyMuted}
-            >
+            <Text typography="body1" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
           </Flex>
@@ -254,7 +241,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.muted}>
+            <Text typography="body1" color={theme.colors.text.muted}>
               Placeholder
             </Text>
           </Flex>
@@ -279,7 +266,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.disabled}>
               Disabled
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.disabled}>
+            <Text typography="body1" color={theme.colors.text.disabled}>
               Disabled
             </Text>
           </Flex>
@@ -306,10 +293,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
-            <Text
-              typography="paragraph"
-              color={theme.colors.text.primaryInverse}
-            >
+            <Text typography="body1" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
           </Flex>

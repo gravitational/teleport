@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -195,8 +195,8 @@ func (f *Forwarder) getTLSConfigForLeafCluster(clusterName string) (*tls.Config,
 	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Second)
 	defer cancel()
 	// Get the host CA for the target cluster from Auth to ensure we trust the
-	// leaf proxy certificate.
-	hostCA, err := f.cfg.CachingAuthClient.GetCertAuthority(ctx, types.CertAuthID{
+	// leaf proxy certificate at the current time.
+	_, err := f.cfg.CachingAuthClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, false)
@@ -204,15 +204,22 @@ func (f *Forwarder) getTLSConfigForLeafCluster(clusterName string) (*tls.Config,
 		return nil, trace.Wrap(err)
 	}
 
-	pool := x509.NewCertPool()
-	for _, certAuthority := range services.GetTLSCerts(hostCA) {
-		if ok := pool.AppendCertsFromPEM(certAuthority); !ok {
-			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
+	tlsConfig := utils.TLSConfig(f.cfg.ConnTLSCipherSuites)
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := f.cfg.GetConnTLSCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		return tlsCert, nil
 	}
-	// Clone the TLS config and set the root CAs to the leaf host CA pool.
-	tlsConfig := f.cfg.ConnTLSConfig.Clone()
-	tlsConfig.RootCAs = pool
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(func() (*x509.CertPool, error) {
+		pool, _, err := authclient.ClientCertPool(f.ctx, f.cfg.CachingAuthClient, clusterName, types.HostCA)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pool, nil
+	})
 
 	return tlsConfig, nil
 }
@@ -258,9 +265,20 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 // newLocalClusterTransport returns a new [http.Transport] (https://golang.org/pkg/net/http/#Transport)
 // that can be used to dial Kubernetes Service in a local Teleport cluster.
 func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.RoundTripper, *tls.Config, error) {
+	tlsConfig := utils.TLSConfig(f.cfg.ConnTLSCipherSuites)
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := f.cfg.GetConnTLSCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsCert, nil
+	}
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(f.cfg.GetConnTLSRoots)
+
 	dialFn := f.localClusterDialer(kubeClusterName)
 	// Create a new HTTP/2 transport that will be used to dial the remote cluster.
-	h2Transport, err := newH2Transport(f.cfg.ConnTLSConfig, dialFn)
+	h2Transport, err := newH2Transport(tlsConfig, dialFn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -268,7 +286,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
 		auth.NewImpersonatorRoundTripper(h2Transport),
-	), f.cfg.ConnTLSConfig.Clone(), nil
+	), tlsConfig.Clone(), nil
 }
 
 // localClusterDialer returns a dialer that can be used to dial Kubernetes Service

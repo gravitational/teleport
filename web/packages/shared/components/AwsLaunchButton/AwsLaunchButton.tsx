@@ -141,7 +141,7 @@ function RoleItemList({
     <Flex flexDirection="column">
       <Text
         px="2"
-        fontSize="11px"
+        typography="body3"
         css={`
           color: ${props => props.theme.colors.text.main};
           background: ${props => props.theme.colors.spotBackground[2]};
@@ -193,7 +193,7 @@ const StyledMenuItem = styled(MenuItem)(
     color: ${theme.colors.text.main};
   }
 
-  :last-child {
+  &:last-child {
     border-bottom: none;
     margin-bottom: 8px;
   }
@@ -215,7 +215,7 @@ const StyledInput = styled.input<SpaceProps>(
     outline: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

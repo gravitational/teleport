@@ -67,6 +67,8 @@ const (
 	KindBot = "bot"
 	// KindBotInstance is an instance of a Machine ID bot
 	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -521,8 +523,26 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
+
+	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
+	KindAccessGraphSettings = "access_graph_settings"
+
+	// KindStaticHostUser is a host user to be created on matching SSH nodes.
+	KindStaticHostUser = "static_host_user"
+
+	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
+	// access graph settings.
+	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -1023,6 +1043,8 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+	// NotificationTextContentLabel is the label which contains the text content of a user-created notification.
+	NotificationTextContentLabel = TeleportInternalLabelPrefix + "content"
 
 	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
 	NotificationDefaultInformationalSubKind = "default-informational"
@@ -1181,6 +1203,7 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

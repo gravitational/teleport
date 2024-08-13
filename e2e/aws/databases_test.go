@@ -40,9 +40,10 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -268,22 +269,25 @@ func startLocalALPNProxy(t *testing.T, ctx context.Context, user string, cluster
 // generateClientDBCert creates a test db cert for the given user and database.
 func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route tlsca.RouteToDatabase) tls.Certificate {
 	t.Helper()
-	key, err := client.GenerateRSAKey()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	clusterName, err := authSrv.GetClusterName()
 	require.NoError(t, err)
 
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+
 	clientCert, err := authSrv.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       key.MarshalSSHPublicKey(),
+			PublicKey:       publicKeyPEM,
 			Cluster:         clusterName.GetClusterName(),
 			Username:        user,
 			RouteToDatabase: route,
 		})
 	require.NoError(t, err)
 
-	tlsCert, err := key.TLSCertificate(clientCert)
+	tlsCert, err := keys.TLSCertificateForSigner(key, clientCert)
 	require.NoError(t, err)
 	return tlsCert
 }

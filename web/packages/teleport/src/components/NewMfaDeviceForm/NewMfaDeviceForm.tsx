@@ -162,7 +162,7 @@ export function NewMfaDeviceForm({
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="text.main" mb={1}>
+          <Text typography="body2" color="text.main" mb={1}>
             Multi-factor type
           </Text>
           <Box mb={3}>
@@ -265,7 +265,7 @@ export function NewMfaDeviceForm({
             onClick={e => onBtnClick(e, validator)}
           >
             {mfaType.value === 'webauthn' && !credential
-              ? 'Create an MFA method'
+              ? 'Create an MFA Method'
               : submitButtonText}
           </ButtonPrimary>
         </OnboardCard>

@@ -1,6 +1,6 @@
 ---
 author: hugoShaka (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 173 - Authenticating the Terraform provider with MachineID
@@ -50,7 +50,7 @@ With this RFD we want to address two distinct personas, each with their own stor
 
 > I am an existing Teleport user who uses Terraform to manage my Teleport resources.
 > I want to protect against IDP compromise with MFA4A while keeping my Terraform pipeline working.
-> My Terraform code is commited in a git repo and applied in CI pipelines, either via a CI runner (GitHub
+> My Terraform code is committed in a git repo and applied in CI pipelines, either via a CI runner (GitHub
 > Actions/GitLab CI) or via a dedicated service (Terraform Cloud/Spacelift).
 
 The user is expected to know the Teleport basics and be able to perform advanced setup actions such as
@@ -115,13 +115,15 @@ we used for the Teleport operator.
 
 #### Resource bootstrapping
 
+Teleport will now ship with a preset Terraform provider role: `terraform-provider` automatically updated using
+our existing preset logic. This will allow users to benefit from the new resources supported by the Terraform provider
+without having to update their preset role. If a role with this name already exists, Teleport will not modify it.
+
 We will automatically create the resources required by the Terraform provider before executing Terraform:
-- the `terraform-provider` role (this is an upsert so we can add new rules after a provider update). This resource does
-  not expire.
-- the `terraform-provider-<random hash>` bot allowed to issue certificates for the `terraform-provider` role.
+- the `tctl-terraform-env-<random hash>` bot allowed to issue certificates for the `terraform-provider` role.
   This resource expires by default after 1h.
-- the `terraform-provider-<random hash>` secret random provision token allowing to join as
-  the `terraform-provider-<random hash>` bot. This resource expires by default after 1h but will be consumed
+- the random secret token allowing to join as
+  the `tctl-terraform-env-<random hash>` bot. This resource expires by default after 1h but will be consumed
   automatically on join.
 
 Every bootstrapped resource will be annotated with `teleport.dev/created-by: tctl-terraform-env`

@@ -40,8 +40,8 @@ import { AuthenticateDeviceChallengeResponse } from "./authenticate_challenge_pb
  * either streams or multi-stage RPCs. The ceremony is resolved by a co-located
  * DeviceTrustService.
  *
- * See the lib/devicetrust/assert (client) and
- * e/lib/devicetrust/devicetrustv1/assert (server) packages.
+ * See the lib/devicetrust/assert (client) and lib/devicetrust/assertserver
+ * (server) packages.
  *
  * Assertion ceremony flow:
  * -> AssertDeviceInit (client)

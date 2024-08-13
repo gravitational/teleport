@@ -22,8 +22,8 @@ import (
 
 // MarshalText marshals a SignatureAlgorithmSuite value to text. This gets used
 // by json.Marshal.
-func (s *SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
-	switch *s {
+func (s SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
+	switch s {
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
 		return []byte("legacy"), nil
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:

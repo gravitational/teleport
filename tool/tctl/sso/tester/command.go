@@ -28,11 +28,13 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -171,7 +173,12 @@ type AuthRequestInfo struct {
 }
 
 func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *authclient.Client, config *client.RedirectorConfig) (*authclient.SSHLoginResponse, error) {
-	key, err := client.GenerateRSAKey()
+	// TODO(nklaassen): support configurable key algorithms.
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.NewPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,7 +204,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string,
 	return client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            key.MarshalSSHPublicKey(),
+			PubKey:            ssh.MarshalAuthorizedKey(sshPub),
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
 			Pool:              nil,

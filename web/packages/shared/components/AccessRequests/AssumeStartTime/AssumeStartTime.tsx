@@ -230,7 +230,7 @@ const CalendarPicker = styled(Flex)`
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  :hover {
+  &:hover {
     background-color: ${p => p.theme.colors.spotBackground[0]};
     border: 1px solid ${p => p.theme.colors.text.slightlyMuted};
   }

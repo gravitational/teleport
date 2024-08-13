@@ -18,9 +18,11 @@
 
 import React from 'react';
 import { Danger } from 'design/Alert';
-import { Indicator, Text, Box, Flex, ButtonPrimary, Link } from 'design';
+import { Indicator, Box, Flex, ButtonPrimary, Link, Button, H3 } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
+
+import { P } from 'design/Text/Text';
 
 import {
   FeatureBox,
@@ -63,14 +65,16 @@ export default function TrustedClusters() {
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Trusted Clusters</FeatureHeaderTitle>
         {hasClusters && (
-          <ButtonPrimary
+          <Button
+            intent="primary"
+            fill="border"
             disabled={!canCreate}
             ml="auto"
             width="240px"
             onClick={() => resources.create('trusted_cluster')}
           >
             Connect to Root Cluster
-          </ButtonPrimary>
+          </Button>
         )}
       </FeatureHeader>
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
@@ -125,16 +129,14 @@ export default function TrustedClusters() {
 
 const Info = props => (
   <Box {...props}>
-    <Text typography="h6" mb={3}>
-      TRUSTED CLUSTERS
-    </Text>
-    <Text typography="subtitle1" mb={3}>
+    <H3 mb={3}>Trusted Clusters</H3>
+    <P>
       Trusted Clusters allow Teleport administrators to connect multiple
       clusters together and establish trust between them. Users of Trusted
       Clusters can seamlessly access the nodes of the cluster from the root
       cluster.
-    </Text>
-    <Text typography="subtitle1" mb={2}>
+    </P>
+    <P mb={2}>
       Please{' '}
       <Link
         color="text.main"
@@ -144,7 +146,7 @@ const Info = props => (
         view our documentation
       </Link>{' '}
       to learn more about Trusted Clusters.
-    </Text>
+    </P>
   </Box>
 );
 

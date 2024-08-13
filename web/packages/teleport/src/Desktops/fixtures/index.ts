@@ -47,3 +47,33 @@ export const desktops: Desktop[] = [
     logins: ['Administrator'],
   },
 ];
+
+export const moreDesktops: Desktop[] = [
+  {
+    kind: 'windows_desktop',
+    os: 'windows',
+    name: 'e3b163f6-4ccf-5352-9b80-a9be8327afe8',
+    addr: 'host.com',
+    labels: [{ name: 'foo', value: 'bar' }],
+    logins: ['Administrator'],
+  },
+  {
+    kind: 'windows_desktop',
+    os: 'windows',
+    name: 'b71f9b28-3774-55a3-a894-1a5e73ad7328',
+    addr: 'another.com',
+    labels: [],
+    logins: ['Administrator'],
+  },
+  {
+    kind: 'windows_desktop',
+    os: 'windows',
+    name: 'f49cd40d-a967-54e5-99a9-f62727943ca2',
+    addr: 'yetanother.com',
+    labels: [
+      { name: 'bar', value: 'foo' },
+      { name: 'foo', value: 'bar' },
+    ],
+    logins: ['Administrator'],
+  },
+];

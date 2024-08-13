@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -652,6 +653,10 @@ func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient {
+	return accessgraphsecretsv1pb.NewSecretsScannerServiceClient(c.APIClient.GetConnection())
+}
+
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
@@ -707,21 +712,36 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username st
 }
 
 // CreateGlobalNotification creates a global notification.
-func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+		GlobalNotification: gn,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
+		Notification: notification,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	// TODO(rudream): implement client methods for notifications
-	return trace.NotImplemented(notImplementedMessage)
+	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
+		Username:       username,
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
 }
 
 // DeleteAllGlobalNotifications not implemented: can only be called locally.
@@ -746,11 +766,6 @@ func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username
 
 // DeleteUserLastSeenNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteUserNotification not implemented: can only be called locally.
-func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -787,6 +802,31 @@ func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotificatio
 // UpsertUserNotification not implemented: can only be called locally.
 func (c *Client) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetAccessGraphSettings gets the access graph settings from the backend.
+func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateAccessGraphSettings creates the access graph settings in the backend.
+func (c *Client) CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateAccessGraphSettings updates the access graph settings in the backend.
+func (c *Client) UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
+func (c *Client) UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAccessGraphSettings deletes the access graph settings from the backend.
+func (c *Client) DeleteAccessGraphSettings(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 type WebSessionReq struct {
@@ -1328,6 +1368,8 @@ type SSHLoginResponse struct {
 	TLSCert []byte `json:"tls_cert"`
 	// HostSigners is a list of signing host public keys trusted by proxy
 	HostSigners []TrustedCerts `json:"host_signers"`
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
+	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1453,6 +1495,8 @@ type ClientI interface {
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
+
+	AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
@@ -1724,7 +1768,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 
 	// If the auth server is v16+, the client does not need to provide a pre-created app session.
 	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
 		return "", nil
 	}
 
@@ -1735,6 +1779,8 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 		AWSRoleARN:        routeToApp.AWSRoleARN,
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GCPServiceAccount: routeToApp.GCPServiceAccount,
+		URI:               routeToApp.URI,
+		AppName:           routeToApp.Name,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
