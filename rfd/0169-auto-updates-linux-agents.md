@@ -838,14 +838,15 @@ message AgentAutoupdateGroup {
 
 // Day of the week
 enum Day {
-  ALL = 0;
-  SUNDAY = 1;
-  MONDAY = 2;
-  TUESDAY = 3;
-  WEDNESDAY = 4;
-  THURSDAY = 5;
-  FRIDAY = 6;
-  SATURDAY = 7;
+  DAY_UNSPECIFIED = 0;
+  DAY_ALL = 1;
+  DAY_SUNDAY = 2;
+  DAY_MONDAY = 3;
+  DAY_TUESDAY = 4;
+  DAY_WEDNESDAY = 5;
+  DAY_THURSDAY = 6;
+  DAY_FRIDAY = 7;
+  DAY_SATURDAY = 8;
 }
 ```
 
