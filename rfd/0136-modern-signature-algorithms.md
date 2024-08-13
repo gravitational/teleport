@@ -542,7 +542,7 @@ in `~/.tsh/keys/one.example.com/foo.key`.
 
 All TLS x509 cert files will be renamed from `<name>-x509.pem` to
 `<name>.crt`.
-This may seem like an unecessary breaking change, but it has a benefit that any
+This may seem like an unnecessary breaking change, but it has a benefit that any
 software trying to use the old `<name>-x509.pem` along with the outdated private
 key location will fail to load both files, instead of successfully opening the
 cert but failing with some confusing error when the private key does not match.
