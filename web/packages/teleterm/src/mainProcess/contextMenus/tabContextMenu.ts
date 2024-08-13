@@ -25,7 +25,6 @@ import {
 } from 'electron';
 
 import { ConfigService } from 'teleterm/services/config';
-import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
 
 import {
@@ -133,7 +132,6 @@ export function subscribeToTabContextMenuEvent(
                     return;
                   }
                   const file = filePaths[0];
-                  configService.set('terminal.shell', CUSTOM_SHELL_ID);
                   configService.set('terminal.customShell', file);
                   resolve({
                     event: TabContextMenuEventType.ReopenPtyInShell,
