@@ -12,7 +12,7 @@ Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
-- RBAC and resource filtering based on [dynamically updated labels](../../../management/admin/labels.mdx)
+- RBAC and resource filtering based on [dynamically updated labels](../../../admin-guides/management/admin/labels.mdx)
 - [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
 - [Session sharing](../../../connect-your-client/tsh.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
@@ -113,7 +113,7 @@ $ tctl create openssh-node-resource.yaml
 <Admonition type="note">
   This step can be done with Infrastructure-as-Code (IaC) tools (tctl,
   Terraform, or Kubernetes Operator). This is described [in the OpenSSH server
-  IaC guide](../../../management/dynamic-resources/agentless-ssh-servers.mdx).
+  IaC guide](../../../admin-guides/infrastructure-as-code/agentless-ssh-servers.mdx).
 </Admonition>
 
 ## Step 2/5. Configure `sshd` to trust the Teleport CA

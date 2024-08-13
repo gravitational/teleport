@@ -6,8 +6,13 @@ set -eu
 # https://github.com/electron-userland/electron-builder/blob/v24.4.0/packages/app-builder-lib/templates/linux/after-install.tpl
 ###
 
-# SUID chrome-sandbox for Electron 5+
-chmod 4755 "/opt/${sanitizedProductName}/chrome-sandbox" || true
+# Check if user namespaces are supported by the kernel and working with a quick test:
+if ! { [[ -L /proc/self/ns/user ]] && unshare --user true; }; then
+    # Use SUID chrome-sandbox only on systems without user namespaces:
+    chmod 4755 '/opt/${sanitizedProductName}/chrome-sandbox' || true
+else
+    chmod 0755 '/opt/${sanitizedProductName}/chrome-sandbox' || true
+fi
 
 # update-mime-database and update-desktop-database might be missing from minimal variants of some
 # Linux distributions.

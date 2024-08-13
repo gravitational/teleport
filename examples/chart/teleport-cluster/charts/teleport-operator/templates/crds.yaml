@@ -2,7 +2,7 @@
 and creates them if needed. It also adds common labels, like any other
 Helm-deployed resource.
 
-We cannot rely on the "crds/" Helm directory as Helm's startegy is "fire and forget".
+We cannot rely on the "crds/" Helm directory as Helm's strategy is "fire and forget".
 We have no way to update the CRDs after the initial deployment. As Teleport keeps
 adding new field to existing CRs, we need a deployment strategy that supports
 updating CRDs.

@@ -1109,14 +1109,14 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	result, err := utils.KubeResourceMatchesRegex(resource, denied, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

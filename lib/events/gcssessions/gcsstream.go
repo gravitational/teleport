@@ -98,7 +98,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	if err != nil {
 		return nil, convertGCSError(err)
 	}
-	return &events.StreamPart{Number: partNumber}, nil
+	return &events.StreamPart{Number: partNumber, LastModified: writer.Attrs().Created}, nil
 }
 
 // CompleteUpload completes the upload
@@ -248,6 +248,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		part.LastModified = attrs.Updated
 		parts = append(parts, *part)
 	}
 	return parts, nil

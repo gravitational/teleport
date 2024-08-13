@@ -17,7 +17,7 @@ BINARY = $(BUILDDIR)/teleport-event-handler
 
 GITREF ?= $(shell git describe --dirty --long --tags --match '*event-handler*')
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
 CGOFLAG ?= CGO_ENABLED=0
 
 PASS ?= 1234

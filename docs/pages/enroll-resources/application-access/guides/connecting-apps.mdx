@@ -2,31 +2,13 @@
 title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
 ---
+## Prerequisites
 
-Download the latest version of Teleport for your platform from the [downloads page](https://goteleport.com/download)
-and follow the installation [instructions](../../../installation.mdx).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-## Start Auth/Proxy service
-
-Create a configuration file for a Teleport service that will be running
-the Auth and Proxy Services:
-
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-auth_service:
-  enabled: "yes"
-proxy_service:
-  enabled: "yes"
-  # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
-ssh_service:
-  enabled: "no"
-```
-
-(!docs/pages/includes/permission-warning.mdx!)
-
-(!docs/pages/includes/start-teleport.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
+- Web application to connect to such as Grafana.
+- Host where you will run the Teleport Application Service.
 
 ### Generate a token
 
@@ -36,8 +18,6 @@ in `/tmp/token`:
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
 $ tsh login --user=<Var name="myuser"/> --proxy=<Var name="teleport.example.com"/>
 $ tctl tokens add \
     --type=app \
@@ -70,7 +50,7 @@ A Teleport user needs their role's permission to access an application. Teleport
 comes with a built-in `access` role that grants access to all apps:
 
 ```code
-$ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
+$ tctl users add --roles=access appuser
 ```
 
 ## Start the Application Service with CLI flags
@@ -327,7 +307,7 @@ rewritten:
 - Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as
-[role templates](../../../access-controls/guides/role-templates.mdx). In the
+[role templates](../../../admin-guides/access-controls/guides/role-templates.mdx). In the
 example above, `X-Internal-Trait` header will be populated with the value of
 internal user trait `logins` and `X-External-Trait` header will get the value of
 the user's external `env` trait coming from the identity provider.
@@ -338,7 +318,7 @@ a JWT token signed by Teleport that contains user identity information. See
 
 For full details on configuring Teleport roles, including how Teleport
 populates the `external` and `internal` traits, see the [Teleport Access
-Controls Reference](../../../access-controls/reference.mdx).
+Controls Reference](../../../reference/access-controls/roles.mdx).
 
 ### Configuring the JWT token
 

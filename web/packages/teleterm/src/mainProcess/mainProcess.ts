@@ -470,7 +470,7 @@ export default class MainProcess {
       }
     );
 
-    subscribeToTerminalContextMenuEvent();
+    subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
     subscribeToFileStorageEvents(this.appStateFileStorage);

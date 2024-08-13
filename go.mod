@@ -2,7 +2,7 @@ module github.com/gravitational/teleport
 
 go 1.21
 
-toolchain go1.22.5
+toolchain go1.22.6
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.9.0
@@ -166,6 +166,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.14.1
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
+	github.com/shirou/gopsutil/v4 v4.24.6
 	github.com/sigstore/cosign/v2 v2.2.4
 	github.com/sigstore/sigstore v1.8.3
 	github.com/sijms/go-ora/v2 v2.7.9
@@ -304,7 +305,7 @@ require (
 	github.com/dmarkham/enumer v1.5.9 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v26.0.2+incompatible // indirect
+	github.com/docker/docker v26.1.5+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
@@ -331,6 +332,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
 	github.com/go-openapi/errors v0.22.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
@@ -410,6 +412,7 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lithammer/dedent v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
@@ -456,6 +459,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
@@ -473,6 +477,7 @@ require (
 	github.com/segmentio/encoding v0.3.5 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
+	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
@@ -489,6 +494,8 @@ require (
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
 	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
+	github.com/tklauser/go-sysconf v0.3.12 // indirect
+	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/weppos/publicsuffix-go v0.30.1-0.20230620154423-38c92ad2d5c6 // indirect
@@ -503,6 +510,7 @@ require (
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300 // indirect
@@ -524,7 +532,7 @@ require (
 	k8s.io/component-helpers v0.29.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/metrics v0.29.0 // indirect
-	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
+	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
@@ -538,6 +546,7 @@ require (
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
+	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.1
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.1

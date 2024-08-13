@@ -2,7 +2,7 @@ module github.com/gravitational/teleport/integrations/terraform
 
 go 1.21
 
-toolchain go1.22.5
+toolchain go1.22.6
 
 require (
 	github.com/gogo/protobuf v1.3.2
@@ -119,7 +119,7 @@ require (
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v26.0.2+incompatible // indirect
+	github.com/docker/docker v26.1.5+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
@@ -344,7 +344,7 @@ require (
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/kubectl v0.29.0 // indirect
-	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
+	k8s.io/utils v0.0.0-20240102154912-e7106e64919e // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/controller-runtime v0.16.1 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect

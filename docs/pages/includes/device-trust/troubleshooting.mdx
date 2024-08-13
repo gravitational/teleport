@@ -7,10 +7,8 @@ the problem.
 ### "unauthorized device" errors using a trusted device
 
 A trusted device needs to be registered and enrolled before it is recognized by
-Teleport as such. Follow the [registration](
-../../access-controls/device-trust/device-management.mdx#register-a-trusted-device) and
-[enrollment](
-../../access-controls/device-trust/device-management.mdx#enroll-a-trusted-device) steps
+Teleport as such. Follow the [registration](../../admin-guides/access-controls/device-trust/device-management.mdx) and
+[enrollment](../../admin-guides/access-controls/device-trust/device-management.mdx) steps
 and make sure to `tsh logout` and `tsh login` after enrollment is done.
 
 ### "Failed to open the TPM device" on Linux
@@ -37,8 +35,7 @@ There are a few situations that might cause the error:
 
 The Web UI is currently not capable of device authentication. To access apps
 protected by device trust you need to use one of the tsh commands described by
-[App Access support](
-../../access-controls/device-trust/enforcing-device-trust.mdx#app-access-support).
+[App Access support](../../admin-guides/access-controls/device-trust/enforcing-device-trust.mdx).
 For example, for an app called `myapp`, run `tsh proxy app myapp -p 8888`, then
 open http://localhost:8888 in your browser.
 
@@ -46,3 +43,4 @@ If you are already running `tsh proxy app`, or using the certificates acquired
 from `tsh app login`, then it's likely your device isn't registered or enrolled.
 In this case, follow the advice from the [unauthorized device section](
 #unauthorized-device-errors-using-a-trusted-device) above.
+

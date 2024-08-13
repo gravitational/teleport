@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -658,11 +659,14 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		return nil, trace.BadParameter("user missing bot label")
 	}
 
+	expiry := botExpiryFromUser(user)
+
 	b := &pb.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: botName,
+			Name:    botName,
+			Expires: expiry,
 		},
 		Status: &pb.BotStatus{
 			UserName: user.GetName(),
@@ -725,6 +729,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	roleMeta.Labels = map[string]string{
 		types.BotLabel: bot.Metadata.Name,
 	}
+	roleMeta.Expires = userAndRoleExpiryFromBot(bot)
 	role.SetMetadata(roleMeta)
 
 	// Setup user
@@ -746,7 +751,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// We always set this to zero here - but in Upsert, we copy from the
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
-
+	userMeta.Expires = userAndRoleExpiryFromBot(bot)
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}
@@ -766,4 +771,25 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	})
 
 	return user, role, nil
+}
+
+func userAndRoleExpiryFromBot(bot *pb.Bot) *time.Time {
+	if bot.Metadata.GetExpires() == nil {
+		return nil
+	}
+
+	expiry := bot.Metadata.GetExpires().AsTime()
+	if expiry.IsZero() || expiry.Unix() == 0 {
+		return nil
+	}
+	return &expiry
+}
+
+func botExpiryFromUser(user types.User) *timestamppb.Timestamp {
+	userMeta := user.GetMetadata()
+	userExpiry := userMeta.Expiry()
+	if userExpiry.IsZero() || userExpiry.Unix() == 0 {
+		return nil
+	}
+	return timestamppb.New(userExpiry)
 }
