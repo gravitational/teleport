@@ -1124,7 +1124,6 @@ func TestPasswordlessFlow_backfillResidentKey(t *testing.T) {
 	key, err := mocku2f.Create()
 	require.NoError(t, err, "Create failed")
 	key.SetPasswordless()
-	key.SetBackupFlags = true // BE=1 and BS=1
 
 	const user = "llama"
 	const origin = "https://example.com"
