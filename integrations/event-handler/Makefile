@@ -49,6 +49,7 @@ build:
 # darwin-signed-build is a wrapper around the build target that ensures it is codesigned
 include ../../darwin-signing.mk
 .PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BINARY)
 darwin-signed-build: build
 	$(NOTARIZE_BINARIES)
 
