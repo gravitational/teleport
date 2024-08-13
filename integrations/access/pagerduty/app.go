@@ -344,11 +344,7 @@ func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 }
 
 func (a *App) getMessageRecipient(ctx context.Context, req types.AccessRequest) (string, error) {
-	recipientSetService := common.NewRecipientSet()
-	recipientService := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
-	recipientService.ForEach(func(r common.Recipient) {
-		recipientSetService.Add(r)
-	})
+	recipientSetService := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
 	if recipientSetService.Len() > 1 {
 		return "", trace.BadParameter("more than one service provided as PagerDuty plugin recipient")
 	}
