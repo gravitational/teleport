@@ -24,22 +24,22 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
-
-type Props = {
-  rootClusterUri: RootClusterUri;
-  onCancel(): void;
-  onClose(): void;
-  onAuthorize(): Promise<void>;
-};
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export const AuthenticateWebDevice = ({
   onAuthorize,
   onClose,
   onCancel,
   rootClusterUri,
-}: Props) => {
+}: {
+  rootClusterUri: RootClusterUri;
+  onCancel(): void;
+  onClose(): void;
+  onAuthorize(): Promise<void>;
+}) => {
+  const ctx = useAppContext();
   const [attempt, run] = useAsync(async () => {
-    await onAuthorize();
+    await retryWithRelogin(ctx, rootClusterUri, onAuthorize);
     onClose();
   });
   const { clustersService } = useAppContext();
