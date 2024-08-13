@@ -50,7 +50,7 @@ With this RFD we want to address two distinct personas, each with their own stor
 
 > I am an existing Teleport user who uses Terraform to manage my Teleport resources.
 > I want to protect against IDP compromise with MFA4A while keeping my Terraform pipeline working.
-> My Terraform code is commited in a git repo and applied in CI pipelines, either via a CI runner (GitHub
+> My Terraform code is committed in a git repo and applied in CI pipelines, either via a CI runner (GitHub
 > Actions/GitLab CI) or via a dedicated service (Terraform Cloud/Spacelift).
 
 The user is expected to know the Teleport basics and be able to perform advanced setup actions such as
