@@ -41,11 +41,15 @@ but filter and limit access to the servers based on their AWS region.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+- A Linux host where you will run a Teleport Agent. This guide shows you how to
+  apply labels to an instance of the Teleport SSH Service. You can use the
+  technique shown in the guide to label any Teleport-protected resource.
+
 (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Install Teleport
 
-1. Select a host for running the Teleport agent.
+1. Select a Linux server where you will run a Teleport Agent.
 
 1. (!docs/pages/includes/install-linux.mdx!)
 
@@ -69,11 +73,23 @@ but filter and limit access to the servers based on their AWS region.
    # (=presets.tokens.first=) Node,Db,App        10 Aug 23 19:49 UTC (4m11s) 
    ```
 
-1. Copy the token and assign it to an environment variable on the computer you are enrolling 
-as a resource:
-   
+1. Write the join token to a file on the host at `/tmp/token`:
+
    ```code
-   $ export INVITE_TOKEN=<token>
+   $ echo (=presets.tokens.first=) | sudo tee /tmp/token
+   ```
+
+1. On the host where you plan to run the Agent, generate a configuration file
+   that enables the Teleport SSH Service. Replace `teleport.example.com` with
+   the host and port of your Teleport Proxy Service or Teleport Enterprise
+   (Cloud) account:
+
+   ```code
+   $ sudo teleport configure \
+     --token="/tmp/token" \
+     --roles=node \
+     --proxy=example.teleport.sh:443 \
+     -o file
    ```
 
 ## Step 2/2. Apply labels
@@ -89,7 +105,7 @@ starting Teleport.
 To add a static label:
 
 1. Open the Teleport configuration file, `/etc/teleport.yaml`, in an editor on the computer 
-where you installed the Teleport agent.
+where you installed the Teleport Agent.
 
 1. Locate the `labels` configuration under the `ssh_service` section.
 
@@ -116,11 +132,9 @@ where you installed the Teleport agent.
 
 1. Save your changes and close the file.
 
-1. Start Teleport with the invitation token you saved in the `INVITE_TOKEN` environment variable:
-   
-   ```code
-   $ sudo teleport start --token=${INVITE_TOKEN?}
-   ```
+1. Start Teleport on the Linux host:
+
+   (!docs/pages/includes/start-teleport.mdx!)
 
 1. Verify that you have added the label by running the following command 
 on your local computer. 
