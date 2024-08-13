@@ -1229,8 +1229,9 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-						Webauthn:  resp,
-						PublicKey: []byte(sshPubKey),
+						Webauthn:     resp,
+						SSHPublicKey: []byte(sshPubKey),
+						TLSPublicKey: []byte(tlsPubKey),
 					},
 					TTL: 24 * time.Hour,
 				})
@@ -1249,8 +1250,9 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-						Webauthn:  resp,
-						PublicKey: []byte(sshPubKey),
+						Webauthn:     resp,
+						SSHPublicKey: []byte(sshPubKey),
+						TLSPublicKey: []byte(tlsPubKey),
 					},
 					TTL: 24 * time.Hour,
 				})
@@ -1295,9 +1297,10 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-					Username:  user,
-					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
-					PublicKey: []byte(sshPubKey),
+					Username:     user,
+					Webauthn:     &wantypes.CredentialAssertionResponse{}, // bad response
+					SSHPublicKey: []byte(sshPubKey),
+					TLSPublicKey: []byte(tlsPubKey),
 				},
 				TTL: 24 * time.Hour,
 			})

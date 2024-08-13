@@ -497,6 +497,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+	// TODO(nklaassen): support split SSH and TLS keys for headless auth.
 	ha.PublicKey = req.PublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
@@ -534,7 +535,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	if approvedHeadlessAuthn.User != req.Username {
 		return nil, trace.AccessDenied("headless authentication user mismatch")
 	}
-	// TODO(nklaassen): check SSH and TLS public key
+	// TODO(nklaassen): support split SSH and TLS keys for headless auth.
 	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 		return nil, trace.AccessDenied("headless authentication public key mismatch")
 	}
@@ -739,6 +740,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// TODO(nklaassen): support split keys for headless auth.
 		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 			return nil, trace.AccessDenied("headless authentication public key mismatch")
 		}
