@@ -19,11 +19,15 @@
 package client
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -160,9 +164,9 @@ func (fs *FSKeyStore) databaseKeyPath(idx KeyRingIndex, dbname string) string {
 	return keypaths.DatabaseKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
 }
 
-// kubeCertPath returns the TLS certificate path for the given KeyRingIndex and kube cluster name.
-func (fs *FSKeyStore) kubeCertPath(idx KeyRingIndex, kubename string) string {
-	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+// kubeCredPath returns the TLS credential path for the given KeyRingIndex and kube cluster name.
+func (fs *FSKeyStore) kubeCredPath(idx KeyRingIndex, kubename string) string {
+	return keypaths.KubeCredPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
 // AddKeyRing adds the given key ring to the store.
@@ -171,16 +175,16 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(keyRing.PrivateKey.PrivateKeyPEM(), fs.userKeyPath(keyRing.KeyRingIndex)); err != nil {
+	// Store TLS key and cert.
+	if err := fs.writeTLSCredential(TLSCredential{
+		PrivateKey: keyRing.PrivateKey,
+		Cert:       keyRing.TLSCert,
+	}, fs.userKeyPath(keyRing.KeyRingIndex), fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Store SSH public key (it currently matches the same private key as the TLS cert).
 	if err := fs.writeBytes(keyRing.PrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Store TLS cert
-	if err := fs.writeBytes(keyRing.TLSCert, fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -198,15 +202,14 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		}
 	}
 
-	// Store per-cluster key data.
+	// Store per-cluster SSH cert.
 	if len(keyRing.Cert) > 0 {
 		if err := fs.writeBytes(keyRing.Cert, fs.sshCertPath(keyRing.KeyRingIndex)); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	// TODO(awly): unit test this.
-	for kubeCluster, cert := range keyRing.KubeTLSCerts {
+	for kubeCluster, cred := range keyRing.KubeTLSCredentials {
 		// Prevent directory traversal via a crafted kubernetes cluster name.
 		//
 		// This will confuse cluster cert loading (GetKeyRing will return
@@ -214,35 +217,168 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 
-		path := fs.kubeCertPath(keyRing.KeyRingIndex, kubeCluster)
-		if err := fs.writeBytes(cert, path); err != nil {
+		credPath := fs.kubeCredPath(keyRing.KeyRingIndex, kubeCluster)
+		if err := fs.writeKubeCredential(cred, credPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for db, cred := range keyRing.DBTLSCredentials {
 		db = filepath.Clean(db)
-		certPath := fs.databaseCertPath(keyRing.KeyRingIndex, db)
-		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
-			return trace.Wrap(err)
-		}
 		keyPath := fs.databaseKeyPath(keyRing.KeyRingIndex, db)
-		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		certPath := fs.databaseCertPath(keyRing.KeyRingIndex, db)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for app, cred := range keyRing.AppTLSCredentials {
 		app = filepath.Clean(app)
-		certPath := fs.appCertPath(keyRing.KeyRingIndex, app)
-		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
-			return trace.Wrap(err)
-		}
 		keyPath := fs.appKeyPath(keyRing.KeyRingIndex, app)
-		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		certPath := fs.appCertPath(keyRing.KeyRingIndex, app)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	return nil
+}
+
+func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath string) error {
+	if err := os.MkdirAll(filepath.Dir(keyPath), os.ModeDir|profileDirPerms); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// Always lock the key file when reading or writing a TLS credential so
+	// that we can't end up with non-matching key/cert in a race condition.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryWriteLockFile(ctx, keyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock()
+
+	if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := fs.writeBytes(cred.Cert, certPath); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
+	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	key, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	return TLSCredential{
+		PrivateKey: key,
+		Cert:       certPEM,
+	}, nil
+}
+
+func readTLSCredentialFiles(keyPath, certPath string) ([]byte, []byte, error) {
+	// Always lock the key file when reading or writing a TLS credential so
+	// that we can't end up with non-matching key/cert in a race condition.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryReadLockFile(ctx, keyPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer unlock()
+
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+	return keyPEM, certPEM, nil
+}
+
+func tryWriteLockFile(ctx context.Context, path string) (func(), error) {
+	return tryLockFile(ctx, path, utils.FSTryWriteLock)
+}
+
+func tryReadLockFile(ctx context.Context, path string) (func(), error) {
+	return tryLockFile(ctx, path, utils.FSTryReadLock)
+}
+
+func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() error, error)) (func(), error) {
+	unlock, err := lockFn(path)
+	for {
+		switch {
+		case err == nil:
+			return func() {
+				if err := unlock(); err != nil {
+					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
+				}
+			}, nil
+		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
+			select {
+			case <-ctx.Done():
+				return nil, trace.Wrap(ctx.Err(), "timed out trying to acquire lock for TLS credential at %s", path)
+			case <-time.After(50 * time.Millisecond):
+			}
+			unlock, err = lockFn(path)
+		default:
+			return nil, trace.Wrap(err, "could not acquire lock for TLS credential at %s", path)
+		}
+	}
+}
+
+// writeKubeCredential writes a kube key and cert to a single file, both
+// PEM-encoded, with exactly 2 newlines between them. Compared to using separate files
+// it is more efficient for reading/writing and avoids file locks.
+func (fs *FSKeyStore) writeKubeCredential(cred TLSCredential, path string) error {
+	credFileContents := bytes.Join([][]byte{
+		bytes.TrimRight(cred.PrivateKey.PrivateKeyPEM(), "\n"),
+		bytes.TrimLeft(cred.Cert, "\n"),
+	}, []byte("\n\n"))
+	return trace.Wrap(fs.writeBytes(credFileContents, path))
+}
+
+// readKubeCredential reads a kube key and cert from a single file written by
+// [(*FSKeyStore).writeKubeCredential]. Compared to using separate files it is
+// more efficient for reading/writing and avoids file locks.
+func readKubeCredential(path string) (TLSCredential, error) {
+	keyPEM, certPEM, err := readKubeCredentialFile(path)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	privateKey, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	return TLSCredential{
+		PrivateKey: privateKey,
+		Cert:       certPEM,
+	}, nil
+}
+
+// readKubeCredentialFile reads kube key and cert PEM blocks from a single
+// file written by [(*FSKeyStore).writeKubeCredential]. Compared to using
+// separate files it is more efficient for reading/writing and avoids file
+// locks.
+func readKubeCredentialFile(path string) (keyPEM, certPEM []byte, err error) {
+	credFileContents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+
+	pems := bytes.Split(credFileContents, []byte("\n\n"))
+	if len(pems) != 2 {
+		return nil, nil, trace.BadParameter("expect key and cert PEM blocks separated by two newlines")
+	}
+	keyPEM, certPEM = pems[0], pems[1]
+	return keyPEM, certPEM, nil
 }
 
 func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
@@ -401,61 +537,45 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	return sshCerts, nil
 }
 
-func getCertsByName(certDir string) (map[string][]byte, error) {
-	certsByName := make(map[string][]byte)
-	certFiles, err := os.ReadDir(certDir)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	for _, certFile := range certFiles {
-		name := keypaths.TrimCertPathSuffix(certFile.Name())
-		if isCert := name != certFile.Name(); isCert {
-			data, err := os.ReadFile(filepath.Join(certDir, certFile.Name()))
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			certsByName[name] = data
-		}
-	}
-	return certsByName, nil
-}
-
 func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
-	credsByName := make(map[string]TLSCredential)
 	files, err := os.ReadDir(credentialDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+	credsByName := make(map[string]TLSCredential, len(files)/2)
 	for _, file := range files {
-		if certName := keypaths.TrimCertPathSuffix(file.Name()); certName != file.Name() {
-			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			cred := credsByName[certName]
-			cred.Cert = data
-			credsByName[certName] = cred
-		}
 		if keyName := keypaths.TrimKeyPathSuffix(file.Name()); keyName != file.Name() {
-			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
+			keyPath := filepath.Join(credentialDir, file.Name())
+			certPath := filepath.Join(credentialDir, keyName+keypaths.FileExtTLSCert)
+			cred, err := readTLSCredential(keyPath, certPath)
 			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			privKey, err := keys.ParsePrivateKey(data)
-			if err != nil {
+				if trace.IsNotFound(err) {
+					// Somehow we have a key with no cert, skip it. This should
+					// cause a cert re-issue which should solve the problem.
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
-			cred := credsByName[keyName]
-			cred.PrivateKey = privKey
 			credsByName[keyName] = cred
 		}
 	}
-	for name, creds := range credsByName {
-		if creds.Cert == nil || creds.PrivateKey == nil {
-			// Found a cert with no key or vice-versa, this may have been
-			// written by an older version or partially deleted, treat it as
-			// missing and a cert re-issue should solve it.
-			delete(credsByName, name)
+	return credsByName, nil
+}
+
+func getKubeCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
+	files, err := os.ReadDir(credentialDir)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	credsByName := make(map[string]TLSCredential, len(files))
+	for _, file := range files {
+		if credName := strings.TrimSuffix(file.Name(), keypaths.FileExtKubeCred); credName != file.Name() {
+			credPath := filepath.Join(credentialDir, file.Name())
+			cred, err := readKubeCredential(credPath)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			credsByName[credName] = cred
 		}
 	}
 	return credsByName, nil
@@ -504,12 +624,12 @@ func (o WithSSHCerts) deleteFromKeyRing(keyRing *KeyRing) {
 type WithKubeCerts struct{}
 
 func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
-	certDir := keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	certsByName, err := getCertsByName(certDir)
+	credentialDir := keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getKubeCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing.KubeTLSCerts = certsByName
+	keyRing.KubeTLSCredentials = credsByName
 	return nil
 }
 
@@ -517,11 +637,11 @@ func (o WithKubeCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	if idx.ClusterName == "" {
 		return []string{keypaths.KubeDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
-	return []string{keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	return []string{keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 }
 
 func (o WithKubeCerts) deleteFromKeyRing(keyRing *KeyRing) {
-	keyRing.KubeTLSCerts = make(map[string][]byte)
+	keyRing.KubeTLSCredentials = make(map[string]TLSCredential)
 }
 
 // WithDBCerts is a CertOption for handling database access certificates.
@@ -661,7 +781,7 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRin
 		case WithSSHCerts:
 			retKeyRing.Cert = keyRing.Cert
 		case WithKubeCerts:
-			retKeyRing.KubeTLSCerts = keyRing.KubeTLSCerts
+			retKeyRing.KubeTLSCredentials = keyRing.KubeTLSCredentials
 		case WithDBCerts:
 			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:

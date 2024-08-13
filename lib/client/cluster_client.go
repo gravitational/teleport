@@ -241,7 +241,10 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			PrivateKey: privKey,
 		}
 	case proto.UserCertsRequest_Kubernetes:
-		keyRing.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+		keyRing.KubeTLSCredentials[params.KubernetesCluster] = TLSCredential{
+			PrivateKey: privKey,
+			Cert:       certs.TLS,
+		}
 	case proto.UserCertsRequest_WindowsDesktop:
 		keyRing.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
@@ -353,8 +356,8 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 	var sshPublicKey, tlsPublicKey []byte
 	var privateKey *keys.PrivateKey
 	switch params.usage() {
-	case proto.UserCertsRequest_App:
-		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserTLS)
+	case proto.UserCertsRequest_App, proto.UserCertsRequest_Kubernetes:
+		privateKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -363,7 +366,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 	case proto.UserCertsRequest_Database:
-		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserDatabase)
+		privateKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserDatabase)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -670,10 +673,13 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	case len(newCerts.TLS) > 0:
 		switch certsReq.Usage {
 		case proto.UserCertsRequest_Kubernetes:
-			if keyRing.KubeTLSCerts == nil {
-				keyRing.KubeTLSCerts = make(map[string][]byte)
+			if keyRing.KubeTLSCredentials == nil {
+				keyRing.KubeTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.KubeTLSCerts[certsReq.KubernetesCluster] = newCerts.TLS
+			keyRing.KubeTLSCredentials[certsReq.KubernetesCluster] = TLSCredential{
+				Cert:       newCerts.TLS,
+				PrivateKey: params.PrivateKey,
+			}
 
 		case proto.UserCertsRequest_Database:
 			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, params.PrivateKey)
