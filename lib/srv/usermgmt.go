@@ -291,11 +291,17 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 			currentGroups[group.Name] = struct{}{}
 		}
 
+		_, hasSystemGroup := currentGroups[types.TeleportServiceGroup]
 		// Get the groups that the user should end up with, including the primary group.
 		finalGroups := make(map[string]struct{}, len(groupsToAdd)+1)
 		for _, group := range groupsToAdd {
+			if !hasSystemGroup && group == types.TeleportServiceGroup {
+				continue
+			}
+
 			finalGroups[group] = struct{}{}
 		}
+
 		primaryGroup, err := u.backend.LookupGroupByID(tempUser.Gid)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -309,26 +315,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui *services.HostUsersInfo)
 			})
 		}
 
-		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
-		if err != nil {
-			if isUnknownGroupError(err, types.TeleportServiceGroup) {
-				// Teleport service group doesn't exist, so we don't need to update interaction time.
-				return nil, trace.Wrap(doWithUserLock())
-			}
-			return nil, trace.Wrap(err)
-		}
-		gids, err := u.backend.UserGIDs(tempUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var found bool
-		for _, gid := range gids {
-			if gid == systemGroup.Gid {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !hasSystemGroup {
 			// User isn't managed by Teleport, so we don't need to update interaction time.
 			return nil, trace.Wrap(doWithUserLock())
 		}
