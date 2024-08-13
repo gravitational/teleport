@@ -81,7 +81,12 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 			"https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service.")
 		return trace.BadParameter("public address of the proxy is not set")
 	}
-	addr, err := utils.ParseAddr(p.publicAddr)
+	host := p.publicAddr
+	if host == "" {
+		host = r.Host
+	}
+
+	addr, err := utils.ParseAddr(host)
 	if err != nil {
 		return trace.Wrap(err)
 	}

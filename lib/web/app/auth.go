@@ -61,7 +61,15 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 	q := r.URL.Query()
 
 	requiredApps := strings.Split(q.Get("required-apps"), ",")
-	if len(requiredApps) > 1 && q.Get("addr") != "" && requiredApps[0] != q.Get("addr") {
+	reqAddr, err := utils.ParseAddr(r.Host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if required apps is length 1, it _should_ be itself as the final stop of the redirect chain.
+	// If that is the case, skip any further required app redirects and complete the auth flow.
+	// This value gets shifted off the front after a complete auth exchange
+	if len(requiredApps) > 1 && requiredApps[0] != reqAddr.Host() {
 		nextRequiredApp := requiredApps[0]
 
 		webLauncherURLParams := launcherURLParams{
@@ -223,7 +231,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 		webLauncherURLParams := launcherURLParams{
 			publicAddr:          nextRequiredApp,
-			clusterName:         h.c.ProxyPublicAddrs[0].Host(),
+			clusterName:         h.clusterName,
 			requiredApps:        strings.Join(requiredApps, ","),
 			requiresAppRedirect: true,
 		}

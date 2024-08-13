@@ -669,7 +669,9 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 		// So Encode() will just encode it once (note that spaces will be convereted to `+`)
 		v := url.Values{}
 		v.Add("path", r.URL.Path)
-		v.Add("required-apps", req.requiredApps)
+		if req.requiredApps != "" {
+			v.Add("required-apps", req.requiredApps)
+		}
 
 		if len(r.URL.RawQuery) > 0 {
 			v.Add("query", r.URL.RawQuery)
