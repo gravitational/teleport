@@ -42,6 +42,7 @@ import {
 type PtyOptions = {
   ssh: SshOptions;
   windowsPty: Pick<WindowsPty, 'useConpty'>;
+  customShellPath: string;
 };
 
 export async function buildPtyOptions(
@@ -52,24 +53,17 @@ export async function buildPtyOptions(
   processOptions: PtyProcessOptions;
   creationStatus: PtyProcessCreationStatus;
 }> {
-  const logger = new Logger('buildPtyOptions');
-  let shell: Shell;
   // Get the full shell object by the shell ID.
   // We wouldn't have to do it if we sent a shell bin path from the renderer,
   // but it's better to validate inputs that come from that process.
-  if (cmd.kind === 'pty.shell') {
-    shell = settings.availableShells.find(s => s.id === cmd.shellId);
-    if (!shell) {
-      logger.warn(
-        `Attempted to open a shell ${cmd.shellId}, but it is not available in: [${settings.availableShells.map(({ id }) => id).join(', ')}].`
-      );
-    }
-  }
+  const defaultShell = settings.availableShells.find(
+    s => s.id === settings.defaultOsShellId
+  );
+  let shell = defaultShell;
 
-  if (!shell) {
-    shell = settings.availableShells.find(
-      s => s.id === settings.defaultOsShellId
-    );
+  if (cmd.kind === 'pty.shell') {
+    const resolvedShell = await resolveShell(cmd, settings, options);
+    shell = resolvedShell;
   }
 
   return resolveShellEnvCached(shell.binPath)
@@ -234,4 +228,24 @@ function getKubeConfigFilePath(
   settings: RuntimeSettings
 ): string {
   return path.join(settings.kubeConfigsDir, command.kubeConfigRelativePath);
+}
+
+async function resolveShell(
+  cmd: ShellCommand,
+  settings: RuntimeSettings,
+  ptyOptions: PtyOptions
+): Promise<Shell | undefined> {
+  if (cmd.shellId !== CUSTOM_SHELL_ID) {
+    return settings.availableShells.find(s => s.id === cmd.shellId);
+  }
+
+  const { customShellPath } = ptyOptions;
+  if (customShellPath) {
+    try {
+      await fs.access(customShellPath);
+      return makeCustomShellFromPath(customShellPath);
+    } catch (e) {
+      /* empty */
+    }
+  }
 }

@@ -48,6 +48,7 @@ describe('getPtyProcessOptions', () => {
       const { env } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
         options: {
+          customShellPath: '',
           ssh: { noResume: false },
           windowsPty: { useConpty: true },
         },
@@ -82,6 +83,7 @@ describe('getPtyProcessOptions', () => {
       const { env } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
         options: {
+          customShellPath: '',
           ssh: { noResume: false },
           windowsPty: { useConpty: true },
         },
@@ -112,7 +114,11 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: { ssh: { noResume: true }, windowsPty: { useConpty: true } },
+        options: {
+          customShellPath: '',
+          ssh: { noResume: true },
+          windowsPty: { useConpty: true },
+        },
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
