@@ -8,8 +8,8 @@ mode](../../faq.mdx), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
-Starting with version 13, Teleport supports automatic agent updates for systemd-based
-Linux distributions using `apt` or `yum` package managers, and Kubernetes clusters.
+Teleport supports automatic agent updates for systemd-based
+Linux distributions using `apt`, `yum` or `zypper` package managers, and Kubernetes clusters.
 
 ## Update logic and failure modes
 
@@ -41,7 +41,7 @@ applied even if the updater is outside its regular maintenance window.
 ## Security
 
 When updating the agent, the updater will ensure the new version's authenticity
-before deploying it. On Linux distributions using `apt` or `yum`, it relies on
+before deploying it. On Linux distributions using `apt`, `yum` or `zypper`, it relies on
 the existing package signature system. On Kubernetes-based environments, it
 validates the OCI image signature (using [cosign's signature
 ](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md)).
@@ -79,11 +79,11 @@ latest agent version.
 
 ### Self-hosted Teleport
 
-Self-hosted Teleport users can set up automatic agent updates. They must host
-their version server and choose their target version. They are responsible for
-ensuring the targeted version is compatible with their current auth/proxy
-versions. They must also monitor the agent's health and rollout status to
-ensure every agent is healthy and running the correct version.
+Self-hosted Teleport Enterprise users can set up automatic agent updates.
+They must host their version server and choose their target version. They
+are responsible for ensuring the targeted version is compatible with their
+current auth/proxy versions. They must also monitor the agent's health and
+rollout status to ensure every agent is healthy and running the correct version.
 
 ## Next steps
 
