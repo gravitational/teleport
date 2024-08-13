@@ -146,19 +146,21 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}, nil
 }
 
-type GetAppFQDNRequest ResolveAppParams
+type GetAppDetailsRequest ResolveAppParams
 
-type GetAppFQDNResponse struct {
+type GetAppDetailsResponse struct {
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
+	// RequiredApps is a list of required app public_addrs
+	RequiredApps []string `json:"requiredApps"`
 }
 
-// getAppFQDN resolves the input params to a known application and returns
-// its valid FQDN.
+// getAppDetails resolves the input params to a known application and returns
+// its app details.
 //
 // GET /v1/webapi/apps/:fqdnHint/:clusterName/:publicAddr
-func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	req := GetAppFQDNRequest{
+func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	req := GetAppDetailsRequest{
 		FQDNHint:    p.ByName("fqdnHint"),
 		ClusterName: p.ByName("clusterName"),
 		PublicAddr:  p.ByName("publicAddr"),
@@ -171,8 +173,13 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
-	return &GetAppFQDNResponse{
-		FQDN: result.FQDN,
+	requiredApps := result.App.GetRequiredApps()
+	// append self to end of required apps so that it can be the final entry in the redirect "chain".
+	requiredApps = append(requiredApps, result.FQDN)
+
+	return &GetAppDetailsResponse{
+		FQDN:         result.FQDN,
+		RequiredApps: requiredApps,
 	}, nil
 }
 
