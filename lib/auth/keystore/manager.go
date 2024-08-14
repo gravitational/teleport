@@ -459,7 +459,7 @@ func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose
 	createCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name(), alg.String()).Inc()
 	key, err := m.newTLSKeyPair(ctx, clusterName, alg)
 	if err != nil {
-		createErrorCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name()).Inc()
+		createErrorCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name(), alg.String()).Inc()
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
