@@ -38,13 +38,62 @@ import (
 )
 
 func TestPollAWSS3(t *testing.T) {
+	sortSlice := func(buckets []*accessgraphv1alpha.AWSS3BucketV1) {
+		sort.Slice(buckets, func(i, j int) bool {
+			return buckets[i].Name < buckets[j].Name
+		})
+	}
+
 	const (
 		accountID       = "12345678"
 		bucketName      = "bucket1"
 		otherBucketName = "bucket2"
 	)
 	var (
-		regions = []string{"eu-west-1"}
+		regions       = []string{"eu-west-1"}
+		mockedClients = &cloud.TestCloudClients{
+			S3: &mocks.S3Mock{
+				Buckets: s3Buckets(bucketName, otherBucketName),
+				BucketPolicy: map[string]string{
+					bucketName:      "policy",
+					otherBucketName: "otherPolicy",
+				},
+				BucketPolicyStatus: map[string]*s3.PolicyStatus{
+					bucketName: {
+						IsPublic: aws.Bool(true),
+					},
+					otherBucketName: {
+						IsPublic: aws.Bool(false),
+					},
+				},
+				BucketACL: map[string][]*s3.Grant{
+					bucketName: {
+						{
+							Grantee: &s3.Grantee{
+								ID: aws.String("id"),
+							},
+							Permission: aws.String("READ"),
+						},
+					},
+					otherBucketName: {
+						{
+							Grantee: &s3.Grantee{
+								ID: aws.String("id"),
+							},
+							Permission: aws.String("READ"),
+						},
+					},
+				},
+				BucketTags: map[string][]*s3.Tag{
+					bucketName: {
+						{
+							Key:   aws.String("tag"),
+							Value: aws.String("val"),
+						},
+					},
+				},
+			},
+		}
 	)
 
 	tests := []struct {
@@ -95,49 +144,6 @@ func TestPollAWSS3(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockedClients := &cloud.TestCloudClients{
-				S3: &mocks.S3Mock{
-					Buckets: s3Buckets(bucketName, otherBucketName),
-					BucketPolicy: map[string]string{
-						bucketName:      "policy",
-						otherBucketName: "otherPolicy",
-					},
-					BucketPolicyStatus: map[string]*s3.PolicyStatus{
-						bucketName: {
-							IsPublic: aws.Bool(true),
-						},
-						otherBucketName: {
-							IsPublic: aws.Bool(false),
-						},
-					},
-					BucketACL: map[string][]*s3.Grant{
-						bucketName: {
-							{
-								Grantee: &s3.Grantee{
-									ID: aws.String("id"),
-								},
-								Permission: aws.String("READ"),
-							},
-						},
-						otherBucketName: {
-							{
-								Grantee: &s3.Grantee{
-									ID: aws.String("id"),
-								},
-								Permission: aws.String("READ"),
-							},
-						},
-					},
-					BucketTags: map[string][]*s3.Tag{
-						bucketName: {
-							{
-								Key:   aws.String("tag"),
-								Value: aws.String("val"),
-							},
-						},
-					},
-				},
-			}
 
 			var (
 				errs []error
@@ -162,12 +168,8 @@ func TestPollAWSS3(t *testing.T) {
 			require.NoError(t, execFunc())
 			require.NoError(t, trace.NewAggregate(errs...))
 
-			sort.Slice(result.S3Buckets, func(i, j int) bool {
-				return result.S3Buckets[i].Name < result.S3Buckets[j].Name
-			})
-			sort.Slice(tt.want.S3Buckets, func(i, j int) bool {
-				return result.S3Buckets[i].Name < result.S3Buckets[j].Name
-			})
+			sortSlice(tt.want.S3Buckets)
+			sortSlice(result.S3Buckets)
 			require.Empty(t, cmp.Diff(
 				tt.want,
 				result,
