@@ -1238,7 +1238,7 @@
     },
     {
       "source": "/server-access/openssh/openssh/",
-      "destination": "/enroll-resources/server-access/openssh/openssh/",
+      "destination": "/enroll-resources/server-access/openssh/openssh-agentless/",
       "permanent": true
     },
     {
@@ -1918,7 +1918,7 @@
     },
     {
       "source": "/access-controls/login-rules/kubernetes/",
-      "destination": "/admin-guides/infrastructure-as-code/kubernetes/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-operator/",
       "permanent": true
     },
     {
@@ -1928,7 +1928,7 @@
     },
     {
       "source": "/access-controls/login-rules/terraform/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-terraform/",
       "permanent": true
     },
     {
@@ -2418,22 +2418,22 @@
     },
     {
       "source": "/management/dynamic-resources/access-list/",
-      "destination": "/admin-guides/infrastructure-as-code/access-list/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/agentless-ssh-servers/",
-      "destination": "/admin-guides/infrastructure-as-code/agentless-ssh-servers/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator-helm/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator-helm/",
+      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator-standalone/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator-standalone/",
+      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
       "permanent": true
     },
     {
@@ -2448,7 +2448,7 @@
     },
     {
       "source": "/management/dynamic-resources/user-and-role/",
-      "destination": "/admin-guides/infrastructure-as-code/user-and-role/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/user-and-role/",
       "permanent": true
     },
     {
@@ -2528,7 +2528,7 @@
     },
     {
       "source": "/management/operations/db-ca-rotation/",
-      "destination": "/admin-guides/management/operations/db-ca-rotation/",
+      "destination": "/admin-guides/management/operations/ca-rotation/",
       "permanent": true
     },
     {

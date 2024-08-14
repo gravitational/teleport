@@ -32,7 +32,7 @@ export const ButtonTextWithAddIcon = ({
   iconSize?: number | 'small' | 'medium' | 'large' | 'extraLarge';
 }) => {
   return (
-    <ButtonText onClick={onClick} inputAlignment disabled={disabled}>
+    <ButtonText onClick={onClick} disabled={disabled} compact>
       <AddIcon
         className="icon-add"
         size={iconSize}
