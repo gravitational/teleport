@@ -268,12 +268,24 @@ Allowing SSO as an MFA method would bypass the device trust check, opening the
 cluster back up to attacks in the case of an IdP compromise. To maintain this
 invariant, device trust must be enforced within the SSO MFA check.
 
+#### Forced Re-authentication
+
+SSO MFA checks will always require the user to re-login through their IdP
+instead of accepting existing IdP sessions. This will prevent long lasting
+login sessions from being used as MFA verification, which could easily be
+exploited by an attacker with remote access to the user's machine.
+
+For SAML, this can be achieved by setting `ForceAuthn=true` in the authn
+request. For OIDC and Github, setting `max_age=0` in the server redirect URL's
+query parameter will force re-auth.
+
 ### Implementation
 
 A logged in user can start a separate SSO login flow that returns a privileged
-token instead of a login session. This will be done through
-`rpc Create[connector-type]AuthRequest` instead of the unauthenticated webapi
-endpoints `/webapi/[connector-type]/login/console`.
+token instead of a login session. This will be done through `rpc CreateSAMLAuthRequest`,
+`rpc CreateOIDCAuthRequest` and `rpc CreateGithubAuthRequest` instead of the
+unauthenticated webapi endpoints `/webapi/saml/login/console`, `/webapi/oidc/login/console`
+and `/webapi/github/login/console`.
 
 Privileged tokens are used as transient MFA verification for some operations in
 Teleport today, like account resets. This token can only be received after an
@@ -284,6 +296,19 @@ Note: As is the case with normal SSO login, the login response is encrypted
 using a secret key owned by the client.
 
 TODO: expand on details.
+
+#### SAML RequestedAuthnContext
+
+When using ADFS or JumpCloud as a SAML IdP, Teleport sets requires password
+auth by setting `PasswordProtectedTransport` as a minimum `RequestedAuthnContext`.
+This minimum will be skipped when the SAML connector is enabled for MFA only.
+
+Note: `RequestedAuthnContext` may be useful for requesting a specific type of
+authentication from the IdP - e.g. MFA verification only from an IdP setup with
+password and MFA. For now, this will be kept out of scope as it is dependent on
+the IdP in use, some of which won't support `RequestedAuthnContext` at all.
+
+TODO: Is there an OIDC equivalent to this, and is it worth implementing?
 
 ### Proto
 
@@ -422,3 +447,6 @@ TODO
 ### Test Plan
 
 TODO
+
+### Other considerations
+
