@@ -38,14 +38,16 @@ import useTeleport from 'e-teleport/useTeleportE';
 
 import { getCTAForPlugin } from 'e-teleport/services/plugins';
 
-import {
-  CloudHostablePlugin,
-  plugins as defaultPlugins,
-  SelfHostedPlugin,
-  pluginTypeToIntegrationEnrollKind,
-} from '../PluginEnroll/plugins';
+import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+
+import { plugins as defaultPlugins } from '../PluginEnroll/plugins';
 
 import { PluginIcon } from './PluginIcon';
+
+import type {
+  SelfHostedPlugin,
+  CloudHostablePlugin,
+} from 'e-teleport/services/plugins';
 
 type Plugins = {
   // enrolled are names of plugin types that have

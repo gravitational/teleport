@@ -6,12 +6,12 @@ import {
 } from 'teleport/services/userEvent';
 import { Plugin, PluginKind } from 'teleport/services/integrations';
 
-import {
-  CloudHostablePlugin,
-  pluginTypeToIntegrationEnrollKind,
-} from './plugins';
+import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
+
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export function PluginEnrollSingleStep({
   plugin,

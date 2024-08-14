@@ -5,13 +5,13 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
-import {
-  CloudHostablePlugin,
-  pluginTypeToIntegrationEnrollKind,
-} from './plugins';
+import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { PluginEnrollFailedDialog } from './PluginEnrollFailedDialog';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
+
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export type OAuthPluginRegistered = {
   name: string;

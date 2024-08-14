@@ -1,4 +1,4 @@
-import React, { useState, JSX, FunctionComponent } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
@@ -21,15 +21,11 @@ import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
-import { CtaEvent, IntegrationEnrollKind } from 'teleport/services/userEvent';
-import { PluginKind } from 'teleport/services/integrations';
+import { CtaEvent } from 'teleport/services/userEvent';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { BaseView } from 'teleport/components/Wizard/flow';
 import { OutlineWarn } from 'design/Alert/Alert';
 
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
-
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { P } from 'design/Text/Text';
 
@@ -45,102 +41,10 @@ import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
 
-export type View = BaseView<{
-  title: string;
-  /**
-   * If the component is not defined,
-   * then the component who is processing
-   * this view, will have to provide it's own component.
-   *
-   * Eg: before multi-step support, all plugins had only
-   * one step using `SubmittablePluginForm.tsx`.
-   * Some plugins will have multi-step (eg. okta)
-   * where the first step stays the same as before
-   * (`SubmittablePluginForm.tsx`), but have more
-   * steps afterwwards.
-   */
-  component: FunctionComponent;
-}>;
-
-type Permission = {
-  title: string;
-  description?: string;
-};
-
-type CategoryPermissions = {
-  category: string;
-  permissions: Permission[];
-};
-
-// EnrollSuccessResponse contains the necessary data to guide the user
-// after the plugin is connected (in `NextSteps` component).
-// This is equivalent to `pluginOnboardingCookieNonSensitiveData` in e/lib/web/plugins.go
-export type EnrollSuccessResponse = {
-  slack?: {
-    fallback_channel: string;
-  };
-};
-
-export type PluginBase = {
-  type: PluginKind;
-  name: string;
-  icon: string;
-  url: string;
-
-  // isOAuth describes a plugin that are authenticated
-  // via OAuth.
-  isOAuth?: boolean;
-
-  /**
-   * Describes whether the plugin can be hosted by Teleport Cloud.
-   */
-  cloudHostable: boolean;
-
-  /**
-   * Describes whether the plugin can be self hosted.
-   */
-  selfHostable: boolean;
-
-  disabledIfNoMdmSupport?: boolean;
-  // todo (michellescripts) replace with new entitlement `EntraIDSync`
-  requiresIgs?: boolean;
-
-  /**
-   * views represents all the views for each step
-   * in a multi step plugin enrollment eg: okta.
-   * If empty, the plugin has only one step.
-   */
-  views?(): View[];
-};
-
-/**
- * SelfHostedPlugin describes a plugin that can be self hosted.
- */
-export type SelfHostedPlugin = PluginBase & {
-  cloudHostable: false;
-  selfHostable: true;
-  disabledIfNoMdmSupport?: true;
-};
-
-/**
- * CloudHostablePlugin describes a plugin that can be hosted by Teleport Cloud.
- * CloudHostablePlugins might also be self hostable, determined by the `selfHostable`
- * field.
- */
-export type CloudHostablePlugin = PluginBase & {
-  cloudHostable: true;
-  /** selfHostable is true for cloud plugins that can be self hosted as well. */
-  selfHostable: boolean;
-
-  // For each hosted plugin, these describe additional elements in the enroll page.
-  fullName: string;
-  Description?: () => JSX.Element;
-  Setup?: () => JSX.Element;
-  FormMixin?: (props: { attempt: Attempt }) => JSX.Element;
-  NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
-  permissions?: CategoryPermissions[];
-  disabledIfNoMdmSupport?: boolean;
-};
+import type {
+  SelfHostedPlugin,
+  CloudHostablePlugin,
+} from 'e-teleport/services/plugins';
 
 export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
@@ -1551,37 +1455,6 @@ const StyledFieldInput = styled(FieldInput)`
     padding-left: 23px; /* Make room for an icon */
   }
 `;
-
-export function pluginTypeToIntegrationEnrollKind(p: PluginKind) {
-  switch (p) {
-    case 'discord':
-      return IntegrationEnrollKind.Discord;
-    case 'email':
-      return IntegrationEnrollKind.Email;
-    case 'jira':
-      return IntegrationEnrollKind.Jira;
-    case 'mattermost':
-      return IntegrationEnrollKind.Mattermost;
-    case 'msteams':
-      return IntegrationEnrollKind.MsTeams;
-    case 'pagerduty':
-      return IntegrationEnrollKind.PagerDuty;
-    case 'slack':
-      return IntegrationEnrollKind.Slack;
-    case 'okta':
-      return IntegrationEnrollKind.Okta;
-    case 'servicenow':
-      return IntegrationEnrollKind.ServiceNow;
-    case 'jamf':
-      return IntegrationEnrollKind.Jamf;
-    case 'opsgenie':
-      return IntegrationEnrollKind.OpsGenie;
-    case 'entra-id':
-      return IntegrationEnrollKind.EntraId;
-    default:
-      return IntegrationEnrollKind.Unspecified;
-  }
-}
 
 const StyledUl = styled.ul`
   margin: 0;

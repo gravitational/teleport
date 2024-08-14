@@ -15,12 +15,14 @@ import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { PluginProvider, usePlugin } from '../usePlugin';
-import { CloudHostablePlugin, pluginMap } from '../../plugins';
+import { pluginMap } from '../../plugins';
 import { PluginEnrollSuccess } from '../PluginEnrollSuccess';
 import { renderPluginEnroll } from '../../StorybookHelper';
 
 import { SetUpScim as SetUpScimComponent } from './SetUpScim';
 import { ImportUserGroupsAndApps as ImportComponent } from './ImportUserGroupsAndApps/ImportUserGroupsAndApps';
+
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 const oktaPlugin = pluginMap['okta'] as CloudHostablePlugin;
 

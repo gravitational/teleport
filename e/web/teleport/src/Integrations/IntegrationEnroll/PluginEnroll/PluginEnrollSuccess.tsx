@@ -5,9 +5,9 @@ import pamSuccess from 'design/assets/images/icons/success.png';
 
 import cfg from 'e-teleport/config';
 
-import { CloudHostablePlugin } from './plugins';
-
 import { OAuthPluginRegistered } from './PluginEnroll';
+
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export function PluginEnrollSuccess(props: State) {
   const { oauthSuccessData, plugin } = props;

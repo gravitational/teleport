@@ -4,8 +4,9 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
+import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+
 import { PluginEnrollSuccess as Component } from '../PluginEnrollSuccess';
-import { pluginTypeToIntegrationEnrollKind } from '../plugins';
 
 import { usePlugin } from './usePlugin';
 

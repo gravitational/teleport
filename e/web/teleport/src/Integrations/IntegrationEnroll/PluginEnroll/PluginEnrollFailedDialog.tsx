@@ -3,7 +3,7 @@ import React from 'react';
 import { ButtonSecondary, H2, H3, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
 
-import { PluginBase } from './plugins';
+import type { PluginBase } from 'e-teleport/services/plugins';
 
 export function PluginEnrollFailedDialog(props: State) {
   const { plugin, errorDescription, clearError } = props;

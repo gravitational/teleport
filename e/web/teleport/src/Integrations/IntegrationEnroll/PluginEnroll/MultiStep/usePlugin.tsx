@@ -11,11 +11,9 @@ import {
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
 
-import {
-  CloudHostablePlugin,
-  View,
-  pluginTypeToIntegrationEnrollKind,
-} from '../plugins';
+import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+
+import type { View, CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export interface PluginContextState<T = any> {
   currentStep: number;
