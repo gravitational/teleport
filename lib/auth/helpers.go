@@ -386,6 +386,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if authPreference.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
+		authPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
+	}
 	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
