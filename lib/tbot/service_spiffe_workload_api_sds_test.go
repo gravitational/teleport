@@ -180,19 +180,19 @@ func TestSDS_FetchSecrets(t *testing.T) {
 			},
 		},
 		{
-			name: "special: default",
+			name: "special default",
 			resourceNames: []string{
 				envoyDefaultSVIDName,
 			},
 		},
 		{
-			name: "special: ROOTCA",
+			name: "special ROOTCA",
 			resourceNames: []string{
 				envoyDefaultBundleName,
 			},
 		},
 		{
-			name: "special: ALL",
+			name: "special ALL",
 			resourceNames: []string{
 				envoyAllBundlesName,
 			},
