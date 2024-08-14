@@ -204,7 +204,7 @@ func TestCachedReleases(t *testing.T) {
 		var sec int
 		for iter.Next() {
 			ct++
-			require.NotZero(t, len(iter.Page()), tt.desc)
+			require.NotEmpty(t, iter.Page(), tt.desc)
 			for _, target := range iter.Page() {
 				if target.SecurityPatch() {
 					sec++
