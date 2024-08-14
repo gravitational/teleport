@@ -378,7 +378,7 @@ type SortMenuProps = {
   sortType: string;
   sortDir: SortDir;
   onChange: (value: string) => void;
-  onDirChange: (dir: SortDir) => void;
+  onDirChange: () => void;
 };
 
 const SortMenu: React.FC<SortMenuProps> = props => {

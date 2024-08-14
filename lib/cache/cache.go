@@ -21,7 +21,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -183,6 +182,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
 		{Kind: types.KindAccessGraphSettings},
+		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindProvisioningState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -521,6 +521,7 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	spiffeFederationCache        spiffeFederationCacher
 	provisioningStatesCache      services.ProvisioningStates
 
 	// closed indicates that the cache has been closed
@@ -694,6 +695,8 @@ type Config struct {
 	Notifications services.Notifications
 	// AccessMonitoringRules is the access monitoring rules service.
 	AccessMonitoringRules services.AccessMonitoringRules
+	// SPIFFEFederations is the SPIFFE federations service.
+	SPIFFEFederations SPIFFEFederationReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -939,6 +942,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	spiffeFederationCache, err := local.NewSPIFFEFederationService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -979,6 +988,7 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
+		spiffeFederationCache:        spiffeFederationCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
@@ -1087,7 +1097,7 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 func (c *Cache) validateWatchRequest(watch types.Watch) (kinds []types.WatchKind, highVolume bool, err error) {
 	c.rw.RLock()
 	cacheOK := c.ok
-	confirmedKinds := maps.Clone(c.confirmedKinds)
+	confirmedKinds := c.confirmedKinds
 	c.rw.RUnlock()
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
@@ -1358,14 +1368,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	for {
 		select {
 		case <-watcher.Done():
-			c.Logger.Error("EventWatcher closed")
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
-			c.Logger.Error("Context closed")
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case <-relativeExpiryInterval.Next():
 			if err := c.performRelativeNodeExpiry(ctx); err != nil {
-				c.Logger.WithError(err).Error("Node expiry failed")
 				return trace.Wrap(err)
 			}
 			c.notify(ctx, Event{Type: RelativeExpiry})
@@ -1404,7 +1411,6 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			}
 
 			if err := c.processEvent(ctx, event); err != nil {
-				c.Logger.WithError(err).Error("Event processing failed")
 				return trace.Wrap(err)
 			}
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})

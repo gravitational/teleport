@@ -190,7 +190,6 @@ export function TraitsEditor({
       <Box mt={5}>
         <ButtonBorder
           onClick={addNewTraitPair}
-          label={addLabelText}
           css={`
             padding-left: 12px;
             &:disabled {

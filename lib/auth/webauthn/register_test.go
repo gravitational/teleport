@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -118,14 +119,16 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			require.NotNil(t, gotDevice)
 			require.NotEmpty(t, gotDevice.PublicKeyCbor) // validated indirectly via authentication
 			wantDevice := &types.WebauthnDevice{
-				CredentialId:      dev.KeyHandle,
-				PublicKeyCbor:     gotDevice.PublicKeyCbor,
-				AttestationType:   gotDevice.AttestationType,
-				Aaguid:            make([]byte, 16), // 16 zeroes
-				SignatureCounter:  0,
-				AttestationObject: ccr.AttestationResponse.AttestationObject,
-				ResidentKey:       test.wantResidentKey,
-				CredentialRpId:    rpID,
+				CredentialId:             dev.KeyHandle,
+				PublicKeyCbor:            gotDevice.PublicKeyCbor,
+				AttestationType:          gotDevice.AttestationType,
+				Aaguid:                   make([]byte, 16), // 16 zeroes
+				SignatureCounter:         0,
+				AttestationObject:        ccr.AttestationResponse.AttestationObject,
+				ResidentKey:              test.wantResidentKey,
+				CredentialRpId:           rpID,
+				CredentialBackupEligible: &gogotypes.BoolValue{Value: false},
+				CredentialBackedUp:       &gogotypes.BoolValue{Value: false},
 			}
 			if diff := cmp.Diff(wantDevice, gotDevice); diff != "" {
 				t.Errorf("Finish() mismatch (-want +got):\n%s", diff)

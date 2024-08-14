@@ -307,8 +307,10 @@ type InitConfig struct {
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
 
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
+	
 	ProvisioningStates services.ProvisioningStates
-
 	IdentityCenter services.IdentityCenter
 }
 

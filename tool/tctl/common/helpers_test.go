@@ -133,6 +133,16 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
+func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &NotificationCommand{
+		stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"notifications"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)

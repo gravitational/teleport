@@ -83,8 +83,6 @@ export enum NavTitle {
 
   // Billing
   BillingSummary = 'Summary',
-  PaymentsAndInvoices = 'Payments and Invoices',
-  InvoiceSettings = 'Invoice Settings',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
