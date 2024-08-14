@@ -93,6 +93,7 @@ export function subscribeToTabContextMenuEvent(
             const customShell =
               customShellPath && makeCustomShellFromPath(customShellPath);
             const shellsWithCustom = [...shells, customShell].filter(Boolean);
+            const isMoreThanOneShell = shellsWithCustom.length > 1;
             return [
               {
                 type: 'separator',
@@ -101,6 +102,7 @@ export function subscribeToTabContextMenuEvent(
                 label: shell.friendlyName,
                 id: shell.id,
                 type: 'radio' as const,
+                visible: isMoreThanOneShell,
                 checked: shell.id === activeShellId,
                 click: () => {
                   // Do nothing when the shell doesn't change.
@@ -141,6 +143,7 @@ export function subscribeToTabContextMenuEvent(
               },
               {
                 label: `Default Shell (${shellsWithCustom.find(s => defaultShellId === s.id)?.friendlyName || defaultShellId})`,
+                visible: isMoreThanOneShell,
                 type: 'submenu',
                 submenu: [
                   ...shellsWithCustom.map(shell => ({
