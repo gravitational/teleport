@@ -21,7 +21,6 @@ package discovery
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/jonboulle/clockwork"
