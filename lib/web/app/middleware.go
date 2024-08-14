@@ -144,7 +144,7 @@ type launcherURLParams struct {
 	// This field is used to preserve the original requested path through
 	// the app access authentication redirections.
 	path string
-	// requiredApps is a list of required app public_addrs to be used during application
+	// requiredApps is a list of required app names to be used during application
 	// authentication redirects.
 	requiredApps string
 	// requiredAppRedirect is used to tell the url builder an app redirect is required. If required,

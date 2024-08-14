@@ -3174,7 +3174,7 @@ type AppSpecV3 struct {
 	// Only applicable to AWS App Access.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	Integration string `protobuf:"bytes,9,opt,name=Integration,proto3" json:"integration,omitempty"`
-	// RequiredApps is a list of app public_addr that are required for this app to function. Any app listed here will
+	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps         []string `protobuf:"bytes,10,rep,name=RequiredApps,proto3" json:"required_apps,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
