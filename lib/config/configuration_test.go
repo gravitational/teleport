@@ -679,7 +679,7 @@ proxy_service:
 	}
 
 	for _, tt := range tests {
-		comment := fmt.Sprintf(tt.desc)
+		comment := tt.desc
 
 		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
