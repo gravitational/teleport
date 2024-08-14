@@ -142,9 +142,12 @@ export function subscribeToTabContextMenuEvent(
                 },
               },
               {
-                label: `Default Shell (${shellsWithCustom.find(s => defaultShellId === s.id)?.friendlyName || defaultShellId})`,
+                label: 'Default Shell',
                 visible: isMoreThanOneShell,
                 type: 'submenu',
+                sublabel:
+                  shellsWithCustom.find(s => defaultShellId === s.id)
+                    ?.friendlyName || defaultShellId,
                 submenu: [
                   ...shellsWithCustom.map(shell => ({
                     label: shell.friendlyName,
