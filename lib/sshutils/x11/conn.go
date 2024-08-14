@@ -87,7 +87,7 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (X
 		display := Display{DisplayNumber: displayNumber}
 		if l, err := display.Listen(); err == nil {
 			return l, display, nil
-		} else if !errors.Is(err, syscall.EADDRINUSE) {
+		} else if !errors.Is(err, syscall.EADDRINUSE) && !errors.Is(err, syscall.EACCES) {
 			return nil, Display{}, trace.Wrap(err)
 		}
 	}
