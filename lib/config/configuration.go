@@ -1256,7 +1256,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
 				"Teleport users to Man-in-the-Middle attacks."
-			log.Warnf(warningMessage)
+			log.Warn(warningMessage)
 		} else {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
 				return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
