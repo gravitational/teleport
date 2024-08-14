@@ -89,7 +89,7 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 	if len(reqData.LoginsByRole) > 0 {
 		for _, role := range sortedRoles {
 			sortedLogins := sortList(reqData.LoginsByRole[role])
-			loginStr := "_none_"
+			loginStr := "-"
 			if len(sortedLogins) > 0 {
 				loginStr = strings.Join(sortedLogins, ", ")
 			}

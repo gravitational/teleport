@@ -236,7 +236,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 
 	loginsByRole, err := a.getLoginsByRole(ctx, req)
 	if trace.IsAccessDenied(err) {
-		log.Warnf("failed to get logins by role. error: %s", err)
+		log.Warnf("Missing permissions to get logins by role. Please add role.read to the associated role. error: %s", err)
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
