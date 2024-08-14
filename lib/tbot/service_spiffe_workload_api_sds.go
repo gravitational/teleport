@@ -30,7 +30,6 @@ import (
 	tlsv3pb "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	discoveryv3pb "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
-	anyv1pb "github.com/golang/protobuf/ptypes/any"
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -132,7 +131,7 @@ func (s *spiffeSDSHandler) FetchSecrets(
 //	place by returning the new API config version as applied or the
 //	previous API config version respectively.
 //
-// From the docs on the DiscoveryRequest.responce_nonce field:
+// From the docs on the DiscoveryRequest.response_nonce field:
 //
 //	nonce corresponding to DiscoveryResponse being ACK/NACKed. See above
 //	discussion on version_info and the DiscoveryResponse nonce comment
@@ -179,7 +178,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 		for {
 			req, err := srv.Recv()
 			if err != nil {
-				// It's worth noting that we'll receive an IOF/Cancelled error
+				// It's worth noting that we'll receive an IOF/Canceled error
 				// here once the main goroutine has exited or the client goes
 				// away.
 				select {
@@ -208,7 +207,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 		select {
 		case err := <-recvErrCh:
 			// If we receive an error from the read side, we should exit.
-			// This error could be an EOF/Cancelled error if the client
+			// This error could be an EOF/Canceled error if the client
 			// goes away.
 			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 				return nil
@@ -349,7 +348,7 @@ func (s *spiffeSDSHandler) generateResponse(
 	}
 	returnAll := len(names) == 0
 
-	var resources []*anyv1pb.Any
+	var resources []*anypb.Any
 
 	// Filter SVIDs down to those accessible to this workload
 	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, attest)
@@ -459,7 +458,7 @@ func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
 
 func newTLSV3Certificate(
 	svid *workloadpb.X509SVID, overrideResourceName string,
-) (*anyv1pb.Any, error) {
+) (*anypb.Any, error) {
 	// noah: This section of code does not currently support intermediate
 	// certificates, but, we don't currently use them.
 	certBytes := pem.EncodeToMemory(&pem.Block{
@@ -502,7 +501,7 @@ const envoySPIFFECertValidator = "envoy.tls.cert_validator.spiffe"
 
 func newTLSV3ValidationContext(
 	tb *x509bundle.Bundle, overrideResourceName string,
-) (*anyv1pb.Any, error) {
+) (*anypb.Any, error) {
 	caBytes, err := tb.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling trust bundle")
