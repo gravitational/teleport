@@ -51,6 +51,12 @@ func newAccessRequestPack(t *testing.T) (accessRequestServices, *services.Access
 	})
 	require.NoError(t, err)
 
+	select {
+	case <-cache.InitializationChan():
+	case <-time.After(time.Second * 30):
+		require.FailNow(t, "timeout waiting for access request cache to initialize")
+	}
+
 	return svcs, cache
 }
 
