@@ -48,7 +48,7 @@ const makeResourceSpec = (
       kind: ResourceKind.Application,
       icon: '',
       event: null,
-      keywords: '',
+      keywords: [],
       hasAccess: true,
     },
     overrides

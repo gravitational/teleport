@@ -581,9 +581,6 @@ const (
 	// membership information
 	TraitTeams = "github_teams"
 
-	// TraitJWT is the name of the trait containing JWT header for app access.
-	TraitJWT = "jwt"
-
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -842,13 +839,10 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for local port forwarding.
-	LocalForwardSubCommand = "forwardv2"
-
-	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for remote port forwarding.
-	RemoteForwardSubCommand = "remoteforward"
+	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
+	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
+	// or x11 forwarding.
+	NetworkingSubCommand = "networking"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.

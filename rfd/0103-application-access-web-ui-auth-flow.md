@@ -39,7 +39,7 @@ The `AppLauncher.tsx` conducts the initial app authn flow and does the following
 OAuth like `state` exchange pattern is used to protect the app route `/x-teleport-auth` from CSRF. The authn flow uses two HTTP methods:
 
 - GET: `begins` the authn flow. Performs two different actions:
-  1. If the request URL does not contain `state` query param, it creates a random token and redirects the user back to the `AppLaunhcer.tsx` with both a `state` query param and a `state` cookie set with the random token value
+  1. If the request URL does not contain `state` query param, it creates a random token and redirects the user back to the `AppLauncher.tsx` with both a `state` query param and a `state` cookie set with the random token value
   2. If the `state` query param is present, it serves a `app redirection HTML` (contains inline JS that runs after page is loaded)
 - POST: `completes` the authn flow. This method is called within the inline JS served by the GET method and does the following:
   - checks that the `state` value passed via request body matches the value found in `state` cookie (double submit cookie method)

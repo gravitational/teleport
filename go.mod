@@ -316,7 +316,7 @@ require (
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.6.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
-	github.com/envoyproxy/go-control-plane v0.12.0 // indirect
+	github.com/envoyproxy/go-control-plane v0.12.0
 	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
@@ -549,6 +549,7 @@ require (
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
+	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.1
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.1

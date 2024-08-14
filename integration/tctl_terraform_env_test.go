@@ -217,15 +217,15 @@ func createTCTLTerraformUserAndRole(t *testing.T, username string, instance *hel
 // For the tests, the client is configured to trust the proxy TLS certs on first connection.
 func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) *authclient.Client {
 	// Get TLS and SSH material
-	key := helpers.MustCreateUserKey(t, tc, username, ttl)
+	keyRing := helpers.MustCreateUserKeyRing(t, tc, username, ttl)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
+	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
 	require.NoError(t, err)
 	tlsConfig.InsecureSkipVerify = true
 	proxyAddr, err := tc.Process.ProxyWebAddr()
 	require.NoError(t, err)
-	sshConfig, err := key.ProxyClientSSHConfig(proxyAddr.Host())
+	sshConfig, err := keyRing.ProxyClientSSHConfig(proxyAddr.Host())
 	require.NoError(t, err)
 
 	// Build auth client configuration
@@ -276,10 +276,10 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 // This client only has TLSConfig set (as opposed to TLSConfig+SSHConfig).
 func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) *authclient.Client {
 	// Get TLS and SSH material
-	key := helpers.MustCreateUserKey(t, tc, username, ttl)
+	keyRing := helpers.MustCreateUserKeyRing(t, tc, username, ttl)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
+	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
 	require.NoError(t, err)
 
 	// Build auth client configuration

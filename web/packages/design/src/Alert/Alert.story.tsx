@@ -20,9 +20,9 @@ import React from 'react';
 
 import { Restore } from 'design/Icon';
 
-import { Box } from '..';
+import { Box, Link } from '..';
 
-import { Alert, AlertProps } from './Alert';
+import { Alert, AlertProps, Banner } from './Alert';
 
 export default {
   title: 'Design/Alerts',
@@ -68,6 +68,59 @@ export const Actionable = () => (
       AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.
     </Alert>
   </Box>
+);
+
+export const Banners = () => (
+  <>
+    <Banner kind="neutral" dismissible>
+      I'm neutral.
+    </Banner>
+    <Banner kind="info" dismissible>
+      This is fine.
+    </Banner>
+    <Banner kind="warning" dismissible>
+      Not good, not terrible.
+    </Banner>
+    <Banner kind="danger" dismissible>
+      We're gonna need a bigger cluster.
+    </Banner>
+    <Banner kind="success" dismissible>
+      Success!
+    </Banner>
+    <Banner
+      kind="primary"
+      details="How about a nice game of chess?"
+      dismissible
+      primaryAction={{
+        content: "Let's play",
+        onClick: () => alert("Let's play"),
+      }}
+      secondaryAction={{
+        content: 'Maybe later',
+        onClick: () => alert('Maybe later'),
+      }}
+    >
+      Greetings, professor Falken.
+    </Banner>
+    <Banner kind="neutral" dismissible>
+      <Link href="#">Neutral link</Link>
+    </Banner>
+    <Banner kind="info" dismissible>
+      <Link href="#">Info link</Link>
+    </Banner>
+    <Banner kind="warning" dismissible>
+      <Link href="#">Warning link</Link>
+    </Banner>
+    <Banner kind="danger" dismissible>
+      <Link href="#">Danger link</Link>
+    </Banner>
+    <Banner kind="success" dismissible>
+      <Link href="#">Success link</Link>
+    </Banner>
+    <Banner kind="primary" dismissible>
+      <Link href="#">Primary link</Link>
+    </Banner>
+  </>
 );
 
 const commonProps: AlertProps = {

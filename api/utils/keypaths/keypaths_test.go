@@ -31,7 +31,7 @@ func TestIsProfileKubeConfigPath(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, isKubeConfig)
 
-	path = keypaths.KubeCertPath("~/tsh", "proxy", "user", "cluster", "kube")
+	path = keypaths.KubeCredPath("~/tsh", "proxy", "user", "cluster", "kube")
 	isKubeConfig, err = keypaths.IsProfileKubeConfigPath(path)
 	require.NoError(t, err)
 	require.False(t, isKubeConfig)

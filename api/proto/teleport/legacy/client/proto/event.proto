@@ -25,6 +25,7 @@ import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
+import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
@@ -171,5 +172,7 @@ message Event {
     teleport.machineid.v1.BotInstance BotInstance = 60;
     // AccessGraphSettings is a resource for access graph settings.
     teleport.clusterconfig.v1.AccessGraphSettings AccessGraphSettings = 61;
+    // SPIFFEFederation is a resource for SPIFFE federation.
+    teleport.machineid.v1.SPIFFEFederation SPIFFEFederation = 62;
   }
 }
