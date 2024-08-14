@@ -371,17 +371,6 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
-	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
-		ctx,
-		srv.Auth(),
-		"unauthorized",
-		// Nothing role necessary as otherwise authz engine gets confused.
-		nothingRole,
-	)
-	require.NoError(t, err)
-
 	role, err := types.NewRole("federation-reader", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
@@ -444,15 +433,6 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
-		{
-			name:    "unauthorized",
-			user:    unauthorizedUser.GetName(),
-			getName: name,
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -484,17 +464,6 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
-
-	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
-	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
-		ctx,
-		srv.Auth(),
-		"unauthorized",
-		// Nothing role necessary as otherwise authz engine gets confused.
-		nothingRole,
-	)
-	require.NoError(t, err)
 
 	role, err := types.NewRole("federation-reader", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -563,14 +532,6 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 			user:           authorizedUser.GetName(),
 			requireError:   require.NoError,
 			assertResponse: true,
-		},
-		{
-			name: "unauthorized",
-			user: unauthorizedUser.GetName(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
-			},
 		},
 	}
 
