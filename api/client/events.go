@@ -23,6 +23,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -80,6 +81,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *dbobjectv1.DatabaseObject:
 			out.Resource = &proto.Event_DatabaseObject{
 				DatabaseObject: r,
+			}
+		case *machineidv1.SPIFFEFederation:
+			out.Resource = &proto.Event_SPIFFEFederation{
+				SPIFFEFederation: r,
 			}
 		case *clusterconfigpb.AccessGraphSettings:
 			out.Resource = &proto.Event_AccessGraphSettings{
@@ -514,6 +519,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetDatabaseObject(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetSPIFFEFederation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAccessGraphSettings(); r != nil {

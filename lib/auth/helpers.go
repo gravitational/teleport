@@ -342,6 +342,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			SAMLIdPSession:          svces.Identity,
 			SecReports:              svces.SecReports,
 			SnowflakeSession:        svces.Identity,
+			SPIFFEFederations:       svces.SPIFFEFederations,
 			Trust:                   svces.TrustInternal,
 			UserGroups:              svces.UserGroups,
 			UserLoginStates:         svces.UserLoginStates,
