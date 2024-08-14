@@ -74,7 +74,7 @@ spec:
 This role grants access to create, update, delete, and list a number of Teleport
 resources. You may wish to remove resources that you do not intend to configure
 with Terraform from this list to reduce blast radius. See the [Teleport Role
-Reference](../../../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)
+Reference](../../../reference/access-controls/roles.mdx)
 for the dynamic resources you can grant access to in a Teleport role.
 
 Create this role by applying the manifest:
@@ -312,5 +312,5 @@ $ tctl get users/terraform-test
   to authenticate to your Teleport cluster, read [the Spacelift
   documentation](https://docs.spacelift.io/integrations/cloud-providers/oidc/).
 - Learn how you can help achieve secure access for service accounts by sending
-  [anonymous Machine ID telemetry](../reference/telemetry.mdx).
+  [anonymous Machine ID telemetry](../../../reference/machine-id/telemetry.mdx).
 
