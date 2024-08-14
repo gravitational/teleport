@@ -829,7 +829,7 @@ version: v2`,
 				buf, err := runResourceCommand(t, fileConfig, []string{"get", "cap", "--format=json"})
 				require.NoError(t, err)
 				authPreferences := mustDecodeJSON[[]types.AuthPreferenceV2](t, buf)
-				require.NotZero(t, len(authPreferences))
+				require.NotEmpty(t, authPreferences)
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
 			}
 		})

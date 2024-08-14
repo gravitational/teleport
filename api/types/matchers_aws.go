@@ -142,7 +142,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
-	if m.Tags == nil || len(m.Tags) == 0 {
+	if len(m.Tags) == 0 {
 		m.Tags = map[string]apiutils.Strings{Wildcard: {Wildcard}}
 	}
 
