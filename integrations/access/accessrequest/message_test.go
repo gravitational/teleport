@@ -82,7 +82,7 @@ func ExampleMsgFields_logins() {
 	// *User*: example@goteleport.com
 	// *Role*: `admin` *Login(s)*: `bar, foo, root`
 	// *Role*: `bar` *Login(s)*: `bar`
-	// *Role*: `dev` *Login(s)*: `_none_`
+	// *Role*: `dev` *Login(s)*: `-`
 	// *Role*: `foo` *Login(s)*: `foo`
 	// *Resource(s)*: `/example.teleport.sh/node/0000`
 	// *Reason*: ```
