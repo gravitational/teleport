@@ -1121,7 +1121,7 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 }
 
 // DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
-type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+type DTAuthnRunCeremonyFunc func(ctx context.Context, clt devicepb.DeviceTrustServiceClient, sshCert []byte, sshSigner *keys.PrivateKey) (*devicepb.UserCertificates, error)
 
 // DTAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
 type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
@@ -3362,11 +3362,9 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 	newCerts, err := tc.DeviceLogin(
 		ctx,
 		rootAuthClient,
-		&devicepb.UserCertificates{
-			// Augment the SSH certificate.
-			// The TLS certificate is already part of the connection.
-			SshAuthorizedKey: keyRing.Cert,
-		})
+		keyRing.Cert,
+		// TODO(nklaassen): split SSH private key from TLS key.
+		keyRing.PrivateKey)
 	switch {
 	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
 		log.Debug("Device Trust: Skipping device authentication, device key not found")
@@ -3418,7 +3416,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 // `tsh login`).
 //
 // Device Trust is a Teleport Enterprise feature.
-func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authclient.ClientI, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authclient.ClientI, sshCert []byte, sshSigner *keys.PrivateKey) (*devicepb.UserCertificates, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/DeviceLogin",
@@ -3434,7 +3432,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 
 	// Login without a previous auto-enroll attempt.
 	devicesClient := rootAuthClient.DevicesClient()
-	newCerts, loginErr := runCeremony(ctx, devicesClient, certs)
+	newCerts, loginErr := runCeremony(ctx, devicesClient, sshCert, sshSigner)
 	// Success or auto-enroll impossible.
 	if loginErr == nil || errors.Is(loginErr, devicetrust.ErrPlatformNotSupported) || trace.IsNotImplemented(loginErr) {
 		return newCerts, trace.Wrap(loginErr)
@@ -3460,7 +3458,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 		log.WithError(err).Debug("Device Trust: device auto-enroll failed")
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
-	newCerts, err = runCeremony(ctx, devicesClient, certs)
+	newCerts, err = runCeremony(ctx, devicesClient, sshCert, sshSigner)
 	return newCerts, trace.Wrap(err)
 }
 

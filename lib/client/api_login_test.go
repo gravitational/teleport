@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -362,15 +363,15 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
 		// and returns validCerts on success.
 		var runCeremonyCalls int
-		validatingRunCeremony := func(_ context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		validatingRunCeremony := func(_ context.Context, devicesClient devicepb.DeviceTrustServiceClient, sshCert []byte, sshSigner *keys.PrivateKey) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			switch {
 			case devicesClient == nil:
 				return nil, errors.New("want non-nil devicesClient")
-			case certs == nil:
-				return nil, errors.New("want non-nil certs")
-			case len(certs.SshAuthorizedKey) == 0:
-				return nil, errors.New("want non-empty certs.SshAuthorizedKey")
+			case len(sshCert) == 0:
+				return nil, errors.New("want non-empty sshCert")
+			case sshSigner == nil:
+				return nil, errors.New("want non-nil sshSigner")
 			}
 			return validCerts, nil
 		}
@@ -388,9 +389,8 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test! Exercise DeviceLogin.
 		got, err := teleportClient.DeviceLogin(ctx,
 			rootAuthClient,
-			&devicepb.UserCertificates{
-				SshAuthorizedKey: key.Cert,
-			})
+			key.Cert,
+			key.PrivateKey)
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
@@ -408,7 +408,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	t.Run("attempt login respects ping", func(t *testing.T) {
 		runCeremonyCalled := false
 		teleportClient.SetDTAttemptLoginIgnorePing(false)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ []byte, _ *keys.PrivateKey) (*devicepb.UserCertificates, error) {
 			runCeremonyCalled = true
 			return nil, errors.New("dtAuthnRunCeremony called unexpectedly")
 		})
@@ -435,7 +435,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		var enrolled bool
 		var runCeremonyCalls, autoEnrollCalls int
 		teleportClient.SetDTAutoEnrollIgnorePing(true)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ []byte, _ *keys.PrivateKey) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			if !enrolled {
 				return nil, errors.New("device not enrolled")
@@ -462,9 +462,8 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		got, err := teleportClient.DeviceLogin(
 			ctx,
 			rootAuthClient,
-			&devicepb.UserCertificates{
-				SshAuthorizedKey: key.Cert,
-			})
+			key.Cert,
+			key.PrivateKey)
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
 		assert.Equal(t, 2, runCeremonyCalls, "RunCeremony called an unexpected number of times")

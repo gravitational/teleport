@@ -26,7 +26,9 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
@@ -65,22 +67,21 @@ func NewCeremony() *Ceremony {
 func (c *Ceremony) Run(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
-	certs *devicepb.UserCertificates,
+	sshCert []byte,
+	sshSigner *keys.PrivateKey,
 ) (*devicepb.UserCertificates, error) {
-	switch {
-	case devicesClient == nil:
+	if devicesClient == nil {
 		return nil, trace.BadParameter("devicesClient required")
-	case certs == nil:
-		return nil, trace.BadParameter("certs required")
 	}
+	// nil sshCert and sshSigner is okay.
 
 	resp, err := c.run(ctx, devicesClient, &devicepb.AuthenticateDeviceInit{
 		UserCertificates: &devicepb.UserCertificates{
 			// Forward only the SSH certificate, the TLS identity is part of the
 			// connection.
-			SshAuthorizedKey: certs.SshAuthorizedKey,
+			SshAuthorizedKey: sshCert,
 		},
-	})
+	}, sshSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,9 +112,11 @@ func (c *Ceremony) RunWeb(
 		return nil, trace.BadParameter("webToken required")
 	}
 
+	// It's not necessary to sign with the SSH key for Device Trust Web, the SSH
+	// cert is implicitly trusted when it's taken directly from the web session.
 	resp, err := c.run(ctx, devicesClient, &devicepb.AuthenticateDeviceInit{
 		DeviceWebToken: webToken,
-	})
+	}, nil /*sshSigner*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,6 +133,7 @@ func (c *Ceremony) run(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
 	init *devicepb.AuthenticateDeviceInit,
+	sshSigner *keys.PrivateKey,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	// Fetch device data early, this automatically excludes unsupported platforms
 	// and unenrolled devices.
@@ -170,10 +174,10 @@ func (c *Ceremony) run(
 	// 2. Challenge.
 	switch c.GetDeviceOSType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
-		err = c.authenticateDeviceMacOS(stream, resp)
+		err = c.authenticateDeviceMacOS(stream, resp, sshSigner)
 		// err handled below
 	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
-		err = c.authenticateDeviceTPM(stream, resp)
+		err = c.authenticateDeviceTPM(stream, resp, sshSigner)
 		// err handled below
 	default:
 		// This should be caught by the c.GetDeviceCredential() and
@@ -192,6 +196,7 @@ func (c *Ceremony) run(
 func (c *Ceremony) authenticateDeviceMacOS(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
+	sshSigner *keys.PrivateKey,
 ) error {
 	chalResp := resp.GetChallenge()
 	if chalResp == nil {
@@ -201,10 +206,18 @@ func (c *Ceremony) authenticateDeviceMacOS(
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var sshSig []byte
+	if sshSigner != nil {
+		sshSig, err = challenge.Sign(chalResp.Challenge, sshSigner)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
 			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature: sig,
+				Signature:    sig,
+				SshSignature: sshSig,
 			},
 		},
 	})
@@ -220,14 +233,21 @@ func (c *Ceremony) authenticateDeviceMacOS(
 func (c *Ceremony) authenticateDeviceTPM(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
+	sshSigner *keys.PrivateKey,
 ) error {
-	challenge := resp.GetTpmChallenge()
-	if challenge == nil {
+	chalResp := resp.GetTpmChallenge()
+	if chalResp == nil {
 		return trace.BadParameter("unexpected payload from server, expected TPMAuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	challengeResponse, err := c.SolveTPMAuthnDeviceChallenge(challenge)
+	challengeResponse, err := c.SolveTPMAuthnDeviceChallenge(chalResp)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if sshSigner != nil {
+		challengeResponse.SshSignature, err = challenge.Sign(chalResp.AttestationNonce, sshSigner)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
