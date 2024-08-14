@@ -10,12 +10,25 @@ shape the future of Workload Identity and would love to
 [hear your feedback](mailto:product@goteleport.com).
 </Admonition>
 
-Workload Attestation is the process of verifying the identity of a workload that
-has connected to the Workload API. Workload attestors resolve the process ID
-of the workload against platform-specific APIs to determine more information
-(known as attestation metadata) about the workload. This information can then
-be used to make decisions about which SPIFFE IDs should be issued to the
-workload.
+Workload Attestation is the process completed by `tbot` to assert the identity
+of a workload that has connected to the Workload API and requested certificates.
+The information gathered during attestation is used to decide which, if any,
+SPIFFE IDs should be encoded into an SVID and issued to the workload.
+
+Workload Attestors are the individual components that perform this attestation.
+They use the process ID of the workload to gather information about the workload
+from platform-specific APIs. For example, the Kubernetes Workload Attestor
+queries the local Kubelet API to determine which Kubernetes pod the process
+belongs to.
+
+The result of the attestation process is known as attestation metadata. This
+attestation metadata is referred to by the rules you configured for `tbot`'s
+Workload API service. For example, you may state that only workloads running in
+a specific Kubernetes namespace should be issued a specific SPIFFE ID.
+
+Additionally, this metadata is included in the log messages output by `tbot`
+when it issues an SVID. This allows you to audit the issuance of SVIDs and
+understand why a specific SPIFFE ID was issued to a workload.
 
 ## Unix
 
