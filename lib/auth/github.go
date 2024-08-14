@@ -162,7 +162,24 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
+
+	acURL := client.AuthCodeURL(req.StateToken, "", "")
+	redirectURL, err := url.Parse(acURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	redirectQuery := redirectURL.Query()
+	if req.CreatePrivilegedToken {
+		redirectQuery.Set("max_age", "0")
+	}
+
+	redirectURL.RawQuery = redirectQuery.Encode()
+	req.RedirectURL = redirectURL.String()
+	if req.RedirectURL == "" {
+		return nil, trace.BadParameter("response redirect URL is empty")
+	}
+
 	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
