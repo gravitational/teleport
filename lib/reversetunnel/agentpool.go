@@ -67,7 +67,7 @@ const (
 // lib/srv in lib/reversetunnel causes a circular import.
 type ServerHandler interface {
 	// HandleConnection performs a handshake then process the connection.
-	HandleConnection(conn net.Conn)
+	HandleConnection(conn net.Conn, targetPort int)
 }
 
 type newAgentFunc func(context.Context, *track.Tracker, *track.Lease) (Agent, error)
@@ -603,7 +603,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
 	}
 
-	p.Server.HandleConnection(conn)
+	p.Server.HandleConnection(conn, dialReq.ClientTargetPort)
 }
 
 // agentPoolRuntimeConfig contains configurations dynamically set and updated
@@ -831,7 +831,7 @@ func NewServerHandlerToListener(tunnelAddr string) ServerHandlerToListener {
 	}
 }
 
-func (l ServerHandlerToListener) HandleConnection(c net.Conn) {
+func (l ServerHandlerToListener) HandleConnection(c net.Conn, targetPort int) {
 	// HandleConnection must block as long as c is used.
 	// Wrap c to only return after c.Close() has been called.
 	cc := newConnCloser(c)

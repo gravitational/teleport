@@ -50,7 +50,7 @@ import (
 // (perform a handshake then process).
 type ServerHandler interface {
 	// HandleConnection performs a handshake then process the connection.
-	HandleConnection(conn net.Conn)
+	HandleConnection(conn net.Conn, targetPort int)
 }
 
 // transportConfig is configuration for a rewriting transport.
@@ -368,7 +368,8 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
 			src, dst := net.Pipe()
-			go t.c.integrationAppHandler.HandleConnection(src)
+			// TODO: Explain why 0 here is okay.
+			go t.c.integrationAppHandler.HandleConnection(src, 0 /* targetPort */)
 			return dst, nil
 		}
 
@@ -435,6 +436,8 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, 
 		from = clientSrcAddr
 	}
 
+	clientTargetPort := authz.ClientTargetPortFromContext(ctx)
+
 	conn, err := clusterClient.Dial(reversetunnelclient.DialParams{
 		From:                  from,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
@@ -442,6 +445,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, 
 		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
 		ConnType:              server.GetTunnelType(),
 		ProxyIDs:              server.GetProxyIDs(),
+		ClientTargetPort:      clientTargetPort,
 	})
 	return conn, trace.Wrap(err)
 }

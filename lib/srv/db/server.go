@@ -932,7 +932,7 @@ func (s *Server) ForceHeartbeat() error {
 // HandleConnection accepts the connection coming over reverse tunnel,
 // upgrades it to TLS, extracts identity information from it, performs
 // authorization and dispatches to the appropriate database engine.
-func (s *Server) HandleConnection(conn net.Conn) {
+func (s *Server) HandleConnection(conn net.Conn, _ int) {
 	// Track active connections.
 	s.activeConnections.Add(1)
 	defer s.activeConnections.Add(-1)

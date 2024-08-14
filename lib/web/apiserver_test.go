@@ -8239,7 +8239,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 type mockIntegrationAppHandler struct{}
 
-func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {}
+func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn, _ int) {}
 
 // webPack represents the state of a single web test.
 // It replicates most of the WebSuite and serves to gradually

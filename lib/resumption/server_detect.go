@@ -63,7 +63,7 @@ type SSHServerWrapperConfig struct {
 	// SSHServer is a function that takes ownership of a [net.Conn] and uses it
 	// as a SSH server. If the Conn is a [sshutils.SSHServerVersionOverrider],
 	// the server should use the overridden server version.
-	SSHServer func(net.Conn)
+	SSHServer func(net.Conn, int)
 
 	// HostID is the host ID of the Teleport instance running the server;
 	// compliant connection resumption clients will reconnect to the host ID
@@ -93,7 +93,7 @@ type resumptionToken = [16]byte
 // active underlying connection for a given time ([detachedTimeout]) are
 // forcibly closed.
 type SSHServerWrapper struct {
-	sshServer func(net.Conn)
+	sshServer func(net.Conn, int)
 
 	hostID  string
 	dataDir string
@@ -182,11 +182,11 @@ var _ multiplexer.PreDetectFunc = (*SSHServerWrapper)(nil).PreDetect
 // server version identifier, then checks if the client supports resumption,
 // running the connection as a resumable connection if that's the case, or
 // handing the connection to the underlying SSH server otherwise.
-func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
+func (r *SSHServerWrapper) HandleConnection(nc net.Conn, targetPort int) {
 	dhKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		slog.ErrorContext(context.TODO(), "failed to generate ECDH key, proceeding without resumption (this is a bug)", "error", err)
-		r.sshServer(nc)
+		r.sshServer(nc, targetPort)
 		return
 	}
 
@@ -217,7 +217,7 @@ func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
 
 			serverVersion:  serverVersionCRLF[:len(serverVersionCRLF)-2],
 			alreadyWritten: serverVersionCRLF,
-		})
+		}, targetPort)
 		return
 	}
 

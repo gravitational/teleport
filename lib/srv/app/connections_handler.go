@@ -311,7 +311,7 @@ func (c *ConnectionsHandler) expireSessions() {
 
 // HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
-func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
+func (c *ConnectionsHandler) HandleConnection(conn net.Conn, targetPort int) {
 	ctx := context.Background()
 
 	// Wrap conn in a CloserConn to detect when it is closed.
@@ -319,7 +319,7 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	// httpServer will initiate the close call.
 	closerConn := utils.NewCloserConn(conn)
 
-	cleanup, err := c.handleConnection(closerConn)
+	cleanup, err := c.handleConnection(closerConn, targetPort)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -575,7 +575,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	return authContext, app, nil
 }
 
-func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
+func (c *ConnectionsHandler) handleConnection(conn net.Conn, targetPort int) (func(), error) {
 	ctx, cancel := context.WithCancelCause(c.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
@@ -627,7 +627,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	if app.IsTCP() {
 		identity := authCtx.Identity.GetIdentity()
 		defer cancel(nil)
-		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
+		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app, targetPort))
 	}
 
 	cleanup := func() {
@@ -655,8 +655,8 @@ func (c *ConnectionsHandler) handleHTTPApp(ctx context.Context, conn net.Conn) e
 }
 
 // handleTCPApp handles connection for a TCP application.
-func (c *ConnectionsHandler) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
-	err := c.tcpServer.handleConnection(ctx, conn, identity, app)
+func (c *ConnectionsHandler) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application, targetPort int) error {
+	err := c.tcpServer.handleConnection(ctx, conn, identity, app, targetPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}

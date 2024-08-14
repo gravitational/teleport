@@ -26,6 +26,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -382,6 +383,11 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		ALPN: hello.SupportedProtos,
 	}
 	ctx = authz.ContextWithClientAddrs(ctx, clientConn.RemoteAddr(), clientConn.LocalAddr())
+	targetPort, err := extractTargetPortFromSNI(hello.ServerName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx = authz.ContextWithClientTargetPort(ctx, targetPort)
 
 	if handlerDesc.ForwardTLS {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
@@ -657,4 +663,18 @@ func (w *ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn ne
 func isConnRemoteError(err error) bool {
 	var opErr *net.OpError
 	return errors.As(err, &opErr) && opErr.Op == "remote error"
+}
+
+func extractTargetPortFromSNI(sni string) (int, error) {
+	after, found := strings.CutPrefix(sni, constants.TargetPortALPNPrefix)
+	if !found {
+		return 0, nil
+	}
+
+	portRaw := strings.SplitN(after, ".", 2)[0]
+	port, err := strconv.Atoi(portRaw)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return port, nil
 }

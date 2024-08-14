@@ -316,6 +316,7 @@ const (
 const (
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
+	TargetPortALPNPrefix        = "app-teleport-proxy-target-port-"
 )
 
 // SessionRecordingService is used to differentiate session recording services.

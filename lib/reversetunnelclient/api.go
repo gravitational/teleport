@@ -87,6 +87,8 @@ type DialParams struct {
 
 	// OriginalClientDstAddr is used in PROXY headers to show where client originally contacted Teleport infrastructure
 	OriginalClientDstAddr net.Addr
+
+	ClientTargetPort int
 }
 
 func (params DialParams) String() string {

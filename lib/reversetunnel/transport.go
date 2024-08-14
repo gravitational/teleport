@@ -202,7 +202,8 @@ func (p *transport) start() {
 			if err == nil {
 				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
-			p.server.HandleConnection(clientConn)
+			// kube doesn't utilize target port, so we always pass 0.
+			p.server.HandleConnection(clientConn, 0)
 			return
 		default:
 			// This must be a proxy.
@@ -245,7 +246,7 @@ func (p *transport) start() {
 			if err == nil {
 				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
-			p.server.HandleConnection(clientConn)
+			p.server.HandleConnection(clientConn, dreq.ClientTargetPort)
 			return
 		}
 		// If this is a proxy and not an SSH node, try finding an inbound

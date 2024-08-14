@@ -392,7 +392,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
+	// TODO: Accept the port through a flag.
+	sni := libclient.GetAppTLSServerNameWithPortPrefix(tc.WebProxyHost(), 5434)
+	if err := proxyApp.StartLocalProxy(cf.Context,
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
+		alpnproxy.WithSNI(sni)); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 
@@ -39,7 +40,7 @@ type tcpServer struct {
 }
 
 // handleConnection handles connection from a TCP application.
-func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
+func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application, targetPort int) error {
 	addr, err := utils.ParseAddr(app.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
@@ -50,6 +51,17 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	dialer := net.Dialer{
 		Timeout: apidefaults.DefaultIOTimeout,
 	}
+
+	if targetPort != 0 {
+		s.log.InfoContext(ctx, "Handling target port", "target_port", targetPort)
+		host, _, err := net.SplitHostPort(addr.Addr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		addr.Addr = fmt.Sprintf("%s:%d", host, targetPort)
+	}
+
 	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.String())
 	if err != nil {
 		return trace.Wrap(err)

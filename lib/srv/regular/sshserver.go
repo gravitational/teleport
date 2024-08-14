@@ -421,7 +421,7 @@ func (s *Server) Wait() {
 
 // HandleConnection is called after a connection has been accepted and starts
 // to perform the SSH handshake immediately.
-func (s *Server) HandleConnection(conn net.Conn) {
+func (s *Server) HandleConnection(conn net.Conn, targetPort int) {
 	s.srv.HandleConnection(conn)
 }
 

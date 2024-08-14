@@ -102,6 +102,8 @@ type DialReq struct {
 	// correct client point of contact through indirect connections inside teleport
 	ClientDstAddr string `json:"client_dst_addr,omitempty"`
 
+	ClientTargetPort int `json:"client_target_port,omitempty"`
+
 	// IsAgentlessNode specifies whether the target is an agentless node.
 	IsAgentlessNode bool `json:"is_agentless_node,omitempty"`
 }

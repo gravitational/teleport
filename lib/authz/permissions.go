@@ -1360,6 +1360,8 @@ const (
 	// contextClientDstAddr is a client destination address set in the context of the request
 	contextClientDstAddr contextKey = "teleport-client-dst-addr"
 
+	contextClientTargetPort contextKey = "teleport-client-target-port"
+
 	// contextConn is a connection in the context associated with the request
 	contextConn contextKey = "teleport-connection"
 )
@@ -1690,6 +1692,18 @@ func ContextWithClientAddrs(ctx context.Context, src, dst net.Addr) context.Cont
 	return context.WithValue(ctx, contextClientDstAddr, dst)
 }
 
+func ContextWithClientTargetPort(ctx context.Context, targetPort int) context.Context {
+	if ctx == nil {
+		return nil
+	}
+
+	if targetPort == 0 {
+		return ctx
+	}
+
+	return context.WithValue(ctx, contextClientTargetPort, targetPort)
+}
+
 // ClientAddrsFromContext returns the client address from the context.
 func ClientAddrsFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
 	if ctx == nil {
@@ -1698,6 +1712,15 @@ func ClientAddrsFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
 	src, _ = ctx.Value(contextClientSrcAddr).(net.Addr)
 	dst, _ = ctx.Value(contextClientDstAddr).(net.Addr)
 	return
+}
+
+func ClientTargetPortFromContext(ctx context.Context) (port int) {
+	if ctx == nil {
+		return 0
+	}
+
+	targetPort, _ := ctx.Value(contextClientTargetPort).(int)
+	return targetPort
 }
 
 func ContextWithConn(ctx context.Context, conn net.Conn) context.Context {

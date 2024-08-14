@@ -134,7 +134,8 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 			}()
 			defer entry.increaseRunning() // stop grace timeouts
 			slog.InfoContext(context.TODO(), "handing resumable connection to the SSH server")
-			r.sshServer(resumableConn)
+			// TODO: Explain why 0 here is fine.
+			r.sshServer(resumableConn, 0 /* targetPort */)
 		}()
 
 		entry.increaseRunning()

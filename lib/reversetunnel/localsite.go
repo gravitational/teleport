@@ -586,10 +586,11 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	}
 
 	dreq := &sshutils.DialReq{
-		ServerID:      params.ServerID,
-		ConnType:      params.ConnType,
-		ClientSrcAddr: stringOrEmpty(params.From),
-		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
+		ServerID:         params.ServerID,
+		ConnType:         params.ConnType,
+		ClientSrcAddr:    stringOrEmpty(params.From),
+		ClientDstAddr:    stringOrEmpty(params.OriginalClientDstAddr),
+		ClientTargetPort: params.ClientTargetPort,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()

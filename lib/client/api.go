@@ -1070,6 +1070,25 @@ func GetKubeTLSServerName(k8host string) string {
 	return addSubdomainPrefix(k8host, constants.KubeTeleportProxyALPNPrefix)
 }
 
+func GetAppTLSServerNameWithPortPrefix(host string, port int) string {
+	isIPFormat := net.ParseIP(host) != nil
+
+	serverName := host
+
+	if host == "" || host == string(teleport.PrincipalLocalhost) || isIPFormat {
+		serverName = constants.APIDomain
+	}
+
+	if port == 0 {
+		return serverName
+	}
+
+	prefixWithPort := fmt.Sprintf("%s%d.", constants.TargetPortALPNPrefix, port)
+
+	// E.g. app-teleport-proxy-target-port-1337.teleport.cluster.local.
+	return addSubdomainPrefix(serverName, prefixWithPort)
+}
+
 func addSubdomainPrefix(domain, prefix string) string {
 	return fmt.Sprintf("%s%s", prefix, domain)
 }

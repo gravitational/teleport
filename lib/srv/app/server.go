@@ -546,8 +546,8 @@ func (s *Server) Wait() error {
 
 // HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
-func (s *Server) HandleConnection(conn net.Conn) {
-	s.c.ConnectionsHandler.HandleConnection(conn)
+func (s *Server) HandleConnection(conn net.Conn, targetPort int) {
+	s.c.ConnectionsHandler.HandleConnection(conn, targetPort)
 }
 
 // GetAppByPublicAddress returns an application matching the public address. If multiple
