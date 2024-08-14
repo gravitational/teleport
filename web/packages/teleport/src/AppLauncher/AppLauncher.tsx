@@ -35,6 +35,7 @@ export function AppLauncher() {
   const pathParams = useParams<UrlLauncherParams>();
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
+  const isRedirectFlow = queryParams.get('required-apps');
 
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
     let fqdn = params.fqdn;
@@ -76,7 +77,6 @@ export function AppLauncher() {
       }
 
       let requiredApps = resolvedApp.requiredApps || [];
-      const isRedirectFlow = queryParams.get('required-apps');
       if (isRedirectFlow !== null) {
         requiredApps = isRedirectFlow.split(',');
       }
@@ -122,6 +122,8 @@ export function AppLauncher() {
       if (err instanceof TypeError) {
         // `fetch` returns `TypeError` when there is a network error.
         statusText = `Unable to access "${fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (https://${fqdn}${port}) and accept the certificate exception from your browser.`;
+      } else if (isRedirectFlow) {
+        statusText = `Error while authenticating a required app: ${err.message}`;
       } else if (err instanceof Error) {
         statusText = err.message;
       }
