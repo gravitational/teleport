@@ -38,11 +38,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
+	protobuf "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1200,6 +1204,39 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertAuthPreference(ctx, gotAP)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "Revision"))
+}
+
+// AccessGraphSettings tests access graph settings service
+func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
+	ctx := context.Background()
+	ap, err := clusterconfig.NewAccessGraphSettings(
+		&clusterconfigpb.AccessGraphSettingsSpec{
+			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+		},
+	)
+	require.NoError(t, err)
+
+	created, err := s.ConfigS.CreateAccessGraphSettings(ctx, ap)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetMetadata().GetRevision())
+
+	// Validate the created preference matches the retrieve preference.
+	got, err := s.ConfigS.GetAccessGraphSettings(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ap, got, protocmp.Transform()))
+
+	// Validate that update only works if the revision matches.
+	got.Metadata.Revision = "123"
+	_, err = s.ConfigS.UpdateAccessGraphSettings(ctx, got)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertAccessGraphSettings(ctx, protobuf.Clone(got).(*clusterconfigpb.AccessGraphSettings))
+	require.NoError(t, err)
+	require.NotEmpty(t, upserted.GetMetadata().GetRevision())
+	upserted.Metadata.Revision = ""
+	got.Metadata.Revision = ""
+	require.Empty(t, cmp.Diff(upserted, got, protocmp.Transform()))
 }
 
 // SessionRecordingConfig tests session recording configuration.
