@@ -233,7 +233,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
->>>>>>> origin/branch/v16
 		default:
 			if watch.AllowPartialSuccess {
 				continue
