@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
@@ -63,8 +62,8 @@ type sessionChunk struct {
 	closeC chan struct{}
 	// id is the session chunk's uuid, which is used as the id of its session upload.
 	id string
-	// streamCloser closes the session chunk stream.
-	streamCloser utils.WriteContextCloser
+	// streamRecorder records the session chunk stream.
+	streamRecorder events.SessionPreparerRecorder
 	// audit is the session chunk audit logger.
 	audit common.Audit
 	// handler handles requests for this session chunk.
@@ -93,13 +92,14 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 // The session chunk is created with inflight=1,
 // and as such expects `release()` to eventually be called
 // by the caller of this function.
-func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
+func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) (*sessionChunk, error) {
 	sess := &sessionChunk{
-		id:           uuid.New().String(),
-		closeC:       make(chan struct{}),
-		inflightCond: sync.NewCond(&sync.Mutex{}),
-		closeTimeout: sessionChunkCloseTimeout,
-		log:          c.legacyLogger,
+		id:             uuid.New().String(),
+		closeC:         make(chan struct{}),
+		inflightCond:   sync.NewCond(&sync.Mutex{}),
+		closeTimeout:   sessionChunkCloseTimeout,
+		log:            c.legacyLogger,
+		streamRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 	}
 
 	sess.log.Debugf("Creating app session chunk %s", sess.id)
@@ -110,29 +110,20 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the stream writer that will write this chunk to the audit log.
-	// Audit stream is using server context, not session context,
-	// to make sure that session is uploaded even after it is closed.
-	rec, err := c.newSessionRecorder(c.closeContext, startTime, sess.id)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, opt := range opts {
+		if err := opt(ctx, sess, identity, app); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	sess.streamCloser = rec
 
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter:  c.cfg.Emitter,
-		Recorder: rec,
+		Recorder: sess.streamRecorder,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.audit = audit
-
-	for _, opt := range opts {
-		if err = opt(ctx, sess, identity, app); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	// only emit a session chunk if we didn't get an error making the new session chunk
 	if err := sess.audit.OnSessionChunk(ctx, c.cfg.HostID, sess.id, identity, app); err != nil {
@@ -224,6 +215,18 @@ func (c *ConnectionsHandler) withGCPHandler(ctx context.Context, sess *sessionCh
 	return nil
 }
 
+func (c *ConnectionsHandler) withSessionRecorder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	// Create the stream writer that will write this chunk to the audit log.
+	// Audit stream is using server context, not session context,
+	// to make sure that session is uploaded even after it is closed.
+	rec, err := c.newSessionRecorder(c.closeContext, c.sessionStartTime(ctx), sess.id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sess.streamRecorder = rec
+	return nil
+}
+
 // acquire() increments in-flight request count by 1.
 // It is supposed to be paired with a `release()` call,
 // after the chunk is done with for the individual request
@@ -272,7 +275,7 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
 	s.log.Debugf("Closed session chunk %s", s.id)
-	return trace.Wrap(s.streamCloser.Close(ctx))
+	return trace.Wrap(s.streamRecorder.Close(ctx))
 }
 
 func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired any) {

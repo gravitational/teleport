@@ -37,10 +37,6 @@ import (
 
 // Audit defines an interface for app access audit events logger.
 type Audit interface {
-	// OnSessionStart is called when new app session starts.
-	OnSessionStart(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error
-	// OnSessionEnd is called when an app session ends.
-	OnSessionEnd(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error
 	// OnSessionChunk is called when a new session chunk is created.
 	OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
@@ -95,60 +91,6 @@ func getSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
 		WithMFA:          identity.MFAVerified,
 		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
 	}
-}
-
-// OnSessionStart is called when new app session starts.
-func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error {
-	event := &apievents.AppSessionStart{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			Code:        events.AppSessionStartCode,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        serverID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: getSessionMetadata(identity),
-		UserMetadata:    identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.LoginIP,
-		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
-	}
-	return trace.Wrap(a.EmitEvent(ctx, event))
-}
-
-// OnSessionEnd is called when an app session ends.
-func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error {
-	event := &apievents.AppSessionEnd{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionEndEvent,
-			Code:        events.AppSessionEndCode,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        serverID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: getSessionMetadata(identity),
-		UserMetadata:    identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.LoginIP,
-		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
-	}
-	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // OnSessionChunk is called when a new session chunk is created.

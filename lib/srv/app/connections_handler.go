@@ -341,11 +341,13 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 
 // serveSession finds the app session and forwards the request.
 func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) error {
+	opts = append(opts, c.withSessionRecorder)
+
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
 	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), 5*time.Minute)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
-		session, err := c.newSessionChunk(ctx, identity, app, c.sessionStartTime(r.Context()), opts...)
+		session, err := c.newSessionChunk(ctx, identity, app, opts...)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -384,9 +386,9 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		emitter: c.cfg.Emitter,
-		hostID:  c.cfg.HostID,
-		log:     c.log,
+		newSessionChunk: c.newSessionChunk,
+		hostID:          c.cfg.HostID,
+		log:             c.log,
 	}, nil
 }
 

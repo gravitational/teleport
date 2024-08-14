@@ -25,23 +25,20 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apitypes "github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type tcpServer struct {
-	emitter apievents.Emitter
-	hostID  string
-	log     *slog.Logger
+	newSessionChunk func(ctx context.Context, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) (*sessionChunk, error)
+	hostID          string
+	log             *slog.Logger
 }
 
 // handleConnection handles connection from a TCP application.
-func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
+func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app types.Application) error {
 	addr, err := utils.ParseAddr(app.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
@@ -50,31 +47,19 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), addr)
 	}
 	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultIOTimeout,
+		Timeout: defaults.DefaultIOTimeout,
 	}
 	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter:  s.emitter,
-		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
-	})
+	sess, err := s.newSessionChunk(ctx, identity, app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer sess.close(context.Background())
 
-	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		// The connection context may be closed once the connection is closed.
-		ctx := context.Background()
-		if err := audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
-			s.log.WarnContext(ctx, "Failed to emit session end event for app.", "app", app.GetName(), "error", err)
-		}
-	}()
 	err = utils.ProxyConn(ctx, clientConn, serverConn)
 	if err != nil {
 		return trace.Wrap(err)

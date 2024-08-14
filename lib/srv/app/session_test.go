@@ -33,12 +33,12 @@ import (
 
 func newSessionChunk(timeout time.Duration) *sessionChunk {
 	return &sessionChunk{
-		id:           uuid.New().String(),
-		closeC:       make(chan struct{}),
-		inflightCond: sync.NewCond(&sync.Mutex{}),
-		closeTimeout: timeout,
-		log:          logrus.NewEntry(logrus.StandardLogger()),
-		streamCloser: events.NewDiscardRecorder(),
+		id:             uuid.New().String(),
+		closeC:         make(chan struct{}),
+		inflightCond:   sync.NewCond(&sync.Mutex{}),
+		closeTimeout:   timeout,
+		log:            logrus.NewEntry(logrus.StandardLogger()),
+		streamRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 	}
 }
 
