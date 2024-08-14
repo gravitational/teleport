@@ -172,7 +172,7 @@ message SPIFFEFederationStatus {
 
 The `SPIFFEFederation` resource will be accessed via the standard RFD153
 gRPC CRUD APIs, and will be guarded by RBAC. We will grant the verbs to view,
-modify and create `SPIFFEFederation` resources to the default `edit` role.
+modify and create `SPIFFEFederation` resources to the preset `editor` role.
 
 For security reasons, we will guard the `status` field of the `SPIFFEFederation`
 resource from modification by the user. This field will be set by the Teleport
