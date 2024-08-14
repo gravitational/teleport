@@ -83,6 +83,14 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *
 
 // DialReq is a request for the address to connect to. Supports special
 // non-resolvable addresses and search names if connection over a tunnel.
+// TODO: Do we need to extend this with app port?
+//
+// One alternative is to append the port to Address and then do special destructuring of it when the
+// prefix is reversetunnelclient.LocalNode. It doesn't make sense though as the port is not of the
+// local node, as in we're connecting to some predetermined port on the node and then the node needs
+// to forward the connection to the port that was used in SNI between local proxy and proxy service.
+//
+// Even if we add some stuff here, how does it make it to the other side of the connection?
 type DialReq struct {
 	// Address is the target host to make a connection to.
 	Address string `json:"address,omitempty"`
@@ -101,6 +109,8 @@ type DialReq struct {
 	// ClientDstAddr is the original client's destination address, it is used to propagate
 	// correct client point of contact through indirect connections inside teleport
 	ClientDstAddr string `json:"client_dst_addr,omitempty"`
+
+	ClientSNI string `json:"client_sni,omitempty"`
 
 	// IsAgentlessNode specifies whether the target is an agentless node.
 	IsAgentlessNode bool `json:"is_agentless_node,omitempty"`

@@ -4468,6 +4468,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
 			Handler:   webServer.HandleConnection,
+			// TODO: HandlerWithConnInfo
 		})
 	}
 

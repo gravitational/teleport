@@ -35,6 +35,7 @@ import (
 )
 
 // DialParams is a list of parameters used to Dial to a node within a cluster.
+// TODO: Do we need to extend this with app port?
 type DialParams struct {
 	// From is the source address.
 	From net.Addr

@@ -89,6 +89,8 @@ type Router struct {
 }
 
 // MatchFunc is a type of the match route functions.
+// NOTE: It seems like SNI doesn't matter, because every matcher matches on either the protocol or
+// the prefix of the protocol.
 type MatchFunc func(sni, alpn string) bool
 
 // MatchByProtocol creates a match function that matches the client TLS ALPN
@@ -174,7 +176,7 @@ func (r *Router) AddDBTLSHandler(handler HandlerFunc) {
 	}
 }
 
-// Add sets the handler for DB TLS traffic.
+// Add sets the handler for TLS traffic.
 func (r *Router) Add(desc HandlerDecs) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -188,6 +190,8 @@ type HandlerDecs struct {
 	// HandlerWithConnInfo is protocol handler function providing additional TLS insight.
 	// Used in cases where internal handler function must have access to hello message values without
 	// terminating the TLS connection.
+	// TODO: What does HandlerWithConnInfo have to do with termination? Isn't it simply passing more
+	// info to the handler?
 	HandlerWithConnInfo HandlerFuncWithInfo
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
 	// TLS termination to the protocol handler (Used in Kube handler case)
@@ -381,6 +385,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
+	p.log.Infof("Connection info server_name=%s supported_protos=%v", hello.ServerName, hello.SupportedProtos)
 	ctx = authz.ContextWithClientAddrs(ctx, clientConn.RemoteAddr(), clientConn.LocalAddr())
 
 	if handlerDesc.ForwardTLS {
@@ -418,6 +423,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	if isDatabaseConnection {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
+	// TODO: How do we get connInfo to lib/web/app/handler.go?
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
@@ -566,6 +572,9 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 }
 
 func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
+	// TODO: Even if we get the port number through SNI, how do we pass it to the app service?
+	// The handler can potentially get unterminated TLS connection and get the port from the SNI.
+	// But how do we then pass the port to the agent?
 	if shouldRouteToKubeService(clientHelloInfo.ServerName) {
 		if p.cfg.Router.kubeHandler == nil {
 			return nil, trace.BadParameter("received kube request but k8 service is disabled")

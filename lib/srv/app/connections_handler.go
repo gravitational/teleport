@@ -594,6 +594,8 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
+	c.log.InfoContext(ctx, "Got TLS conn", "server_name", tlsConn.ConnectionState().ServerName)
+
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := c.authorizeContext(ctx)

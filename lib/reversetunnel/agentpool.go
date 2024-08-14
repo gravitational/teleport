@@ -599,10 +599,12 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 		p.log.WithField("address", dialReq.Address).
 			Warn("Received dial request for unexpected address, routing to the local service anyway.")
 	}
+	// NOTE: I think we're on the other side. How do we pass data from dialReq to HandleConnection?
 	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
 	}
 
+	// NOTE: This is lib/srv/app/server.go.
 	p.Server.HandleConnection(conn)
 }
 

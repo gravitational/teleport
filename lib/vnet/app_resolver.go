@@ -341,9 +341,11 @@ func (r *TCPAppResolver) newTCPAppHandler(
 	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:         dialOpts.WebProxyAddr,
-		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolTCP},
-		ParentContext:           ctx,
+		RemoteProxyAddr: dialOpts.WebProxyAddr,
+		Protocols:       []alpncommon.Protocol{alpncommon.ProtocolTCP},
+		ParentContext:   ctx,
+		// TODO: How do we dynamically set the SNI for the local proxy depending on which port was
+		// originally used?
 		SNI:                     dialOpts.SNI,
 		RootCAs:                 dialOpts.RootClusterCACertPool,
 		ALPNConnUpgradeRequired: dialOpts.ALPNConnUpgradeRequired,

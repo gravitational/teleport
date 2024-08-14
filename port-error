@@ -1,0 +1,14 @@
+2024-08-09T11:57:58+02:00 WARN [APP:SERVI] Failed to handle client connection. error:[
+ERROR REPORT:
+Original Error: *net.OpError dial tcp: address localhost: missing port in address
+Stack Trace:
+	github.com/gravitational/teleport/lib/srv/app/tcpserver.go:55 github.com/gravitational/teleport/lib/srv/app.(*tcpServer).handleConnection
+	github.com/gravitational/teleport/lib/srv/app/connections_handler.go:659 github.com/gravitational/teleport/lib/srv/app.(*ConnectionsHandler).handleTCPApp
+	github.com/gravitational/teleport/lib/srv/app/connections_handler.go:630 github.com/gravitational/teleport/lib/srv/app.(*ConnectionsHandler).handleConnection
+	github.com/gravitational/teleport/lib/srv/app/connections_handler.go:322 github.com/gravitational/teleport/lib/srv/app.(*ConnectionsHandler).HandleConnection
+	github.com/gravitational/teleport/lib/srv/app/server.go:550 github.com/gravitational/teleport/lib/srv/app.(*Server).HandleConnection
+	github.com/gravitational/teleport/lib/reversetunnel/agentpool.go:606 github.com/gravitational/teleport/lib/reversetunnel.(*AgentPool).handleLocalTransport
+	github.com/gravitational/teleport/lib/reversetunnel/agentpool.go:523 github.com/gravitational/teleport/lib/reversetunnel.(*AgentPool).handleTransport
+	github.com/gravitational/teleport/lib/reversetunnel/agent.go:585 github.com/gravitational/teleport/lib/reversetunnel.(*agent).handleDrainChannels.func2
+	runtime/asm_arm64.s:1222 runtime.goexit
+User Message: dial tcp: address localhost: missing port in address] app/connections_handler.go:330
