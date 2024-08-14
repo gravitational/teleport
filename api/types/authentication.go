@@ -1124,3 +1124,113 @@ func (r *RequireMFAType) setFromEnum(val int32) error {
 	*r = RequireMFAType(val)
 	return nil
 }
+
+// MarshalJSON marshals AllowAsMFAMethod to alias.
+func (a *AllowAsMFAMethod) MarshalYAML() (interface{}, error) {
+	val, err := a.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing AllowAsMFAMethod from alias.
+func (a *AllowAsMFAMethod) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalJSON marshals AllowAsMFAMethod to boolean or string.
+func (a *AllowAsMFAMethod) MarshalJSON() ([]byte, error) {
+	val, err := a.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing AllowAsMFAMethod from boolean or alias.
+func (a *AllowAsMFAMethod) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.decode(val)
+	return trace.Wrap(err)
+}
+
+// encode AllowAsMFAMethod into a string or boolean.
+func (a *AllowAsMFAMethod) encode() (interface{}, error) {
+	switch *a {
+	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_UNSPECIFIED:
+		return "", nil
+	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_NO:
+		return false, nil
+	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES:
+		return true, nil
+	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
+		return "only", nil
+	default:
+		return nil, trace.BadParameter("AllowAsMFAMethod invalid value %v", *a)
+	}
+}
+
+// decode AllowAsMFAMethod from a string or boolean.
+func (r *AllowAsMFAMethod) decode(val interface{}) error {
+	switch v := val.(type) {
+	case string:
+		switch v {
+		case "only":
+			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY
+		case "":
+			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_UNSPECIFIED
+		default:
+			// try parsing as a boolean
+			switch strings.ToLower(v) {
+			case "yes", "yeah", "y", "true", "1", "on":
+				*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES
+			case "no", "nope", "n", "false", "0", "off":
+				*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_NO
+			default:
+				return trace.BadParameter("AllowAsMFAMethod invalid value %v", val)
+			}
+		}
+	case bool:
+		if v {
+			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES
+		} else {
+			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_NO
+		}
+	case int32:
+		return trace.Wrap(r.setFromEnum(v))
+	case int64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("AllowAsMFAMethod invalid type %T", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (r *AllowAsMFAMethod) setFromEnum(val int32) error {
+	if _, ok := AllowAsMFAMethod_name[val]; !ok {
+		return trace.BadParameter("invalid allow_as_mfa_method value %v", val)
+	}
+	*r = AllowAsMFAMethod(val)
+	return nil
+}
