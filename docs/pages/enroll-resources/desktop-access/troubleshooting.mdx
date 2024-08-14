@@ -401,16 +401,20 @@ Attempts to share directory on a remote desktop session results in the error:
 Encountered shared directory error 1
 ```
 
-Solution: Review and disable configured Device Redirection Group Policy
+**Solution:** Review and disable configured Device Redirection Group Policy
 
 First, make sure that all [Drectory sharing](./directory-sharing.mdx/#prerequisites) pre-requisites has been met.
 
 Teleport requires device redirection policies to be disabled in RDP policies to allow directory sharing from a remote computer in an RDP session
 
 To fix this issue, review and disable the `Device and resource redirection policy` within the `Remote Desktop session host` path below:
-`Computer configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Device and Resource Redirection > *`
+
+```text
+Computer configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Device and Resource Redirection > *
+```
 
 Some key policies to lookout for:
+
 - Do not allow COM port redirection
 - Do not allow drive redirection
 - Do not allow LPT port redirection
