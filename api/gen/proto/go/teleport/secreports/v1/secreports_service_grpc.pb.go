@@ -34,20 +34,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SecReportsService_UpsertAuditQuery_FullMethodName    = "/teleport.secreports.v1.SecReportsService/UpsertAuditQuery"
-	SecReportsService_GetAuditQuery_FullMethodName       = "/teleport.secreports.v1.SecReportsService/GetAuditQuery"
-	SecReportsService_ListAuditQueries_FullMethodName    = "/teleport.secreports.v1.SecReportsService/ListAuditQueries"
-	SecReportsService_DeleteAuditQuery_FullMethodName    = "/teleport.secreports.v1.SecReportsService/DeleteAuditQuery"
-	SecReportsService_UpsertReport_FullMethodName        = "/teleport.secreports.v1.SecReportsService/UpsertReport"
-	SecReportsService_GetReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/GetReport"
-	SecReportsService_ListReports_FullMethodName         = "/teleport.secreports.v1.SecReportsService/ListReports"
-	SecReportsService_DeleteReport_FullMethodName        = "/teleport.secreports.v1.SecReportsService/DeleteReport"
-	SecReportsService_RunAuditQuery_FullMethodName       = "/teleport.secreports.v1.SecReportsService/RunAuditQuery"
-	SecReportsService_GetAuditQueryResult_FullMethodName = "/teleport.secreports.v1.SecReportsService/GetAuditQueryResult"
-	SecReportsService_RunReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/RunReport"
-	SecReportsService_GetReportResult_FullMethodName     = "/teleport.secreports.v1.SecReportsService/GetReportResult"
-	SecReportsService_GetReportState_FullMethodName      = "/teleport.secreports.v1.SecReportsService/GetReportState"
-	SecReportsService_GetSchema_FullMethodName           = "/teleport.secreports.v1.SecReportsService/GetSchema"
+	SecReportsService_UpsertAuditQuery_FullMethodName        = "/teleport.secreports.v1.SecReportsService/UpsertAuditQuery"
+	SecReportsService_GetAuditQuery_FullMethodName           = "/teleport.secreports.v1.SecReportsService/GetAuditQuery"
+	SecReportsService_ListAuditQueries_FullMethodName        = "/teleport.secreports.v1.SecReportsService/ListAuditQueries"
+	SecReportsService_DeleteAuditQuery_FullMethodName        = "/teleport.secreports.v1.SecReportsService/DeleteAuditQuery"
+	SecReportsService_UpsertReport_FullMethodName            = "/teleport.secreports.v1.SecReportsService/UpsertReport"
+	SecReportsService_GetReport_FullMethodName               = "/teleport.secreports.v1.SecReportsService/GetReport"
+	SecReportsService_ListReports_FullMethodName             = "/teleport.secreports.v1.SecReportsService/ListReports"
+	SecReportsService_DeleteReport_FullMethodName            = "/teleport.secreports.v1.SecReportsService/DeleteReport"
+	SecReportsService_RunAuditQuery_FullMethodName           = "/teleport.secreports.v1.SecReportsService/RunAuditQuery"
+	SecReportsService_GetAuditQueryResult_FullMethodName     = "/teleport.secreports.v1.SecReportsService/GetAuditQueryResult"
+	SecReportsService_GetAuditQueryResultFile_FullMethodName = "/teleport.secreports.v1.SecReportsService/GetAuditQueryResultFile"
+	SecReportsService_RunReport_FullMethodName               = "/teleport.secreports.v1.SecReportsService/RunReport"
+	SecReportsService_GetReportResult_FullMethodName         = "/teleport.secreports.v1.SecReportsService/GetReportResult"
+	SecReportsService_GetReportState_FullMethodName          = "/teleport.secreports.v1.SecReportsService/GetReportState"
+	SecReportsService_GetSchema_FullMethodName               = "/teleport.secreports.v1.SecReportsService/GetSchema"
 )
 
 // SecReportsServiceClient is the client API for SecReportsService service.
@@ -76,6 +77,8 @@ type SecReportsServiceClient interface {
 	RunAuditQuery(ctx context.Context, in *RunAuditQueryRequest, opts ...grpc.CallOption) (*RunAuditQueryResponse, error)
 	// GetAuditQueryResult returns an audit query result.
 	GetAuditQueryResult(ctx context.Context, in *GetAuditQueryResultRequest, opts ...grpc.CallOption) (*GetAuditQueryResultResponse, error)
+	// GetAuditQueryResultFile returns an audit query result in CSV format.
+	GetAuditQueryResultFile(ctx context.Context, in *GetAuditQueryResultFileRequest, opts ...grpc.CallOption) (*GetAuditQueryResultFileResponse, error)
 	// RunReport runs a security report.
 	RunReport(ctx context.Context, in *RunReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetReportResult returns a security report result.
@@ -194,6 +197,16 @@ func (c *secReportsServiceClient) GetAuditQueryResult(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *secReportsServiceClient) GetAuditQueryResultFile(ctx context.Context, in *GetAuditQueryResultFileRequest, opts ...grpc.CallOption) (*GetAuditQueryResultFileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAuditQueryResultFileResponse)
+	err := c.cc.Invoke(ctx, SecReportsService_GetAuditQueryResultFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *secReportsServiceClient) RunReport(ctx context.Context, in *RunReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -260,6 +273,8 @@ type SecReportsServiceServer interface {
 	RunAuditQuery(context.Context, *RunAuditQueryRequest) (*RunAuditQueryResponse, error)
 	// GetAuditQueryResult returns an audit query result.
 	GetAuditQueryResult(context.Context, *GetAuditQueryResultRequest) (*GetAuditQueryResultResponse, error)
+	// GetAuditQueryResultFile returns an audit query result in CSV format.
+	GetAuditQueryResultFile(context.Context, *GetAuditQueryResultFileRequest) (*GetAuditQueryResultFileResponse, error)
 	// RunReport runs a security report.
 	RunReport(context.Context, *RunReportRequest) (*emptypb.Empty, error)
 	// GetReportResult returns a security report result.
@@ -307,6 +322,9 @@ func (UnimplementedSecReportsServiceServer) RunAuditQuery(context.Context, *RunA
 }
 func (UnimplementedSecReportsServiceServer) GetAuditQueryResult(context.Context, *GetAuditQueryResultRequest) (*GetAuditQueryResultResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAuditQueryResult not implemented")
+}
+func (UnimplementedSecReportsServiceServer) GetAuditQueryResultFile(context.Context, *GetAuditQueryResultFileRequest) (*GetAuditQueryResultFileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAuditQueryResultFile not implemented")
 }
 func (UnimplementedSecReportsServiceServer) RunReport(context.Context, *RunReportRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunReport not implemented")
@@ -521,6 +539,24 @@ func _SecReportsService_GetAuditQueryResult_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecReportsService_GetAuditQueryResultFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAuditQueryResultFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecReportsServiceServer).GetAuditQueryResultFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecReportsService_GetAuditQueryResultFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecReportsServiceServer).GetAuditQueryResultFile(ctx, req.(*GetAuditQueryResultFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SecReportsService_RunReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RunReportRequest)
 	if err := dec(in); err != nil {
@@ -639,6 +675,10 @@ var SecReportsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAuditQueryResult",
 			Handler:    _SecReportsService_GetAuditQueryResult_Handler,
+		},
+		{
+			MethodName: "GetAuditQueryResultFile",
+			Handler:    _SecReportsService_GetAuditQueryResultFile_Handler,
 		},
 		{
 			MethodName: "RunReport",

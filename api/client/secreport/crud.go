@@ -115,6 +115,17 @@ func (c *Client) GetSecurityAuditQueryResult(ctx context.Context, resultID, next
 	return resp, nil
 }
 
+// GetSecurityAuditQueryResultFile returns an audit query result by id in CSV format.
+func (c *Client) GetSecurityAuditQueryResultFile(ctx context.Context, resultID string) (*pb.GetAuditQueryResultFileResponse, error) {
+	resp, err := c.grpcClient.GetAuditQueryResultFile(ctx, &pb.GetAuditQueryResultFileRequest{
+		ResultId: resultID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetSecurityReportsStates returns all security reports states.
 func (c *Client) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
 	return nil, trace.NotImplemented("GetSecurityReportsStates is not supported in the gRPC client")
