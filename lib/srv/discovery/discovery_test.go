@@ -578,7 +578,7 @@ func TestDiscoveryServer(t *testing.T) {
 			tc.emitter.t = t
 
 			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 			}
 
@@ -1956,7 +1956,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			// Add Dynamic Matchers and wait for reconcile again
 			if tc.discoveryConfigs != nil {
 				for _, dc := range tc.discoveryConfigs(t) {
-					_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc)
+					_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
 					require.NoError(t, err)
 				}
 
@@ -2081,7 +2081,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 
 		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
@@ -2107,7 +2107,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Zero(t, reporter.DiscoveryFetchEventCount())
-		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 
 		// Check for new resource in reconciler
@@ -2137,7 +2137,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
 			// Remove DiscoveryConfig
-			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
+			err = tlsServer.Auth().DiscoveryConfigs.DeleteDiscoveryConfig(ctx, dc1.GetName())
 			require.NoError(t, err)
 
 			currentEmittedEvents := reporter.DiscoveryFetchEventCount()
@@ -2489,7 +2489,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 
 				// Wait for the DiscoveryConfig to be added to the dynamic matchers
@@ -2754,7 +2754,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 
 				// Wait for the DiscoveryConfig to be added to the dynamic matchers

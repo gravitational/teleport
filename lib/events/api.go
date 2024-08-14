@@ -740,6 +740,10 @@ const (
 
 	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
 	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+	// SPIFFEFederationCreateEvent is emitted when a SPIFFE federation is created.
+	SPIFFEFederationCreateEvent = "spiffe.federation.create"
+	// SPIFFEFederationDeleteEvent is emitted when a SPIFFE federation is deleted.
+	SPIFFEFederationDeleteEvent = "spiffe.federation.delete"
 
 	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
 	AuthPreferenceUpdateEvent = "auth_preference.update"
@@ -747,6 +751,8 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+	// AccessGraphSettingsUpdateEvent is emitted when a user updates the access graph settings configuration.
+	AccessGraphSettingsUpdateEvent = "access_graph_settings.update"
 
 	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
 	// and an identity/resource is affected.

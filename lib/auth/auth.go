@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -89,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -574,6 +574,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
+// Services is a collection of services that are used by the auth server.
+// Avoid using this type as a dependency and instead depend on the actual
+// methods/services you need. It should really only be necessary to directly
+// reference this type on auth.Server itself and on code that manages
+// the lifecycle of the auth server.
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
@@ -614,11 +619,8 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
-}
-
-// SecReportsClient returns the security reports client.
-func (r *Services) SecReportsClient() *secreport.Client {
-	return nil
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
 }
 
 // GetWebSession returns existing web session described by req.
@@ -636,49 +638,6 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
-}
-
-// OktaClient returns the okta client.
-func (r *Services) OktaClient() services.Okta {
-	return r
-}
-
-// SCIMClient returns a client for the SCIM service. Note that in an OSS
-// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
-// service on the other end will return "NotImplemented" for every call.
-func (r *Services) SCIMClient() services.SCIM {
-	return r.SCIM
-}
-
-// AccessListClient returns the access list client.
-func (r *Services) AccessListClient() services.AccessLists {
-	return r
-}
-
-// AccessMonitoringRuleClient returns the access monitoring rules client.
-func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
-	return r
-}
-
-// DiscoveryConfigClient returns the DiscoveryConfig client.
-func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return r
-}
-
-// CrownJewelClient returns the CrownJewels client.
-func (r *Services) CrownJewelClient() services.CrownJewels {
-	return r
-}
-
-// UserLoginStateClient returns the user login state client.
-func (r *Services) UserLoginStateClient() services.UserLoginStates {
-	return r
-}
-
-// KubernetesWaitingContainerClient returns the Kubernetes waiting
-// container client.
-func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
-	return r
 }
 
 var (
@@ -815,6 +774,10 @@ var (
 // for enterprise services that need to add in feature specific operations after a user has been
 // successfully authenticated. An example would be creating objects based on the user.
 type LoginHook func(context.Context, types.User) error
+
+// CreateDeviceAssertionFunc creates a new device assertion ceremony to authenticate
+// a trusted device.
+type CreateDeviceAssertionFunc func() (assertserver.Ceremony, error)
 
 // ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
 // where it would have a naming conflict with other types named Cache.
@@ -994,6 +957,15 @@ type Server struct {
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
 
+	// deviceAssertionServer holds the server-side implementation of device assertions.
+	//
+	// It is used to authenticate devices previously enrolled in the cluster. The goal
+	// is to provide an API for devices to authenticate with the cluster without the need
+	// for valid user credentials, e.g. when running `tsh scan keys`.
+	//
+	// The value is nil on OSS clusters.
+	deviceAssertionServer CreateDeviceAssertionFunc
+
 	// bcryptCostOverride overrides the bcrypt cost for operations executed
 	// directly by [Server].
 	// Used for testing.
@@ -1140,6 +1112,26 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// SetDeviceAssertionServer sets the device assertion implementation.
+func (a *Server) SetDeviceAssertionServer(f CreateDeviceAssertionFunc) {
+	a.lock.Lock()
+	a.deviceAssertionServer = f
+	a.lock.Unlock()
+}
+
+// GetDeviceAssertionServer returns the device assertion implementation.
+// On OSS clusters, this will return a non nil function that returns an error.
+func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.deviceAssertionServer == nil {
+		return func() (assertserver.Ceremony, error) {
+			return nil, trace.NotImplemented("device assertions are not supported on OSS clusters")
+		}
+	}
+	return a.deviceAssertionServer
 }
 
 func (a *Server) bcryptCost() int {
@@ -1740,6 +1732,16 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
+}
+
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecretsGetter) {
+	a.Services.AccessGraphSecretsGetter = s
+}
+
+// SetDevicesGetter sets the server's device service
+func (a *Server) SetDevicesGetter(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
 }
 
 // SetAuditLog sets the server's audit log
@@ -4777,7 +4779,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil

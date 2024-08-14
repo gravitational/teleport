@@ -65,6 +65,8 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -520,6 +522,21 @@ const (
 	KindUserLastSeenNotification = "user_last_seen_notification"
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
+
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
+	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
+	KindAccessGraphSettings = "access_graph_settings"
+
+	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
+	// access graph settings.
+	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"

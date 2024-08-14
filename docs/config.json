@@ -9,8 +9,8 @@
           "slug": "/"
         },
         {
-           "title": "Get Started",
-           "slug": "/get-started/"
+          "title": "Get Started",
+          "slug": "/get-started/"
         },
         {
           "title": "Core Concepts",
@@ -29,8 +29,8 @@
               "slug": "/upgrading/overview/"
             },
             {
-                "title": "Set up Automatic Agent Updates",
-                "slug": "/upgrading/automatic-agent-updates/"
+              "title": "Set up Automatic Agent Updates",
+              "slug": "/upgrading/automatic-agent-updates/"
             }
           ]
         },
@@ -65,10 +65,10 @@
       ]
     },
     {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
+      "icon": "wrench",
+      "title": "Admin Guides",
+      "entries": [],
+      "generateFrom": "admin-guides"
     },
     {
       "icon": "connect",
@@ -110,7 +110,7 @@
       "icon": "book",
       "title": "References",
       "entries": [],
-      "generateFrom": "reference" 
+      "generateFrom": "reference"
     }
   ],
   "variables": {
@@ -175,18 +175,18 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "15",
-      "version": "15.4.11",
+      "version": "15.4.12",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "15.4.11"
+        "version": "15.4.12"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.4.11",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.4.11",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.4.11",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.4.11",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.4.12",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.4.12",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.4.12",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.4.12",
+      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.12.sh"
     },
     "terraform": {
       "version": "1.0.0"
