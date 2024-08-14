@@ -59,9 +59,11 @@ jobs:
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
               # rendered doc changes
+              - 'docs/pages/admin-guides/**'
+              - 'docs/pages/enroll-resources/**'
+              - 'docs/pages/reference/operator-resources/**'
               - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
-              - 'docs/pages/reference/operator-resources/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
 
   lint-go:
