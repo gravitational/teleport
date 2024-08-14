@@ -251,7 +251,7 @@ func TestGuessesIPAddress(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		ip := guessHostIP(testCase.addrs)
-		require.Empty(t, cmp.Diff(ip, testCase.expected), fmt.Sprintf(testCase.comment))
+		require.Empty(t, cmp.Diff(ip, testCase.expected), testCase.comment)
 	}
 }
 
