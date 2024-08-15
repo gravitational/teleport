@@ -8137,9 +8137,12 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			require.NoError(t, err)
 
 			// add permission to edit users, necessary to change auth method to passwordless
-			user, err := types.NewUser(u.username)
+			user, err := srv.Auth().GetUser(ctx, u.username, false /* withSecrets */)
 			require.NoError(t, err)
-			role := services.RoleForUser(user)
+			// createUserWithSecondFactors creates a role for the user already, so we modify it with extra perms
+			roleName := user.GetRoles()[0]
+			role, err := srv.Auth().GetRole(ctx, roleName)
+			require.NoError(t, err)
 			role.SetRules(types.Allow, []types.Rule{
 				types.NewRule(types.KindUser, services.RW()),
 			})
