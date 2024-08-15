@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -1176,6 +1177,8 @@ type Cache interface {
 	// ListSPIFFEFederations lists all SPIFFE Federations using Google style
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
+	// GetAccessGraphSettings returns the access graph settings.
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 }
 
 type NodeWrapper struct {

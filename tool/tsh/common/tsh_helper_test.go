@@ -105,6 +105,10 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 	cfg.SetToken(staticToken)
 
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
+
 	user, err := user.Current()
 	require.NoError(t, err)
 
@@ -197,6 +201,9 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 	cfg.SetToken(staticToken)
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
