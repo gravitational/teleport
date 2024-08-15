@@ -43,9 +43,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
@@ -58,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -301,6 +304,9 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -433,6 +439,14 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
+
+	if secscanconstants.Enabled {
+		g.Go(func() error {
+			ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+			defer span.End()
+			return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+		})
+	}
 
 	g.Go(func() error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
@@ -855,6 +869,31 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 	}
 
 	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
+}
+
+func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
+	stored, err := asrv.Services.GetAccessGraphSettings(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Creating access graph settings: %v.", stored)
+	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
 }
 
 // shouldInitReplaceResourceWithOrigin determines whether the candidate

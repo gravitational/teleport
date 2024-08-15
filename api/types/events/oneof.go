@@ -652,6 +652,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionRecordingConfigUpdate{
 			SessionRecordingConfigUpdate: e,
 		}
+	case *AccessGraphSettingsUpdate:
+		out.Event = &OneOf_AccessGraphSettingsUpdate{
+			AccessGraphSettingsUpdate: e,
+		}
 	case *DatabaseUserCreate:
 		out.Event = &OneOf_DatabaseUserCreate{
 			DatabaseUserCreate: e,
@@ -708,7 +712,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SPIFFEFederationDelete{
 			SPIFFEFederationDelete: e,
 		}
-
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

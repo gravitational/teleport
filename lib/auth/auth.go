@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -331,6 +332,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.SPIFFEFederations == nil {
+		cfg.SPIFFEFederations, err = local.NewSPIFFEFederationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -415,6 +422,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		SPIFFEFederations:         cfg.SPIFFEFederations,
 	}
 
 	as := Server{
@@ -608,6 +616,9 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.SPIFFEFederations
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
 }
 
 // GetWebSession returns existing web session described by req.
@@ -770,6 +781,10 @@ type LoginHook func(context.Context, types.User) error
 // May return `nil, nil` if device trust isn't supported (OSS), disabled, or if
 // the user has no suitable trusted device.
 type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
+
+// CreateDeviceAssertionFunc creates a new device assertion ceremony to authenticate
+// a trusted device.
+type CreateDeviceAssertionFunc func() (assertserver.Ceremony, error)
 
 // ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
 // where it would have a naming conflict with other types named Cache.
@@ -947,6 +962,15 @@ type Server struct {
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
 
+	// deviceAssertionServer holds the server-side implementation of device assertions.
+	//
+	// It is used to authenticate devices previously enrolled in the cluster. The goal
+	// is to provide an API for devices to authenticate with the cluster without the need
+	// for valid user credentials, e.g. when running `tsh scan keys`.
+	//
+	// The value is nil on OSS clusters.
+	deviceAssertionServer CreateDeviceAssertionFunc
+
 	// bcryptCostOverride overrides the bcrypt cost for operations executed
 	// directly by [Server].
 	// Used for testing.
@@ -1093,6 +1117,26 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// SetDeviceAssertionServer sets the device assertion implementation.
+func (a *Server) SetDeviceAssertionServer(f CreateDeviceAssertionFunc) {
+	a.lock.Lock()
+	a.deviceAssertionServer = f
+	a.lock.Unlock()
+}
+
+// GetDeviceAssertionServer returns the device assertion implementation.
+// On OSS clusters, this will return a non nil function that returns an error.
+func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.deviceAssertionServer == nil {
+		return func() (assertserver.Ceremony, error) {
+			return nil, trace.NotImplemented("device assertions are not supported on OSS clusters")
+		}
+	}
+	return a.deviceAssertionServer
 }
 
 func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
@@ -1710,6 +1754,16 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
+}
+
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecretsGetter) {
+	a.Services.AccessGraphSecretsGetter = s
+}
+
+// SetDevicesGetter sets the server's device service
+func (a *Server) SetDevicesGetter(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
 }
 
 // SetAuditLog sets the server's audit log
