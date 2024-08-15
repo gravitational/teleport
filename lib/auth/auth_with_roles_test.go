@@ -8146,18 +8146,11 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			upsertedRole, err := srv.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 			user.AddRole(upsertedRole.GetName())
-			srv.Auth().UpdateUser(ctx, &types.UserV2{})
 			_, err = srv.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
-
-			client.SetMFAPromptConstructor(func(po ...mfa.PromptOpt) mfa.Prompt {
-				return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					return u.webDev.SolveAuthn(chal)
-				})
-			})
 
 			// setup to change authentication method to passkey
 			resetToken, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
@@ -8176,10 +8169,11 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
 			require.NoError(t, err)
 
-			client.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			_, err = client.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 				TokenID:                token,
 				NewMFARegisterResponse: registerSolved,
 			})
+			require.NoError(t, err)
 
 			authPreferences, err := client.GetAuthPreference(ctx)
 			require.NoError(t, err)
