@@ -51,6 +51,8 @@ import (
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
+	ctx := context.Background()
+
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -60,21 +62,17 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn := &mockSSHConn{}
 	sshConn.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
+	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	clusterName := "localhost"
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordOff)
-	clusterName := "localhost"
-	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
-	scx := &ServerContext{
-		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
-		ConnectionContext:      connCtx,
-		env:                    make(map[string]string),
-		SessionRecordingConfig: recConfig,
-		IsTestStub:             true,
-		ClusterName:            clusterName,
-		srv:                    srv,
-		sessionID:              rsession.NewID(),
+
+	scx, err := newServerContext(ctx, ServerContextConfig{
+		IsTestStub:        true,
+		Entry:             logrus.NewEntry(logrus.StandardLogger()),
+		ConnectionContext: connCtx,
+		srv:               srv,
 		Identity: IdentityContext{
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",
@@ -84,25 +82,15 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			AccessChecker: services.NewAccessCheckerWithRoleSet(
 				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
 		},
-		cancelContext: ctx,
-		cancel:        cancel,
-	}
+		SessionRecordingConfig: recConfig,
+		ClusterName:            clusterName,
+	})
+	require.NoError(t, err)
+
+	scx.sessionID = rsession.NewID()
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
-
-	scx.cmdr, scx.cmdw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.contr, scx.contw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.readyr, scx.readyw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.termr, scx.termw, err = os.Pipe()
-	require.NoError(t, err)
-	scx.AddCloser(scx.termw)
 
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".

@@ -186,6 +186,79 @@ type Server interface {
 	TargetMetadata() apievents.ServerMetadata
 }
 
+// ServerContextConfig holds config options for a server context.
+type ServerContextConfig struct {
+	// ConnectionContext is the parent context which manages connection-level
+	// resources.
+	*sshutils.ConnectionContext
+	*log.Entry
+
+	// srv is the server that is holding the context.
+	srv Server
+
+	// Identity holds the identity of the user that is currently logged in on
+	// the Conn.
+	Identity IdentityContext
+
+	// IsTestStub is set to true by tests.
+	IsTestStub bool
+
+	// ClusterName is the name of the cluster current user is authenticated with.
+	ClusterName string
+
+	// SessionRecordingConfig holds the session recording configuration at the
+	// time this context was created.
+	SessionRecordingConfig types.SessionRecordingConfig
+
+	// disconnectExpiredCert is set to time when/if the certificate should
+	// be disconnected, set to empty if no disconnect is necessary
+	disconnectExpiredCert time.Time
+
+	// clientIdleTimeout is set to the timeout on
+	// client inactivity, set to 0 if not setup
+	clientIdleTimeout time.Duration
+
+	// ExecType holds the type of the channel or request. For example "session" or
+	// "direct-tcpip". Used to create correct subcommand during re-exec.
+	ExecType string
+
+	// SrcAddr is the source address of the request. This the originator IP
+	// address and port in an SSH "direct-tcpip" or "tcpip-forward" request. This
+	// value is only populated for port forwarding requests.
+	SrcAddr string
+
+	// DstAddr is the destination address of the request. This is the host and
+	// port to connect to in a "direct-tcpip" or "tcpip-forward" request. This
+	// value is only populated for port forwarding requests.
+	DstAddr string
+
+	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
+	JoinOnly bool
+
+	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
+	// by the server.
+	AllowFileCopying bool
+
+	// ServerSubKind if the sub kind of the node this context is for.
+	ServerSubKind string
+}
+
+func (c *ServerContextConfig) CheckAndSetDefaults() error {
+	if c.srv == nil {
+		return trace.BadParameter("missing srv")
+	}
+
+	if c.ConnectionContext == nil {
+		return trace.BadParameter("missing ConnectionContext")
+	}
+
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing ClusterName")
+	}
+
+	return nil
+}
+
 // IdentityContext holds all identity information associated with the user
 // logged on the connection.
 type IdentityContext struct {
@@ -261,18 +334,17 @@ type IdentityContext struct {
 // ServerContext directly. Failure to use the session emitted will result in
 // incorrect event indexes that may ultimately cause events to be overwritten.
 type ServerContext struct {
-	// ConnectionContext is the parent context which manages connection-level
-	// resources.
-	*sshutils.ConnectionContext
-	*log.Entry
+	// ServerContextConfig contains config options.
+	ServerContextConfig
+
+	// cancelContext signals closure to all outstanding operations
+	cancelContext context.Context
+	cancel        context.CancelFunc
 
 	mu sync.RWMutex
 
 	// env is a list of environment variables passed to the session.
 	env map[string]string
-
-	// srv is the server that is holding the context.
-	srv Server
 
 	// id is the server specific incremental session id.
 	id int
@@ -292,10 +364,6 @@ type ServerContext struct {
 	// will be properly closed and deallocated, otherwise they could be kept hanging.
 	closers []io.Closer
 
-	// Identity holds the identity of the user that is currently logged in on
-	// the Conn.
-	Identity IdentityContext
-
 	// ExecResultCh is a Go channel which will be used to send and receive the
 	// result of a "exec" request.
 	ExecResultCh chan ExecResult
@@ -304,19 +372,9 @@ type ServerContext struct {
 	// the result of a "subsystem" request.
 	SubsystemResultCh chan SubsystemResult
 
-	// IsTestStub is set to true by tests.
-	IsTestStub bool
-
 	// execRequest is the command to be executed within this session context. Do
 	// not get or set this field directly, use (Get|Set)ExecRequest.
 	execRequest Exec
-
-	// ClusterName is the name of the cluster current user is authenticated with.
-	ClusterName string
-
-	// SessionRecordingConfig holds the session recording configuration at the
-	// time this context was created.
-	SessionRecordingConfig types.SessionRecordingConfig
 
 	// RemoteClient holds an SSH client to a remote server. Only used by the
 	// recording proxy.
@@ -325,20 +383,6 @@ type ServerContext struct {
 	// RemoteSession holds an SSH session to a remote server. Only used by the
 	// recording proxy.
 	RemoteSession *tracessh.Session
-
-	// disconnectExpiredCert is set to time when/if the certificate should
-	// be disconnected, set to empty if no disconnect is necessary
-	disconnectExpiredCert time.Time
-
-	// clientIdleTimeout is set to the timeout on
-	// client inactivity, set to 0 if not setup
-	clientIdleTimeout time.Duration
-
-	// cancelContext signals closure to all outstanding operations
-	cancelContext context.Context
-
-	// cancel is called whenever server context is closed
-	cancel context.CancelFunc
 
 	// termAllocated is used to track if a terminal has been allocated. This has
 	// to be tracked because the terminal is set to nil after it's "taken" in the
@@ -373,30 +417,6 @@ type ServerContext struct {
 	termr *os.File
 	termw *os.File
 
-	// ExecType holds the type of the channel or request. For example "session" or
-	// "direct-tcpip". Used to create correct subcommand during re-exec.
-	ExecType string
-
-	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in an SSH "direct-tcpip" or "tcpip-forward" request. This
-	// value is only populated for port forwarding requests.
-	SrcAddr string
-
-	// DstAddr is the destination address of the request. This is the host and
-	// port to connect to in a "direct-tcpip" or "tcpip-forward" request. This
-	// value is only populated for port forwarding requests.
-	DstAddr string
-
-	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
-	// by the server.
-	AllowFileCopying bool
-
-	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
-	JoinOnly bool
-
-	// ServerSubKind if the sub kind of the node this context is for.
-	ServerSubKind string
-
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
 
@@ -411,74 +431,56 @@ type ServerContext struct {
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
 func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (context.Context, *ServerContext, error) {
-	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	cancelContext, cancel := context.WithCancel(ctx)
-	child := &ServerContext{
-		ConnectionContext:      parent,
-		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
-		env:                    make(map[string]string),
-		srv:                    srv,
-		ExecResultCh:           make(chan ExecResult, 10),
-		SubsystemResultCh:      make(chan SubsystemResult, 10),
-		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
-		SessionRecordingConfig: recConfig,
-		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		cancelContext:          cancelContext,
-		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
+	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	clusterName, err := srv.GetAccessPoint().GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	fields := log.Fields{
-		"local":        child.ServerConn.LocalAddr(),
-		"remote":       child.ServerConn.RemoteAddr(),
-		"login":        child.Identity.Login,
-		"teleportUser": child.Identity.TeleportUser,
-		"id":           child.id,
+		"local":        parent.ServerConn.LocalAddr(),
+		"remote":       parent.ServerConn.RemoteAddr(),
+		"login":        identityContext.Login,
+		"teleportUser": identityContext.TeleportUser,
 	}
-	child.Entry = log.WithFields(log.Fields{
-		teleport.ComponentKey:    child.srv.Component(),
-		teleport.ComponentFields: fields,
+
+	child, err := newServerContext(ctx, ServerContextConfig{
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey:    srv.Component(),
+			teleport.ComponentFields: fields,
+		}),
+		ConnectionContext:      parent,
+		srv:                    srv,
+		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
+		SessionRecordingConfig: recConfig,
+		Identity:               identityContext,
+		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
+		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		disconnectExpiredCert:  getDisconnectExpiredCertFromIdentityContext(identityContext.AccessChecker, authPref, &identityContext),
+		JoinOnly:               identityContext.Login == teleport.SSHSessionJoinPrincipal,
 	})
-
-	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
-		child.JoinOnly = true
-	}
-
-	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
-		identityContext.AccessChecker, authPref, &identityContext,
-	)
-
-	// Update log entry fields.
+	// Add optional additional entry fields when applicable.
+	fields["id"] = child.id
 	if !child.disconnectExpiredCert.IsZero() {
 		fields["cert"] = child.disconnectExpiredCert
 	}
 	if child.clientIdleTimeout != 0 {
 		fields["idle"] = child.clientIdleTimeout
-	}
-	child.Entry = log.WithFields(log.Fields{
-		teleport.ComponentKey:    srv.Component(),
-		teleport.ComponentFields: fields,
-	})
-
-	clusterName, err := srv.GetAccessPoint().GetClusterName()
-	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
 	monitorConfig := MonitorConfig{
@@ -490,7 +492,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		Clock:                 child.srv.GetClock(),
 		Tracker:               child,
 		Conn:                  child.ServerConn,
-		Context:               cancelContext,
+		Context:               child.cancelContext,
 		TeleportUser:          child.Identity.TeleportUser,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
@@ -507,42 +509,62 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
-	// Create pipe used to send command to child process.
-	child.cmdr, child.cmdw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+	return ctx, child, nil
+}
+
+func newServerContext(ctx context.Context, config ServerContextConfig) (*ServerContext, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	child.AddCloser(child.cmdr)
-	child.AddCloser(child.cmdw)
+
+	cancelContext, cancel := context.WithCancel(ctx)
+	scx := &ServerContext{
+		ServerContextConfig: config,
+		id:                  int(atomic.AddInt32(&ctxID, int32(1))),
+		env:                 make(map[string]string),
+		ExecResultCh:        make(chan ExecResult, 10),
+		SubsystemResultCh:   make(chan SubsystemResult, 10),
+		cancelContext:       cancelContext,
+		cancel:              cancel,
+	}
+
+	// Create pipe used to send command to child process.
+	var err error
+	scx.cmdr, scx.cmdw, err = os.Pipe()
+	if err != nil {
+		childErr := scx.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	scx.AddCloser(scx.cmdr)
+	scx.AddCloser(scx.cmdw)
 
 	// Create pipe used to signal continue to child process.
-	child.contr, child.contw, err = os.Pipe()
+	scx.contr, scx.contw, err = os.Pipe()
 	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		childErr := scx.Close()
+		return nil, trace.NewAggregate(err, childErr)
 	}
-	child.AddCloser(child.contr)
-	child.AddCloser(child.contw)
+	scx.AddCloser(scx.contr)
+	scx.AddCloser(scx.contw)
 
 	// Create pipe used to signal continue to parent process.
-	child.readyr, child.readyw, err = os.Pipe()
+	scx.readyr, scx.readyw, err = os.Pipe()
 	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		childErr := scx.Close()
+		return nil, trace.NewAggregate(err, childErr)
 	}
-	child.AddCloser(child.readyr)
-	child.AddCloser(child.readyw)
+	scx.AddCloser(scx.readyr)
+	scx.AddCloser(scx.readyw)
 
-	child.termr, child.termw, err = os.Pipe()
+	scx.termr, scx.termw, err = os.Pipe()
 	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		childErr := scx.Close()
+		return nil, trace.NewAggregate(err, childErr)
 	}
-	child.AddCloser(child.termr)
-	child.AddCloser(child.termw)
+	scx.AddCloser(scx.termr)
+	scx.AddCloser(scx.termw)
 
-	return ctx, child, nil
+	return scx, nil
 }
 
 // Parent grants access to the connection-level context of which this
