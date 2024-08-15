@@ -8134,7 +8134,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// add the user that will have the auth method changed to passwordless
+			// add the user that might have the auth method changed to passwordless
 			username := "passwordless-user"
 			_, _, err = CreateUserAndRole(srv.AuthServer, username, nil, []types.Rule{
 				types.NewRule(types.KindUser, services.RW()),
