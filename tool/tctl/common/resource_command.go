@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2825,9 +2824,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &pluginCollection{plugins: plugins}, nil
 	case types.KindAccessGraphSettings:
-		if !secscanconstants.Enabled {
-			return nil, trace.BadParameter("access graph settings are not supported")
-		}
 		settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3157,9 +3153,6 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 }
 
 func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if !secscanconstants.Enabled {
-		return trace.BadParameter("access graph settings are not supported")
-	}
 	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3174,9 +3167,6 @@ func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client
 }
 
 func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if !secscanconstants.Enabled {
-		return trace.BadParameter("access graph settings are not supported")
-	}
 	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
