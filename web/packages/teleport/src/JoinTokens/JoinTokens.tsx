@@ -147,7 +147,7 @@ export const JoinTokens = () => {
             width="240px"
             onClick={() => setCreatingToken(true)}
           >
-            Create new Token
+            Create New Token
           </Button>
         )}
       </FeatureHeader>
