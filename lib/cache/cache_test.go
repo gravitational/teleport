@@ -121,6 +121,7 @@ type testPack struct {
 	kubeWaitingContainers   services.KubeWaitingContainer
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
+	spiffeFederations       *local.SPIFFEFederationService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -320,6 +321,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.spiffeFederations = spiffeFederationsSvc
+
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -370,6 +377,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -771,6 +779,7 @@ func TestCompletenessInit(t *testing.T) {
 			KubeWaitingContainers:   p.kubeWaitingContainers,
 			AccessMonitoringRules:   p.accessMonitoringRules,
 			CrownJewels:             p.crownJewels,
+			SPIFFEFederations:       p.spiffeFederations,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -846,6 +855,7 @@ func TestCompletenessReset(t *testing.T) {
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1033,6 +1043,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1119,6 +1130,7 @@ func initStrategy(t *testing.T) {
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2597,7 +2609,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		protocmp.Transform(),
 	}
 
@@ -3081,6 +3093,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 	}
 

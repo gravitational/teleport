@@ -32,6 +32,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -245,6 +246,7 @@ type cacheCollections struct {
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
+	spiffeFederations        collectionReader[SPIFFEFederationReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -701,6 +703,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
+		case types.KindSPIFFEFederation:
+			if c.Config.SPIFFEFederations == nil {
+				return nil, trace.BadParameter("missing parameter SPIFFEFederations")
+			}
+			collections.spiffeFederations = &genericCollection[*machineidv1.SPIFFEFederation, SPIFFEFederationReader, spiffeFederationExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.spiffeFederations
 		case types.KindAccessGraphSettings:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")

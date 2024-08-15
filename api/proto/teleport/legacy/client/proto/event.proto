@@ -23,6 +23,7 @@ import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/machineid/v1/federation.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -160,5 +161,7 @@ message Event {
     teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
     // AccessGraphSettings is a resource for access graph settings.
     teleport.clusterconfig.v1.AccessGraphSettings AccessGraphSettings = 61;
+    // SPIFFEFederation is a resource for SPIFFE federation.
+    teleport.machineid.v1.SPIFFEFederation SPIFFEFederation = 62;
   }
 }

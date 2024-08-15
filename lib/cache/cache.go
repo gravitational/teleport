@@ -175,6 +175,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessListReview},
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindAccessMonitoringRule},
+		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindAccessGraphSettings},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -554,6 +555,7 @@ type Cache struct {
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	spiffeFederationCache        spiffeFederationCacher
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -722,6 +724,8 @@ type Config struct {
 	KubeWaitingContainers services.KubeWaitingContainer
 	// AccessMonitoringRules is the access monitoring rules service.
 	AccessMonitoringRules services.AccessMonitoringRules
+	// SPIFFEFederations is the SPIFFE federations service.
+	SPIFFEFederations SPIFFEFederationReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -945,6 +949,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	spiffeFederationCache, err := local.NewSPIFFEFederationService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -983,6 +993,7 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
+		spiffeFederationCache:        spiffeFederationCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
