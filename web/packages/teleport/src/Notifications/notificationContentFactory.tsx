@@ -31,7 +31,6 @@ import { Label } from 'teleport/types';
 */
 export function notificationContentFactory({
   subKind,
-  labels,
   ...notification
 }: NotificationType): NotificationContent {
   let notificationContent: NotificationContent;
@@ -39,11 +38,10 @@ export function notificationContentFactory({
   switch (subKind) {
     case NotificationSubKind.DefaultInformational:
     case NotificationSubKind.UserCreatedInformational: {
-      const textContent = getLabelValue(labels, 'content');
       notificationContent = {
         kind: 'text',
         title: notification.title,
-        textContent,
+        textContent: notification.textContent,
         type: 'informational',
         icon: Icons.Notification,
       };
@@ -52,11 +50,10 @@ export function notificationContentFactory({
 
     case NotificationSubKind.DefaultWarning:
     case NotificationSubKind.UserCreatedWarning: {
-      const textContent = getLabelValue(labels, 'content');
       notificationContent = {
         kind: 'text',
         title: notification.title,
-        textContent,
+        textContent: notification.textContent,
         type: 'warning',
         icon: Icons.Notification,
       };
