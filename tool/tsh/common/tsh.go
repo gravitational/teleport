@@ -589,39 +589,10 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 }
 
 func Main() {
-	cmdLineOrig := os.Args[1:]
-	var cmdLine []string
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	// lets see: if the executable name is 'ssh' or 'scp' we convert
-	// that to "tsh ssh" or "tsh scp"
-	switch filepath.Base(os.Args[0]) {
-	case "ssh":
-		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
-	case "scp":
-		cmdLine = append([]string{"scp"}, cmdLineOrig...)
-	default:
-		cmdLine = cmdLineOrig
-	}
-
-	// The following flags are OpenSSH compatibility flags. They are used for
-	// people that alias "ssh" to "tsh ssh." The following OpenSSH flags are
-	// implemented. From "man 1 ssh":
-	//
-	// * "-V Display the version number and exit."
-	// * "-T Disable pseudo-terminal allocation."
-	if slices.Contains(cmdLine, "-V") {
-		modules.GetModules().PrintVersion()
-		os.Exit(0)
-	}
-	i := slices.Index(cmdLine, "-T")
-	if i > 0 {
-		slices.Replace(cmdLine, i, i+1, []string{"--no-tty"}...)
-	}
-
-	err := Run(ctx, cmdLine)
+	err := Run(ctx, os.Args[1:])
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
 		var exitError *common.ExitCodeError
@@ -698,6 +669,42 @@ func initLogger(cf *CLIConf) {
 	}
 }
 
+// transformArgs performs OpenSSH transformation on the passed in CLI args.
+func transformArgs(args []string) ([]string, error) {
+	var cmdline []string
+
+	// If the executable name is "ssh" or "scp" transform args to "tsh ssh ..."
+	// or "tsh scp ...".
+	switch filepath.Base(os.Args[0]) {
+	case "ssh":
+		cmdline = append([]string{"ssh"}, args...)
+	case "scp":
+		cmdline = append([]string{"scp"}, args...)
+	default:
+		cmdline = args
+	}
+
+	// The following flags are OpenSSH compatibility flags. They are used for
+	// people that alias "ssh" to "tsh ssh." The following OpenSSH flags are
+	// implemented. From "man 1 ssh":
+	//
+	// * "-V Display the version number and exit."
+	// * "-T Disable pseudo-terminal allocation."
+	if slices.Contains(cmdline, "-V") {
+		modules.GetModules().PrintVersion()
+
+		return nil, &common.ExitCodeError{
+			Code: 0,
+		}
+	}
+	i := slices.Index(cmdline, "-T")
+	if i > 0 {
+		slices.Replace(cmdline, i, i+1, []string{"--no-tty"}...)
+	}
+
+	return cmdline, nil
+}
+
 // Run executes TSH client. same as main() but easier to test. Note that this
 // function modifies global state in `tsh` (e.g. the system logger), and WILL
 // ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
@@ -705,6 +712,14 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	// Before parsing CLI flags, transform any arguments for OpenSSH
+	// compatibility.
+	var err error
+	args, err = transformArgs(args)
+	if err != nil {
+		return err
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -1226,8 +1241,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
-
-	var err error
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {

@@ -427,8 +427,8 @@ func TestWithRsync(t *testing.T) {
 				// make the re-exec behave as `tsh` instead of test binary.
 				cmd.Env = []string{
 					fmt.Sprintf("%s=%s", tshBinMockHeadlessAddrEnv, mockHeadlessAddr),
-					tshBinMainTestEnv + "=1",
-					tshBinMainTestOneshotEnv + "=1",
+					tshBinRunTestEnv + "=1",
+					tshBinRunTestOneshotEnv + "=1",
 					fmt.Sprintf("%s=%s", types.HomeEnvVar, tshHome),
 				}
 
@@ -1042,7 +1042,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 	_, agentPath := createAgent(t)
 	cmd := exec.Command(sshPath, ss...)
 	cmd.Env = []string{
-		fmt.Sprintf("%s=1", tshBinMainTestEnv),
+		fmt.Sprintf("%s=1", tshBinRunTestEnv),
 		fmt.Sprintf("SSH_AUTH_SOCK=%s", agentPath),
 		fmt.Sprintf("PATH=%s", filepath.Dir(sshPath)),
 		fmt.Sprintf("%s=%s", types.HomeEnvVar, os.Getenv(types.HomeEnvVar)),

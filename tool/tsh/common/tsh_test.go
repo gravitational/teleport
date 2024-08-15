@@ -100,12 +100,14 @@ import (
 const (
 	mockHeadlessPassword = "password1234"
 	staticToken          = "test-static-token"
-	// tshBinMainTestEnv allows to execute tsh main function from test binary.
-	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
 
-	// tshBinMainTestOneshotEnv allows child processes of a tsh reexec process
+	// tshBinRunTestEnv allows to execute tsh main function from test binary.
+	tshBinRunTestEnv = "TSH_BIN_MAIN_TEST"
+
+	// tshBinRunTestOneshotEnv allows child processes of a tsh reexec process
 	// to call teleport instead of tsh to support 'tsh ssh'.
-	tshBinMainTestOneshotEnv = "TSH_BIN_MAIN_TEST_ONESHOT"
+	tshBinRunTestOneshotEnv = "TSH_BIN_MAIN_TEST_ONESHOT"
+
 	// tshBinMockHeadlessAddr allows tests to mock headless auth when the
 	// test binary is re-executed.
 	tshBinMockHeadlessAddrEnv = "TSH_BIN_MOCK_HEADLESS_ADDR"
@@ -168,11 +170,11 @@ func handleReexec() {
 	// Allows test to refer to tsh binary in tests.
 	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv(tshBinMainTestEnv) != "" {
-		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
+	if os.Getenv(tshBinRunTestEnv) != "" {
+		if os.Getenv(tshBinRunTestOneshotEnv) != "" {
 			// unset this env var so child processes started by 'tsh ssh'
 			// will be executed correctly below.
-			if err := os.Unsetenv(tshBinMainTestEnv); err != nil {
+			if err := os.Unsetenv(tshBinRunTestEnv); err != nil {
 				panic(fmt.Sprintf("failed to unset env var: %v", err))
 			}
 		}
@@ -359,7 +361,7 @@ func TestAlias(t *testing.T) {
 			t.Setenv(globalTshConfigEnvVar, filepath.Join(tmpHomePath, "tsh_global.yaml"))
 
 			// make the re-exec behave as `tsh` instead of test binary.
-			t.Setenv(tshBinMainTestEnv, "1")
+			t.Setenv(tshBinRunTestEnv, "1")
 
 			// write config to use
 			config := &client.TSHConfig{Aliases: tt.aliases}
@@ -6108,31 +6110,66 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 
 // TestCompatibilityFlags
 func TestCompatibilityFlags(t *testing.T) {
-	t.Parallel()
-
+	//t.Parallel()
 	connector := mockConnector(t)
-	alice, err := types.NewUser("foo")
+	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+
+	hostname := "foo"
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = hostname
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
+
+	//authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
+
+	//fmt.Printf("--> here-1\n")
+	//// make the re-exec behave as `tsh` instead of test binary.
+	//t.Setenv(tshBinRunTestEnv, "1")
+
+	home := t.TempDir()
+
+	//fmt.Printf("--> here0\n")
 
 	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(t.TempDir()), setMockSSOLogin(authServer, alice, connector.GetName()))
+	}, setHomePath(home), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
-		"ssh",
-		"-V",
-	}, setHomePath(t.TempDir()))
-	require.NoError(t, err)
+	//var buf bytes.Buffer
+	//err = Run(context.Background(), []string{
+	//	"ssh",
+	//	"-T",
+	//	hostname,
+	//	"env",
+	//}, setHomePath(t.TempDir()), func(conf *CLIConf) error {
+	//	conf.OverrideStdout = &buf
+	//	return nil
+	//})
+	//fmt.Printf("--> buf: %q\n", buf.String())
 
-	fmt.Printf("--> Done!\n")
+	t.Setenv(types.HomeEnvVar, home)
+	t.Setenv(tshBinRunTestEnv, "1")
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+	cmd := exec.Command(testExecutable, "ssh", "-T", "foo", "date")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+	fmt.Printf("--> Done: %q\n", string(output))
+
+	//testExecutable, err := os.Executable()
+	//require.NoError(t, err)
+	//cmd := exec.Command(testExecutable, "ssh", "-V")
+	//output, err := cmd.CombinedOutput()
+	//require.NoError(t, err)
+	//fmt.Printf("--> Done: %q\n", string(output))
 }
