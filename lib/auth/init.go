@@ -1058,7 +1058,7 @@ func getPresetUsers() []types.User {
 	// Certain `New$FooUser()` functions will return a nil role if the
 	// corresponding feature is disabled. They should be filtered out as they
 	// are not actually made available on the cluster.
-	return slices.DeleteFunc(presets, func(r types.User) bool { return r == nil })
+	return slices.DeleteFunc(presets, func(u types.User) bool { return u == nil })
 }
 
 // createPresetUsers creates all of the required user presets. No attempt is
