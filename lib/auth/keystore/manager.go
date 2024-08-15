@@ -85,7 +85,7 @@ var (
 	createErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: keystoreSubsystem,
-		Name:      "create_error",
+		Name:      "key_create_requests_error",
 		Help:      "Total number of key create request errors",
 	}, []string{labelKeyType, labelStoreType, labelCryptoAlgorithm})
 )
