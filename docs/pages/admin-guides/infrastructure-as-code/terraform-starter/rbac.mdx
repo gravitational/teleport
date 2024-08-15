@@ -254,11 +254,28 @@ module "prod_role" {
 }
 ```
 
-## Step 3/4. Configure the single sign-on connector
+## Step 3/4. [Optional] Configure the single sign-on connector
 
 In this step, you will configure your Terraform module to enable authentication
 through your organization's IdP. Configure the `saml` or `oidc` module you
 declared in Step 1 by following the instructions.
+
+<Admonition type="tip">
+
+You can skip this step for now if you want to assign the `dev_access` and
+`prod_access` roles to local Teleport users instead of single sign-on users. To
+do so, you can:
+
+- Import existing `teleport_user` resources and modify them to include the
+  `dev_access` and `prod_access` roles (see the
+  [documentation](../terraform-provider.mdx#step-44-optional-import-existing-resources)).
+- Create a new `teleport_user` resource that includes the roles
+  ([documentation](../managing-resources/user-and-role.mdx).
+
+If you plan to skip this stip, make sure to remove the `module "saml"` or
+`module "oidc"` block from your Terraform configuration.
+
+</Admonition>
 
 1. Register your Teleport cluster with your IdP as a relying party. The
    instructions depend on your IdP. 
