@@ -46,7 +46,7 @@ Inspiration drawn from https://go.dev/doc/toolchain.
 
 ##### Automatic updates
 
-When `tsh login` is executed, client tools will check `/v1/webapi/ping` to
+When `tsh login` is executed, client tools will check `/v1/webapi/find` to
 determine if automatic updates are enabled. If the cluster's required version
 differs from the current binary, client tools will download and re-execute
 using the version required by the cluster. All other `tsh` subcommands (like
@@ -210,7 +210,7 @@ $ tctl autoupdate get
 Enrollment of clients in automatic updates will be enforced at the cluster
 level.
 
-The `cluster_maintenance_config` resource will be updated to allow cluster
+The `cluster_autoupdate_config` resource will be updated to allow cluster
 administrators to turn client tools automatic updates `on` or `off`.
 A `autoupdate_version` resource will be added to allow cluster administrators
 to manage the version of tools pushed to clients.
@@ -220,7 +220,7 @@ to manage the version of tools pushed to clients.
 > updates](https://github.com/gravitational/teleport/blob/master/lib/modules/modules.go#L332-L355)
 > to `autoupdate_version` on Cloud.
 >
-> While Cloud customers will be able to use `cluster_maintenance_config` to
+> While Cloud customers will be able to use `cluster_autoupdate_config` to
 > turn client tools automatic updates `off` and self-manage updates, they will
 > not be able to control the version of client tools in `autoupdate_version`.
 > That will continue to be managed by the Teleport Cloud team.
@@ -229,7 +229,7 @@ Both resources can either be updated directly or by using `tctl` helper
 functions.
 
 ```yaml
-kind: cluster_maintenance_config
+kind: cluster_autoupdate_config
 spec:
   # tools_auto_update allows turning client tools updates on or off at the
   # cluster level. Only turn client tools automatic updates off if self-managed
@@ -262,14 +262,16 @@ For Cloud clusters, `tools_version` will always be `X.Y.Z`, with the version
 controlled by the Cloud team.
 
 The above configuration will then be available from the unauthenticated
-endpoint `/v1/webapi/ping` which clients will consult.
+proxy discovery endpoint `/v1/webapi/find` which clients will consult.
+Resources that store information about autoupdate and tools version are cached on 
+the proxy side to minimize requests to the auth service. In case of an unhealthy 
+cache state, the last known version of the resources should be used for the response.
 
 ```
-$ curl https://proxy.example.com/v1/webapi/ping | jq .
+$ curl https://proxy.example.com/v1/webapi/find | jq .
 {
     "tools_auto_update": true,
     "tools_version": "X.Y.Z",
-
     [...]
 }
 ```
