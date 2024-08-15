@@ -8128,17 +8128,13 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// create preexisting users
 			for i := 0; i < tc.qtyPreexistingUsers; i += 1 {
-				_, _, err = CreateUserAndRole(srv.AuthServer, fmt.Sprintf("testuser-%d", i), nil, []types.Rule{
-					types.NewRule(types.KindUser, services.RW()),
-				})
+				_, _, err = CreateUserAndRole(srv.AuthServer, fmt.Sprintf("testuser-%d", i), nil, []types.Rule{})
 				require.NoError(t, err)
 			}
 
 			// add the user that might have the auth method changed to passwordless
 			username := "passwordless-user"
-			_, _, err = CreateUserAndRole(srv.AuthServer, username, nil, []types.Rule{
-				types.NewRule(types.KindUser, services.RW()),
-			})
+			_, _, err = CreateUserAndRole(srv.AuthServer, username, nil, []types.Rule{})
 			require.NoError(t, err)
 
 			// setup to change authentication method to passkey
