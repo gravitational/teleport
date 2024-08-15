@@ -998,7 +998,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 				}
 			}()
 		} else if len(s.parties) == 1 {
-			base := "Waiting for required participants..."
+			const base = "Waiting for required participants..."
 
 			if s.displayParticipantRequirements {
 				s.BroadcastMessage(base+"\r\n%v", s.accessEvaluator.PrettyRequirementsList())
