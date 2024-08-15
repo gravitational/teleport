@@ -35,7 +35,7 @@ import (
 	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
 	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	secretsreporter "github.com/gravitational/teleport/lib/secretsscanner/reporter"
-	secretsscanner "github.com/gravitational/teleport/lib/secretsscanner/scaner"
+	secretsscanner "github.com/gravitational/teleport/lib/secretsscanner/scanner"
 )
 
 type scanCommand struct {
