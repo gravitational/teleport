@@ -1112,7 +1112,7 @@ func (c *githubAPIClient) getTeams(ctx context.Context) ([]teamResponse, error) 
 				"hit maximum number pages that can be fetched from GitHub."
 
 			// Print warning to Teleport logs as well as the Audit Log.
-			log.Warnf(warningMessage)
+			log.Warn(warningMessage)
 			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,

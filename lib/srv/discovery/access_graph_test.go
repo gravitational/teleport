@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -74,7 +75,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						discoveryConfigName: "test",
 					},
 				},
-				pushErr: fmt.Errorf(testErr),
+				pushErr: errors.New(testErr),
 			},
 			want: map[string][]discoveryconfig.Status{
 				"test": {
@@ -94,7 +95,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 					&fakeFetcher{
 						count:               1,
 						discoveryConfigName: "test",
-						err:                 fmt.Errorf(testErr),
+						err:                 errors.New(testErr),
 					},
 				},
 			},

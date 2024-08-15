@@ -594,6 +594,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
+
+	// Debug service defaults.
+	cfg.DebugService.Enabled = true
 }
 
 // FileDescriptor is a file descriptor associated

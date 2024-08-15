@@ -88,7 +88,7 @@ export interface ResourceSpec {
    * keywords are filter words that user may use to search for
    * this resource.
    */
-  keywords: string;
+  keywords: string[];
   /**
    * hasAccess is a flag to mean that user has
    * the preliminary permissions to add this resource.

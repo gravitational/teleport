@@ -1533,6 +1533,12 @@ crds-up-to-date: must-start-clean/host
 		git diff; \
 		exit 1; \
 	fi
+	$(MAKE) -C integrations/operator crd-docs
+	@if ! git diff --quiet; then \
+		echo 'Please run make -C integrations/operator crd-docs.'; \
+		git diff; \
+		exit 1; \
+	fi
 
 # tfdocs-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
 .PHONY: terraform-resources-up-to-date

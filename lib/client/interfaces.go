@@ -84,8 +84,10 @@ func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
 
 // TLSCredential holds a signed TLS certificate and matching private key.
 type TLSCredential struct {
+	// PrivateKey is the private key of the credential.
 	PrivateKey *keys.PrivateKey
-	Cert       []byte
+	// Cert is a PEM-encoded signed X509 certificate.
+	Cert []byte
 }
 
 // TLSCertificate returns a valid [tls.Certificate] ready to be used in a TLS
@@ -110,9 +112,9 @@ type KeyRing struct {
 	// TLSCert is a PEM encoded client TLS x509 certificate.
 	// It's used to authenticate to the Teleport APIs.
 	TLSCert []byte `json:"TLSCert,omitempty"`
-	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
+	// KubeTLSCredentials are TLS credentials for individual
 	// kubernetes clusters. Map key is a kubernetes cluster name.
-	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
+	KubeTLSCredentials map[string]TLSCredential
 	// DBTLSCredentials are TLS credentials for database access.
 	// Map key is the database service name.
 	DBTLSCredentials map[string]TLSCredential
@@ -135,12 +137,19 @@ func (k *KeyRing) Copy() *KeyRing {
 	return &copy
 }
 
-// GenerateKey returns a new private key with the appropriate algorithm for
-// [purpose]. If this KeyRing uses a PIV/hardware key, it will always return
-// that hardware key.
-func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
+// generateSubjectTLSKey returns a new private key with the appropriate algorithm for
+// [purpose], meant to be used as the subject key for a new user cert request.
+// If [k.PrivateKey] is a PIV/hardware key or an RSA key, it will be re-used.
+func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
 	if k.PrivateKey.IsHardware() {
-		// We always use the same hardware key.
+		// We always re-use the root TLS key if it is a hardware key.
+		return k.PrivateKey, nil
+	}
+	if _, isRSA := k.PrivateKey.Public().(*rsa.PublicKey); isRSA {
+		// We always re-use the root TLS key if it is RSA (it would be expensive
+		// to always generate new RSA keys). If [k.PrivateKey] is RSA we must be
+		// using the `legacy` signature algorithm suitei and the subject keys
+		// should be RSA as well.
 		return k.PrivateKey, nil
 	}
 
@@ -177,7 +186,7 @@ func GenerateRSAKeyRing() (*KeyRing, error) {
 func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
 		PrivateKey:          priv,
-		KubeTLSCerts:        make(map[string][]byte),
+		KubeTLSCredentials:  make(map[string]TLSCredential),
 		DBTLSCredentials:    make(map[string]TLSCredential),
 		AppTLSCredentials:   make(map[string]TLSCredential),
 		WindowsDesktopCerts: make(map[string][]byte),
@@ -221,12 +230,12 @@ func (k *KeyRing) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	cred, ok := k.KubeTLSCredentials[kubeClusterName]
 	if !ok {
 		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
 
-	tlsConfig, err := k.clientTLSConfig(cipherSuites, tlsCert, []string{rootCluster})
+	tlsConfig, err := k.clientTLSConfig(cipherSuites, cred, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,11 +284,14 @@ func (k *KeyRing) TeleportClientTLSConfig(cipherSuites []uint16, clusters []stri
 	if len(k.TLSCert) == 0 {
 		return nil, trace.NotFound("TLS certificate not found")
 	}
-	return k.clientTLSConfig(cipherSuites, k.TLSCert, clusters)
+	return k.clientTLSConfig(cipherSuites, TLSCredential{
+		PrivateKey: k.PrivateKey,
+		Cert:       k.TLSCert,
+	}, clusters)
 }
 
-func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters []string) (*tls.Config, error) {
-	tlsCert, err := k.PrivateKey.TLSCertificate(tlsCertRaw)
+func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, cred TLSCredential, clusters []string) (*tls.Config, error) {
+	tlsCert, err := cred.TLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -460,21 +472,21 @@ func (k *KeyRing) TeleportTLSCertificate() (*x509.Certificate, error) {
 // KubeX509Cert returns the parsed x509 certificate for authentication against
 // a named kubernetes cluster.
 func (k *KeyRing) KubeX509Cert(kubeClusterName string) (*x509.Certificate, error) {
-	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	cred, ok := k.KubeTLSCredentials[kubeClusterName]
 	if !ok {
-		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+		return nil, trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
 	}
-	return tlsca.ParseCertificatePEM(tlsCert)
+	return tlsca.ParseCertificatePEM(cred.Cert)
 }
 
 // KubeTLSCert returns the tls.Certificate for authentication against a named
 // kubernetes cluster.
 func (k *KeyRing) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
-	certPem, ok := k.KubeTLSCerts[kubeClusterName]
+	cred, ok := k.KubeTLSCredentials[kubeClusterName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
+	tlsCert, err := cred.TLSCertificate()
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
