@@ -647,7 +647,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 			case <-ctrlCSignal:
 				_, err := shell.Write([]byte{ctrlCharC})
 				if err != nil {
-					log.Errorf(err.Error())
+					log.Error(err.Error())
 				}
 			case <-ns.closer.C:
 				return
@@ -663,7 +663,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 			if _, ok := event.(terminal.StopEvent); ok {
 				_, err := shell.Write([]byte{ctrlCharZ})
 				if err != nil {
-					log.Errorf(err.Error())
+					log.Error(err.Error())
 				}
 			}
 		}
@@ -736,7 +736,7 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 		defer ns.closer.Close()
 		_, err := io.Copy(ns.terminal.Stdout(), shell)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Error(err.Error())
 		}
 	}()
 

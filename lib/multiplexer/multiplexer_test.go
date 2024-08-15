@@ -214,7 +214,7 @@ func TestMux(t *testing.T) {
 					Listener: mux.TLS(),
 					Config: &http.Server{
 						Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-							fmt.Fprintf(w, r.RemoteAddr)
+							fmt.Fprint(w, r.RemoteAddr)
 						}),
 					},
 				}
@@ -266,7 +266,7 @@ func TestMux(t *testing.T) {
 			Listener: mux.TLS(),
 			Config: &http.Server{
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprintf(w, r.RemoteAddr)
+					fmt.Fprint(w, r.RemoteAddr)
 				}),
 			},
 		}
@@ -319,7 +319,7 @@ func TestMux(t *testing.T) {
 			Listener: mux.TLS(),
 			Config: &http.Server{
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprintf(w, r.RemoteAddr)
+					fmt.Fprint(w, r.RemoteAddr)
 				}),
 			},
 		}
@@ -362,7 +362,7 @@ func TestMux(t *testing.T) {
 			Listener: mux.TLS(),
 			Config: &http.Server{
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprintf(w, r.RemoteAddr)
+					fmt.Fprint(w, r.RemoteAddr)
 				}),
 			},
 		}
@@ -412,7 +412,7 @@ func TestMux(t *testing.T) {
 			Listener: mux.TLS(),
 			Config: &http.Server{
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprintf(w, r.RemoteAddr)
+					fmt.Fprint(w, r.RemoteAddr)
 				}),
 			},
 		}
@@ -847,7 +847,7 @@ func TestMux(t *testing.T) {
 
 				Config: &http.Server{
 					Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						fmt.Fprintf(w, r.RemoteAddr)
+						fmt.Fprint(w, r.RemoteAddr)
 					}),
 				},
 			}

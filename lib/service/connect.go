@@ -1179,7 +1179,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 	// for config v1 and v2, attempt to directly connect to the auth server and fall back to tunneling
 	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
 		// if we don't have a proxy address, try to connect to the auth server directly
-		logger := process.logger.With("auth-addrs", utils.NetAddrsToStrings(authServers))
+		logger := process.logger.With("auth_addrs", utils.NetAddrsToStrings(authServers))
 
 		directClient, resp, directErr := connectToAuthServer(logger)
 		if directErr == nil {
@@ -1218,7 +1218,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 	case defaults.TeleportConfigVersionV3:
 		proxyServer := process.Config.ProxyServer
 		if !proxyServer.IsEmpty() {
-			logger := process.logger.With("proxy-server", proxyServer.String())
+			logger := process.logger.With("proxy_server", proxyServer.String())
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
 			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, identity.ID.Role)
@@ -1232,7 +1232,7 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 		}
 
 		// if we don't have a proxy address, try to connect to the auth server directly
-		logger := process.logger.With("auth-server", utils.NetAddrsToStrings(authServers))
+		logger := process.logger.With("auth_server", utils.NetAddrsToStrings(authServers))
 
 		return connectToAuthServer(logger)
 	}
