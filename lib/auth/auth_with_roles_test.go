@@ -8104,8 +8104,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// create new server
 			ctx := context.Background()
-			srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-			require.NoError(t, err)
+			srv := newTestTLSServer(t)
 
 			modules.SetTestModules(t, &modules.TestModules{
 				TestBuildType: modules.BuildEnterprise,
@@ -8123,28 +8122,51 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
+			_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 			require.NoError(t, err)
 
 			// create preexisting users
 			for i := 0; i < tc.qtyPreexistingUsers; i += 1 {
-				_, _, err = CreateUserAndRole(srv.AuthServer, fmt.Sprintf("testuser-%d", i), nil /* allowedLogins */, nil /* allowRules */)
+				_, _, err = CreateUserAndRole(srv.Auth(), fmt.Sprintf("testuser-%d", i), nil /* allowedLogins */, nil /* allowRules */)
 				require.NoError(t, err)
 			}
 
-			// add the user that might have the auth method changed to passwordless
-			username := "passwordless-user"
-			_, _, err = CreateUserAndRole(srv.AuthServer, username, nil /* allowedLogins */, nil /* allowRules */)
+			// create the user that might have the auth method changed to passwordless with 2FA
+			// since CreateResetPasswordToken requires MFA verification.
+			u, err := createUserWithSecondFactors(srv)
 			require.NoError(t, err)
 
+			// add permission to edit users, necessary to change auth method to passwordless
+			user, err := types.NewUser(u.username)
+			require.NoError(t, err)
+			role := services.RoleForUser(user)
+			role.SetRules(types.Allow, []types.Rule{
+				types.NewRule(types.KindUser, services.RW()),
+			})
+			upsertedRole, err := srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+			user.AddRole(upsertedRole.GetName())
+			srv.Auth().UpdateUser(ctx, &types.UserV2{})
+			_, err = srv.Auth().UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			client.SetMFAPromptConstructor(func(po ...mfa.PromptOpt) mfa.Prompt {
+				return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					return u.webDev.SolveAuthn(chal)
+				})
+			})
+
 			// setup to change authentication method to passkey
-			resetToken, err := srv.AuthServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
-				Name: username,
+			resetToken, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+				Name: user.GetName(),
 			})
 			require.NoError(t, err)
 			token := resetToken.GetName()
 
-			registerChal, err := srv.AuthServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			registerChal, err := client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 				TokenID:     token,
 				DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
@@ -8154,22 +8176,12 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
 			require.NoError(t, err)
 
-			setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
-			require.NoError(t, err)
-
-			// actual authentication method change via ServerWithRoles
-			serverWithRoles := &ServerWithRoles{
-				authServer: srv.AuthServer,
-				alog:       srv.AuditLog,
-				context:    *setupAuthContext,
-			}
-
-			serverWithRoles.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			client.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 				TokenID:                token,
 				NewMFARegisterResponse: registerSolved,
 			})
 
-			authPreferences, err := serverWithRoles.GetAuthPreference(ctx)
+			authPreferences, err := client.GetAuthPreference(ctx)
 			require.NoError(t, err)
 
 			// assert that the auth preference matches the expected
