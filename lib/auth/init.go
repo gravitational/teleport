@@ -1050,17 +1050,14 @@ type PresetUsers interface {
 // getPresetUsers returns a list of all users roles expected to be available on
 // this cluster.
 func getPresetUsers() []types.User {
-	var presetUsers []types.User
-
-	accessBotUser := services.NewSystemAutomaticAccessBotUser()
-	if accessBotUser != nil {
-		presetUsers = append(presetUsers, accessBotUser)
+	presets := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
 	}
 
 	// Certain `New$FooUser()` functions will return a nil role if the
 	// corresponding feature is disabled. They should be filtered out as they
 	// are not actually made available on the cluster.
-	return slices.DeleteFunc(presetUsers, func(r types.User) bool { return r == nil })
+	return slices.DeleteFunc(presets, func(r types.User) bool { return r == nil })
 }
 
 // createPresetUsers creates all of the required user presets. No attempt is
