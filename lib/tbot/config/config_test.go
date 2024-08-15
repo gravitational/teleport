@@ -198,6 +198,19 @@ func TestDestinationFromURI(t *testing.T) {
 			in:      "foobar://",
 			wantErr: true,
 		},
+		{
+			in: "kubernetes-secret:///my-secret",
+			want: &DestinationKubernetesSecret{
+				Name: "my-secret",
+			},
+		},
+		{
+			in: "kubernetes-secret://my-secret",
+			want: &DestinationKubernetesSecret{
+				Name: "my-secret",
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
@@ -290,6 +303,11 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationDirectory{
 							Path: "/bot/output",
 						},
+					},
+					&ApplicationTunnelService{
+						Listen:  "tcp://127.0.0.1:123",
+						Roles:   []string{"access"},
+						AppName: "my-app",
 					},
 				},
 			},

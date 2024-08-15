@@ -25,8 +25,9 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import {
   PtyCommand,
   PtyProcessCreationStatus,
-  SshOptions,
   TshKubeLoginCommand,
+  SshOptions,
+  WindowsPty,
 } from '../types';
 
 import {
@@ -34,9 +35,14 @@ import {
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
 
+type PtyOptions = {
+  ssh: SshOptions;
+  windowsPty: Pick<WindowsPty, 'useConpty'>;
+};
+
 export async function buildPtyOptions(
   settings: RuntimeSettings,
-  sshOptions: SshOptions,
+  options: PtyOptions,
   cmd: PtyCommand
 ): Promise<{
   processOptions: PtyProcessOptions;
@@ -60,6 +66,8 @@ export async function buildPtyOptions(
       const combinedEnv = {
         ...process.env,
         ...shellEnv,
+        TERM_PROGRAM: 'Teleport_Connect',
+        TERM_PROGRAM_VERSION: settings.appVersion,
         TELEPORT_HOME: settings.tshd.homeDir,
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
@@ -68,7 +76,7 @@ export async function buildPtyOptions(
       return {
         processOptions: getPtyProcessOptions(
           settings,
-          sshOptions,
+          options,
           cmd,
           combinedEnv
         ),
@@ -79,10 +87,12 @@ export async function buildPtyOptions(
 
 export function getPtyProcessOptions(
   settings: RuntimeSettings,
-  sshOptions: SshOptions,
+  options: PtyOptions,
   cmd: PtyCommand,
   env: typeof process.env
 ): PtyProcessOptions {
+  const useConpty = options.windowsPty?.useConpty;
+
   switch (cmd.kind) {
     case 'pty.shell': {
       // Teleport Connect bundles a tsh binary, but the user might have one already on their system.
@@ -104,6 +114,7 @@ export function getPtyProcessOptions(
         cwd: cmd.cwd,
         env: { ...env, ...cmd.env },
         initMessage: cmd.initMessage,
+        useConpty,
       };
     }
 
@@ -129,6 +140,7 @@ export function getPtyProcessOptions(
         path: settings.defaultShell,
         args: isWindows ? powershellCommandArgs : bashCommandArgs,
         env: { ...env, KUBECONFIG: getKubeConfigFilePath(cmd, settings) },
+        useConpty,
       };
     }
 
@@ -140,7 +152,7 @@ export function getPtyProcessOptions(
       const args = [
         `--proxy=${cmd.rootClusterId}`,
         'ssh',
-        ...(sshOptions.noResume ? ['--no-resume'] : []),
+        ...(options.ssh.noResume ? ['--no-resume'] : []),
         '--forward-agent',
         loginHost,
       ];
@@ -149,6 +161,7 @@ export function getPtyProcessOptions(
         path: settings.tshd.binaryPath,
         args,
         env,
+        useConpty,
       };
     }
 
@@ -159,6 +172,7 @@ export function getPtyProcessOptions(
         path: cmd.path,
         args: cmd.args,
         env: { ...env, ...cmd.env },
+        useConpty,
       };
     }
 

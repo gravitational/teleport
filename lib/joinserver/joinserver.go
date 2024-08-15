@@ -62,7 +62,7 @@ type joinServiceClient interface {
 // server. On the Auth Server, this is passed to auth.ServerWithRoles and
 // through to auth.Server to be handled.
 type JoinServiceGRPCServer struct {
-	*proto.UnimplementedJoinServiceServer
+	proto.UnimplementedJoinServiceServer
 
 	joinServiceClient joinServiceClient
 	clock             clockwork.Clock

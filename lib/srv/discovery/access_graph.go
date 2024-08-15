@@ -34,7 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
@@ -249,7 +251,8 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	if !clusterFeatures.AccessGraph && (clusterFeatures.Policy == nil || !clusterFeatures.Policy.Enabled) {
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 

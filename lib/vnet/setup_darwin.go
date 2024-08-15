@@ -72,9 +72,11 @@ do shell script quoted form of executableName & `+
 		`" %s -d --socket " & quoted form of socketPath & `+
 		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
 		`" --dns-addr " & quoted form of dnsAddr & `+
+		`" --egid %d --euid %d" & `+
 		`" >/var/log/vnet.log 2>&1" `+
 		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
-		executableName, config.SocketPath, config.IPv6Prefix, config.DNSAddr, teleport.VnetAdminSetupSubCommand)
+		executableName, config.SocketPath, config.IPv6Prefix, config.DNSAddr, teleport.VnetAdminSetupSubCommand,
+		os.Getegid(), os.Geteuid())
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
 	// privileged process, canceling the context (and thus killing osascript) has no effect on the privileged

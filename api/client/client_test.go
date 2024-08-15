@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 }
 
 type pingService struct {
-	*proto.UnimplementedAuthServiceServer
+	proto.UnimplementedAuthServiceServer
 	userAgentFromLastCallValue atomic.Value
 }
 
@@ -192,7 +192,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 }
 
 type listResourcesService struct {
-	*proto.UnimplementedAuthServiceServer
+	proto.UnimplementedAuthServiceServer
 }
 
 func (s *listResourcesService) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {

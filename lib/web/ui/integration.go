@@ -237,6 +237,9 @@ type AWSOIDCDeployDatabaseServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	// AccountID is the AWS account to deploy service to.
+	AccountID string `json:"accountId"`
+
 	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
 	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
 	// This can be either the ARN or the short name of the AWS Role.
@@ -373,6 +376,39 @@ type AWSOIDCListSubnetsRequest struct {
 type AWSOIDCListSubnetsResponse struct {
 	// Subnets contains the page of subnets
 	Subnets []awsoidc.Subnet `json:"subnets"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCRequiredVPCSRequest is a request to list VPCs.
+type AWSOIDCListVPCsRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// AccountID is the AWS Account ID.
+	AccountID string `json:"accountId"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// DatabaseEnrollmentVPC is a wrapper around [awsoidc.VPC] that also includes
+// a link to the ECS service for a deployed Teleport database service in that
+// VPC, if one exists.
+type DatabaseEnrollmentVPC struct {
+	awsoidc.VPC
+	// ECSServiceDashboardURL is a link to the ECS service deployed for this
+	// VPC, if one exists. Can be empty.
+	ECSServiceDashboardURL string `json:"ecsServiceDashboardURL"`
+}
+
+// AWSOIDCDatabaseVPCsResponse contains a list of VPCs, including a link to
+// an existing db service deployment if one exists, and a next token if more
+// pages are available.
+type AWSOIDCDatabaseVPCsResponse struct {
+	// VPCs contains a page of VPCs.
+	VPCs []DatabaseEnrollmentVPC `json:"vpcs"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.

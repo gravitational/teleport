@@ -49,6 +49,11 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
   rpc ListSubnets(ListSubnetsRequest) returns (ListSubnetsResponse);
 
+  // ListVPCs returns a list of AWS VPCs.
+  // It uses the following API:
+  // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVpcs.html
+  rpc ListVPCs(ListVPCsRequest) returns (ListVPCsResponse);
+
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 
@@ -262,7 +267,7 @@ message ListSubnetsRequest {
 
 // Subnet is a representation of an AWS VPC subnet.
 message Subnet {
-  // Name is the subnet name.
+  // Name is the subnet name. Can be empty.
   string name = 1;
   // ID is the subnet ID.
   string id = 2;
@@ -274,6 +279,36 @@ message Subnet {
 message ListSubnetsResponse {
   // Subnets contains the page of subnets.
   repeated Subnet subnets = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
+
+// ListVPCsRequest is a request for a paginated list of AWS VPCs.
+message ListVPCsRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 3;
+}
+
+// VPC is a representation of an AWS VPC.
+message VPC {
+  // Name is the VPC name. Can be empty.
+  string name = 1;
+  // ID is the VPC ID.
+  string id = 2;
+}
+
+// ListVPCsResponse contains a page of AWS VPCs.
+message ListVPCsResponse {
+  // VPCs contains the page of VPCs.
+  repeated VPC vpcs = 1;
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;
@@ -324,7 +359,8 @@ message DeployDatabaseServiceDeployment {
 message DeployDatabaseServiceResponse {
   // ClusterArn identifies the cluster where the deployment was made.
   string cluster_arn = 1;
-  // ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
+  // ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
+  // specific cluster service if a single deployment was requested.
   string cluster_dashboard_url = 2;
 }
 

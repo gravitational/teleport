@@ -19,10 +19,11 @@ package vnet
 import (
 	"bufio"
 	"context"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
+	"syscall"
 
 	"github.com/gravitational/trace"
 )
@@ -34,14 +35,14 @@ func configureOS(ctx context.Context, cfg *osConfig) error {
 	// process exits and the TUN is deleted.
 
 	if cfg.tunIPv4 != "" {
-		slog.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
 		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 	}
 	for _, cidrRange := range cfg.cidrRanges {
-		slog.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
+		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
 		cmd := exec.CommandContext(ctx, "route", "add", "-net", cidrRange, "-interface", cfg.tunName)
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
@@ -49,13 +50,13 @@ func configureOS(ctx context.Context, cfg *osConfig) error {
 	}
 
 	if cfg.tunIPv6 != "" {
-		slog.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 
-		slog.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
+		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
 		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
@@ -78,7 +79,7 @@ func configureDNS(ctx context.Context, nameserver string, zones []string) error 
 		return trace.BadParameter("empty nameserver with non-empty zones")
 	}
 
-	slog.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
+	log.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
 	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
 		return trace.Wrap(err, "creating %s", resolverPath)
 	}
@@ -139,4 +140,43 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 		}
 	}
 	return matchingFiles, nil
+}
+
+var hasDroppedPrivileges atomic.Bool
+
+// doWithDroppedRootPrivileges drops the privileges of the current process to those of the client
+// process that called the VNet daemon.
+func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+	if !hasDroppedPrivileges.CompareAndSwap(false, true) {
+		// At the moment of writing, the VNet daemon wasn't expected to do multiple things in parallel
+		// with dropped privileges. If you run into this error, consider if employing a mutex is going
+		// to be enough or if a more elaborate refactoring is required.
+		return trace.CompareFailed("privileges are being temporarily dropped already")
+	}
+	defer hasDroppedPrivileges.Store(false)
+
+	rootEgid := os.Getegid()
+	rootEuid := os.Geteuid()
+
+	log.InfoContext(ctx, "Temporarily dropping root privileges.", "egid", c.daemonClientCred.Egid, "euid", c.daemonClientCred.Euid)
+
+	if err := syscall.Setegid(c.daemonClientCred.Egid); err != nil {
+		panic(trace.Wrap(err, "setting egid"))
+	}
+	if err := syscall.Seteuid(c.daemonClientCred.Euid); err != nil {
+		panic(trace.Wrap(err, "setting euid"))
+	}
+
+	defer func() {
+		if err := syscall.Seteuid(rootEuid); err != nil {
+			panic(trace.Wrap(err, "reverting euid"))
+		}
+		if err := syscall.Setegid(rootEgid); err != nil {
+			panic(trace.Wrap(err, "reverting egid"))
+		}
+
+		log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
+	}()
+
+	return trace.Wrap(fn())
 }

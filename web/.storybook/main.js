@@ -20,8 +20,23 @@ const path = require('path');
 const fs = require('fs');
 const configFactory = require('@gravitational/build/webpack/webpack.base');
 
-// include open source stories
-const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
+// Include open source stories.
+//
+// When pnpm is used, storybook appears to load stories from workspaces in
+// node_modules, which causes it to fail with the following Node.js cryptic error
+// (probably out of memory):
+//
+// Fatal error in , line 0
+// Fatal JavaScript invalid size error 169220804 (see crbug.com/1201626)
+//
+// The paths are as specific as possible to avoid loading unnecessary stories.
+// TODO(gzdunek): Check if this still need in storybook > v6 .
+const stories = [
+  '../packages/teleport/src/**/*.story.@(js|jsx|ts|tsx)',
+  '../packages/teleterm/src/**/*.story.@(js|jsx|ts|tsx)',
+  '../packages/design/src/**/*.story.@(js|jsx|ts|tsx)',
+  '../packages/shared/@(components|hooks)/**/*.story.@(js|jsx|ts|tsx)',
+];
 
 const tsconfigPath = path.join(__dirname, '../../tsconfig.json');
 
@@ -31,7 +46,7 @@ const enterpriseTeleportExists = fs.existsSync(
 
 // include enterprise stories if available (**/* pattern ignores dot dir names)
 if (enterpriseTeleportExists) {
-  stories.unshift('../../e/web/**/*.story.@(js|jsx|ts|tsx)');
+  stories.unshift('../../e/web/teleport/src/**/*.story.@(js|jsx|ts|tsx)');
 }
 
 module.exports = {

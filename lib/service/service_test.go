@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -477,8 +478,10 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 
@@ -1294,7 +1297,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGRPC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	insecureGRPC, err := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	require.NoError(t, err)
 	t.Cleanup(insecureGRPC.GracefulStop)
 
 	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{

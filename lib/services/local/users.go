@@ -1246,6 +1246,9 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
@@ -1267,6 +1270,9 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1286,6 +1292,9 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 
 // UpdateOIDCConnector updates an existing OIDC connector.
 func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)

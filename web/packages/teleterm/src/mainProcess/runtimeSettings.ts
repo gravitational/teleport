@@ -52,7 +52,7 @@ const insecure =
   // --insecure is already in our docs, but let's add --connect-insecure too in case Node or
   // Electron reserves it one day.
   argv.includes('--connect-insecure') ||
-  // The flag is needed because it's not easy to pass a flag to the app in dev mode. `yarn
+  // The flag is needed because it's not easy to pass a flag to the app in dev mode. `pnpm
   // start-term` causes a bunch of package scripts to be executed and each would have to pass the
   // flag one level down.
   (dev && !!env.CONNECT_INSECURE);

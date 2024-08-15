@@ -120,6 +120,7 @@
     "Kanban",
     "Keycloak",
     "Keyspaces",
+    "knownhosts",
     "Kubernetes",
     "Kubes",
     "LDAPS",
@@ -187,9 +188,11 @@
     "Relogin",
     "SAMLIDP",
     "SCIM",
+    "sendall",
     "SECURITYADMIN",
     "SIEM",
     "SIGINT",
+    "SIGUSR",
     "SLAVEOF",
     "SLES",
     "SLOWLOG",
@@ -479,6 +482,7 @@
     "fluxcd",
     "ftmg",
     "fullchain",
+    "fprint",
     "gacc",
     "gcloud",
     "gcpproj",
@@ -714,6 +718,7 @@
     "parquetlog",
     "pastable",
     "pasteable",
+    "paramiko",
     "persistentvolume",
     "persistentvolumeclaim",
     "pgaadauth",
@@ -814,6 +819,7 @@
     "serviceacct",
     "servicecfg",
     "serviceid",
+    "sess",
     "session",
     "setspn",
     "sharded",
@@ -953,6 +959,7 @@
     "winadj",
     "windowsaccountname",
     "windowsdesktop",
+    "winpty",
     "winscp",
     "winserver",
     "workgroups",
@@ -979,5 +986,7 @@
   "flagWords": [
     "hte"
   ],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }

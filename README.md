@@ -149,8 +149,8 @@ Ensure you have installed correct versions of necessary dependencies:
   (search for `RUST_VERSION`)
 * For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
 * To build the web UI:
-  * [`yarn`](https://classic.yarnpkg.com/en/docs/install)(< 2.0.0) is required.
-  * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
+  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
+  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
   * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
   * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually

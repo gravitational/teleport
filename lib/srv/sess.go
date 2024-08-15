@@ -271,6 +271,7 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
+			log.Warnf("Unable to create host users: %v", err)
 			return nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)
@@ -1333,19 +1334,19 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
 		select {
 		case <-time.After(defaults.WaitCopyTimeout):
-			s.log.Error("Timed out waiting for PTY copy to finish, session data  may be missing.")
+			s.log.Debug("Timed out waiting for PTY copy to finish, session data may be missing.")
 		case <-s.doneCh:
+		}
+
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
 		}
 
 		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
@@ -1514,8 +1515,11 @@ func (s *session) broadcastResult(r ExecResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.parties {
-		p.ctx.SendExecResult(r)
+		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
+			s.log.Infof("Failed to send exit status for %v: %v", r.Command, err)
+		}
 	}
 }
 

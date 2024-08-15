@@ -19,10 +19,9 @@
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
-// #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
+// #include "common_darwin.h"
 import "C"
 
 import (
@@ -31,7 +30,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -79,8 +77,27 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		}
 	}
 
-	if err := startByCalling(ctx, bundlePath, config); err != nil {
-		return trace.Wrap(err)
+	if err = startByCalling(ctx, bundlePath, config); err != nil {
+		if !errors.Is(err, errAlreadyRunning) {
+			return trace.Wrap(err)
+		}
+
+		// If the daemon was already running, it might mean two things:
+		//
+		// 1. The user attempted to start a second instance of VNet.
+		// 2. The user has stopped the previous instance of VNet and immediately started a new one,
+		// before the daemon had a chance to notice that the previous instance was stopped and exit too.
+		//
+		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
+		// just about to quit.
+		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
+		if err := sleepOrDone(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := startByCalling(ctx, bundlePath, config); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// TODO(ravicious): Implement monitoring the state of the daemon.
@@ -125,17 +142,17 @@ func register(ctx context.Context, bundlePath string) (ServiceStatus, error) {
 	return ServiceStatus(result.service_status), nil
 }
 
-const waitingForEnablementTimeout = time.Minute
-
-var waitingForEnablementTimeoutExceeded = errors.New("the login item was not enabled within the timeout")
-
 // waitForEnablement periodically checks if the status of the daemon has changed to
 // [serviceStatusEnabled]. This happens when the user approves the login item in system settings.
 func waitForEnablement(ctx context.Context, bundlePath string) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout, waitingForEnablementTimeoutExceeded)
+	// It should be less than receiveTunTimeout in the vnet package
+	// so that the user sees the error about the background item first.
+	const waitingForEnablementTimeout = 50 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout,
+		errors.New("the background item was not enabled within the timeout"))
 	defer cancel()
 
 	for {
@@ -183,6 +200,8 @@ const (
 	ServiceStatusEnabled          ServiceStatus = 1
 	ServiceStatusRequiresApproval ServiceStatus = 2
 	ServiceStatusNotFound         ServiceStatus = 3
+	// ServiceStatusNotSupported is returned by us when macOS version is < 13.0.
+	ServiceStatusNotSupported ServiceStatus = -1
 )
 
 func (s ServiceStatus) String() string {
@@ -195,6 +214,8 @@ func (s ServiceStatus) String() string {
 		return "requires approval"
 	case ServiceStatusNotFound:
 		return "not found"
+	case ServiceStatusNotSupported:
+		return "not supported"
 	default:
 		return strconv.Itoa(int(s))
 	}
@@ -243,28 +264,20 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	errC := make(chan error, 1)
 
 	go func() {
-		var pinner runtime.Pinner
-		defer pinner.Unpin()
-
 		req := C.StartVnetRequest{
 			bundle_path: C.CString(bundlePath),
-			vnet_config: &C.VnetConfig{
-				socket_path: C.CString(config.SocketPath),
-				ipv6_prefix: C.CString(config.IPv6Prefix),
-				dns_addr:    C.CString(config.DNSAddr),
-				home_path:   C.CString(config.HomePath),
-			},
+			socket_path: C.CString(config.SocketPath),
+			ipv6_prefix: C.CString(config.IPv6Prefix),
+			dns_addr:    C.CString(config.DNSAddr),
+			home_path:   C.CString(config.HomePath),
 		}
 		defer func() {
 			C.free(unsafe.Pointer(req.bundle_path))
-			C.free(unsafe.Pointer(req.vnet_config.socket_path))
-			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
-			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
-			C.free(unsafe.Pointer(req.vnet_config.home_path))
+			C.free(unsafe.Pointer(req.socket_path))
+			C.free(unsafe.Pointer(req.ipv6_prefix))
+			C.free(unsafe.Pointer(req.dns_addr))
+			C.free(unsafe.Pointer(req.home_path))
 		}()
-		// Structs passed directly as arguments to cgo functions are automatically pinned.
-		// However, structs within structs have to be pinned by hand.
-		pinner.Pin(req.vnet_config)
 
 		var res C.StartVnetResult
 		defer func() {
@@ -276,7 +289,45 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		C.StartVnet(&req, &res)
 
 		if !res.ok {
-			errC <- trace.Errorf("could not start VNet daemon: %v (%v)", C.GoString(res.error_description), C.GoString(res.error_domain))
+			errorDomain := C.GoString(res.error_domain)
+			errorCode := int(res.error_code)
+
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeAlreadyRunning {
+				errC <- trace.Wrap(errAlreadyRunning)
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionInterrupted {
+				const clientNSXPCConnectionInterruptedDebugMsg = "The connection was interrupted when trying to " +
+					"reach the XPC service. If there's no clear error logs on the daemon side, it might mean that " +
+					"the client does not satisfy the code signing requirement enforced by the daemon. " +
+					"Start capturing logs in Console.app and repeat the scenario. Look for " +
+					"\"xpc_support_check_token: <private> error: <private> status: -67050\" in the logs to verify " +
+					"that the connection was interrupted due to the code signing requirement."
+				log.DebugContext(ctx, clientNSXPCConnectionInterruptedDebugMsg)
+				errC <- trace.Wrap(errXPCConnectionInterrupted)
+				return
+			}
+
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+				errC <- trace.Wrap(errMissingCodeSigningIdentifiers)
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionCodeSigningRequirementFailure {
+				// If the client submits TELEPORT_HOME to which the user doesn't have access, the daemon is
+				// going to shut down with an error soon after starting. Because of that, macOS won't have
+				// enough time to perform the verification of the code signing requirement of the daemon, as
+				// requested by the client.
+				//
+				// In that scenario, macOS is going to simply error that connection with
+				// NSXPCConnectionCodeSigningRequirementFailure. Without looking at logs, it's not possible
+				// to differentiate that from a "legitimate" failure caused by an incorrect requirement.
+				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "either daemon is not signed correctly or it shut down before signature could be verified")
+				return
+			}
+
+			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
 			return
 		}
 
@@ -288,5 +339,17 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		return trace.Wrap(context.Cause(ctx))
 	case err := <-errC:
 		return trace.Wrap(err, "connecting to the VNet daemon")
+	}
+}
+
+func sleepOrDone(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-timer.C:
+		return nil
 	}
 }

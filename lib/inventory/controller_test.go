@@ -42,19 +42,6 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	// Use a static metadata getter for tests.
-	metadataGetter = func(ctx context.Context) (*metadata.Metadata, error) {
-		return &metadata.Metadata{
-			OS:                    "llamaOS",
-			OSVersion:             "1.2.3",
-			HostArchitecture:      "llama",
-			GlibcVersion:          "llama.5.6.7",
-			InstallMethods:        []string{"llama", "alpaca"},
-			ContainerRuntime:      "test",
-			ContainerOrchestrator: "test",
-			CloudEnvironment:      "llama-cloud",
-		}, nil
-	}
 	os.Exit(m.Run())
 }
 
@@ -739,6 +726,8 @@ func TestUpdateLabels(t *testing.T) {
 // TestAgentMetadata verifies that an instance's agent metadata is received in
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
+	t.Parallel()
+
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -768,9 +757,24 @@ func TestAgentMetadata(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		upstreamHello,
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return &metadata.Metadata{
+				OS:                    "llamaOS",
+				OSVersion:             "1.2.3",
+				HostArchitecture:      "llama",
+				GlibcVersion:          "llama.5.6.7",
+				InstallMethods:        []string{"llama", "alpaca"},
+				ContainerRuntime:      "test",
+				ContainerOrchestrator: "test",
+				CloudEnvironment:      "llama-cloud",
+			}, nil
+		}),
+	)
 
 	// Wait for upstream hello.
 	select {

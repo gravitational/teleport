@@ -119,7 +119,12 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 	}
 	defer impersonatedClient.Close()
 
-	routeToApp, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, s.cfg)
+	routeToApp, _, err := getRouteToApp(
+		ctx,
+		s.getBotIdentity(),
+		impersonatedClient,
+		s.cfg.AppName,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -197,13 +202,18 @@ func (s *ApplicationOutputService) render(
 	return trace.Wrap(writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
 }
 
-func getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *authclient.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func getRouteToApp(
+	ctx context.Context,
+	botIdentity *identity.Identity,
+	client *authclient.Client,
+	appName string,
+) (proto.RouteToApp, types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getRouteToApp")
 	defer span.End()
 
-	app, err := getApp(ctx, client, output.AppName)
+	app, err := getApp(ctx, client, appName)
 	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
+		return proto.RouteToApp{}, nil, trace.Wrap(err)
 	}
 
 	routeToApp := proto.RouteToApp{
@@ -213,12 +223,14 @@ func getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *
 	}
 
 	// TODO (Joerger): DELETE IN v17.0.0
+	// TODO(noah): When this is deleted, we can begin to cache the routeToApp
+	// rather than regenerating this on each renew in the ApplicationTunnelSvc
 	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
 	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
+		return proto.RouteToApp{}, nil, trace.Wrap(err)
 	}
 
-	return routeToApp, nil
+	return routeToApp, app, nil
 }
 
 func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {

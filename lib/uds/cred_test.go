@@ -76,7 +76,7 @@ func TestGetCreds(t *testing.T) {
 }
 
 type service struct {
-	*machineidv1.UnimplementedBotServiceServer
+	machineidv1.UnimplementedBotServiceServer
 	lastCalledCreds *Creds
 }
 

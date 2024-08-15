@@ -153,8 +153,8 @@ func (s *auditStreamer) recv() {
 }
 
 func (s *auditStreamer) closeWithError(err error) {
-	s.cancel()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.err = err
+	s.cancel()
 }

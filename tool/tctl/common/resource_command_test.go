@@ -34,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
@@ -839,7 +841,7 @@ version: v2`,
 				buf, err := runResourceCommand(t, clt, []string{"get", "cap", "--format=json"})
 				require.NoError(t, err)
 				authPreferences := mustDecodeJSON[[]types.AuthPreferenceV2](t, buf)
-				require.NotZero(t, len(authPreferences))
+				require.NotEmpty(t, authPreferences)
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
 			}
 		})
@@ -1410,6 +1412,17 @@ func TestCreateResources(t *testing.T) {
 			test.create(t, rootClient)
 		})
 	}
+
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, rootClient, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: github")
+	assert.Contains(t, s, "kind: cluster_auth_preference")
+	assert.Contains(t, s, "kind: cluster_networking_config")
+	assert.Contains(t, s, "kind: user")
+	assert.Contains(t, s, "kind: role")
 }
 
 func testCreateGithubConnector(t *testing.T, clt *authclient.Client) {
@@ -2020,8 +2033,10 @@ func TestCreateEnterpriseResources(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			OIDC: true,
-			SAML: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 		},
 	})
 
@@ -2048,6 +2063,13 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		})
 	}
 
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, clt, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: saml")
+	assert.Contains(t, s, "kind: oidc")
 }
 
 func testCreateOIDCConnector(t *testing.T, clt *authclient.Client) {

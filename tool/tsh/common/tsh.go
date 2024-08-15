@@ -31,7 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
@@ -45,6 +45,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -596,7 +597,7 @@ func Main() {
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
-	switch path.Base(os.Args[0]) {
+	switch filepath.Base(os.Args[0]) {
 	case "ssh":
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
@@ -815,19 +816,23 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
+	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	azure.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 
 	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
 	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	gcloud.Alias("gcp")
 
 	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
 	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -1169,6 +1174,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
+	// SCAN subcommands.
+	scan := newScanCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -1467,7 +1474,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.exec.run(&cf)
 	case kube.join.FullCommand():
 		err = kube.join.run(&cf)
-
+	case scan.keys.FullCommand():
+		err = scan.keys.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf)
 	case proxyDB.FullCommand():
@@ -3232,21 +3240,48 @@ func serializeSessions(sessions []types.SessionTracker, format string, w io.Writ
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "Hostname", "Address", "Login", "Command"})
+	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "User", "Target", "Address"})
 	for _, s := range sessions {
 		table.AddRow([]string{
 			s.GetSessionID(),
 			string(s.GetSessionKind()),
-			s.GetCreated().Format(time.RFC3339),
-			s.GetHostname(),
-			s.GetAddress(),
-			s.GetLogin(),
-			strings.Join(s.GetCommand(), " "),
+			humanize.Time(s.GetCreated()),
+			s.GetHostUser(),
+			target(s),
+			address(s),
 		})
 	}
 
 	tableOutput := table.AsBuffer().String()
 	fmt.Fprintln(output, tableOutput)
+}
+
+func address(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.KubernetesSessionKind:
+		// address isn't populated in the session tracker for kube sessions,
+		// so we display the command the exec session is running
+		return strings.Join(s.GetCommand(), " ")
+	default:
+		return s.GetAddress()
+	}
+}
+
+func target(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.SSHSessionKind:
+		return s.GetLogin() + "@" + s.GetHostname()
+	case types.KubernetesSessionKind:
+		return s.GetHostname() + "@" + s.GetKubeCluster()
+	case types.AppSessionKind:
+		return s.GetAppName()
+	case types.DatabaseSessionKind:
+		return s.GetDatabaseName()
+	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	default:
+		return s.GetHostname()
+	}
 }
 
 type clusterInfo struct {
@@ -5165,10 +5200,10 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 func setEnvFlags(cf *CLIConf) {
 	// these can only be set with env vars.
 	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
+		cf.HomePath = filepath.Clean(homeDir)
 	}
 	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = path.Clean(configPath)
+		cf.GlobalTshConfigPath = filepath.Clean(configPath)
 	}
 
 	// prioritize CLI input for the rest.

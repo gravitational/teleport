@@ -46,7 +46,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -63,7 +62,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -79,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -91,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -332,6 +332,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.SPIFFEFederations == nil {
+		cfg.SPIFFEFederations, err = local.NewSPIFFEFederationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -346,15 +352,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		CloudClients: cfg.CloudClients,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else {
@@ -416,6 +422,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		SPIFFEFederations:         cfg.SPIFFEFederations,
 	}
 
 	as := Server{
@@ -566,6 +573,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
+// Services is a collection of services that are used by the auth server.
+// Avoid using this type as a dependency and instead depend on the actual
+// methods/services you need. It should really only be necessary to directly
+// reference this type on auth.Server itself and on code that manages
+// the lifecycle of the auth server.
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
@@ -604,11 +616,9 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
-}
-
-// SecReportsClient returns the security reports client.
-func (r *Services) SecReportsClient() *secreport.Client {
-	return nil
+	services.SPIFFEFederations
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
 }
 
 // GetWebSession returns existing web session described by req.
@@ -626,54 +636,6 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
-}
-
-// OktaClient returns the okta client.
-func (r *Services) OktaClient() services.Okta {
-	return r
-}
-
-// SCIMClient returns a client for the SCIM service. Note that in an OSS
-// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
-// service on the other end will return "NotImplemented" for every call.
-func (r *Services) SCIMClient() services.SCIM {
-	return r.SCIM
-}
-
-// AccessListClient returns the access list client.
-func (r *Services) AccessListClient() services.AccessLists {
-	return r
-}
-
-// AccessMonitoringRuleClient returns the access monitoring rules client.
-func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
-	return r
-}
-
-// DiscoveryConfigClient returns the DiscoveryConfig client.
-func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return r
-}
-
-// CrownJewelClient returns the CrownJewels client.
-func (r *Services) CrownJewelClient() services.CrownJewels {
-	return r
-}
-
-// UserLoginStateClient returns the user login state client.
-func (r *Services) UserLoginStateClient() services.UserLoginStates {
-	return r
-}
-
-// KubernetesWaitingContainerClient returns the Kubernetes waiting
-// container client.
-func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
-	return r
-}
-
-// DatabaseObjectsClient returns the database objects client.
-func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
-	return r
 }
 
 var (
@@ -819,6 +781,10 @@ type LoginHook func(context.Context, types.User) error
 // May return `nil, nil` if device trust isn't supported (OSS), disabled, or if
 // the user has no suitable trusted device.
 type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
+
+// CreateDeviceAssertionFunc creates a new device assertion ceremony to authenticate
+// a trusted device.
+type CreateDeviceAssertionFunc func() (assertserver.Ceremony, error)
 
 // ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
 // where it would have a naming conflict with other types named Cache.
@@ -996,6 +962,15 @@ type Server struct {
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
 
+	// deviceAssertionServer holds the server-side implementation of device assertions.
+	//
+	// It is used to authenticate devices previously enrolled in the cluster. The goal
+	// is to provide an API for devices to authenticate with the cluster without the need
+	// for valid user credentials, e.g. when running `tsh scan keys`.
+	//
+	// The value is nil on OSS clusters.
+	deviceAssertionServer CreateDeviceAssertionFunc
+
 	// bcryptCostOverride overrides the bcrypt cost for operations executed
 	// directly by [Server].
 	// Used for testing.
@@ -1142,6 +1117,26 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// SetDeviceAssertionServer sets the device assertion implementation.
+func (a *Server) SetDeviceAssertionServer(f CreateDeviceAssertionFunc) {
+	a.lock.Lock()
+	a.deviceAssertionServer = f
+	a.lock.Unlock()
+}
+
+// GetDeviceAssertionServer returns the device assertion implementation.
+// On OSS clusters, this will return a non nil function that returns an error.
+func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.deviceAssertionServer == nil {
+		return func() (assertserver.Ceremony, error) {
+			return nil, trace.NotImplemented("device assertions are not supported on OSS clusters")
+		}
+	}
+	return a.deviceAssertionServer
 }
 
 func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
@@ -1761,6 +1756,16 @@ func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
 }
 
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecretsGetter) {
+	a.Services.AccessGraphSecretsGetter = s
+}
+
+// SetDevicesGetter sets the server's device service
+func (a *Server) SetDevicesGetter(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
+}
+
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
 	a.Services.AuditLogSessionStreamer = auditLog
@@ -1964,6 +1969,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	appURI string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -3027,6 +3034,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
+			URI:               req.appURI,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -4089,7 +4097,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
+	sess, _, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -4909,7 +4917,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -5381,7 +5389,7 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 func enforceLicense(t string) error {
 	switch t {
 	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !modules.GetModules().Features().Kubernetes {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.K8s).Enabled {
 			return trace.AccessDenied(
 				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 		}
@@ -5999,10 +6007,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
-	// (no other changes necessary)
-	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
-
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
@@ -6011,24 +6015,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
-}
-
-// DELETE IN 16.0
-func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
-	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
-
-	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
-	// if access monitoring is enabled.
-	if versionExists {
-		clientVersion := semver.New(clientVersionString)
-		supportedVersion := semver.New("14.2.1")
-		if clientVersion.LessThan(*supportedVersion) {
-			features.IdentityGovernance = accessMonitoringEnabled
-		}
-	}
-
-	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
-	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
@@ -6887,10 +6873,13 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if f.IsLegacy() || f.IGSEnabled() {
-		return nil // unlimited
+	accessRequestsEntitlement := f.GetEntitlement(entitlements.AccessRequests)
+
+	if accessRequestsEntitlement.Limit == 0 {
+		return nil // unlimited access
 	}
-	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	monthlyLimit := accessRequestsEntitlement.Limit
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
@@ -6898,7 +6887,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if usage >= monthlyLimit {
+	if usage >= int(monthlyLimit) {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 

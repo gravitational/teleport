@@ -757,6 +757,10 @@ const (
 
 	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
 	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+	// SPIFFEFederationCreateEvent is emitted when a SPIFFE federation is created.
+	SPIFFEFederationCreateEvent = "spiffe.federation.create"
+	// SPIFFEFederationDeleteEvent is emitted when a SPIFFE federation is deleted.
+	SPIFFEFederationDeleteEvent = "spiffe.federation.delete"
 
 	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
 	AuthPreferenceUpdateEvent = "auth_preference.update"
@@ -764,6 +768,8 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+	// AccessGraphSettingsUpdateEvent is emitted when a user updates the access graph settings configuration.
+	AccessGraphSettingsUpdateEvent = "access_graph_settings.update"
 
 	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
 	// and an identity/resource is affected.
@@ -779,7 +785,17 @@ const (
 	DiscoveryConfigDeleteEvent = "discovery_config.delete"
 	// DiscoveryConfigDeletedAllEvent is emitted when all discovery configs are deleted.
 	DiscoveryConfigDeleteAllEvent = "discovery_config.delete_all"
+
+	// IntegrationCreateEvent is emitted when an integration resource is created.
+	IntegrationCreateEvent = "integration.create"
+	//IntegrationUpdateEvent is emitted when an integration resource is updated.
+	IntegrationUpdateEvent = "integration.update"
+	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
+	IntegrationDeleteEvent = "integration.delete"
 )
+
+// Add an entry to eventsMap in lib/events/events_test.go when you add
+// a new event name here.
 
 const (
 	// MaxChunkBytes defines the maximum size of a session stream chunk that
@@ -868,6 +884,9 @@ type StreamPart struct {
 	Number int64
 	// ETag is a part e-tag
 	ETag string
+	// LastModified is the time of last modification of this part (if
+	// available).
+	LastModified time.Time
 }
 
 // StreamUpload represents stream multipart upload

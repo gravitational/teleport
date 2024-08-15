@@ -261,7 +261,7 @@ test('update flow: renders single component based on resourceSpec', () => {
     name: 'Connect My Computer',
     kind: ResourceKind.ConnectMyComputer,
     event: null,
-    icon: 'Laptop',
+    icon: 'laptop',
     keywords: '',
     hasAccess: true,
   };
@@ -286,7 +286,7 @@ test('update flow: agentMeta is prepopulated based on agentMeta', () => {
     name: 'MockComponent1',
     kind: ResourceKind.SamlApplication,
     event: null,
-    icon: 'Application',
+    icon: 'application',
     keywords: '',
     hasAccess: true,
   };

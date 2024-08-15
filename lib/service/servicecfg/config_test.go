@@ -104,6 +104,9 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Misc levers and dials
 	require.Equal(t, defaults.HighResPollingPeriod, config.RotationConnectionInterval)
+
+	// Debug should always be enabled by default.
+	require.True(t, config.DebugService.Enabled)
 }
 
 // TestCheckApp validates application configuration.

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -50,6 +51,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -124,6 +126,7 @@ type testPack struct {
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
 	databaseObjects         services.DatabaseObjects
+	spiffeFederations       *local.SPIFFEFederationService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -323,6 +326,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.spiffeFederations = spiffeFederationsSvc
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -385,6 +394,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -789,6 +799,7 @@ func TestCompletenessInit(t *testing.T) {
 			AccessMonitoringRules:   p.accessMonitoringRules,
 			CrownJewels:             p.crownJewels,
 			DatabaseObjects:         p.databaseObjects,
+			SPIFFEFederations:       p.spiffeFederations,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -866,6 +877,7 @@ func TestCompletenessReset(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1055,6 +1067,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1143,6 +1156,7 @@ func initStrategy(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2910,7 +2924,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	require.Len(t, nodes, nodeCount)
 
 	clock.Advance(time.Hour * 24)
-	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+	for expired := nodeCount - expiryLimit; expired > expiryLimit; expired -= expiryLimit {
 		// get rid of events that were emitted before clock advanced
 		drainEvents(p.eventsC)
 		// wait for next relative expiry check to run
@@ -3217,6 +3231,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
+		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
+		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 	}
 
 	for name, cfg := range cases {
@@ -3684,6 +3700,16 @@ func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
 		Protocol:            "postgres",
 		DatabaseServiceName: "pg",
 		ObjectKind:          "table",
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
+	t.Helper()
+
+	r, err := clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
 	})
 	require.NoError(t, err)
 	return r

@@ -74,7 +74,7 @@ func TestAzure(t *testing.T) {
 
 	// Log into the "azure-api" app.
 	// Verify `tsh az login ...` gets called.
-	run([]string{"app", "login", "azure-api"},
+	run([]string{"app", "login", "--azure-identity", "dummy_azure_identity", "azure-api"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
@@ -205,7 +205,10 @@ func makeUserWithAzureRole(t *testing.T) (types.User, types.Role) {
 	role := services.NewPresetAccessRole()
 
 	alice.SetRoles([]string{role.GetName()})
-	alice.SetAzureIdentities([]string{"dummy_azure_identity"})
+	alice.SetAzureIdentities([]string{
+		"dummy_azure_identity",
+		"other_dummy_azure_identity",
+	})
 
 	return alice, role
 }

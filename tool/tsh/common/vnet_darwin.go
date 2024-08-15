@@ -21,17 +21,12 @@ package common
 
 import (
 	"fmt"
-	"log/slog"
-	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type vnetCommand struct {
@@ -80,6 +75,12 @@ type vnetAdminSetupCommand struct {
 	ipv6Prefix string
 	// dnsAddr is the IP address for the VNet DNS server.
 	dnsAddr string
+	// egid of the user starting VNet. Unsafe for production use, as the egid comes from an unstrusted
+	// source.
+	egid int
+	// euid of the user starting VNet. Unsafe for production use, as the euid comes from an unstrusted
+	// source.
+	euid int
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
@@ -89,24 +90,9 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
+	cmd.Flag("egid", "effective group ID of the user starting VNet").IntVar(&cmd.egid)
+	cmd.Flag("euid", "effective user ID of the user starting VNet").IntVar(&cmd.euid)
 	return cmd
-}
-
-func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	homePath := os.Getenv(types.HomeEnvVar)
-	if homePath == "" {
-		// This runs as root so we need to be configured with the user's home path.
-		return trace.BadParameter("%s must be set", types.HomeEnvVar)
-	}
-
-	config := daemon.Config{
-		SocketPath: c.socketPath,
-		IPv6Prefix: c.ipv6Prefix,
-		DNSAddr:    c.dnsAddr,
-		HomePath:   homePath,
-	}
-
-	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
 }
 
 type vnetDaemonCommand struct {
@@ -118,17 +104,9 @@ type vnetDaemonCommand struct {
 
 func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
 	return &vnetDaemonCommand{
-		// The command must match the command provided in the .plist file.
-		CmdClause: app.Command("vnet-daemon", "Start the VNet daemon").Hidden(),
+		CmdClause: app.Command(vnetDaemonSubCommand, "Start the VNet daemon").Hidden(),
 	}
 }
 
-func (c *vnetDaemonCommand) run(cf *CLIConf) error {
-	if cf.Debug {
-		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
-	} else {
-		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-	}
-
-	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
-}
+// The command must match the command provided in the .plist file.
+const vnetDaemonSubCommand = "vnet-daemon"

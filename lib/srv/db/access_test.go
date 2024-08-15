@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -1076,7 +1077,9 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 func TestAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			DB: false,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB: {Enabled: false},
+			},
 		},
 	})
 
@@ -2608,7 +2611,7 @@ func TestAccessClickHouse(t *testing.T) {
 	for _, test := range tests {
 		for _, protocol := range []string{defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP} {
 			t.Run(protocol, func(t *testing.T) {
-				t.Run(fmt.Sprintf(test.desc), func(t *testing.T) {
+				t.Run(test.desc, func(t *testing.T) {
 					// Create user/role with the requested permissions.
 					testCtx.createUserAndRole(ctx, t, aliceUser, adminRole, test.allowDbUsers, []string{types.Wildcard})
 

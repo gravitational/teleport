@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -227,9 +228,11 @@ func (p *cliModules) PrintVersion() {
 // Features returns supported features
 func (p *cliModules) Features() modules.Features {
 	return modules.Features{
-		Kubernetes:              true,
-		DB:                      true,
-		App:                     true,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.K8s: {Enabled: true},
+			entitlements.DB:  {Enabled: true},
+			entitlements.App: {Enabled: true},
+		},
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
 	}
@@ -3521,6 +3524,9 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	for _, fn := range options.configFuncs {
 		fn(cfg)
@@ -3566,6 +3572,9 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	for _, fn := range options.configFuncs {
 		fn(cfg)
