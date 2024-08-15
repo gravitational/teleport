@@ -367,10 +367,11 @@ type ServerContext struct {
 	readyr *os.File
 	readyw *os.File
 
-	// killShell{r,w} are used to send kill signal to the child process
-	// to terminate the shell.
-	killShellr *os.File
-	killShellw *os.File
+	// term{r,w} are used to signal the child process to terminate gracefully, usually
+	// once the server context is closed. In the case of an interactive shell, this involves
+	// killing the child shell process.
+	termr *os.File
+	termw *os.File
 
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
@@ -533,13 +534,13 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.readyr)
 	child.AddCloser(child.readyw)
 
-	child.killShellr, child.killShellw, err = os.Pipe()
+	child.termr, child.termw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	child.AddCloser(child.killShellr)
-	child.AddCloser(child.killShellw)
+	child.AddCloser(child.termr)
+	child.AddCloser(child.termw)
 
 	return ctx, child, nil
 }

@@ -100,9 +100,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	scx.readyr, scx.readyw, err = os.Pipe()
 	require.NoError(t, err)
 
-	scx.killShellr, scx.killShellw, err = os.Pipe()
+	scx.termr, scx.termw, err = os.Pipe()
 	require.NoError(t, err)
-	scx.AddCloser(scx.killShellw)
+	scx.AddCloser(scx.termw)
 
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".

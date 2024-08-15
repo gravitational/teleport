@@ -1159,7 +1159,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.cmdr,
 			ctx.contr,
 			ctx.readyw,
-			ctx.killShellr,
+			ctx.termr,
 		},
 	}
 	// Add extra files if applicable.

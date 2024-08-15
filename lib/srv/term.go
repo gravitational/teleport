@@ -139,10 +139,6 @@ type terminal struct {
 	pty *os.File
 	tty *os.File
 
-	// terminateFD when closed informs the terminal that
-	// the process running in the shell should be killed.
-	terminateFD *os.File
-
 	pid int
 
 	termType string
@@ -158,7 +154,6 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 			teleport.ComponentKey: teleport.ComponentLocalTerm,
 		}),
 		serverContext: ctx,
-		terminateFD:   ctx.killShellw,
 	}
 
 	// Open PTY and corresponding TTY.
@@ -268,7 +263,7 @@ func (t *terminal) Continue() {
 
 // KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if err := t.terminateFD.Close(); err != nil {
+	if err := t.serverContext.termw.Close(); err != nil {
 		if !errors.Is(err, os.ErrClosed) {
 			t.log.WithError(err).Debug("Failed to close the shell file descriptor")
 		}
