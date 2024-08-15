@@ -8403,25 +8403,43 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 	tt := []struct {
 		name                     string
 		cloud                    bool
+		withPresetUsers          bool
 		qtyPreexistingUsers      int
 		expectedDefaultConnector string
 	}{
 		{
-			name:                     "First Cloud user should set cluster to passwordless",
+			name:                     "First Cloud user should set cluster to passwordless when presets exist",
 			cloud:                    true,
+			withPresetUsers:          true,
 			qtyPreexistingUsers:      0,
 			expectedDefaultConnector: constants.PasswordlessConnector,
 		},
 		{
-			name:                     "Second Cloud user should not set cluster to passwordless",
+			name:                     "First Cloud user should set cluster to passwordless when presets don't exist",
 			cloud:                    true,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: constants.PasswordlessConnector,
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless when presets exist",
+			cloud:                    true,
+			withPresetUsers:          true,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless when presets don't exist",
+			cloud:                    true,
+			withPresetUsers:          false,
 			qtyPreexistingUsers:      1,
 			expectedDefaultConnector: "",
 		},
 		{
 			name:                     "First non-Cloud user should not set cluster to passwordless",
 			cloud:                    false,
-			qtyPreexistingUsers:      1,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      0,
 			expectedDefaultConnector: "",
 		},
 	}
@@ -8450,6 +8468,11 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			require.NoError(t, err)
 			_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 			require.NoError(t, err)
+
+			// the test server doesn't create the preset users, so we call createPresetUsers manually
+			if tc.withPresetUsers {
+				createPresetUsers(ctx, srv.Auth())
+			}
 
 			// create preexisting users
 			for i := 0; i < tc.qtyPreexistingUsers; i += 1 {
