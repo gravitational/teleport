@@ -906,17 +906,19 @@ func TestPresets(t *testing.T) {
 }
 
 func TestGetPresetUsers(t *testing.T) {
-	// len is 0 for OSS
+	// no preset users for OSS
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildOSS,
 	})
 	require.Empty(t, getPresetUsers())
 
-	// len is 1 for enterprise (@teleport-access-approval-bot)
+	// preset user @teleport-access-approval-bot on enterprise
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 	})
-	require.Len(t, getPresetUsers(), 1)
+	require.Equal(t, []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}, getPresetUsers())
 }
 
 type mockUserManager struct {
