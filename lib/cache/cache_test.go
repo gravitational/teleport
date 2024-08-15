@@ -2609,7 +2609,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		protocmp.Transform(),
 	}
 
