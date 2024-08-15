@@ -98,6 +98,11 @@ Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to cancel update)
 [...]
 ```
 
+All archive downloads are targeted to the `cdn.teleport.dev` endpoint and depend 
+on the operating system, platform, and edition. Where edition must be identified 
+by the original client tools binary, URL pattern:
+`https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz`
+
 An environment variable `TELEPORT_TOOLS_VERSION` will be introduced that can be
 `X.Y.Z` (use specific semver version) or `off` (do not update). This
 environment variable can be used as a emergency workaround for a known issue,
@@ -191,8 +196,10 @@ able to get and watch for changes to client tools versions which can then be
 used to trigger other integrations (using MDM software like Jamf) to update the
 installed version of client tools on endpoints.
 
+By defining the `proxy` flag, we can use the watch command without logging in.
+
 ```
-$ tctl autoupdate watch
+$ tctl autoupdate watch --proxy proxy.example.com
 {"tools_version": "1.0.0"}
 {"tools_version": "1.0.1"}
 {"tools_version": "2.0.0"}
@@ -201,7 +208,7 @@ $ tctl autoupdate watch
 ```
 
 ```
-$ tctl autoupdate get
+$ tctl autoupdate get --proxy proxy.example.com
 {"tools_version": "2.0.0"}
 ```
 
