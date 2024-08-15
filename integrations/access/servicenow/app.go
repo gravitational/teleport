@@ -357,7 +357,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.resolveIncident(ctx, reqID, Resolution{State: ResolutionStateResolved})
 }
 
-func (a *App) getOnCallServiceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
@@ -436,7 +436,7 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) error {
 	log := logger.Get(ctx)
 
-	serviceNames, err := a.getOnCallServiceNames(ctx, req)
+	serviceNames, err := a.getOnCallServiceNames(req)
 	if err != nil {
 		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
