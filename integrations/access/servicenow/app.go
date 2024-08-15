@@ -441,8 +441,11 @@ func (a *App) getOnCallUsers(ctx context.Context, serviceNames []string) ([]stri
 	for _, scheduleName := range serviceNames {
 		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
 		if err != nil {
-			log.WithError(err).Error("Failed to retrieve responder from schedule")
-			continue
+			if trace.IsNotFound(err) {
+				log.WithError(err).Error("Failed to retrieve responder from schedule")
+				continue
+			}
+			return nil, trace.Wrap(err)
 		}
 		onCallUsers = append(onCallUsers, respondersResult...)
 	}
