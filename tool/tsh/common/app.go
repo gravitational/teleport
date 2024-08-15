@@ -50,12 +50,12 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, nil /*matchRouteToApp*/)
+	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -471,6 +471,25 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	}
 }
 
+// initClusterAndProfile initializes a cluster client and also returns the
+// current profile. This function might trigger a relogin in case of missing or
+// expired credentials.
+func initClusterAndProfile(ctx context.Context, tc *client.TeleportClient) (clusterClient *client.ClusterClient, profile *client.ProfileStatus, err error) {
+	if err := client.RetryWithRelogin(ctx, tc, func() error {
+		var err error
+		profile, err = tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		clusterClient, err = tc.ConnectToCluster(ctx)
+		return trace.Wrap(err)
+	}); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return
+}
+
 type appConfigInfo struct {
 	Name              string `json:"name"`
 	URI               string `json:"uri"`
@@ -503,16 +522,7 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 // command line args, and the list resources endpoint if necessary. If
 // provided, the matcher will be used to filter active apps in the
 // tsh profile.
-func getAppInfo(cf *CLIConf, tc *client.TeleportClient, clt authclient.ClientI, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
-	var profile *client.ProfileStatus
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		var err error
-		profile, err = tc.ProfileStatus()
-		return trace.Wrap(err)
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func getAppInfo(cf *CLIConf, tc *client.TeleportClient, clt authclient.ClientI, profile *client.ProfileStatus, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
 	activeRoutes := profile.Apps
 	if matchRouteToApp != nil {
 		var filteredRoutes []tlsca.RouteToApp

@@ -375,12 +375,12 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, matchAWSApp)
+	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, matchAWSApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

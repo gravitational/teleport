@@ -369,12 +369,12 @@ func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, matchGCPApp)
+	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, matchGCPApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

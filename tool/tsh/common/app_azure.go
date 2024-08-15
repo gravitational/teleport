@@ -274,12 +274,12 @@ func pickAzureApp(cf *CLIConf) (*azureApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, matchAzureApp)
+	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, matchAzureApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
