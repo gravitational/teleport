@@ -1697,6 +1697,12 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 	switch req.Type {
 	case sshutils.ExecRequest:
+		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
