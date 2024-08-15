@@ -3479,6 +3479,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
+	// Only set the connector name on the first user registration.
 	if !hasOneNonPresetUser(users) {
 		return nil
 	}

@@ -911,7 +911,7 @@ func TestGetPresetUsers(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildOSS,
 	})
-	require.Empty(t, len(getPresetUsers()))
+	require.Empty(t, getPresetUsers())
 
 	// len is 1 for enterprise (@teleport-access-approval-bot)
 	modules.SetTestModules(t, &modules.TestModules{
