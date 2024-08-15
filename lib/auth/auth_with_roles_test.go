@@ -8495,10 +8495,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			role.SetRules(types.Allow, []types.Rule{
 				types.NewRule(types.KindUser, services.RW()),
 			})
-			upsertedRole, err := srv.Auth().UpsertRole(ctx, role)
-			require.NoError(t, err)
-			user.AddRole(upsertedRole.GetName())
-			_, err = srv.Auth().UpsertUser(ctx, user)
+			_, err = srv.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
 			client, err := srv.NewClient(TestUser(user.GetName()))
