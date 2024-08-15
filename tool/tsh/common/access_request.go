@@ -356,14 +356,19 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
 	})
 
-	table := asciitable.MakeTable([]string{"ID", "User", "Roles"})
+	table := asciitable.MakeTable([]string{"ID", "User"})
+	table.AddColumn(asciitable.Column{
+		Title:         "Roles",
+		MaxCellLength: 20,
+		FootnoteLabel: "[+]",
+	})
 	table.AddColumn(asciitable.Column{
 		Title:         "Resources",
 		MaxCellLength: 20,
 		FootnoteLabel: "[+]",
 	})
 	table.AddFootnote("[+]",
-		"Requested resources truncated, use `tsh request show <request-id>` to view the full list")
+		"Columns are truncated, use 'tsh request show <request-id>' to view the full list")
 	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
 	table.AddColumn(asciitable.Column{Title: "Request TTL"})
 	table.AddColumn(asciitable.Column{Title: "Session TTL"})
