@@ -67,7 +67,7 @@ var (
 	signCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: keystoreSubsystem,
-		Name:      "sign",
+		Name:      "sign_requests_total",
 		Help:      "Total number of sign requests",
 	}, []string{labelKeyType, labelStoreType})
 	signErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
