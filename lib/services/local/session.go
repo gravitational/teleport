@@ -49,7 +49,7 @@ func (s *IdentityService) GetSnowflakeSession(ctx context.Context, req types.Get
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
@@ -99,7 +99,7 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	return s.listSessions(ctx, pageSize, pageToken, user, samlIdPPrefix, sessionsPrefix)
 }
@@ -179,7 +179,7 @@ func (s *IdentityService) UpsertSnowflakeSession(ctx context.Context, session ty
 }
 
 // UpsertSAMLIdPSession creates a SAMLIdP web session.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) UpsertSAMLIdPSession(ctx context.Context, session types.WebSession) error {
 	return s.upsertSession(ctx, session, samlIdPPrefix, sessionsPrefix)
 }
@@ -221,7 +221,7 @@ func (s *IdentityService) DeleteSnowflakeSession(ctx context.Context, req types.
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
 	if err := s.Delete(ctx, backend.Key(samlIdPPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
@@ -257,7 +257,7 @@ func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.
 }
 
 // DeleteUserSAMLIdPSessions removes all SAML IdP sessions for a particular user.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) DeleteUserSAMLIdPSessions(ctx context.Context, user string) error {
 	var token string
 
@@ -303,7 +303,7 @@ func (s *IdentityService) DeleteAllSnowflakeSessions(ctx context.Context) error 
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 	startKey := backend.ExactKey(samlIdPPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {

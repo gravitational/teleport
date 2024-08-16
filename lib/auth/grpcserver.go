@@ -1623,7 +1623,7 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 }
 
 // GetSAMLIdPSession gets a SAML IdPsession.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *authpb.GetSAMLIdPSessionRequest) (*authpb.GetSAMLIdPSessionResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1645,7 +1645,7 @@ func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *authpb.GetSAMLI
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) ListSAMLIdPSessions(ctx context.Context, req *authpb.ListSAMLIdPSessionsRequest) (*authpb.ListSAMLIdPSessionsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1744,7 +1744,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *authpb.CreateSAMLIdPSessionRequest) (*authpb.CreateSAMLIdPSessionResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1814,7 +1814,7 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *authpb.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1831,7 +1831,7 @@ func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *authpb.Delet
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1846,7 +1846,7 @@ func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Em
 }
 
 // DeleteUserSAMLIdPSessions removes all of a user's SAML IdP sessions.
-// TODO(Joerger): DELETE IN v17.0.0
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) DeleteUserSAMLIdPSessions(ctx context.Context, req *authpb.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
