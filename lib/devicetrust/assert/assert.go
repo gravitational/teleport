@@ -81,7 +81,10 @@ func (c *Ceremony) Run(ctx context.Context, stream AssertDeviceClientStream) err
 	// Implement Assertion in terms of Authentication, so we borrow both the
 	// Secure Enclave and TPM branches from it.
 	// TODO(codingllama): Refactor so we don't need so many adapters?
-	_, err := newAuthn().Run(ctx, devices, nil /*sshCert*/, nil /*sshSigner*/)
+	_, err := newAuthn().Run(ctx, &authn.CeremonyRunParams{
+		DevicesClient: devices,
+		Certs:         &devicepb.UserCertificates{}, // required but not used.
+	})
 	return trace.Wrap(err)
 }
 

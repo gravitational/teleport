@@ -20,13 +20,13 @@ package authn
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
@@ -57,6 +57,19 @@ func NewCeremony() *Ceremony {
 	}
 }
 
+// CeremonyRunParams holds parameters for [Ceremony.Run].
+type CeremonyRunParams struct {
+	// DevicesClient is a client to the DeviceTrustService.
+	DevicesClient devicepb.DeviceTrustServiceClient
+	// Certs holds user certs to be augmented by the authn ceremony. Only the
+	// SSH certificate will be forwarded, the TLS identity is part of the
+	// mTLS connection.
+	Certs *devicepb.UserCertificates
+	// SSHSigner, if specified, will be used to prove ownership of the SSH
+	// certificate subject key by signing a challenge.
+	SSHSigner crypto.Signer
+}
+
 // Run performs the client-side device authentication ceremony.
 //
 // Device authentication requires a previously registered and enrolled device
@@ -66,22 +79,23 @@ func NewCeremony() *Ceremony {
 // augmented with device extensions.
 func (c *Ceremony) Run(
 	ctx context.Context,
-	devicesClient devicepb.DeviceTrustServiceClient,
-	sshCert []byte,
-	sshSigner *keys.PrivateKey,
+	params *CeremonyRunParams,
 ) (*devicepb.UserCertificates, error) {
-	if devicesClient == nil {
-		return nil, trace.BadParameter("devicesClient required")
+	switch {
+	case params.DevicesClient == nil:
+		return nil, trace.BadParameter("DevicesClient required")
+	case params.Certs == nil:
+		return nil, trace.BadParameter("Certs required")
 	}
-	// nil sshCert and sshSigner is okay.
+	// nil SSHSigner is okay.
 
-	resp, err := c.run(ctx, devicesClient, &devicepb.AuthenticateDeviceInit{
+	resp, err := c.run(ctx, params.DevicesClient, &devicepb.AuthenticateDeviceInit{
 		UserCertificates: &devicepb.UserCertificates{
 			// Forward only the SSH certificate, the TLS identity is part of the
 			// connection.
-			SshAuthorizedKey: sshCert,
+			SshAuthorizedKey: params.Certs.SshAuthorizedKey,
 		},
-	}, sshSigner)
+	}, params.SSHSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -133,7 +147,7 @@ func (c *Ceremony) run(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
 	init *devicepb.AuthenticateDeviceInit,
-	sshSigner *keys.PrivateKey,
+	sshSigner crypto.Signer,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	// Fetch device data early, this automatically excludes unsupported platforms
 	// and unenrolled devices.
@@ -196,7 +210,7 @@ func (c *Ceremony) run(
 func (c *Ceremony) authenticateDeviceMacOS(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
-	sshSigner *keys.PrivateKey,
+	sshSigner crypto.Signer,
 ) error {
 	chalResp := resp.GetChallenge()
 	if chalResp == nil {
@@ -233,7 +247,7 @@ func (c *Ceremony) authenticateDeviceMacOS(
 func (c *Ceremony) authenticateDeviceTPM(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
-	sshSigner *keys.PrivateKey,
+	sshSigner crypto.Signer,
 ) error {
 	tpmChallenge := resp.GetTpmChallenge()
 	if tpmChallenge == nil {
