@@ -50,8 +50,6 @@ const (
 	minServerVersion = "13.0.0"
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
-	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
