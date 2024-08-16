@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
