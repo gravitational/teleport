@@ -20,9 +20,9 @@ package servicenow
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,7 @@ func (msn mockServicenow) GetOnCall(ctx context.Context, rotaID string) ([]strin
 	if ret, ok := msn.responses[rotaID]; ok {
 		return ret, nil
 	}
-	return nil, errors.New("someError")
+	return nil, trace.NotFound("someError")
 }
 
 func TestGetOnCallUsers(t *testing.T) {
@@ -50,9 +50,9 @@ func TestGetOnCallUsers(t *testing.T) {
 	}
 	users, err := a.getOnCallUsers(context.Background(), []string{"rota1"})
 	require.NoError(t, err)
-	require.Equal(t, users, []string{"user1", "user2"})
+	require.Equal(t, []string{"user1", "user2"}, users)
 
 	users, err = a.getOnCallUsers(context.Background(), []string{"rota1", "rota3", "rota2"})
 	require.NoError(t, err)
-	require.Equal(t, users, []string{"user1", "user2", "user3", "user2"})
+	require.Equal(t, []string{"user1", "user2", "user3", "user2"}, users)
 }
