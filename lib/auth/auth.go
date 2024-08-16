@@ -395,6 +395,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.StaticHostUsers == nil {
+		cfg.StaticHostUsers, err = local.NewStaticHostUserService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -434,6 +441,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
+		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
 	as := Server{
@@ -631,6 +639,7 @@ type Services struct {
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
 	services.SPIFFEFederations
+	services.StaticHostUser
 }
 
 // GetWebSession returns existing web session described by req.
