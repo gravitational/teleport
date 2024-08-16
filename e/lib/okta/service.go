@@ -42,13 +42,16 @@ const (
 	APICallsPerSecond     = 4
 	RequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
 
-	// Default to running synchronizations every half hour.
-	oktaDefaultTimeBetweenSyncs = 30 * time.Minute
-	oktaTransportIdleTimeout    = 30 * time.Second
-	oktaConnectionTimeout       = 30 * time.Second
+	oktaTransportIdleTimeout = 30 * time.Second
+	oktaConnectionTimeout    = 30 * time.Second
 
 	// OktaServiceSemaphoreKind is the name of the semaphore to acquire.
 	OktaServiceSemaphoreKind = "okta-service"
+)
+
+var (
+	// OktaDefaultTimeBetweenSyncs to running synchronizations every half hour.
+	OktaDefaultTimeBetweenSyncs = 30 * time.Minute
 )
 
 // ProxyGetter is an interface for retrieving proxy IDs.
@@ -199,7 +202,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("ConnectorService service is missing")
 	}
 	if c.TimeBetweenSyncs == 0 {
-		c.TimeBetweenSyncs = oktaDefaultTimeBetweenSyncs
+		c.TimeBetweenSyncs = OktaDefaultTimeBetweenSyncs
 	}
 	if c.BackendTasksPerSecond == 0 {
 		// Default to running 5 backend tasks per second.
@@ -532,18 +535,44 @@ func (cfg *ClientConfig) Check() error {
 	return nil
 }
 
+var clientProviderMtx sync.Mutex
+
+// SetClientProvider sets the Okta client provider for testing.
+func SetClientProvider(fn clientProviderFunc) {
+	clientProviderMtx.Lock()
+	defer clientProviderMtx.Unlock()
+	clientProvider = fn
+}
+
+func getClientProvider() clientProviderFunc {
+	clientProviderMtx.Lock()
+	defer clientProviderMtx.Unlock()
+	return clientProvider
+}
+
+type clientProviderFunc func(ctx context.Context, cfg ...okta.ConfigSetter) (Client, error)
+
+// clientProvider is an Okta client interface that can be mocked for testing.
+var clientProvider = func(ctx context.Context, cfg ...okta.ConfigSetter) (Client, error) {
+	_, client, err := okta.NewClient(ctx, cfg...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newClientAPIAdapter(client), err
+}
+
 // NewClient creates and initializes a new okta client
 func NewClient(ctx context.Context, cfg ClientConfig) (OktaClient, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, client, err := okta.NewClient(ctx,
+	createFunc := getClientProvider()
+	client, err := createFunc(ctx,
 		okta.WithCache(false), // We don't want a cache as we need up to date info.
 		okta.WithOrgUrl(cfg.Endpoint),
 		okta.WithToken(cfg.Token),
 		okta.WithHttpClientPtr(cfg.HTTPClient),
-
 		// This will retry until the request timeout has passed, doing a backoff
 		// of up to 30 seconds.
 		okta.WithRequestTimeout(RequestTimeoutSeconds),

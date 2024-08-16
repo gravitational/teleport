@@ -1,5 +1,5 @@
-name: Flaky Tests Detector
-run-name: Flaky Tests Detector - ${{ github.run_id }} - @${{ github.actor }}
+name: Flaky Integration Tests Detector
+run-name: Flaky Integration Tests Detector - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   flaky-test:
-    name: Flaky Tests Detector
+    name: Flaky Integration Tests Detector
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
@@ -49,10 +49,11 @@ jobs:
         id: find_excluded
         run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
 
-      - name: Run base difftest
+      - name: Run tests/integration difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "lib/operatortest/**/*" -e "tooling/**/*" -e "tests/integration/**/*"
-          target: test-go
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}"  --include "tests/integration/**/*"
+          target: test-go-integration INTEGRATION_TEST_TIMEOUT=40m
+          attempts: 40
           path: .
           directory: e

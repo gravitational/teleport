@@ -9,7 +9,9 @@ import (
 )
 
 type sutOptions struct {
-	resources []types.Resource
+	resources     []types.Resource
+	samlConnector string
+	license       string
 }
 
 type option func(*sutOptions)
@@ -22,5 +24,19 @@ func WithUser(t *testing.T, user string, roles ...string) func(*sutOptions) {
 
 	return func(o *sutOptions) {
 		o.resources = append(o.resources, aliceUser)
+	}
+}
+
+// WithSAMLConnector add a SAML connector to the SUT.
+func WithSAMLConnector(connector string) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.samlConnector = connector
+	}
+}
+
+// WithLicense adds a license to the SUT.
+func WithLicense(license string) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.license = license
 	}
 }

@@ -273,7 +273,7 @@ func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) Ok
 	require.NoError(t, err)
 
 	client := &wrappedClient{
-		client: oktaClient,
+		client: newClientAPIAdapter(oktaClient),
 		log:    ts.log,
 	}
 

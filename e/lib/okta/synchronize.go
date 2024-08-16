@@ -25,10 +25,12 @@ const (
 	// we'll choose a 10 second jitter for the synchronization loop to avoid potential contention
 	// with other Okta services (should we ever decide to support multiple services)
 	syncJitter = 10 * time.Second
+)
 
-	// we will wait for this amount of time before synchronization starts if
+var (
+	// SyncRetryAfterLeadershipFailure we will wait for this amount of time before synchronization starts if
 	// this Okta service is not the leader.
-	syncRetryAfterLeadershipFailure = time.Minute
+	SyncRetryAfterLeadershipFailure = time.Minute
 )
 
 // synchronizeLoop will synchronize Okta with the backend periodically until the
@@ -70,7 +72,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 func (s *Service) waitIfNotLeader(ctx context.Context) bool {
 	// Don't start the loop until we acquire leadership.
 	s.log.Infof("Waiting for leadership to be acquired before starting synchronizer.")
-	waitForLeadershipTicker := s.clock.NewTicker(syncRetryAfterLeadershipFailure)
+	waitForLeadershipTicker := s.clock.NewTicker(SyncRetryAfterLeadershipFailure)
 	defer waitForLeadershipTicker.Stop()
 	for {
 		if s.leader.IsLeader() {

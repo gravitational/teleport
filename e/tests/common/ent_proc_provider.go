@@ -13,7 +13,6 @@ type entProcessProvider struct {
 }
 
 func (p *entProcessProvider) NewTeleport(cfg *servicecfg.Config) (*service.TeleportProcess, error) {
-	cfg.Auth.LicenseFile = "../../../fixtures/license-eub.pem"
 	ps, err := process.NewTeleport(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)

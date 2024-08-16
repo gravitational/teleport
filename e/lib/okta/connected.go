@@ -15,9 +15,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// defaultOktaConnectedCacheTTL is set to 30 seconds, will allow repeated commands to use the
+// DefaultOktaConnectedCacheTTL is set to 30 seconds, will allow repeated commands to use the
 // cached value without letting the data get too stale.
-const defaultOktaConnectedCacheTTL time.Duration = 30 * time.Second
+var DefaultOktaConnectedCacheTTL time.Duration = 30 * time.Second
 
 // ConnectedGetter is an interface used to retrieve the current inventory or the current plugins.
 type ConnectedGetter interface {
@@ -60,7 +60,7 @@ func (o *OktaConnectedConfig) CheckAndSetDefaults() error {
 	}
 
 	if o.CacheTTL == 0 {
-		o.CacheTTL = defaultOktaConnectedCacheTTL
+		o.CacheTTL = DefaultOktaConnectedCacheTTL
 	}
 
 	return nil

@@ -2,19 +2,25 @@ package common
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -22,10 +28,17 @@ import (
 type SUT struct {
 	Teleport *helpers.TeleInstance
 	Clock    clockwork.Clock
+
+	DataDir          string
+	ProxyAddr        string
+	AuthListenerAddr string
 }
 
 func InitSUT(t *testing.T, opts ...option) *SUT {
-	options := &sutOptions{}
+	options := &sutOptions{
+		license: "../../fixtures/license-eub.pem",
+	}
+
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -49,6 +62,9 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	serviceConfig := newTeleportConfig()
 
 	serviceConfig.Auth.BootstrapResources = options.resources
+	if options.license != "" {
+		serviceConfig.Auth.LicenseFile = options.license
+	}
 
 	serviceConfig.Auth.HostedPlugins.Enabled = true
 	serviceConfig.Clock = clock
@@ -65,10 +81,19 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	_, err = auth.GetAccessLists(context.Background())
 	require.NoError(t, err)
 
-	return &SUT{
-		Teleport: teleport,
-		Clock:    clock,
+	sut := SUT{
+		Teleport:         teleport,
+		Clock:            clock,
+		DataDir:          serviceConfig.DataDir,
+		ProxyAddr:        serviceConfig.Proxy.WebAddr.String(),
+		AuthListenerAddr: serviceConfig.Auth.ListenAddr.String(),
 	}
+
+	if options.samlConnector != "" {
+		_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(context.Background(), mustUnmarshalSAMLConnector(t, idp.SAMLConnector))
+		require.NoError(t, err)
+	}
+	return &sut
 }
 
 // GetClusterClientForUser returns a client for the given user.
@@ -128,4 +153,15 @@ func newTeleportConfig() *servicecfg.Config {
 	serviceConfig.Testing.ClientTimeout = time.Second
 	serviceConfig.Testing.ShutdownTimeout = 2 * serviceConfig.Testing.ClientTimeout
 	return serviceConfig
+}
+
+func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+	var raw services.UnknownResource
+	err := decoder.Decode(&raw)
+	require.NoError(t, err)
+
+	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
+	require.NoError(t, err)
+	return connector
 }

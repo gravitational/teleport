@@ -1,4 +1,4 @@
-package igs
+package integration
 
 import (
 	"context"
@@ -38,7 +38,6 @@ func mustGetAccessList(t *testing.T, client services.AccessLists, name string) *
 	out, err := client.GetAccessList(context.Background(), name)
 	require.NoError(t, err)
 	return out
-
 }
 
 func mustGetAccessListMembers(t *testing.T, client services.AccessLists, name string) []*accesslist.AccessListMember {

@@ -24,10 +24,12 @@ type isLeaderGetter interface {
 	IsLeader() bool
 }
 
-const (
-	// The amount of time that will pass between running the assignment process loop.
-	timeBetweenAssignmentProcessLoops time.Duration = 5 * time.Minute
+var (
+	// TimeBetweenAssignmentProcessLoops is the amount of time that will pass between running the assignment process loop.
+	TimeBetweenAssignmentProcessLoops time.Duration = 5 * time.Minute
+)
 
+const (
 	// The amount of time that must pass before a failed assignment can be retried.
 	timeBeforeFailedRetry time.Duration = 5 * time.Minute
 
@@ -106,7 +108,7 @@ func (a *assignmentProcessor) start(ctx context.Context, oktaClient OktaClient) 
 
 // loop runs the main body of the processing loop.
 func (a *assignmentProcessor) loop(ctx context.Context, oktaClient OktaClient) {
-	ticker := a.clock.NewTicker(timeBetweenAssignmentProcessLoops)
+	ticker := a.clock.NewTicker(TimeBetweenAssignmentProcessLoops)
 	defer ticker.Stop()
 
 	for {
@@ -323,7 +325,7 @@ func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, nee
 
 			// Otherwise, we should only retry successful objects if the time between loops has passes since
 			// it last became successful
-			if sinceTransition < timeBetweenAssignmentProcessLoops {
+			if sinceTransition < TimeBetweenAssignmentProcessLoops {
 				return false, nil
 			}
 		case constants.OktaAssignmentStatusFailed:

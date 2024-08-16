@@ -83,7 +83,7 @@ func (s *Service) createSession(identity *tlsca.Identity) (*saml.Session, error)
 		Index:      indexHex,
 		UserName:   identity.Username,
 		Groups:     identity.Groups,
-		CustomAttributes: samlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
+		CustomAttributes: SamlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
 			Username: identity.Username,
 			Traits:   identity.Traits,
 			Roles:    identity.Groups,
@@ -92,9 +92,9 @@ func (s *Service) createSession(identity *tlsca.Identity) (*saml.Session, error)
 	return session, nil
 }
 
-// samlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
+// SamlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
 // which will eventually be added to SAML session custom attributes.
-func samlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserSpec) []saml.Attribute {
+func SamlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserSpec) []saml.Attribute {
 	var customAttributes []saml.Attribute = make([]saml.Attribute, 0)
 	for k, v := range userSpec.Traits {
 		customAttributes = addAttribute(customAttributes, k, k, v...)

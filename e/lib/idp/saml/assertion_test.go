@@ -99,7 +99,7 @@ func TestMakeAssertion(t *testing.T) {
 	session := &saml.Session{
 		UserName: "test-user",
 		Groups:   []string{"group1", "group2"},
-		CustomAttributes: samlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
+		CustomAttributes: SamlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
 			Traits: map[string][]string{
 				"groups":    {"g1", "g2"},
 				"firstname": {"userf"},

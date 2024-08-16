@@ -30,18 +30,20 @@ import (
 )
 
 const (
-	// defaultAccessListSyncInterval defines a 30 minute default time between running
-	// the access list synchronizer.
-	defaultAccessListSyncInterval = 30 * time.Minute
-
-	// Wait 5 minutes for the first loop in hopes that the synchronizer has run.
-	accessListSyncFirstDuration = 5 * time.Minute
 
 	// ReviewerSuffix is the string to append to the end of a role to indicate it's for reviews.
 	ReviewerSuffix = "-reviewer"
 
 	// Importer
 	ImporterName = "okta-importer"
+)
+
+var (
+	// AccessListSyncFirstDuration Wait 5 minutes for the first loop in hopes that the synchronizer has run.
+	AccessListSyncFirstDuration = 5 * time.Minute
+	// DefaultAccessListSyncInterval defines a 30 minute default time between running
+	// the access list synchronizer.
+	DefaultAccessListSyncInterval = 30 * time.Minute
 )
 
 // accessListSyncConfig is the configuration for the access list synchronizer.
@@ -139,7 +141,7 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 	}
 
 	if a.SyncInterval == 0 {
-		a.SyncInterval = defaultAccessListSyncInterval
+		a.SyncInterval = DefaultAccessListSyncInterval
 	}
 
 	if a.AppsGetter == nil {
@@ -357,7 +359,7 @@ func (a *accessListSync) startSync(ctx context.Context) {
 	}
 
 	jitter := retryutils.NewSeventhJitter()
-	timer := a.clock.NewTimer(jitter(accessListSyncFirstDuration))
+	timer := a.clock.NewTimer(jitter(AccessListSyncFirstDuration))
 	defer timer.Stop()
 
 	for {
@@ -375,7 +377,6 @@ func (a *accessListSync) startSync(ctx context.Context) {
 			if err := a.importOktaNativeAssignmentsAsAccessLists(ctx); err != nil {
 				a.log.WithError(err).Error("error importing Okta native assignments")
 			}
-
 			if err := a.addRolesToOktaRequester(ctx); err != nil {
 				a.log.Error("Unable to update Okta requester role")
 			}

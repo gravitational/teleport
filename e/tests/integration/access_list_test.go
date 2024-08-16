@@ -1,4 +1,4 @@
-package igs
+package integration
 
 import (
 	"context"
