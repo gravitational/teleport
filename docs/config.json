@@ -1637,6 +1637,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/access-graph/",
+      "destination": "/admin-guides/deploy-a-cluster/access-graph/access-graph/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/access-graph/aws-sync/",
       "destination": "/admin-guides/teleport-policy/integrations/aws-sync/",
       "permanent": true
