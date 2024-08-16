@@ -28,8 +28,10 @@ import { TestConnection } from './TestConnection/TestConnection';
 
 export const AwsMangementConsole: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Application,
-  shouldPrompt(currentStep) {
-    return currentStep !== 0;
+  shouldPrompt(currentStep, currentView) {
+    return (
+      currentStep > 0 && currentView?.eventName !== DiscoverEvent.Completed
+    );
   },
   views() {
     return [
