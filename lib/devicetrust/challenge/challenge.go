@@ -23,8 +23,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	_ "crypto/sha256" // imported to register crypto.SHA256 in init func
-	"errors"
-	"fmt"
 
 	"github.com/gravitational/trace"
 )
@@ -50,7 +48,7 @@ func Verify(chal, sig []byte, pubKey crypto.PublicKey) error {
 			return trace.Wrap(err)
 		}
 		if !ecdsa.VerifyASN1(pub, digest, sig) {
-			return errors.New("ecdsa verification failed")
+			return trace.BadParameter("ecdsa verification failed")
 		}
 		return nil
 
@@ -65,12 +63,12 @@ func Verify(chal, sig []byte, pubKey crypto.PublicKey) error {
 		// ed25519 is a special snowflake: the PublicKey type is not a pointer,
 		// and it doesn't like to pre-hash.
 		if !ed25519.Verify(pub, chal, sig) {
-			return errors.New("ed25519 verification failed")
+			return trace.BadParameter("ed25519 verification failed")
 		}
 		return nil
 
 	default:
-		return fmt.Errorf("unsupported key type: %T", pub)
+		return trace.BadParameter("unsupported key type: %T", pub)
 	}
 }
 
@@ -90,7 +88,7 @@ func Sign(challenge []byte, signer crypto.Signer) ([]byte, error) {
 		signature, err := signer.Sign(rand.Reader, challenge, &ed25519.Options{})
 		return signature, trace.Wrap(err)
 	default:
-		return nil, fmt.Errorf("unsupported key type: %T", pub)
+		return nil, trace.BadParameter("unsupported key type: %T", pub)
 	}
 }
 
