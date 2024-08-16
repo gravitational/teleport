@@ -82,5 +82,11 @@ message SPIFFEFederationStatus {
   // usually determined by the refresh hint provided within the current bundle
   // but this can be overridden by the server where the provided refresh hint
   // is not appropriate.
-  google.protobuf.Timestamp sync_after = 4;
+  //
+  // A value of zero indicates that an automatic sync is not scheduled (e.g.
+  // because the bundle source is static).
+  google.protobuf.Timestamp next_sync_at = 4;
+  // The SPIFFEFederationBundleSource that was used for the currently synced
+  // bundle. This allows the bundle to be resynced if the source changes.
+  SPIFFEFederationBundleSource current_bundle_synced_from = 5;
 }
