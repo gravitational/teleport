@@ -380,12 +380,8 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	}
 
 	if isNew {
-		for _, serviceName := range serviceNames {
-			alertCtx, _ := logger.WithField(ctx, "opsgenie_service_name", serviceName)
-
-			if err = a.createAlert(alertCtx, reqID, reqData); err != nil {
-				return isNew, trace.Wrap(err, "creating Opsgenie alert")
-			}
+		if err = a.createAlert(ctx, reqID, reqData); err != nil {
+			return isNew, trace.Wrap(err, "creating Opsgenie alert")
 		}
 
 		if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
