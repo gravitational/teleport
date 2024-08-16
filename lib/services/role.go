@@ -1263,10 +1263,10 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 
 // AdjustMinMFAVerificationInterval will reduce the requested ttl to the lowest min mfa verification interval
 // for this role set if the role forces MFA tap, otherwise it returns ttl unchanged
-func (set RoleSet) AdjustMinMFAVerificationInterval(ttl time.Duration) time.Duration {
+func (set RoleSet) AdjustMinMFAVerificationInterval(ttl time.Duration, enforce bool) time.Duration {
 	for _, role := range set {
 		minMFAVerificationInterval := role.GetOptions().MinMFAVerificationInterval.Value()
-		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF {
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF && !enforce {
 			continue
 		}
 		if minMFAVerificationInterval != 0 && ttl > minMFAVerificationInterval {

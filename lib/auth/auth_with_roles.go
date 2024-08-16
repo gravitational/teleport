@@ -3094,9 +3094,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// MFA tap and `min_mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
 			sessionTTL := roleSet.AdjustMinMFAVerificationInterval(
 				roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration()),
-			)
-			if req.Expires.After(a.authServer.GetClock().Now().UTC().Add(sessionTTL)) {
-				req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+				readOnlyAuthPref.GetRequireMFAType().IsSessionMFARequired())
+			adjustedSessionExpires := a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			if req.Expires.After(adjustedSessionExpires) {
+				req.Expires = adjustedSessionExpires
 			}
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
