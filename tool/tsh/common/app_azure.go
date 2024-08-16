@@ -274,13 +274,22 @@ func pickAzureApp(cf *CLIConf) (*azureApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var appInfo *appInfo
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, matchAzureApp)
-	if err != nil {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchAzureApp)
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

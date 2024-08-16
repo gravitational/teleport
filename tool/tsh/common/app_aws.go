@@ -349,8 +349,8 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 // TODO(gabrielcorado): DELETE IN V18.0.0
 // This is here for backward compatibility in case the auth server
 // does not support enriched resources yet.
-func getARNFromRoles(cf *CLIConf, tc *client.TeleportClient, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, app types.Application) []string {
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, roleGetter)
+func getARNFromRoles(cf *CLIConf, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, siteName string, app types.Application) []string {
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), siteName, roleGetter)
 	if err != nil {
 		log.WithError(err).Debugf("Failed to fetch user roles.")
 		return profile.AWSRolesARNs
@@ -375,13 +375,22 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var appInfo *appInfo
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, matchAWSApp)
-	if err != nil {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchAWSApp)
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

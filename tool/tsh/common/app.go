@@ -50,18 +50,31 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterClient, profile, err := initClusterAndProfile(cf.Context, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var (
+		clusterClient *client.ClusterClient
+		appInfo       *appInfo
+		app           types.Application
+	)
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	appInfo, err := getAppInfo(cf, tc, clusterClient.AuthClient, profile, nil /*matchRouteToApp*/)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	app, err := appInfo.GetApp(cf.Context, tc, clusterClient.AuthClient)
-	if err != nil {
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, nil /*matchRouteToApp*/)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		app, err = appInfo.GetApp(cf.Context, clusterClient.AuthClient)
+		return trace.Wrap(err)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -471,25 +484,6 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	}
 }
 
-// initClusterAndProfile initializes a cluster client and also returns the
-// current profile. This function might trigger a relogin in case of missing or
-// expired credentials.
-func initClusterAndProfile(ctx context.Context, tc *client.TeleportClient) (clusterClient *client.ClusterClient, profile *client.ProfileStatus, err error) {
-	if err := client.RetryWithRelogin(ctx, tc, func() error {
-		var err error
-		profile, err = tc.ProfileStatus()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		clusterClient, err = tc.ConnectToCluster(ctx)
-		return trace.Wrap(err)
-	}); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return
-}
-
 type appConfigInfo struct {
 	Name              string `json:"name"`
 	URI               string `json:"uri"`
@@ -522,7 +516,7 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 // command line args, and the list resources endpoint if necessary. If
 // provided, the matcher will be used to filter active apps in the
 // tsh profile.
-func getAppInfo(cf *CLIConf, tc *client.TeleportClient, clt authclient.ClientI, profile *client.ProfileStatus, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
+func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStatus, siteName string, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
 	activeRoutes := profile.Apps
 	if matchRouteToApp != nil {
 		var filteredRoutes []tlsca.RouteToApp
@@ -545,13 +539,13 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, clt authclient.ClientI, 
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, logins, err := getApp(cf.Context, tc, clt, cf.AppName)
+	app, logins, err := getApp(cf.Context, clt, cf.AppName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if len(logins) == 0 && app.IsAWSConsole() {
-		logins = getARNFromRoles(cf, tc, clt, profile, app)
+		logins = getARNFromRoles(cf, clt, profile, siteName, app)
 	}
 
 	appInfo := &appInfo{
@@ -559,7 +553,7 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, clt authclient.ClientI, 
 		RouteToApp: proto.RouteToApp{
 			Name:        app.GetName(),
 			PublicAddr:  app.GetPublicAddr(),
-			ClusterName: tc.SiteName,
+			ClusterName: siteName,
 			URI:         app.GetURI(),
 		},
 		app: app,
@@ -616,14 +610,14 @@ func (a *appInfo) appLocalCAPath(cluster string) string {
 
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
-func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient) (types.Application, error) {
+func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) (types.Application, error) {
 	a.appMu.Lock()
 	defer a.appMu.Unlock()
 	if a.app != nil {
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, _, err := getApp(ctx, tc, clt, a.Name)
+	app, _, err := getApp(ctx, clt, a.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -632,24 +626,16 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient, clt api
 }
 
 // getApp returns the registered application with the specified name.
-func getApp(ctx context.Context, tc *client.TeleportClient, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
-	var res apiclient.ResourcePage[*types.EnrichedResource]
-	// Fetching the app from the auth server needs to be done on a
-	// RetryWithRelogin block for cases where the certificates expired or a
-	// login is required (e.g., configuration change). We don't need a new
-	// instance of GetResourcesClient since it will reconnect using credentials
-	// from the updated TeleportClient.
-	if err := client.RetryWithRelogin(ctx, tc, func() error {
-		// When listing a single app we only need to grab one page.
-		res, err = apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
-			ResourceType:        types.KindAppServer,
-			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
-			Limit:               1,
-			IncludeLogins:       true,
-		})
-		return trace.Wrap(err)
-	}); err != nil {
+func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
+	// When listing a single app we only need to grab one page.
+	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+		Limit:               1,
+		IncludeLogins:       true,
+	})
+	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
