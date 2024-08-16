@@ -266,8 +266,10 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			sctx: &ServerContext{
-				SessionRecordingConfig: proxyRecording,
-				term:                   &terminal{},
+				ServerContextConfig: ServerContextConfig{
+					SessionRecordingConfig: proxyRecording,
+				},
+				term: &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -286,8 +288,10 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			sctx: &ServerContext{
-				SessionRecordingConfig: proxyRecordingSync,
-				term:                   &terminal{},
+				ServerContextConfig: ServerContextConfig{
+					SessionRecordingConfig: proxyRecordingSync,
+				},
+				term: &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -306,27 +310,29 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			sctx: &ServerContext{
-				SessionRecordingConfig: nodeRecordingSync,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-				},
-				term: &terminal{},
-				Identity: IdentityContext{
-					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-						Roles: []string{"dev"},
-					}, "test", services.RoleSet{
-						&types.RoleV6{
-							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-							Spec: types.RoleSpecV6{
-								Options: types.RoleOptions{
-									RecordSession: &types.RecordSession{
-										SSH: constants.SessionRecordingModeStrict,
+				ServerContextConfig: ServerContextConfig{
+					SessionRecordingConfig: nodeRecordingSync,
+					srv: &mockServer{
+						component: teleport.ComponentNode,
+					},
+					Identity: IdentityContext{
+						AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+							Roles: []string{"dev"},
+						}, "test", services.RoleSet{
+							&types.RoleV6{
+								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+								Spec: types.RoleSpecV6{
+									Options: types.RoleOptions{
+										RecordSession: &types.RecordSession{
+											SSH: constants.SessionRecordingModeStrict,
+										},
 									},
 								},
 							},
-						},
-					}),
+						}),
+					},
 				},
+				term: &terminal{},
 			},
 			errAssertion: require.Error,
 			recAssertion: require.Nil,
@@ -345,27 +351,29 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			sctx: &ServerContext{
-				ClusterName:            "test",
-				SessionRecordingConfig: nodeRecordingSync,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-					datadir:   t.TempDir(),
-				},
-				Identity: IdentityContext{
-					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-						Roles: []string{"dev"},
-					}, "test", services.RoleSet{
-						&types.RoleV6{
-							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-							Spec: types.RoleSpecV6{
-								Options: types.RoleOptions{
-									RecordSession: &types.RecordSession{
-										SSH: constants.SessionRecordingModeBestEffort,
+				ServerContextConfig: ServerContextConfig{
+					ClusterName:            "test",
+					SessionRecordingConfig: nodeRecordingSync,
+					srv: &mockServer{
+						component: teleport.ComponentNode,
+						datadir:   t.TempDir(),
+					},
+					Identity: IdentityContext{
+						AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+							Roles: []string{"dev"},
+						}, "test", services.RoleSet{
+							&types.RoleV6{
+								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+								Spec: types.RoleSpecV6{
+									Options: types.RoleOptions{
+										RecordSession: &types.RecordSession{
+											SSH: constants.SessionRecordingModeBestEffort,
+										},
 									},
 								},
 							},
-						},
-					}),
+						}),
+					},
 				},
 				term: &terminal{},
 			},
@@ -391,11 +399,13 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			sctx: &ServerContext{
-				ClusterName:            "test",
-				SessionRecordingConfig: nodeRecordingSync,
-				srv: &mockServer{
-					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
-					datadir:             t.TempDir(),
+				ServerContextConfig: ServerContextConfig{
+					ClusterName:            "test",
+					SessionRecordingConfig: nodeRecordingSync,
+					srv: &mockServer{
+						MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+						datadir:             t.TempDir(),
+					},
 				},
 				term: &terminal{},
 			},
@@ -1221,9 +1231,11 @@ func TestSessionRecordingMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := session{
 				scx: &ServerContext{
-					SessionRecordingConfig: &types.SessionRecordingConfigV2{
-						Spec: types.SessionRecordingConfigSpecV2{
-							Mode: tt.mode,
+					ServerContextConfig: ServerContextConfig{
+						SessionRecordingConfig: &types.SessionRecordingConfigV2{
+							Spec: types.SessionRecordingConfigSpecV2{
+								Mode: tt.mode,
+							},
 						},
 					},
 				},
