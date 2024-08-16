@@ -387,6 +387,7 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer clusterClient.Close()
 
 		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchAWSApp)
 		return trace.Wrap(err)

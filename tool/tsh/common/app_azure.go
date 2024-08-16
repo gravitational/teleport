@@ -286,6 +286,7 @@ func pickAzureApp(cf *CLIConf) (*azureApp, error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer clusterClient.Close()
 
 		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchAzureApp)
 		return trace.Wrap(err)

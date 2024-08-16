@@ -77,6 +77,7 @@ func onAppLogin(cf *CLIConf) error {
 	}); err != nil {
 		return trace.Wrap(err)
 	}
+	defer clusterClient.Close()
 
 	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
 	if err != nil {

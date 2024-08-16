@@ -381,6 +381,7 @@ func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer clusterClient.Close()
 
 		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
 		return trace.Wrap(err)
