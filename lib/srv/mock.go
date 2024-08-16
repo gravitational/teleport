@@ -92,11 +92,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
 
-	// TODO (joerger): check the error coming from Close once the logic around
-	// closing open files has been fixed to fail with "close |1: file already closed".
-	// Note that outside of tests, we never check the error form scx.Close because this
-	// error is a part of normal execution currently.
-	t.Cleanup(func() { scx.Close() })
+	t.Cleanup(func() { require.NoError(t, scx.Close()) })
 
 	return scx
 }

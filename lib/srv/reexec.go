@@ -1123,7 +1123,11 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		cmdmsg.ExtraFilesLen = len(extraFiles)
 	}
 
-	go copyCommand(ctx, cmdmsg)
+	go func() {
+		if err := ctx.CopyCommand(cmdmsg); err != nil {
+			log.Errorf("Failed to copy command over pipe: %v.", err)
+		}
+	}()
 
 	// Find the Teleport executable and its directory on disk.
 	executable, err := os.Executable()
@@ -1171,27 +1175,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	reexecCommandOSTweaks(cmd)
 
 	return cmd, nil
-}
-
-// copyCommand will copy the provided command to the child process over the
-// pipe attached to the context.
-func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
-	defer func() {
-		err := ctx.cmdw.Close()
-		if err != nil {
-			log.Errorf("Failed to close command pipe: %v.", err)
-		}
-
-		// Set to nil so the close in the context doesn't attempt to re-close.
-		ctx.cmdw = nil
-	}()
-
-	// Write command bytes to pipe. The child process will read the command
-	// to execute from this pipe.
-	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		log.Errorf("Failed to copy command over pipe: %v.", err)
-		return
-	}
 }
 
 // CheckHomeDir checks if the user's home dir exists

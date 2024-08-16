@@ -182,12 +182,10 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := e.Ctx.readyw.Close(); err != nil {
+
+	if err := e.Ctx.SkipReady(); err != nil {
 		e.Ctx.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
 	}
-	e.Ctx.readyw = nil
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -227,20 +225,13 @@ func (e *localExec) Wait() *ExecResult {
 }
 
 func (e *localExec) WaitForChild() error {
-	err := waitForSignal(e.Ctx.readyr, 20*time.Second)
-	closeErr := e.Ctx.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+	return trace.Wrap(e.Ctx.WaitForReady())
 }
 
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (e *localExec) Continue() {
-	e.Ctx.contw.Close()
-
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.contw = nil
+	e.Ctx.Continue()
 }
 
 // PID returns the PID of the Teleport process that was re-execed.
@@ -307,31 +298,6 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	}
 
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
-}
-
-// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
-// received, it will stop waiting and exit.
-func waitForSignal(fd *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		// Reading from the file descriptor will block until it's closed.
-		_, err := fd.Read(make([]byte, 1))
-		if errors.Is(err, io.EOF) {
-			err = nil
-		}
-		waitCh <- err
-	}()
-
-	// Timeout if no signal has been sent within the provided duration.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for continue signal")
-	case err := <-waitCh:
-		return err
-	}
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.

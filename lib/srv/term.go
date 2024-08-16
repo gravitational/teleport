@@ -209,12 +209,9 @@ func (t *terminal) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := t.serverContext.readyw.Close(); err != nil {
+	if err := t.serverContext.SkipReady(); err != nil {
 		t.serverContext.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
 	}
-	t.serverContext.readyw = nil
 
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
@@ -246,24 +243,20 @@ func (t *terminal) Wait() (*ExecResult, error) {
 }
 
 func (t *terminal) WaitForChild() error {
-	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
-	closeErr := t.serverContext.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	t.serverContext.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+	return trace.Wrap(t.serverContext.WaitForReady())
 }
 
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	if err := t.serverContext.contw.Close(); err != nil {
-		t.log.Warnf("failed to close server context")
+	if err := t.serverContext.Continue(); err != nil {
+		t.log.Warnf("failed to close continue file")
 	}
 }
 
 // KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if err := t.serverContext.termw.Close(); err != nil {
+	if err := t.serverContext.Terminate(); err != nil {
 		if !errors.Is(err, os.ErrClosed) {
 			t.log.WithError(err).Debug("Failed to close the shell file descriptor")
 		}

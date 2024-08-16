@@ -20,6 +20,8 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -535,8 +537,6 @@ func newServerContext(ctx context.Context, config ServerContextConfig) (*ServerC
 		childErr := scx.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
-	scx.AddCloser(scx.cmdr)
-	scx.AddCloser(scx.cmdw)
 
 	// Create pipe used to signal continue to child process.
 	scx.contr, scx.contw, err = os.Pipe()
@@ -544,8 +544,6 @@ func newServerContext(ctx context.Context, config ServerContextConfig) (*ServerC
 		childErr := scx.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
-	scx.AddCloser(scx.contr)
-	scx.AddCloser(scx.contw)
 
 	// Create pipe used to signal continue to parent process.
 	scx.readyr, scx.readyw, err = os.Pipe()
@@ -553,16 +551,12 @@ func newServerContext(ctx context.Context, config ServerContextConfig) (*ServerC
 		childErr := scx.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
-	scx.AddCloser(scx.readyr)
-	scx.AddCloser(scx.readyw)
 
 	scx.termr, scx.termw, err = os.Pipe()
 	if err != nil {
 		childErr := scx.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
-	scx.AddCloser(scx.termr)
-	scx.AddCloser(scx.termw)
 
 	return scx, nil
 }
@@ -856,9 +850,116 @@ func (c *ServerContext) takeClosers() []io.Closer {
 		closers = append(closers, c.term)
 		c.term = nil
 	}
+
 	closers = append(closers, c.closers...)
 	c.closers = nil
+
+	// Add any open files to the list of closers.
+	for _, fp := range []**os.File{
+		&c.cmdr, &c.contr, &c.readyr, &c.termr,
+		&c.cmdw, &c.contw, &c.readyw, &c.termw,
+	} {
+		if f := takeFile(fp); f != nil {
+			closers = append(closers, f)
+		}
+	}
+
 	return closers
+}
+
+func (c *ServerContext) takeFile(fp **os.File) *os.File {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return takeFile(fp)
+}
+
+func takeFile(fp **os.File) *os.File {
+	f := *fp
+	*fp = nil
+	return f
+}
+
+// CopyCommand will copy the provided command to the child process over the
+// pipe attached to the context.
+func (c *ServerContext) CopyCommand(cmdmsg *ExecCommand) error {
+	cmdw := c.takeFile(&c.cmdw)
+	if cmdw == nil {
+		return trace.BadParameter("command file already claimed")
+	}
+	defer cmdw.Close()
+
+	// Write command bytes to pipe. The child process will read the command
+	// to execute from this pipe.
+	err := json.NewEncoder(cmdw).Encode(cmdmsg)
+	return trace.Wrap(err)
+}
+
+// WaitForReady waits for the child process to signal it has completed its
+// pre-processing routine and has halted execution to be placed into a cgroup.
+func (c *ServerContext) WaitForReady() error {
+	readyr := c.takeFile(&c.readyr)
+	if readyr == nil {
+		return trace.BadParameter("ready file already claimed")
+	}
+	defer readyr.Close()
+
+	err := waitForSignal(c.readyr, 20*time.Second)
+	return trace.Wrap(err)
+}
+
+// waitForSignal will wait 10 seconds for the other side of the pipe to signal,
+// if not received, it will stop waiting and exit.
+func waitForSignal(fd *os.File, timeout time.Duration) error {
+	waitCh := make(chan error, 1)
+	go func() {
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		waitCh <- err
+	}()
+
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for continue signal")
+	case err := <-waitCh:
+		return err
+	}
+}
+
+// Close our half of the write pipe since it is only to be used by the child process.
+// Not closing prevents being signaled when the child closes its half.
+func (c *ServerContext) SkipReady() error {
+	readyw := c.takeFile(&c.readyw)
+	if readyw == nil {
+		return trace.BadParameter("ready file already claimed")
+	}
+	return trace.Wrap(readyw.Close())
+}
+
+// Continue will resume execution of the child process after it completes its
+// pre-processing routine (placed in a cgroup).
+func (c *ServerContext) Continue() error {
+	contw := c.takeFile(&c.contw)
+	if contw == nil {
+		return trace.BadParameter("continue file already claimed")
+	}
+	return trace.Wrap(contw.Close())
+}
+
+// Terminate will terminate execution of the child process gracefully. For shell
+// sessions, this kills the shell without killing its parent reexec process.
+func (c *ServerContext) Terminate() error {
+	termw := c.takeFile(&c.termw)
+	if termw == nil {
+		return trace.BadParameter("continue file already claimed")
+	}
+	return trace.Wrap(termw.Close())
 }
 
 // When the ServerContext (connection) is closed, emit "session.data" event
