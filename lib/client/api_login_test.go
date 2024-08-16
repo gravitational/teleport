@@ -507,9 +507,20 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	user.AddRole(role.GetName())
 
+	// Use os.MkdirTemp() instead of t.TempDir() for the DataDir.
+	// The shorter temp paths avoid problems with long unix socket paths composed
+	// using the DataDir.
+	// See https://github.com/golang/go/issues/62614.
+	makeDataDir := func() string {
+		tempDir, err := os.MkdirTemp("", "teleport-test-")
+		require.NoError(t, err, "os.MkdirTemp failed")
+		t.Cleanup(func() { os.RemoveAll(tempDir) })
+		return tempDir
+	}
+
 	// AuthServer setup.
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
 	cfg.Console = console
@@ -591,7 +602,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 
 	// Proxy setup.
 	cfg = servicecfg.MakeDefaultConfig()
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
 	cfg.Clock = clock
