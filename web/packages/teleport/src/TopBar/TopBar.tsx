@@ -152,19 +152,21 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                   Icon={Server}
                 />
               )}
-              <MainNavItem
-                name="Access Management"
-                to={
-                  previousManagementRoute ||
-                  getFirstRouteForCategory(
-                    features,
-                    NavigationCategory.Management
-                  )
-                }
-                size={iconSize}
-                isSelected={managementTabSelected}
-                Icon={SlidersVertical}
-              />
+              {ctx.getFeatureFlags().managementSection && (
+                <MainNavItem
+                  name="Access Management"
+                  to={
+                    previousManagementRoute ||
+                    getFirstRouteForCategory(
+                      features,
+                      NavigationCategory.Management
+                    )
+                  }
+                  size={iconSize}
+                  isSelected={managementTabSelected}
+                  Icon={SlidersVertical}
+                />
+              )}
 
               {topBarLinks.map(({ topMenuItem, navigationItem }) => {
                 const link = navigationItem.getLink(clusterId);
