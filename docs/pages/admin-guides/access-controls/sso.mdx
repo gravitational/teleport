@@ -212,6 +212,9 @@ For this to work the hostname or CIDR of the remote machine that will be used fo
 the callback will need to be allowed  via`spec.client_redirect_settings`:
 
 ```code
+kind: oidc
+metadata:
+  name: example-connector
 spec:
   client_redirect_settings:
     # a list of hostnames allowed for HTTPS client redirect URLs
