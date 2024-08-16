@@ -179,6 +179,7 @@ func handleReexec() {
 			}
 		}
 
+		fmt.Printf("--> types.HomeEnvVar: %v\n", os.Getenv(types.HomeEnvVar))
 		err := Run(context.Background(), os.Args[1:], runOpts...)
 		if err != nil {
 			var exitError *common.ExitCodeError
@@ -6111,13 +6112,27 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 // TestCompatibilityFlags
 func TestCompatibilityFlags(t *testing.T) {
 	//t.Parallel()
+
+	// Headless ssh should pass session mfa requirements
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"rjones"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	//alice, err := types.NewUser("alice@example.com")
+	//require.NoError(t, err)
+	//alice.SetRoles([]string{"node-access"})
+
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
+	alice.SetRoles([]string{"access", "node-access"})
 
 	hostname := "foo"
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice), withConfig(func(cfg *servicecfg.Config) {
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, nodeAccess, alice), withConfig(func(cfg *servicecfg.Config) {
 		cfg.Hostname = hostname
 		cfg.SSH.Enabled = true
 		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
@@ -6164,7 +6179,7 @@ func TestCompatibilityFlags(t *testing.T) {
 	cmd := exec.Command(testExecutable, "ssh", "-T", "foo", "date")
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err)
-	fmt.Printf("--> Done: %q\n", string(output))
+	require.NotContains(t, string(output), "not a tty")
 
 	//testExecutable, err := os.Executable()
 	//require.NoError(t, err)
@@ -6172,4 +6187,6 @@ func TestCompatibilityFlags(t *testing.T) {
 	//output, err := cmd.CombinedOutput()
 	//require.NoError(t, err)
 	//fmt.Printf("--> Done: %q\n", string(output))
+
+	// TODO(russjones): Check if tsh ssh server01 can have no tty allocated.
 }
