@@ -22,7 +22,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
-	_ "crypto/sha256" // imported from crypto.SHA256
+	_ "crypto/sha256" // imported to register crypto.SHA256 in init func
 	"errors"
 	"fmt"
 
