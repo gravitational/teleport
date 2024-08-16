@@ -6189,4 +6189,27 @@ func TestCompatibilityFlags(t *testing.T) {
 	//fmt.Printf("--> Done: %q\n", string(output))
 
 	// TODO(russjones): Check if tsh ssh server01 can have no tty allocated.
+	//
+	// To test how OpenSSH should work, run the following servers.
+	//
+	// Start `sshd` in one-shot mode.
+	//
+	// ```
+	// /usr/sbin/sshd -ddd -D \
+	//     -o ListenAddress=127.0.0.1 \
+	//     -o Port=2022 \
+	//     -o HostKey=/Users/rjones/Desktop/t/ssh-host-keys/ssh_host_rsa_key \
+	//     -o AuthorizedKeysFile=/Users/rjones/Desktop/t/ssh-host-keys/authorized_keys \
+	//     -o PubkeyAuthentication=yes \
+	//     -o PermitUserEnvironment=yes \
+	//     -o StrictModes=no
+	// ```
+	//
+	// Connect to above `sshd` using `ssh`.
+	//
+	// ```
+	// ssh 127.0.0.1 -p 2022 \
+	//     -o UserKnownHostsFile=/dev/null \
+	//     -o StrictHostKeyChecking=no
+	// ```
 }
