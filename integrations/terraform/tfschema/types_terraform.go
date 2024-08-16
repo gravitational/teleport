@@ -836,6 +836,37 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"cors": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow_credentials": {
+							Description: "AllowCredentials indicates whether credentials are allowed.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"allowed_headers": {
+							Description: "AllowedHeaders specifies which headers can be used when accessing the app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"allowed_methods": {
+							Description: "AllowedMethods specifies which methods are allowed when accessing the app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"allowed_origins": {
+							Description: "AllowedOrigins specifies which origins are allowed to access the app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"max_age": {
+							Description: "MaxAge indicates how long (in seconds) the results of a preflight request can be cached.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "CORS defines the Cross-Origin Resource Sharing settings for the app.",
+					Optional:    true,
+				},
 				"dynamic_labels": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"command": {
@@ -9955,6 +9986,139 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["cors"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.CORS"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.CORS = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.CORS = &github_com_gravitational_teleport_api_types.CORS{}
+									obj := obj.CORS
+									{
+										a, ok := tf.Attrs["allowed_origins"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.CORS.AllowedOrigins"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowedOrigins", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.AllowedOrigins = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowedOrigins", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.AllowedOrigins[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["allowed_methods"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.CORS.AllowedMethods"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowedMethods", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.AllowedMethods = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowedMethods", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.AllowedMethods[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["allowed_headers"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.CORS.AllowedHeaders"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowedHeaders", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.AllowedHeaders = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowedHeaders", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.AllowedHeaders[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["allow_credentials"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.CORS.AllowCredentials"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.AllowCredentials", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.AllowCredentials = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["max_age"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.CORS.MaxAge"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.CORS.MaxAge", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int32
+												if !v.Null && !v.Unknown {
+													t = int32(v.Value)
+												}
+												obj.MaxAge = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -10881,6 +11045,241 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								}
 								c.Unknown = false
 								tf.Attrs["required_app_names"] = c
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["cors"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.CORS"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["cors"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.CORS == nil {
+									v.Null = true
+								} else {
+									obj := obj.CORS
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["allowed_origins"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.CORS.AllowedOrigins"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowedOrigins", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allowed_origins"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedOrigins)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedOrigins))
+													}
+												}
+												if obj.AllowedOrigins != nil {
+													t := o.ElemType
+													if len(obj.AllowedOrigins) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedOrigins))
+													}
+													for k, a := range obj.AllowedOrigins {
+														v, ok := tf.Attrs["allowed_origins"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AppV3.Spec.CORS.AllowedOrigins", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowedOrigins", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.AllowedOrigins) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["allowed_origins"] = c
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["allowed_methods"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.CORS.AllowedMethods"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowedMethods", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allowed_methods"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedMethods)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedMethods))
+													}
+												}
+												if obj.AllowedMethods != nil {
+													t := o.ElemType
+													if len(obj.AllowedMethods) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedMethods))
+													}
+													for k, a := range obj.AllowedMethods {
+														v, ok := tf.Attrs["allowed_methods"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AppV3.Spec.CORS.AllowedMethods", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowedMethods", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.AllowedMethods) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["allowed_methods"] = c
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["allowed_headers"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.CORS.AllowedHeaders"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowedHeaders", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allowed_headers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedHeaders)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedHeaders))
+													}
+												}
+												if obj.AllowedHeaders != nil {
+													t := o.ElemType
+													if len(obj.AllowedHeaders) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedHeaders))
+													}
+													for k, a := range obj.AllowedHeaders {
+														v, ok := tf.Attrs["allowed_headers"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AppV3.Spec.CORS.AllowedHeaders", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowedHeaders", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.AllowedHeaders) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["allowed_headers"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["allow_credentials"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.CORS.AllowCredentials"})
+										} else {
+											v, ok := tf.Attrs["allow_credentials"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.CORS.AllowCredentials", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.AllowCredentials", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.AllowCredentials) == false
+											}
+											v.Value = bool(obj.AllowCredentials)
+											v.Unknown = false
+											tf.Attrs["allow_credentials"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["max_age"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.CORS.MaxAge"})
+										} else {
+											v, ok := tf.Attrs["max_age"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.CORS.MaxAge", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.CORS.MaxAge", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.MaxAge) == 0
+											}
+											v.Value = int64(obj.MaxAge)
+											v.Unknown = false
+											tf.Attrs["max_age"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["cors"] = v
 							}
 						}
 					}

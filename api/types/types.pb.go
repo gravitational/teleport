@@ -917,7 +917,7 @@ func (x CertAuthoritySpecV2_SigningAlgType) String() string {
 }
 
 func (CertAuthoritySpecV2_SigningAlgType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{52, 0}
+	return fileDescriptor_9198ee693835762e, []int{53, 0}
 }
 
 // FIPSEndpointState represents an AWS FIPS endpoint state.
@@ -3238,6 +3238,56 @@ func (m *AppV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AppV3 proto.InternalMessageInfo
 
+// CORSSpec defines the CORS policy for AppSpecV3
+type CORSSpec struct {
+	// allowed_origins specifies which origins are allowed to access the app.
+	AllowedOrigins []string `protobuf:"bytes,1,rep,name=allowed_origins,json=allowedOrigins,proto3" json:"allowed_origins,omitempty"`
+	// allowed_methods specifies which methods are allowed when accessing the app.
+	AllowedMethods []string `protobuf:"bytes,2,rep,name=allowed_methods,json=allowedMethods,proto3" json:"allowed_methods,omitempty"`
+	// allowed_headers specifies which headers can be used when accessing the app.
+	AllowedHeaders []string `protobuf:"bytes,3,rep,name=allowed_headers,json=allowedHeaders,proto3" json:"allowed_headers,omitempty"`
+	// allow_credentials indicates whether credentials are allowed.
+	AllowCredentials bool `protobuf:"varint,4,opt,name=allow_credentials,json=allowCredentials,proto3" json:"allow_credentials,omitempty"`
+	// max_age indicates how long (in seconds) the results of a preflight request can be cached.
+	MaxAge               uint32   `protobuf:"varint,5,opt,name=max_age,json=maxAge,proto3" json:"max_age,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CORSSpec) Reset()         { *m = CORSSpec{} }
+func (m *CORSSpec) String() string { return proto.CompactTextString(m) }
+func (*CORSSpec) ProtoMessage()    {}
+func (*CORSSpec) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9198ee693835762e, []int{42}
+}
+func (m *CORSSpec) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CORSSpec) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CORSSpec.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CORSSpec) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CORSSpec.Merge(m, src)
+}
+func (m *CORSSpec) XXX_Size() int {
+	return m.Size()
+}
+func (m *CORSSpec) XXX_DiscardUnknown() {
+	xxx_messageInfo_CORSSpec.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CORSSpec proto.InternalMessageInfo
+
 // AppSpecV3 is the AppV3 resource spec.
 type AppSpecV3 struct {
 	// URI is the web app endpoint.
@@ -3272,7 +3322,7 @@ func (m *AppSpecV3) Reset()         { *m = AppSpecV3{} }
 func (m *AppSpecV3) String() string { return proto.CompactTextString(m) }
 func (*AppSpecV3) ProtoMessage()    {}
 func (*AppSpecV3) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{42}
+	return fileDescriptor_9198ee693835762e, []int{43}
 }
 func (m *AppSpecV3) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3324,7 +3374,7 @@ type AppServerOrSAMLIdPServiceProviderV1 struct {
 func (m *AppServerOrSAMLIdPServiceProviderV1) Reset()      { *m = AppServerOrSAMLIdPServiceProviderV1{} }
 func (*AppServerOrSAMLIdPServiceProviderV1) ProtoMessage() {}
 func (*AppServerOrSAMLIdPServiceProviderV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{43}
+	return fileDescriptor_9198ee693835762e, []int{44}
 }
 func (m *AppServerOrSAMLIdPServiceProviderV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3419,7 +3469,7 @@ func (m *Rewrite) Reset()         { *m = Rewrite{} }
 func (m *Rewrite) String() string { return proto.CompactTextString(m) }
 func (*Rewrite) ProtoMessage()    {}
 func (*Rewrite) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{44}
+	return fileDescriptor_9198ee693835762e, []int{45}
 }
 func (m *Rewrite) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3463,7 +3513,7 @@ func (m *Header) Reset()         { *m = Header{} }
 func (m *Header) String() string { return proto.CompactTextString(m) }
 func (*Header) ProtoMessage()    {}
 func (*Header) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{45}
+	return fileDescriptor_9198ee693835762e, []int{46}
 }
 func (m *Header) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3510,7 +3560,7 @@ func (m *CommandLabelV2) Reset()         { *m = CommandLabelV2{} }
 func (m *CommandLabelV2) String() string { return proto.CompactTextString(m) }
 func (*CommandLabelV2) ProtoMessage()    {}
 func (*CommandLabelV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{46}
+	return fileDescriptor_9198ee693835762e, []int{47}
 }
 func (m *CommandLabelV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3552,7 +3602,7 @@ func (m *AppAWS) Reset()         { *m = AppAWS{} }
 func (m *AppAWS) String() string { return proto.CompactTextString(m) }
 func (*AppAWS) ProtoMessage()    {}
 func (*AppAWS) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{47}
+	return fileDescriptor_9198ee693835762e, []int{48}
 }
 func (m *AppAWS) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3598,7 +3648,7 @@ func (m *SSHKeyPair) Reset()         { *m = SSHKeyPair{} }
 func (m *SSHKeyPair) String() string { return proto.CompactTextString(m) }
 func (*SSHKeyPair) ProtoMessage()    {}
 func (*SSHKeyPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{48}
+	return fileDescriptor_9198ee693835762e, []int{49}
 }
 func (m *SSHKeyPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3644,7 +3694,7 @@ func (m *TLSKeyPair) Reset()         { *m = TLSKeyPair{} }
 func (m *TLSKeyPair) String() string { return proto.CompactTextString(m) }
 func (*TLSKeyPair) ProtoMessage()    {}
 func (*TLSKeyPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{49}
+	return fileDescriptor_9198ee693835762e, []int{50}
 }
 func (m *TLSKeyPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3690,7 +3740,7 @@ func (m *JWTKeyPair) Reset()         { *m = JWTKeyPair{} }
 func (m *JWTKeyPair) String() string { return proto.CompactTextString(m) }
 func (*JWTKeyPair) ProtoMessage()    {}
 func (*JWTKeyPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{50}
+	return fileDescriptor_9198ee693835762e, []int{51}
 }
 func (m *JWTKeyPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3739,7 +3789,7 @@ type CertAuthorityV2 struct {
 func (m *CertAuthorityV2) Reset()      { *m = CertAuthorityV2{} }
 func (*CertAuthorityV2) ProtoMessage() {}
 func (*CertAuthorityV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{51}
+	return fileDescriptor_9198ee693835762e, []int{52}
 }
 func (m *CertAuthorityV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3800,7 +3850,7 @@ func (m *CertAuthoritySpecV2) Reset()         { *m = CertAuthoritySpecV2{} }
 func (m *CertAuthoritySpecV2) String() string { return proto.CompactTextString(m) }
 func (*CertAuthoritySpecV2) ProtoMessage()    {}
 func (*CertAuthoritySpecV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{52}
+	return fileDescriptor_9198ee693835762e, []int{53}
 }
 func (m *CertAuthoritySpecV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3846,7 +3896,7 @@ func (m *CAKeySet) Reset()         { *m = CAKeySet{} }
 func (m *CAKeySet) String() string { return proto.CompactTextString(m) }
 func (*CAKeySet) ProtoMessage()    {}
 func (*CAKeySet) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{53}
+	return fileDescriptor_9198ee693835762e, []int{54}
 }
 func (m *CAKeySet) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3891,7 +3941,7 @@ func (m *RoleMapping) Reset()         { *m = RoleMapping{} }
 func (m *RoleMapping) String() string { return proto.CompactTextString(m) }
 func (*RoleMapping) ProtoMessage()    {}
 func (*RoleMapping) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{54}
+	return fileDescriptor_9198ee693835762e, []int{55}
 }
 func (m *RoleMapping) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3939,7 +3989,7 @@ type ProvisionTokenV1 struct {
 func (m *ProvisionTokenV1) Reset()      { *m = ProvisionTokenV1{} }
 func (*ProvisionTokenV1) ProtoMessage() {}
 func (*ProvisionTokenV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{55}
+	return fileDescriptor_9198ee693835762e, []int{56}
 }
 func (m *ProvisionTokenV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3989,7 +4039,7 @@ type ProvisionTokenV2 struct {
 func (m *ProvisionTokenV2) Reset()      { *m = ProvisionTokenV2{} }
 func (*ProvisionTokenV2) ProtoMessage() {}
 func (*ProvisionTokenV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{56}
+	return fileDescriptor_9198ee693835762e, []int{57}
 }
 func (m *ProvisionTokenV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4031,7 +4081,7 @@ func (m *ProvisionTokenV2List) Reset()         { *m = ProvisionTokenV2List{} }
 func (m *ProvisionTokenV2List) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenV2List) ProtoMessage()    {}
 func (*ProvisionTokenV2List) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{57}
+	return fileDescriptor_9198ee693835762e, []int{58}
 }
 func (m *ProvisionTokenV2List) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4083,7 +4133,7 @@ func (m *TokenRule) Reset()         { *m = TokenRule{} }
 func (m *TokenRule) String() string { return proto.CompactTextString(m) }
 func (*TokenRule) ProtoMessage()    {}
 func (*TokenRule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{58}
+	return fileDescriptor_9198ee693835762e, []int{59}
 }
 func (m *TokenRule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4165,7 +4215,7 @@ func (m *ProvisionTokenSpecV2) Reset()         { *m = ProvisionTokenSpecV2{} }
 func (m *ProvisionTokenSpecV2) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{59}
+	return fileDescriptor_9198ee693835762e, []int{60}
 }
 func (m *ProvisionTokenSpecV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4217,7 +4267,7 @@ func (m *ProvisionTokenSpecV2TPM) Reset()         { *m = ProvisionTokenSpecV2TPM
 func (m *ProvisionTokenSpecV2TPM) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2TPM) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2TPM) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{60}
+	return fileDescriptor_9198ee693835762e, []int{61}
 }
 func (m *ProvisionTokenSpecV2TPM) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4273,7 +4323,7 @@ func (m *ProvisionTokenSpecV2TPM_Rule) Reset()         { *m = ProvisionTokenSpec
 func (m *ProvisionTokenSpecV2TPM_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2TPM_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2TPM_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{60, 0}
+	return fileDescriptor_9198ee693835762e, []int{61, 0}
 }
 func (m *ProvisionTokenSpecV2TPM_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4337,7 +4387,7 @@ func (m *ProvisionTokenSpecV2GitHub) Reset()         { *m = ProvisionTokenSpecV2
 func (m *ProvisionTokenSpecV2GitHub) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2GitHub) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2GitHub) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{61}
+	return fileDescriptor_9198ee693835762e, []int{62}
 }
 func (m *ProvisionTokenSpecV2GitHub) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4399,7 +4449,7 @@ func (m *ProvisionTokenSpecV2GitHub_Rule) Reset()         { *m = ProvisionTokenS
 func (m *ProvisionTokenSpecV2GitHub_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2GitHub_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2GitHub_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{61, 0}
+	return fileDescriptor_9198ee693835762e, []int{62, 0}
 }
 func (m *ProvisionTokenSpecV2GitHub_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4447,7 +4497,7 @@ func (m *ProvisionTokenSpecV2GitLab) Reset()         { *m = ProvisionTokenSpecV2
 func (m *ProvisionTokenSpecV2GitLab) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2GitLab) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2GitLab) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{62}
+	return fileDescriptor_9198ee693835762e, []int{63}
 }
 func (m *ProvisionTokenSpecV2GitLab) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4549,7 +4599,7 @@ func (m *ProvisionTokenSpecV2GitLab_Rule) Reset()         { *m = ProvisionTokenS
 func (m *ProvisionTokenSpecV2GitLab_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2GitLab_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2GitLab_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{62, 0}
+	return fileDescriptor_9198ee693835762e, []int{63, 0}
 }
 func (m *ProvisionTokenSpecV2GitLab_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4594,7 +4644,7 @@ func (m *ProvisionTokenSpecV2CircleCI) Reset()         { *m = ProvisionTokenSpec
 func (m *ProvisionTokenSpecV2CircleCI) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2CircleCI) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2CircleCI) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{63}
+	return fileDescriptor_9198ee693835762e, []int{64}
 }
 func (m *ProvisionTokenSpecV2CircleCI) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4635,7 +4685,7 @@ func (m *ProvisionTokenSpecV2CircleCI_Rule) Reset()         { *m = ProvisionToke
 func (m *ProvisionTokenSpecV2CircleCI_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2CircleCI_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2CircleCI_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{63, 0}
+	return fileDescriptor_9198ee693835762e, []int{64, 0}
 }
 func (m *ProvisionTokenSpecV2CircleCI_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4682,7 +4732,7 @@ func (m *ProvisionTokenSpecV2Spacelift) Reset()         { *m = ProvisionTokenSpe
 func (m *ProvisionTokenSpecV2Spacelift) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2Spacelift) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2Spacelift) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{64}
+	return fileDescriptor_9198ee693835762e, []int{65}
 }
 func (m *ProvisionTokenSpecV2Spacelift) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4733,7 +4783,7 @@ func (m *ProvisionTokenSpecV2Spacelift_Rule) Reset()         { *m = ProvisionTok
 func (m *ProvisionTokenSpecV2Spacelift_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2Spacelift_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2Spacelift_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{64, 0}
+	return fileDescriptor_9198ee693835762e, []int{65, 0}
 }
 func (m *ProvisionTokenSpecV2Spacelift_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4785,7 +4835,7 @@ func (m *ProvisionTokenSpecV2Kubernetes) Reset()         { *m = ProvisionTokenSp
 func (m *ProvisionTokenSpecV2Kubernetes) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2Kubernetes) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2Kubernetes) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{65}
+	return fileDescriptor_9198ee693835762e, []int{66}
 }
 func (m *ProvisionTokenSpecV2Kubernetes) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4832,7 +4882,7 @@ func (m *ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig) String() string {
 }
 func (*ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig) ProtoMessage() {}
 func (*ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{65, 0}
+	return fileDescriptor_9198ee693835762e, []int{66, 0}
 }
 func (m *ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4876,7 +4926,7 @@ func (m *ProvisionTokenSpecV2Kubernetes_Rule) Reset()         { *m = ProvisionTo
 func (m *ProvisionTokenSpecV2Kubernetes_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2Kubernetes_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2Kubernetes_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{65, 1}
+	return fileDescriptor_9198ee693835762e, []int{66, 1}
 }
 func (m *ProvisionTokenSpecV2Kubernetes_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4920,7 +4970,7 @@ func (m *ProvisionTokenSpecV2Azure) Reset()         { *m = ProvisionTokenSpecV2A
 func (m *ProvisionTokenSpecV2Azure) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2Azure) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2Azure) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{66}
+	return fileDescriptor_9198ee693835762e, []int{67}
 }
 func (m *ProvisionTokenSpecV2Azure) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4966,7 +5016,7 @@ func (m *ProvisionTokenSpecV2Azure_Rule) Reset()         { *m = ProvisionTokenSp
 func (m *ProvisionTokenSpecV2Azure_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2Azure_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2Azure_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{66, 0}
+	return fileDescriptor_9198ee693835762e, []int{67, 0}
 }
 func (m *ProvisionTokenSpecV2Azure_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5010,7 +5060,7 @@ func (m *ProvisionTokenSpecV2GCP) Reset()         { *m = ProvisionTokenSpecV2GCP
 func (m *ProvisionTokenSpecV2GCP) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2GCP) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2GCP) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{67}
+	return fileDescriptor_9198ee693835762e, []int{68}
 }
 func (m *ProvisionTokenSpecV2GCP) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5059,7 +5109,7 @@ func (m *ProvisionTokenSpecV2GCP_Rule) Reset()         { *m = ProvisionTokenSpec
 func (m *ProvisionTokenSpecV2GCP_Rule) String() string { return proto.CompactTextString(m) }
 func (*ProvisionTokenSpecV2GCP_Rule) ProtoMessage()    {}
 func (*ProvisionTokenSpecV2GCP_Rule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{67, 0}
+	return fileDescriptor_9198ee693835762e, []int{68, 0}
 }
 func (m *ProvisionTokenSpecV2GCP_Rule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -19632,6 +19682,7 @@ func init() {
 	proto.RegisterType((*AppServerSpecV3)(nil), "types.AppServerSpecV3")
 	proto.RegisterType((*AppV3List)(nil), "types.AppV3List")
 	proto.RegisterType((*AppV3)(nil), "types.AppV3")
+	proto.RegisterType((*CORSSpec)(nil), "types.CORSSpec")
 	proto.RegisterType((*AppSpecV3)(nil), "types.AppSpecV3")
 	proto.RegisterMapType((map[string]CommandLabelV2)(nil), "types.AppSpecV3.DynamicLabelsEntry")
 	proto.RegisterType((*AppServerOrSAMLIdPServiceProviderV1)(nil), "types.AppServerOrSAMLIdPServiceProviderV1")
@@ -25466,6 +25517,75 @@ func (m *AppV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *CORSSpec) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CORSSpec) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CORSSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.MaxAge != 0 {
+		i = encodeVarintTypes(dAtA, i, uint64(m.MaxAge))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.AllowCredentials {
+		i--
+		if m.AllowCredentials {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.AllowedHeaders) > 0 {
+		for iNdEx := len(m.AllowedHeaders) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AllowedHeaders[iNdEx])
+			copy(dAtA[i:], m.AllowedHeaders[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.AllowedHeaders[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.AllowedMethods) > 0 {
+		for iNdEx := len(m.AllowedMethods) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AllowedMethods[iNdEx])
+			copy(dAtA[i:], m.AllowedMethods[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.AllowedMethods[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.AllowedOrigins) > 0 {
+		for iNdEx := len(m.AllowedOrigins) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AllowedOrigins[iNdEx])
+			copy(dAtA[i:], m.AllowedOrigins[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.AllowedOrigins[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *AppSpecV3) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -26312,12 +26432,12 @@ func (m *ProvisionTokenV1) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	n66, err66 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err66 != nil {
-		return 0, err66
+	n67, err67 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err67 != nil {
+		return 0, err67
 	}
-	i -= n66
-	i = encodeVarintTypes(dAtA, i, uint64(n66))
+	i -= n67
+	i = encodeVarintTypes(dAtA, i, uint64(n67))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Roles) > 0 {
@@ -32698,12 +32818,12 @@ func (m *UserSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i--
 	dAtA[i] = 0x42
-	n176, err176 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err176 != nil {
-		return 0, err176
+	n175, err175 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err175 != nil {
+		return 0, err175
 	}
-	i -= n176
-	i = encodeVarintTypes(dAtA, i, uint64(n176))
+	i -= n175
+	i = encodeVarintTypes(dAtA, i, uint64(n175))
 	i--
 	dAtA[i] = 0x3a
 	{
@@ -32852,20 +32972,20 @@ func (m *LoginStatus) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n179, err179 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockExpires):])
+	n178, err178 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockExpires):])
+	if err178 != nil {
+		return 0, err178
+	}
+	i -= n180
+	i = encodeVarintTypes(dAtA, i, uint64(n180))
+	i--
+	dAtA[i] = 0x22
+	n179, err179 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockedTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockedTime):])
 	if err179 != nil {
 		return 0, err179
 	}
 	i -= n179
 	i = encodeVarintTypes(dAtA, i, uint64(n179))
-	i--
-	dAtA[i] = 0x22
-	n180, err180 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockedTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockedTime):])
-	if err180 != nil {
-		return 0, err180
-	}
-	i -= n180
-	i = encodeVarintTypes(dAtA, i, uint64(n180))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.LockedMessage) > 0 {
@@ -32922,12 +33042,12 @@ func (m *CreatedBy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i--
 	dAtA[i] = 0x1a
-	n182, err182 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Time, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Time):])
-	if err182 != nil {
-		return 0, err182
+	n181, err181 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Time, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Time):])
+	if err181 != nil {
+		return 0, err181
 	}
-	i -= n182
-	i = encodeVarintTypes(dAtA, i, uint64(n182))
+	i -= n181
+	i = encodeVarintTypes(dAtA, i, uint64(n181))
 	i--
 	dAtA[i] = 0x12
 	if m.Connector != nil {
@@ -33045,20 +33165,20 @@ func (m *MFADevice) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			}
 		}
 	}
-	n185, err185 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastUsed, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastUsed):])
+	n184, err184 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastUsed, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastUsed):])
+	if err184 != nil {
+		return 0, err184
+	}
+	i -= n186
+	i = encodeVarintTypes(dAtA, i, uint64(n186))
+	i--
+	dAtA[i] = 0x3a
+	n185, err185 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.AddedAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.AddedAt):])
 	if err185 != nil {
 		return 0, err185
 	}
 	i -= n185
 	i = encodeVarintTypes(dAtA, i, uint64(n185))
-	i--
-	dAtA[i] = 0x3a
-	n186, err186 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.AddedAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.AddedAt):])
-	if err186 != nil {
-		return 0, err186
-	}
-	i -= n186
-	i = encodeVarintTypes(dAtA, i, uint64(n186))
 	i--
 	dAtA[i] = 0x32
 	if len(m.Id) > 0 {
@@ -33686,12 +33806,12 @@ func (m *TunnelConnectionSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 		i--
 		dAtA[i] = 0x22
 	}
-	n197, err197 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
-	if err197 != nil {
-		return 0, err197
+	n196, err196 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
+	if err196 != nil {
+		return 0, err196
 	}
-	i -= n197
-	i = encodeVarintTypes(dAtA, i, uint64(n197))
+	i -= n196
+	i = encodeVarintTypes(dAtA, i, uint64(n196))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.ProxyName) > 0 {
@@ -33783,12 +33903,12 @@ func (m *AcquireSemaphoreRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i--
 		dAtA[i] = 0x2a
 	}
-	n198, err198 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err198 != nil {
-		return 0, err198
+	n197, err197 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err197 != nil {
+		return 0, err197
 	}
-	i -= n198
-	i = encodeVarintTypes(dAtA, i, uint64(n198))
+	i -= n197
+	i = encodeVarintTypes(dAtA, i, uint64(n197))
 	i--
 	dAtA[i] = 0x22
 	if m.MaxLeases != 0 {
@@ -33837,12 +33957,12 @@ func (m *SemaphoreLease) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n199, err199 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err199 != nil {
-		return 0, err199
+	n198, err198 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err198 != nil {
+		return 0, err198
 	}
-	i -= n199
-	i = encodeVarintTypes(dAtA, i, uint64(n199))
+	i -= n198
+	i = encodeVarintTypes(dAtA, i, uint64(n198))
 	i--
 	dAtA[i] = 0x2a
 	if len(m.LeaseID) > 0 {
@@ -33900,12 +34020,12 @@ func (m *SemaphoreLeaseRef) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	n200, err200 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err200 != nil {
-		return 0, err200
+	n199, err199 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err199 != nil {
+		return 0, err199
 	}
-	i -= n200
-	i = encodeVarintTypes(dAtA, i, uint64(n200))
+	i -= n199
+	i = encodeVarintTypes(dAtA, i, uint64(n199))
 	i--
 	dAtA[i] = 0x12
 	if len(m.LeaseID) > 0 {
@@ -34177,28 +34297,28 @@ func (m *WebSessionSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x48
 	}
-	n207, err207 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LoginTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LoginTime):])
+	n206, err206 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LoginTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LoginTime):])
+	if err206 != nil {
+		return 0, err206
+	}
+	i -= n208
+	i = encodeVarintTypes(dAtA, i, uint64(n208))
+	i--
+	dAtA[i] = 0x42
+	n207, err207 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
 	if err207 != nil {
 		return 0, err207
 	}
-	i -= n207
-	i = encodeVarintTypes(dAtA, i, uint64(n207))
+	i -= n209
+	i = encodeVarintTypes(dAtA, i, uint64(n209))
 	i--
-	dAtA[i] = 0x42
-	n208, err208 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	dAtA[i] = 0x3a
+	n208, err208 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.BearerTokenExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.BearerTokenExpires):])
 	if err208 != nil {
 		return 0, err208
 	}
 	i -= n208
 	i = encodeVarintTypes(dAtA, i, uint64(n208))
-	i--
-	dAtA[i] = 0x3a
-	n209, err209 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.BearerTokenExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.BearerTokenExpires):])
-	if err209 != nil {
-		return 0, err209
-	}
-	i -= n209
-	i = encodeVarintTypes(dAtA, i, uint64(n209))
 	i--
 	dAtA[i] = 0x32
 	if len(m.BearerToken) > 0 {
@@ -34431,20 +34551,20 @@ func (m *SAMLSessionData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	n210, err210 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ExpireTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ExpireTime):])
+	n209, err209 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ExpireTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ExpireTime):])
+	if err209 != nil {
+		return 0, err209
+	}
+	i -= n211
+	i = encodeVarintTypes(dAtA, i, uint64(n211))
+	i--
+	dAtA[i] = 0x1a
+	n210, err210 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.CreateTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.CreateTime):])
 	if err210 != nil {
 		return 0, err210
 	}
 	i -= n210
 	i = encodeVarintTypes(dAtA, i, uint64(n210))
-	i--
-	dAtA[i] = 0x1a
-	n211, err211 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.CreateTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.CreateTime):])
-	if err211 != nil {
-		return 0, err211
-	}
-	i -= n211
-	i = encodeVarintTypes(dAtA, i, uint64(n211))
 	i--
 	dAtA[i] = 0x12
 	if len(m.ID) > 0 {
@@ -34726,12 +34846,12 @@ func (m *RemoteClusterStatusV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n215, err215 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
-	if err215 != nil {
-		return 0, err215
+	n214, err214 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
+	if err214 != nil {
+		return 0, err214
 	}
-	i -= n215
-	i = encodeVarintTypes(dAtA, i, uint64(n215))
+	i -= n214
+	i = encodeVarintTypes(dAtA, i, uint64(n214))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Connection) > 0 {
@@ -46955,6 +47075,42 @@ func (m *AppV3) Size() (n int) {
 	return n
 }
 
+func (m *CORSSpec) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.AllowedOrigins) > 0 {
+		for _, s := range m.AllowedOrigins {
+			l = len(s)
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
+	if len(m.AllowedMethods) > 0 {
+		for _, s := range m.AllowedMethods {
+			l = len(s)
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
+	if len(m.AllowedHeaders) > 0 {
+		for _, s := range m.AllowedHeaders {
+			l = len(s)
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
+	if m.AllowCredentials {
+		n += 2
+	}
+	if m.MaxAge != 0 {
+		n += 1 + sovTypes(uint64(m.MaxAge))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *AppSpecV3) Size() (n int) {
 	if m == nil {
 		return 0
@@ -47008,6 +47164,10 @@ func (m *AppSpecV3) Size() (n int) {
 			l = len(s)
 			n += 1 + l + sovTypes(uint64(l))
 		}
+	}
+	if m.CORS != nil {
+		l = m.CORS.Size()
+		n += 1 + l + sovTypes(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -64752,6 +64912,192 @@ func (m *AppV3) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *CORSSpec) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CORSSpec: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CORSSpec: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AllowedOrigins", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AllowedOrigins = append(m.AllowedOrigins, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AllowedMethods", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AllowedMethods = append(m.AllowedMethods, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AllowedHeaders", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AllowedHeaders = append(m.AllowedHeaders, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AllowCredentials", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.AllowCredentials = bool(v != 0)
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxAge", wireType)
+			}
+			m.MaxAge = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxAge |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *AppSpecV3) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -65193,6 +65539,42 @@ func (m *AppSpecV3) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.RequiredAppNames = append(m.RequiredAppNames, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CORS", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.CORS == nil {
+				m.CORS = &CORSSpec{}
+			}
+			if err := m.CORS.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
