@@ -37,7 +37,7 @@ entry while also ensuring minimal latency when accessing connected resources.
 - Provides a highly resilient, redundant HA architecture for Teleport that can quickly 
   scale with an organization's needs.
 - All required Teleport components can be provisioned within the AWS ecosystem.
-- Using load balancers for the Proxy and Auth Service instances allows for increased availability 
+- Using load balancers for the Proxy Service and Auth Service instances allows for increased availability 
   during Teleport cluster upgrades.
 
 ## Disadvantages of this deployment architecture
@@ -61,7 +61,7 @@ In other words, this must be a Layer 4 load balancer, not a Layer 7
   type="warning"
   title="Note"
 >
-Cross-zone load balancing is required for the Auth Service and Proxy Service service NLB configurations to route 
+Cross-zone load balancing is required for the Auth Service and Proxy Service NLB configurations to route 
 traffic across multiple zones. Doing this improves resiliency against localized AWS zone outages.
 </Admonition>
 

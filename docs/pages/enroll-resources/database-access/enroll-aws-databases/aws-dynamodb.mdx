@@ -18,7 +18,7 @@ request with credentials from AWS, then forwards it to the DynamoDB API.
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![DynamoDB Self-Hosted](../../../../img/database-access/guides/aws-dynamodb_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise">
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![DynamoDB Cloud](../../../../img/database-access/guides/aws-dynamodb_cloud.png)
 </TabItem>
 
@@ -187,7 +187,7 @@ db_service:
 ```
 
 Substitute `teleport.example.com` with the address of your Teleport Proxy Service.
-(For Teleport Enterprise customers, this will be similar to `example.teleport.sh`.)
+(For Teleport Enterprise (Cloud)customers, this will be similar to `example.teleport.sh`.)
 The token generated should have been placed in the file `/tmp/token`.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)

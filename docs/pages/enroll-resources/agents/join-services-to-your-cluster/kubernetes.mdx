@@ -34,7 +34,7 @@ as the Auth Service.
   applications with the label `app: demo-app`
 - Either the Teleport `editor` role or the ability to `kubectl exec` into your
   existing Teleport Auth Service pods.
-- The Auth Service ServiceAccount must be granted the `system:auth-delegator`
+- The Auth Service Account must be granted the `system:auth-delegator`
   ClusterRole. Clusters deployed with the [`teleport-cluster` Helm
   chart](../../../reference/helm-reference/teleport-cluster.mdx) version 12 or
   higher have the correct role by default.

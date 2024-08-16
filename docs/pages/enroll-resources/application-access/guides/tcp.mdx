@@ -20,7 +20,7 @@ Service.
 
 We will assume your Teleport cluster is accessible at `teleport.example.com`
 and `*.teleport.example.com`. You can substitute the address of your Teleport
-Proxy Service. (For Teleport Enterprise customers, this will be similar to
+Proxy Service. (For Teleport Enterprise (Cloud) customers, this will be similar to
 `example.teleport.sh`.)
 
 <Admonition type="note" title="Application Access and DNS" scope={["oss", "enterprise"]} scopeOnly>
@@ -57,7 +57,7 @@ $ tctl users add --roles=access alice
 ```
 </TabItem>
 
-<TabItem scope={["cloud"]} label="Teleport Enterprise">
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 To generate one, log into your Cloud tenant and run the following command:
 
 ```code
