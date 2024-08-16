@@ -8398,3 +8398,30 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalUserAuthIfRoleDoesntExist(t *testing.T) {
+	t.Parallel()
+	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	ctx := context.Background()
+	username := "test-user"
+	_, role, err := CreateUserAndRole(testAuth.AuthServer, username, nil, nil)
+	require.NoError(t, err)
+
+	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username, Groups: []string{role.GetName()}}}
+	userCtx, err := authz.ContextForLocalUser(ctx, localUser, testAuth.AuthServer.Services, testAuth.ClusterName, true)
+	require.NoError(t, err)
+
+	got := userCtx.Checker.RoleNames()
+	want := []string{role.GetName()}
+	require.Equal(t, want, got)
+
+	unknownRole := "unknown-role"
+	localUser = authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username, Groups: []string{role.GetName(), unknownRole}}}
+	userCtx, err = authz.ContextForLocalUser(ctx, localUser, testAuth.AuthServer.Services, testAuth.ClusterName, true)
+	require.NoError(t, err)
+
+	got = userCtx.Checker.RoleNames()
+	want = []string{role.GetName()}
+	require.Equal(t, want, got)
+}
