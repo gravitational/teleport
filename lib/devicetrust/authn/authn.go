@@ -235,16 +235,16 @@ func (c *Ceremony) authenticateDeviceTPM(
 	resp *devicepb.AuthenticateDeviceResponse,
 	sshSigner *keys.PrivateKey,
 ) error {
-	chalResp := resp.GetTpmChallenge()
-	if chalResp == nil {
+	tpmChallenge := resp.GetTpmChallenge()
+	if tpmChallenge == nil {
 		return trace.BadParameter("unexpected payload from server, expected TPMAuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	challengeResponse, err := c.SolveTPMAuthnDeviceChallenge(chalResp)
+	challengeResponse, err := c.SolveTPMAuthnDeviceChallenge(tpmChallenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if sshSigner != nil {
-		challengeResponse.SshSignature, err = challenge.Sign(chalResp.AttestationNonce, sshSigner)
+		challengeResponse.SshSignature, err = challenge.Sign(tpmChallenge.AttestationNonce, sshSigner)
 		if err != nil {
 			return trace.Wrap(err)
 		}
