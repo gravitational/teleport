@@ -1048,7 +1048,7 @@ type PresetUsers interface {
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
-// getPresetUsers returns a list of all users roles expected to be available on
+// getPresetUsers returns a list of all preset users expected to be available on
 // this cluster.
 func getPresetUsers() []types.User {
 	presets := []types.User{
