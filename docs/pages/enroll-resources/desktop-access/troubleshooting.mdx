@@ -395,11 +395,7 @@ $ gpupdate.exe /force
 ```
 ### Shared Directory Error
 
-Attempts to share directory on a remote desktop session results in the error:
-
-```
-Encountered shared directory error 1
-```
+Attempts to share directory on a remote desktop session results in the error. 
 
 **Solution:** Review Device Redirection Group Policy
 
@@ -407,17 +403,15 @@ First, make sure that all [Directory sharing](https://goteleport.com/docs/enroll
 
 Teleport requires device redirection to be enabled in order to share a directory from a remote computer in an RDP session.
 
-To fix this issue, review and disable the `Device and resource redirection policy` within the `Remote Desktop session host` path below:
+To fix this issue, review and the Device and resource redirection group policy settings at the path below:
 
 ```text
 Computer configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Device and Resource Redirection
 ```
 
-Some key policies to lookout for:
+Key policy to lookout for:
 
-- Do not allow COM port redirection
 - Do not allow drive redirection
-- Do not allow LPT port redirection
 
 After disabling the policies, run the following command from the Windows Command prompt as an administrator to force the policy update:
 
