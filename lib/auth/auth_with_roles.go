@@ -3393,7 +3393,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	}
 
 	// Only set the connector name on the first user registration.
-	if len(users) != 1 {
+	if !hasOneNonPresetUser(users) {
 		return nil
 	}
 
@@ -3410,6 +3410,37 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 	_, err = a.authServer.UpdateAuthPreference(ctx, authPreference)
 	return trace.Wrap(err)
+}
+
+// hasOneNonPresetUser returns true only if there is exactly one non-preset user in the provided list of users.
+// This method always compare with the original preset users, and take into account that some preset users may
+// have been removed.
+func hasOneNonPresetUser(users []types.User) bool {
+	presets := getPresetUsers()
+
+	// Exit early if the number of users is greater than the number of presets + 1.
+	if len(users) > len(presets)+1 {
+		return false
+	}
+
+	// We can't simply compare the number of existing users to presets because presets may have been deleted.
+	// Hence, we need to check each user to determine if they are a preset user.
+	presetMap := make(map[string]struct{}, len(presets))
+	for _, preset := range presets {
+		presetMap[preset.GetName()] = struct{}{}
+	}
+
+	qtyNonPreset := 0
+	for _, user := range users {
+		if _, isPreset := presetMap[user.GetName()]; !isPreset {
+			qtyNonPreset++
+		}
+		if qtyNonPreset > 1 {
+			return false
+		}
+	}
+
+	return qtyNonPreset == 1
 }
 
 // UpdateUser updates an existing user in a backend.
