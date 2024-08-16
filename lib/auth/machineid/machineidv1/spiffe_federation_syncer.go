@@ -27,13 +27,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/federation"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/backend"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth/machineid/v1")
 
 type spiffeFederationStore interface {
 	ListSPIFFEFederations(ctx context.Context, limit int, token string) ([]*machineidv1.SPIFFEFederation, string, error)
@@ -106,7 +111,7 @@ func (s *SPIFFEFederationSyncer) refreshFederationLoop(
 	defer wg.Done()
 	for {
 
-		s.refreshFederation(ctx, in)
+		s.syncFederation(ctx, in)
 
 		select {
 		case <-ctx.Done():
@@ -116,37 +121,48 @@ func (s *SPIFFEFederationSyncer) refreshFederationLoop(
 	}
 }
 
-func shouldRefresh(
+func shouldSyncFederation(
 	ctx context.Context,
 	log *slog.Logger,
 	clock clockwork.Clock,
-	td spiffeid.TrustDomain,
 	in *machineidv1.SPIFFEFederation,
 ) bool {
 	if in.Status == nil {
-		log.DebugContext(ctx, "No status, will refresh")
+		log.DebugContext(ctx, "No status, will sync")
 		return true
 	}
 	if in.Status.CurrentBundle == "" {
-		log.DebugContext(ctx, "No status.current_bundle, will refresh")
+		log.DebugContext(ctx, "No status.current_bundle, will sync")
 		return true
 	}
 	if in.Status.CurrentBundleSyncedAt.AsTime().IsZero() {
-		log.DebugContext(ctx, "No status.current_bundle_synced_at, will refresh")
+		log.DebugContext(ctx, "No status.current_bundle_synced_at, will sync")
 		return true
 	}
-	parsedBundle, err := spiffebundle.Parse(td, []byte(in.Status.CurrentBundle))
-	if err != nil {
-		log.ErrorContext(ctx, "Failed to parse current bundle, will refresh", "error", err)
+	nextSyncAt := in.Status.NextSyncAt.AsTime()
+	now := clock.Now()
+	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
+		log.DebugContext(
+			ctx,
+			"status.next_sync_at has passed, will sync",
+			"next_sync_at", nextSyncAt,
+			"now", now,
+		)
 		return true
 	}
-	// Looked at ParsedBundle refresh hint...
-
+	return false
 }
 
-func (s *SPIFFEFederationSyncer) refreshFederation(ctx context.Context, in *machineidv1.SPIFFEFederation) (*machineidv1.SPIFFEFederation, error) {
+func (s *SPIFFEFederationSyncer) syncFederation(
+	ctx context.Context, in *machineidv1.SPIFFEFederation,
+) (out *machineidv1.SPIFFEFederation, err error) {
+	ctx, span := tracer.Start(ctx, "SPIFFEFederationSyncer/syncFederation")
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
 	log := s.cfg.Logger.With("trust_domain", in.GetMetadata().GetName())
-	out := proto.Clone(in).(*machineidv1.SPIFFEFederation)
+	// Clone the input so we can compare it to the persisted version later
+	out = proto.Clone(in).(*machineidv1.SPIFFEFederation)
 
 	td, err := spiffeid.TrustDomainFromString(in.GetMetadata().GetName())
 	if err != nil {
@@ -155,68 +171,48 @@ func (s *SPIFFEFederationSyncer) refreshFederation(ctx context.Context, in *mach
 	}
 
 	// Determine - should we refresh...
-	if !shouldRefresh(ctx, log, s.cfg.Clock, td, out) {
+	if !shouldSyncFederation(ctx, log, s.cfg.Clock, in) {
 		return out, nil
 	}
+	log.DebugContext(ctx, "SPIFFEFederation sync triggered")
 
 	// Refresh...
 	if out.Status == nil {
 		out.Status = &machineidv1.SPIFFEFederationStatus{}
 	}
 
+	var bundle *spiffebundle.Bundle
 	switch {
-	case out.Spec.BundleSource.HttpsWeb != nil:
-		// If there's an existing bundle, let's check we're due to refresh
-		// it.
-		if out.Status.CurrentBundle != "" {
-			if out.Status.CurrentBundleSyncedAt.AsTime().IsZero() {
-				log.WarnContext(ctx, "current_bundle_synced_at is zero when current_bundle is not empty, this is unexpected. Will refresh bundle anyway.")
-				// TODO(refresh anyway)
-			}
-			refreshHint := defaultRefreshInterval
-			if out.Status.CurrentBundleRefreshHint != nil {
-				requestedRefreshHint := out.Status.CurrentBundleRefreshHint.AsDuration()
-				// Enforce some sensible limits on the requested refresh.
-				if requestedRefreshHint < minRefreshInterval {
-					log.WarnContext(
-						ctx,
-						"Hinted refresh interval is too short, using minimum value instead",
-						slog.Duration("requested_refresh_hint", requestedRefreshHint),
-						slog.Duration("min_refresh_interval", minRefreshInterval),
-					)
-					refreshHint = minRefreshInterval
-				} else if requestedRefreshHint > maxRefreshInterval {
-					log.WarnContext(
-						ctx,
-						"Hinted refresh interval is too long, using maximum value instead",
-						slog.Duration("requested_refresh_hint", requestedRefreshHint),
-						slog.Duration("max_refresh_interval", maxRefreshInterval),
-					)
-					refreshHint = maxRefreshInterval
-				} else {
-					refreshHint = requestedRefreshHint
-				}
-			}
-			if s.cfg.Clock.Now().After(out.Status.CurrentBundleSyncedAt.AsTime().Add(refreshHint)) {
-				// Ok we need to refresh!
-
-			}
-		} else {
-
-		}
-	case out.Spec.BundleSource.Static != nil:
-		if out.Status.CurrentBundle != out.Spec.BundleSource.Static.Bundle {
-			log.DebugContext(ctx, "Updating status.current_bundle using spec.bundle_source.static.bundle because it was empty")
-			out.Status.CurrentBundle = out.Spec.BundleSource.Static.Bundle
-			out.Status.CurrentBundleSyncedAt = timestamppb.New(s.cfg.Clock.Now())
-		}
-	}
-
-	if !proto.Equal(persisted, out) {
-		// Persist updated SPIFFEFederation
-		_, err := s.cfg.Store.UpsertSPIFFEFederation(ctx, out)
+	case in.Spec.BundleSource.HttpsWeb != nil:
+		url := in.Spec.BundleSource.HttpsWeb.BundleEndpointUrl
+		log.DebugContext(
+			ctx,
+			"Fetching bundle using https_web profile",
+			"url", url,
+		)
+		bundle, err = federation.FetchBundle(ctx, td, url)
 		if err != nil {
-			panic("oh no")
+			return nil, trace.Wrap(err, "fetching bundle using https_web profile")
 		}
+
+		// TODO: Calculate the next sync time
+	case in.Spec.BundleSource.Static != nil:
+		log.DebugContext(ctx, "Fetching bundle using spec.bundle_source.static.bundle")
+		bundle, err = spiffebundle.Parse(td, []byte(in.Spec.BundleSource.Static.Bundle))
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing bundle from static profile")
+		}
+	default:
+		return nil, trace.BadParameter("spec.bundle_source: at least one of https_web or static must be set")
 	}
+
+	bundleBytes, err := bundle.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err, "marshalling bundle")
+	}
+	out.Status.CurrentBundle = string(bundleBytes)
+	out.Status.CurrentBundleSyncedAt = timestamppb.New(s.cfg.Clock.Now())
+	out.Status.CurrentBundleSyncedFrom = in.Spec.BundleSource
+
+	return out, nil
 }
