@@ -2748,6 +2748,12 @@ message AppSessionStart {
 }
 
 // AppSessionEnd is emitted when an application session ends.
+// Deprecated: app sessions do not currently have a clear endpoint, as they
+// consist of several API requests over an indeterminate amount of time.
+// A session can only be considered concluded once the app cert is expired.
+// Session chunks are better used for determining the life of a session
+// interaction, as they consist of a 5-min chunk of requests for http/https
+// or an individual request for TCP.
 message AppSessionEnd {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [

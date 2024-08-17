@@ -126,8 +126,6 @@ const (
 	AppSessionRequestCode = "T2009I"
 	// SessionConnectCode is the session connect event code.
 	SessionConnectCode = "T2010I"
-	// AppSessionEndCode is the application session end event code.
-	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.

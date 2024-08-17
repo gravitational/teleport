@@ -400,6 +400,10 @@ const (
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
 	// AppSessionEndEvent is emitted when a user connects to a TCP application.
+	// TODO (Joerger): DELETE IN v18.0.0
+	// AppSessionStartEvent was only emitted for tcp apps, and could be emitted several
+	// times for a single session. AppSessionChunkEvent is better suited for sub sessions
+	// within an app session.
 	AppSessionEndEvent = "app.session.end"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
@@ -828,7 +832,6 @@ var (
 	// recorings.
 	SessionRecordingEvents = []string{
 		SessionEndEvent,
-		AppSessionEndEvent,
 		WindowsDesktopSessionEndEvent,
 		DatabaseSessionEndEvent,
 	}
