@@ -2837,14 +2837,28 @@ message AppSessionChunk {
     (gogoproto.jsontag) = ""
   ];
 
-  // SessionChunkID is the ID of the session that was created for this 5 minute
-  // application log chunk.
+  // SessionChunkID is the ID of a single TCP connection or 5-minute chunk
+  // of HTTP(S) connections within a session.
   string SessionChunkID = 6 [(gogoproto.jsontag) = "session_chunk_id"];
 
   // App is a common application resource metadata.
   AppMetadata App = 7 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // StartTime is the timestamp at which the session began.
+  google.protobuf.Timestamp StartTime = 8 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // EndTime is the timestamp at which the session ended.
+  google.protobuf.Timestamp EndTime = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
     (gogoproto.jsontag) = ""
   ];
 }
