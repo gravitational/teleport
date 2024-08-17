@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
@@ -68,6 +69,8 @@ type sessionChunk struct {
 	audit common.Audit
 	// handler handles requests for this session chunk.
 	handler http.Handler
+	// event is a session chunk event.
+	event *apievents.AppSessionChunk
 
 	// inflightCond protects and signals change of inflight
 	inflightCond *sync.Cond
@@ -93,6 +96,9 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 // and as such expects `release()` to eventually be called
 // by the caller of this function.
 func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) (*sessionChunk, error) {
+	id := uuid.New().String()
+	c.legacyLogger.Debugf("Creating app session chunk %s", id)
+
 	sess := &sessionChunk{
 		id:             uuid.New().String(),
 		closeC:         make(chan struct{}),
@@ -100,9 +106,8 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		closeTimeout:   sessionChunkCloseTimeout,
 		log:            c.legacyLogger,
 		streamRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
+		event:          common.NewSessionChunkEvent(ctx, c.cfg.HostID, id, identity, app),
 	}
-
-	sess.log.Debugf("Creating app session chunk %s", sess.id)
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -124,11 +129,6 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 	sess.audit = audit
-
-	// only emit a session chunk if we didn't get an error making the new session chunk
-	if err := sess.audit.OnSessionChunk(ctx, c.cfg.HostID, sess.id, identity, app); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	sess.log.Debugf("Created app session chunk %s", sess.id)
 	return sess, nil
@@ -274,8 +274,12 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	s.inflight = -1
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
+
+	s.event.EndTime = time.Now()
+	auditErr := s.audit.EmitEvent(ctx, s.event)
+
 	s.log.Debugf("Closed session chunk %s", s.id)
-	return trace.Wrap(s.streamRecorder.Close(ctx))
+	return trace.NewAggregate(auditErr, s.streamRecorder.Close(ctx))
 }
 
 func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired any) {

@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/gravitational/trace"
@@ -37,8 +38,6 @@ import (
 
 // Audit defines an interface for app access audit events logger.
 type Audit interface {
-	// OnSessionChunk is called when a new session chunk is created.
-	OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
@@ -93,9 +92,9 @@ func getSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
 	}
 }
 
-// OnSessionChunk is called when a new session chunk is created.
-func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error {
-	event := &apievents.AppSessionChunk{
+// NewSessionChunkEvent returns a session chunk event.
+func NewSessionChunkEvent(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) *apievents.AppSessionChunk {
+	return &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
 			Code:        events.AppSessionChunkCode,
@@ -114,8 +113,8 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			AppName:       app.GetName(),
 		},
 		SessionChunkID: chunkID,
+		StartTime:      time.Now(),
 	}
-	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // OnRequest is called when an app request is sent during the session and a response is received.
