@@ -5377,6 +5377,7 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -5419,6 +5420,7 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -5464,6 +5466,7 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	// Check if this a proxy service.
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -5512,6 +5515,7 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
 	samlSession, err := a.authServer.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest(req))
 	if err != nil {
@@ -5568,6 +5572,7 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -5580,6 +5585,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 }
 
 // DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
 	// First, check if the current user can delete the request user sessions.
 	if err := a.canDeleteWebSession(username); err != nil {
