@@ -69,6 +69,8 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 	defer func() {
+		// The connection context may be closed once the connection is closed.
+		ctx := context.Background()
 		if err := audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
 			s.log.WarnContext(ctx, "Failed to emit session end event for app.", "app", app.GetName(), "error", err)
 		}
