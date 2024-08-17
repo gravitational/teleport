@@ -246,8 +246,10 @@ type testOktaClient struct {
 	// testOktaClient behavior in cases where it is difficult to rig the
 	// internal state in the way necessary for a test.
 	monkeyPatch struct {
-		createApp                func(ctx context.Context, app okta.App) (okta.App, error)
-		assignGroupToApplication func(ctx context.Context, groupId oktaGroupID, appId oktaAppID) error
+		createApp                func(context.Context, okta.App) (okta.App, error)
+		assignGroupToApplication func(context.Context, oktaGroupID, oktaAppID) error
+		getAppAssignments        func(context.Context, oktaAppID) ([]appAssignment, error)
+		getGroupAssignments      func(context.Context, oktaGroupID) ([]oktaUserID, error)
 		doHttp                   func(context.Context, string, *url.URL, []string) ([]byte, error)
 		orgName                  func(context.Context) (string, error)
 	}
@@ -338,7 +340,16 @@ func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error)
 }
 
 // getGroupAssignments will return the list of users assigned to a group.
-func (t *testOktaClient) getGroupAssignments(_ context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
+func (t *testOktaClient) getGroupAssignments(ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
+	if t.monkeyPatch.getGroupAssignments != nil {
+		return t.monkeyPatch.getGroupAssignments(ctx, groupID)
+	}
+	return t.getTestGroupAssignments(groupID)
+}
+
+// getTestGroupAssignments returns the pre-configured group assignments. This
+// provides the default behavior for OktaClient.getGroupAssignments().
+func (t *testOktaClient) getTestGroupAssignments(groupID oktaGroupID) ([]oktaUserID, error) {
 	var err error
 	var users []oktaUserID
 
@@ -356,7 +367,17 @@ func (t *testOktaClient) getGroupAssignments(_ context.Context, groupID oktaGrou
 }
 
 // getAppAssignments will return the list of users assigned to an app.
-func (t *testOktaClient) getAppAssignments(_ context.Context, appID oktaAppID) ([]appAssignment, error) {
+func (t *testOktaClient) getAppAssignments(ctx context.Context, appID oktaAppID) ([]appAssignment, error) {
+	if t.monkeyPatch.getAppAssignments != nil {
+		return t.monkeyPatch.getAppAssignments(ctx, appID)
+	}
+	return t.getTestAppAssignments(appID)
+}
+
+// getTestAppAssignments will return the pre-configured list of users assigned
+// to an app.  This provides the default behavior for
+// OktaClient.getAppAssignments().
+func (t *testOktaClient) getTestAppAssignments(appID oktaAppID) ([]appAssignment, error) {
 	var err error
 	var assignments []appAssignment
 
@@ -707,15 +728,23 @@ func assignmentLess(a1, a2 types.OktaAssignment) bool {
 	return a1.GetName() < a2.GetName()
 }
 
-func expectAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter, fn func(T)) {
+func requireAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter) T {
 	t.Helper()
 
 	select {
 	case event := <-emitter.C():
 		auditEvent, ok := event.(T)
 		require.True(t, ok)
-		fn(auditEvent)
+		return auditEvent
 	case <-time.After(5 * time.Second):
 		require.Fail(t, "timed out waiting for event")
 	}
+
+	var empty T
+	return empty
+}
+
+func expectAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter, fn func(T)) {
+	t.Helper()
+	fn(requireAuditEvent[T](t, emitter))
 }

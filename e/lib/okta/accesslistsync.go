@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -520,33 +521,34 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 		appMapping[app.GetName()] = app
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// Import all apps.
-	go func() {
-		defer wg.Done()
-		a.importApps(ctx, importAppsParams{
+	eg, groupCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		err := a.importApps(groupCtx, importAppsParams{
 			apps:        apps,
 			userMapping: userMapping,
 			importCh:    importCh,
 		})
-	}()
+		return trace.Wrap(err)
+	})
 
-	// Import all groups.
-	go func() {
-		defer wg.Done()
-		a.importGroups(ctx, importGroupsParams{
+	eg.Go(func() error {
+		err := a.importGroups(groupCtx, importGroupsParams{
 			groups:      groups,
 			appMapping:  appMapping,
 			userMapping: userMapping,
 			importCh:    importCh,
 		})
-	}()
+		return trace.Wrap(err)
+	})
 
 	// Wait for the importing to finish and for all the existing metadata to be processed.
-	wg.Wait()
+	err = eg.Wait()
 	close(importCh)
+	if err != nil {
+		a.log.WithError(err).Error("Access List import will be skipped due Okta API error.")
+		a.emitAccessListSyncEvent(ctx, err)
+		return trace.Wrap(err)
+	}
 
 	select {
 	case <-convertContext.Done():
@@ -665,7 +667,7 @@ func getAppID(a types.Application) (oktaAppID, bool) {
 	return oktaAppID(id), ok
 }
 
-func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) {
+func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) error {
 	appIDProcessed := newSet[oktaAppID]()
 	for _, app := range params.apps {
 		log := a.log.WithFields(logrus.Fields{
@@ -711,6 +713,9 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 		irMetadata, err := a.appToImportResources(ctx, appID, app, params.userMapping)
 		if err != nil && !errors.Is(err, errNoAssignments) {
 			log.WithError(err).Error("error importing application")
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 			continue
 		}
 
@@ -724,6 +729,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			log.Info("Application has no assignments, skipping")
 		}
 	}
+	return nil
 }
 
 func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, app types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
@@ -778,7 +784,7 @@ func getGroupID(g types.UserGroup) (oktaGroupID, bool) {
 	return oktaGroupID(groupID), ok
 }
 
-func (a *accessListSync) importGroups(ctx context.Context, params importGroupsParams) {
+func (a *accessListSync) importGroups(ctx context.Context, params importGroupsParams) error {
 	groupIDProcessed := newSet[oktaGroupID]()
 	for _, group := range params.groups {
 		log := a.log.WithField("group_name", group.GetName())
@@ -821,7 +827,10 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 
 		irMetadata, err := a.groupToImportResources(ctx, groupID, group, params.appMapping, params.userMapping)
 		if err != nil {
-			log.Error("error importing group")
+			if !trace.IsNotFound(err) {
+				log.WithError(err).Error("Error importing group")
+				return trace.Wrap(err)
+			}
 			continue
 		}
 
@@ -830,6 +839,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 		params.importCh <- irMetadata
 		a.groupsImported.Add(1)
 	}
+	return nil
 }
 
 func (a *accessListSync) groupToImportResources(ctx context.Context, groupID oktaGroupID, group types.UserGroup, appMapping map[string]types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
