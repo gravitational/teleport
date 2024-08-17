@@ -289,6 +289,14 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodTerraform:
+		claims, err := a.checkTerraformJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:

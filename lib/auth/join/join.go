@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/spacelift"
+	"github.com/gravitational/teleport/lib/terraform"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -134,6 +135,9 @@ type RegisterParams struct {
 	// KubernetesReadFileFunc is a function used to read the Kubernetes token
 	// from disk. Used in tests, and set to `os.ReadFile` if unset.
 	KubernetesReadFileFunc func(name string) ([]byte, error)
+	// TerraformAudienceTag is a tag name for the environment variable containing
+	// TF Cloud's Workload Identity Token when using Terraform Cloud joining.
+	TerraformAudienceTag string
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -231,6 +235,11 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 		}
 	case types.JoinMethodSpacelift:
 		params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodTerraform:
+		params.IDToken, err = terraform.NewIDTokenSource(params.TerraformAudienceTag, os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
