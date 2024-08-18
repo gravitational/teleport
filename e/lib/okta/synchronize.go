@@ -237,18 +237,21 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
 		// does not contain all of the information that we need to create a types.Application
 		// object.
-		var oktaApplication *okta.Application
-		var ok bool
-		if oktaApplication, ok = oktaApp.(*okta.Application); ok {
-			s.log.Debugf("Processing Okta application %v", oktaApplication.Id)
-		} else {
+		oktaApplication, ok := oktaApp.(*okta.Application)
+		if !ok {
 			s.log.Debugf("Unable to process Okta application of unknown type %T", oktaApp)
 			return nil
 		}
 
+		log := s.log.WithField("application_id", oktaApplication.Id)
+		log.Debug("Processing Okta application")
+
 		oktaGroups, err := s.client.getAppGroups(ctx, oktaAppID(oktaApplication.Id))
 		if err != nil {
-			s.log.Debugf("Error getting groups for applications: %v", err)
+			log.WithError(err).Warn("Error getting groups for application")
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err, "getting groups for application %q", oktaApplication.Id)
+			}
 			return nil
 		}
 
@@ -259,7 +262,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 
 		apps, err := s.oktaAppToApp(oktaApplication, groups)
 		if err != nil {
-			s.log.Debugf("Error converting Okta app: %v", err)
+			log.WithError(err).Debug("Error converting Okta app")
 			return nil
 		}
 

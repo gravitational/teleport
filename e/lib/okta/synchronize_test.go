@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"testing"
@@ -233,6 +234,124 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(0), event.Updated)
 		require.Equal(t, int32(1), event.Deleted)
 	})
+}
+
+func TestSynchronizeAppsImportError(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	appNames := []string{"app1", "app2", "app3"}
+
+	testCases := []struct {
+		name string
+
+		// assertSyncResult is the assertion for the synhronization result.
+		assertSyncResult require.ErrorAssertionFunc
+
+		// importErrors describes the error to return when the okta client
+		// is queried for a given app's assigned groups. Defaults to
+		// returning the test client's configured group list for all
+		// apps not specified in the map.
+		importErrors map[oktaAppID]error
+
+		// expectAppErrors holds assertions about the applications held in the
+		// Sync service applications map after the possibly-failed sync.
+		// Defaults to require.NotNil for all values specified in the map
+		assertAppValue map[string]require.ValueAssertionFunc
+	}{
+		// Asserts that a random error while fetching application group data is
+		// propagated and is treated as a sync-stopping offense
+		{
+			name:             "Error cancels sync",
+			assertSyncResult: require.Error,
+			importErrors: map[oktaAppID]error{
+				"app2": errors.New("Some transient error"),
+			},
+		},
+
+		// Asserts that a missing application is not treated as sync-stopping
+		// error, but deletes the application as per normal
+		{
+			name:             "Not found is not an error",
+			assertSyncResult: require.NoError,
+			importErrors: map[oktaAppID]error{
+				"app2": trace.NotFound("No such application"),
+			},
+			assertAppValue: map[string]require.ValueAssertionFunc{
+				"app2": require.Nil,
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			// GIVEN a running Okta sync service
+			ap := newTestAccessPoint(t, clockwork.NewRealClock())
+			svc, client, emitter := newTestService(t, ap)
+			svc.startSynchronizerReconcilers(ctx)
+			t.Cleanup(svc.stopAllHeartbeats)
+
+			// ALSO GIVEN a mocked Okta organization with several applications
+			// configured
+			for _, appName := range appNames {
+				client.oktaApps = append(client.oktaApps, &okta.Application{
+					Id:     appName,
+					Name:   fmt.Sprintf("An app called %q", appName),
+					Status: "ACTIVE",
+					Label:  fmt.Sprintf("label %s", appName),
+					Links: map[string]interface{}{
+						"appLinks": []interface{}{
+							map[string]interface{}{
+								"name": "applink",
+								"href": "https://www.link1.com/" + appName,
+							},
+						},
+					},
+				})
+			}
+			client.appsToGroups["app1"] = []oktaGroupID{"group1"}
+
+			// ALSO GIVEN a set of Teleport Applications created by pre-syncing
+			// the Okta organization with the Teleport cluster
+			err := svc.synchronize(ctx)
+			require.NoError(t, err)
+			expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+				require.Equal(t, int32(3), event.Added)
+			})
+
+			// GIVEN ALSO an okta client rigged to fail when fetching groups for
+			// specific applications
+			client.monkeyPatch.getAppGroups =
+				func(_ context.Context, appID oktaAppID) ([]oktaGroupID, error) {
+					if err, ok := tt.importErrors[appID]; ok {
+						return nil, err
+					}
+					return client.appsToGroups[appID], nil
+				}
+
+			// WHEN I attempt to synchronize the Teleport cluster with the
+			// upstream organization
+			err = svc.synchronize(ctx)
+
+			// EXPECT that the operation succeeds or fails appropriately
+			// according to the test case
+			tt.assertSyncResult(t, err)
+
+			// EXPECT that all of the Teleport Applications derived from upstream
+			// Okta apps have been appropriately preserved or deleted
+			for _, appName := range appNames {
+				appID := mustAppName(t, svc.hash, appName, "applink")
+				assertAppValue, hasCustom := tt.assertAppValue[appName]
+				if !hasCustom {
+					assertAppValue = require.NotNil
+				}
+
+				app, _ := svc.apps.Load(appID)
+				assertAppValue(t, app, "App %s", appName)
+			}
+		})
+	}
 }
 
 func TestSynchronizeApplications(t *testing.T) {

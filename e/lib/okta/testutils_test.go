@@ -249,6 +249,7 @@ type testOktaClient struct {
 		createApp                func(context.Context, okta.App) (okta.App, error)
 		assignGroupToApplication func(context.Context, oktaGroupID, oktaAppID) error
 		getAppAssignments        func(context.Context, oktaAppID) ([]appAssignment, error)
+		getAppGroups             func(context.Context, oktaAppID) ([]oktaGroupID, error)
 		getGroupAssignments      func(context.Context, oktaGroupID) ([]oktaUserID, error)
 		doHttp                   func(context.Context, string, *url.URL, []string) ([]byte, error)
 		orgName                  func(context.Context) (string, error)
@@ -398,7 +399,10 @@ func (t *testOktaClient) getTestAppAssignments(appID oktaAppID) ([]appAssignment
 }
 
 // getAppGroups will return the list of groups an application belongs to.
-func (t *testOktaClient) getAppGroups(_ context.Context, appID oktaAppID) ([]oktaGroupID, error) {
+func (t *testOktaClient) getAppGroups(ctx context.Context, appID oktaAppID) ([]oktaGroupID, error) {
+	if t.monkeyPatch.getAppGroups != nil {
+		return t.monkeyPatch.getAppGroups(ctx, appID)
+	}
 	return t.appsToGroups[appID], nil
 }
 
