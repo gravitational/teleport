@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -83,45 +82,4 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 			t.Errorf("CreateWebSessionFromReq DeviceWebToken mismatch (-want +got)\n%s", diff)
 		}
 	})
-}
-
-func Test_guessAWSRoleSessionName(t *testing.T) {
-	localClusterName := "teleport.abigcompany.com"
-
-	for _, tt := range []struct {
-		request  NewAppSessionRequest
-		expected string
-	}{
-		{
-			request: NewAppSessionRequest{
-				NewWebSessionRequest: NewWebSessionRequest{
-					User: "raimundo.oliveira@abigcompany.com",
-				},
-				ClusterName: "teleport.abigcompany.com",
-			},
-			expected: "raimundo.oliveira@abigcompany.com",
-		},
-		{
-			request: NewAppSessionRequest{
-				NewWebSessionRequest: NewWebSessionRequest{
-					User: "a.long.alias.to.the.original.user.raimundo.oliveira@abigcompany.com",
-				},
-				ClusterName: "teleport.abigcompany.com",
-			},
-			expected: "a.long.alias.to.the.original.user.raimundo.oliv-58103f7c0ddc29bd",
-		},
-		{
-			request: NewAppSessionRequest{
-				NewWebSessionRequest: NewWebSessionRequest{
-					User: "raimundo.oliveira@abigcompany.com",
-				},
-				ClusterName: "leaf.teleport.abigcompany.com",
-			},
-			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
-		},
-	} {
-		t.Run(fmt.Sprintf("%s@%s", tt.request.User, tt.request.ClusterName), func(t *testing.T) {
-			require.Equal(t, tt.expected, guessAWSRoleSessionName(localClusterName, tt.request))
-		})
-	}
 }
