@@ -242,7 +242,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				{
 					Name: aws.String("EKS3"),
 					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
-						EndpointPrivateAccess: true,
+						EndpointPublicAccess: false,
 					},
 					Arn:                  aws.String(clustersBaseArn + "3"),
 					Tags:                 map[string]string{"label3": "value3"},
