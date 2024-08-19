@@ -319,7 +319,14 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.resolveIncident(ctx, reqID, Resolution{Tag: ResolvedExpired})
 }
 
-func (a *App) getNotifyServiceName(req types.AccessRequest) (string, error) {
+func (a *App) getNotifyServiceName(ctx context.Context, req types.AccessRequest) (string, error) {
+	recipientSetService := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	if recipientSetService.Len() > 1 {
+		return "", trace.BadParameter("more than one service provided as PagerDuty plugin recipient")
+	}
+	if recipientSetService.Len() == 1 {
+		return recipientSetService.ToSlice()[0].Name, nil
+	}
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.NotifyService
 	// We cannot use common.GetServiceNamesFromAnnotations here as it sorts the
 	// list and might change the first element.
@@ -343,26 +350,10 @@ func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
-func (a *App) getMessageRecipient(ctx context.Context, req types.AccessRequest) (string, error) {
-	recipientSetService := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
-	if recipientSetService.Len() > 1 {
-		return "", trace.BadParameter("more than one service provided as PagerDuty plugin recipient")
-	}
-	if recipientSetService.Len() == 1 {
-		return recipientSetService.ToSlice()[0].Name, nil
-	}
-	serviceName, err := a.getNotifyServiceName(req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return serviceName, nil
-}
-
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
 	log := logger.Get(ctx)
 
-	serviceName, err := a.getMessageRecipient(ctx, req)
+	serviceName, err := a.getNotifyServiceName(ctx, req)
 	if err != nil {
 		log.Debugf("Skipping the notification: %s", err)
 		return false, trace.Wrap(errSkip)
