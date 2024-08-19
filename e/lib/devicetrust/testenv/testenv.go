@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	osstestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -360,3 +361,8 @@ type noopLimiter struct{}
 func (*noopLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
 	return nil
 }
+
+// NewSelfSignedSSHCert returns a self-signed SSH certificates in
+// authorized-keys format, intended to be used as the user SSH certificate in
+// authn tests.
+var NewSelfSignedSSHCert = osstestenv.NewSelfSignedSSHCert

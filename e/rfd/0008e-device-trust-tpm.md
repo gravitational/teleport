@@ -489,12 +489,15 @@ Device Authentication flow will take the following steps:
 3. The device:
    1. Loads the AK from the opaque blobs on disk into the TPM
    2. Completes a Platform Attestation on the TPM using the AK and nonce
-   3. Submits the completed Platform Attestation values to the Auth Server
+   3. Signs the nonce with the SSH private key
+   3. Submits the completed Platform Attestation values, and the SSH signature, to the Auth Server
 4. The Auth Server:
    1. Validates the Platform Attestation against the AK known for that device from Enrollment and the chosen nonce
    2. Validates the Platform Attestation PCR values against previously collected PCR values for that device to detect tampering
    3. Records the submitted device collected data including the Platform Attestation values into the backend
-   4. Generates the updated credentials and returns them to client as for macOS.
+   4. Either validates the SSH signature against the SSH cert public key, or
+      asserts that the SSH and TLS subject public keys match.
+   5. Generates the updated credentials and returns them to client as for macOS.
 
 The following protobuf types will be used for this process:
 
@@ -537,6 +540,10 @@ message TPMAuthenticateDeviceChallengeResponse {
   // The result of the client's platform attestation with the nonce provided
   // in `TPMAuthenticateDeviceChallenge`.
   TPMPlatformParameters platform_parameters = 1;
+  // Signature over the attestation_nonce, using the SSH key. This is required
+  // when the SSH and TLS public keys do not match, to prove ownership of the
+  // private key associated with the SSH certificate being augmented.
+  bytes ssh_signature = 2;
 }
 ```
 

@@ -11,14 +11,16 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 const (
@@ -196,20 +198,15 @@ func (c *authnCeremony) authenticate(
 	}
 
 	// Hand off to the platform dependent implementations
-	var platformAttestation *devicepb.TPMPlatformAttestation
-	switch dev.OsType {
-	case devicepb.OSType_OS_TYPE_MACOS:
-		err = c.authenticateDeviceMacOS(ctx, dev, stream)
-	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
-		platformAttestation, err = c.authenticateDeviceTPM(ctx, dev, stream)
-		// Persist platform attestation record in collected data.
-		initReq.DeviceData.TpmPlatformAttestation = platformAttestation
-	default:
-		c.deleteConfirmToken(ctx, confirmToken)
-		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
-	}
+	sshChallenge, err := c.authenticateDevicePlatform(ctx, dev, stream, initReq)
 	if err != nil {
 		c.deleteConfirmToken(ctx, confirmToken)
+		return nil, trace.Wrap(err)
+	}
+
+	sshAuthorizedKey := initReq.GetUserCertificates().GetSshAuthorizedKey()
+	sshKeySatisfiedChallenge, err := sshChallenge.verify(sshAuthorizedKey)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -217,7 +214,15 @@ func (c *authnCeremony) authenticate(
 	var resp *devicepb.AuthenticateDeviceResponse
 	if confirmToken == nil {
 		var err error
-		resp, err = c.augmentEndUserCerts(ctx, initReq, dev)
+		resp, err = c.augmentEndUserCerts(ctx, &auth.AugmentUserCertificateOpts{
+			DeviceExtensions: &auth.DeviceExtensions{
+				DeviceID:     dev.Id,
+				AssetTag:     dev.AssetTag,
+				CredentialID: dev.Credential.Id,
+			},
+			SSHAuthorizedKey:         sshAuthorizedKey,
+			SSHKeySatisfiedChallenge: sshKeySatisfiedChallenge,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -361,8 +366,7 @@ func (c *authnCeremony) deleteConfirmToken(ctx context.Context, confirmToken *de
 
 func (c *authnCeremony) augmentEndUserCerts(
 	ctx context.Context,
-	initReq *devicepb.AuthenticateDeviceInit,
-	dev *devicepb.Device,
+	opts *auth.AugmentUserCertificateOpts,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	// This is allowed for assertion ceremonies.
 	// Return an empty UserCertificates struct.
@@ -374,16 +378,7 @@ func (c *authnCeremony) augmentEndUserCerts(
 		}, nil
 	}
 
-	exts := &auth.DeviceExtensions{
-		DeviceID:     dev.Id,
-		AssetTag:     dev.AssetTag,
-		CredentialID: dev.Credential.Id,
-	}
-
-	newCerts, err := c.augmentCertsFunc(ctx, &auth.AugmentUserCertificateOpts{
-		SSHAuthorizedKey: initReq.UserCertificates.GetSshAuthorizedKey(),
-		DeviceExtensions: exts,
-	})
+	newCerts, err := c.augmentCertsFunc(ctx, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -407,20 +402,36 @@ func (c *authnCeremony) augmentEndUserCerts(
 	}, nil
 }
 
+func (c *authnCeremony) authenticateDevicePlatform(
+	ctx context.Context,
+	dev *devicepb.Device,
+	stream authenticateDeviceStream,
+	initReq *devicepb.AuthenticateDeviceInit,
+) (*sshChallenge, error) {
+	switch dev.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		return c.authenticateDeviceMacOS(ctx, dev, stream)
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
+		return c.authenticateDeviceTPM(ctx, dev, stream, initReq)
+	default:
+		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
+	}
+}
+
 func (c *authnCeremony) authenticateDeviceMacOS(
 	ctx context.Context,
 	dev *devicepb.Device,
 	stream authenticateDeviceStream,
-) error {
+) (*sshChallenge, error) {
 	pubKey, err := x509.ParsePKIXPublicKey(dev.Credential.PublicKeyDer)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// 2. Challenge.
 	chal, err := challenge.New()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
 		Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
@@ -429,33 +440,36 @@ func (c *authnCeremony) authenticateDeviceMacOS(
 			},
 		},
 	}); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// 3. Challenge response.
 	resp, err := stream.Recv()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	chalResp := resp.GetChallengeResponse()
 	switch {
 	case chalResp == nil:
-		return trace.BadParameter("bad payload, expected AuthenticateDeviceChallengeResponse")
+		return nil, trace.BadParameter("bad payload, expected AuthenticateDeviceChallengeResponse")
 	case len(chalResp.Signature) == 0:
-		return trace.BadParameter("signature required")
+		return nil, trace.BadParameter("signature required")
 	}
-	if err := challenge.Verify(chal, chalResp.Signature, pubKey, crypto.SHA256); err != nil {
+	if err := challenge.Verify(chal, chalResp.Signature, pubKey); err != nil {
 		c.logger.DebugContext(ctx,
 			"AuthenticateDevice: signature verification failed",
 			"error", err,
 		)
-		return auditStatusError{
+		return nil, auditStatusError{
 			Err:         trace.BadParameter("signature verification failed"),
 			UserMessage: deviceAuthnFailedMessage,
 		}
 	}
 
-	return nil
+	return &sshChallenge{
+		challenge: chal,
+		signature: chalResp.GetSshSignature(),
+	}, nil
 }
 
 // authenticateDeviceTPM issues a platform attestation challenge based on the
@@ -467,7 +481,8 @@ func (c *authnCeremony) authenticateDeviceTPM(
 	ctx context.Context,
 	dev *devicepb.Device,
 	stream authenticateDeviceStream,
-) (*devicepb.TPMPlatformAttestation, error) {
+	initReq *devicepb.AuthenticateDeviceInit,
+) (*sshChallenge, error) {
 	// 2. Issue challenge
 	nonce, finishPlatformAttestation, err := platformAttestationChallenge(
 		dev.OsType,
@@ -511,7 +526,57 @@ func (c *authnCeremony) authenticateDeviceTPM(
 		}
 	}
 
-	return platformAttestation, nil
+	// Persist platform attestation record in collected data.
+	initReq.DeviceData.TpmPlatformAttestation = platformAttestation
+
+	return &sshChallenge{
+		challenge: nonce,
+		signature: chalResp.GetSshSignature(),
+	}, nil
+}
+
+// sshChallenge holds a completed SSH challenge and response that can be
+// verified to have been signed by the subject key of an SSH certificate.
+type sshChallenge struct {
+	challenge []byte
+	signature []byte
+}
+
+// verify returns true iff [c.signature] is a valid signature over [c.challenge]
+// by the subject key of [sshAuthorizedKey]. [sshAuthorizedKey] is expected to
+// be an SSH certificate in authorized keys format.
+//
+// verify returns false with no error if [c.signature] is empty. This if for
+// backward compatibility with older clients that don't send an SSH signature
+// over the challenge. In this case we must augment the SSH cert iff the SSH
+// subject key matches the TLS subject key exactly.
+func (c *sshChallenge) verify(sshAuthorizedKey []byte) (bool, error) {
+	switch {
+	case len(c.signature) == 0:
+		return false, nil
+	case len(c.challenge) == 0:
+		return false, trace.BadParameter("challenge required")
+	case len(sshAuthorizedKey) == 0:
+		return false, trace.BadParameter("sshAuthorizedKey required")
+	}
+
+	sshCert, err := sshutils.ParseCertificate(sshAuthorizedKey)
+	if err != nil {
+		return false, trace.Wrap(err, "parsing SSH certificate")
+	}
+	var pubKey crypto.PublicKey
+	if cryptoKey, ok := sshCert.Key.(ssh.CryptoPublicKey); ok {
+		pubKey = cryptoKey.CryptoPublicKey()
+	} else {
+		return false, trace.BadParameter("unsupported SSH public key type %T", sshCert.Key)
+	}
+	if err := challenge.Verify(c.challenge, c.signature, pubKey); err != nil {
+		return false, auditStatusError{
+			Err:         trace.BadParameter("SSH key verification failed: %v", err),
+			UserMessage: "SSH key verification failed",
+		}
+	}
+	return true, nil
 }
 
 func (c *authnCeremony) backfillDeviceOwner(ctx context.Context, dev *devicepb.Device, user string) {

@@ -448,7 +448,7 @@ message DeviceCollectedData {
        │<──────────────────────────────────────────────────────────────
        │                                                              │
        ────┐                                                          │
-           │ sign c                                                   │
+           │ sign c with device key and SSH key                       │
        <───┘                                                          │
        │                                                              │
        │        AuthenticateDeviceChallengeResponse(signed c)         │
@@ -466,6 +466,18 @@ message DeviceCollectedData {
 Device authentication augments existing user certificates (TLS and SSH) with
 device extensions. The ceremony is a challenge/response streaming RPC that
 exchanges the current certificates and a solved challenge for new certificates.
+
+The client proves that they control the subject key of the base TLS certificate
+by establishing mTLS for the AuthenticateDevice request with that certificate.
+In fact, `tsh` will not explicitly send the TLS certificate at all, the Auth
+server will get it directly from the mTLS connection.
+
+The client proves that they control the subject key of the base SSH certificate
+by signing the challenge with the SSH private key.
+This additional challenge signature with the SSH key will be added in 17.0.0.
+For backward compatibility, if the client does not include the SSH signature in
+the challenge response, the Auth server will augment the SSH cert if the TLS and
+SSH certs have a matching subject public key.
 
 Device authentication as a separate RPC has a few interesting properties, such
 as the ease of integration with existing authn endpoints, no need for persistent
@@ -539,6 +551,7 @@ message AuthenticateDeviceChallenge {
 
 message AuthenticateDeviceChallengeResponse {
   bytes signature = 1;
+  bytes ssh_signature = 2;
 }
 
 message UserCertificates {

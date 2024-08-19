@@ -2,17 +2,24 @@ package devicetrustv1_test
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"io"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 type macOSBehavior struct {
 	incorrectSigningKey bool
 	incorrectSignature  bool
 	nilSignature        bool
+
+	// If specified, during authn the simulator will sign the challenge with
+	// this signer and include the signature as SshSignature in the challenge
+	// response.
+	sshSigner crypto.Signer
 
 	modifyEnrollDeviceInit       func(r *devicepb.EnrollDeviceInit)
 	modifyAuthenticateDeviceInit func(r *devicepb.AuthenticateDeviceInit)
@@ -154,10 +161,15 @@ func (e *macOSSimulator) authenticate(
 	if err != nil {
 		return nil, fmt.Errorf("signing challenge: %w", err)
 	}
+	sshSig, err := e.signSSHChallenge(chalResp.Challenge)
+	if err != nil {
+		return nil, fmt.Errorf("signing challenge with SSH key: %w", err)
+	}
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
 			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature: sig,
+				Signature:    sig,
+				SshSignature: sshSig,
 			},
 		},
 	}); err != nil && !errors.Is(err, io.EOF) {
@@ -168,4 +180,11 @@ func (e *macOSSimulator) authenticate(
 		return nil, err // Unaltered, so it can be asserted.
 	}
 	return resp, nil
+}
+
+func (e *macOSSimulator) signSSHChallenge(c []byte) ([]byte, error) {
+	if e.behavior.sshSigner == nil {
+		return nil, nil
+	}
+	return challenge.Sign(c, e.behavior.sshSigner)
 }

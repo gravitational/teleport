@@ -91,5 +91,10 @@ type tpmBehavior struct {
 	// containing the EKPub, rather than submitting just the KEPub
 	ekCertGenerator ekCertGenerator
 
+	// If specified, during authn the simulator will sign the challenge nonce
+	// with this signer and include the signature as SshSignature in the
+	// challenge response.
+	sshSigner crypto.Signer
+
 	modifyEnrollDeviceInit func(r *devicepb.EnrollDeviceInit)
 }

@@ -18,6 +18,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 // To include tests based on this simulator, use the `tpmsimulator` build tag.
@@ -416,10 +417,16 @@ func (e *tpmSimulator) authenticate(
 		return nil, fmt.Errorf("attesting: %w", err)
 	}
 
+	sshSig, err := e.signSSHChallenge(challenge.AttestationNonce)
+	if err != nil {
+		return nil, fmt.Errorf("signing challenge with SSH signer: %w", err)
+	}
+
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
 			TpmChallengeResponse: &devicepb.TPMAuthenticateDeviceChallengeResponse{
 				PlatformParameters: dtoss.PlatformParametersToProto(platParams),
+				SshSignature:       sshSig,
 			},
 		},
 	}); err != nil && !errors.Is(err, io.EOF) {
@@ -430,4 +437,11 @@ func (e *tpmSimulator) authenticate(
 		return nil, err // Unaltered, so it can be asserted.
 	}
 	return resp, nil
+}
+
+func (e *tpmSimulator) signSSHChallenge(chal []byte) ([]byte, error) {
+	if e.behavior.sshSigner == nil {
+		return nil, nil
+	}
+	return challenge.Sign(chal, e.behavior.sshSigner)
 }

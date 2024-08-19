@@ -1,19 +1,17 @@
 package devicetrustv1
 
 import (
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	_ "crypto/sha256" // imported for crypto.SHA256
 	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 var errDeniedByNonAutoToken = errors.New("user lacks permissions to spend non auto-enroll token")
@@ -207,7 +205,7 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	case len(chalResp.Signature) == 0:
 		return nil, trace.BadParameter("signature required")
 	}
-	if err := challenge.Verify(chal, chalResp.Signature, pubKey, crypto.SHA256); err != nil {
+	if err := challenge.Verify(chal, chalResp.Signature, pubKey); err != nil {
 		c.logger.DebugContext(ctx,
 			"EnrollDevice: signature verification failed",
 			"error", err,

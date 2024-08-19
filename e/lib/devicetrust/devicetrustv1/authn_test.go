@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	clientpb "github.com/gravitational/teleport/api/client/proto"
@@ -23,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
@@ -38,11 +40,16 @@ func TestService_AuthenticateDevice(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
+	// Generate a self-signed SSH user cert to augment.
+	sshAuthorizedKey, signer, err := testenv.NewSelfSignedSSHCert()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                          string
 		shouldSkip                    string
 		deviceTemplate                *devicepb.Device
 		simulator                     simulator
+		expectUnverifiedSSHKey        bool
 		wantErr                       string
 		wantDCDTPMPlatformAttestation bool
 	}{
@@ -50,12 +57,35 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			name: "macOS: success",
 			deviceTemplate: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-success-ssh-challenge",
+			},
+			simulator: newMacOSSimulator(macOSBehavior{
+				sshSigner: signer,
+			}),
+		},
+		{
+			name: "macOS: success without SSH challenge",
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-success",
 			},
-			simulator: newMacOSSimulator(macOSBehavior{}),
+			simulator:              newMacOSSimulator(macOSBehavior{}),
+			expectUnverifiedSSHKey: true,
 		},
 		{
 			name:       "windows: success",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "windows-success-ssh-challenge",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				sshSigner: signer,
+			}),
+			wantDCDTPMPlatformAttestation: true,
+		},
+		{
+			name:       "windows: success without SSH key challenge",
 			shouldSkip: tpmSkip,
 			deviceTemplate: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
@@ -63,16 +93,18 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			},
 			simulator:                     newTPMSimulator(tpmBehavior{}),
 			wantDCDTPMPlatformAttestation: true,
+			expectUnverifiedSSHKey:        true,
 		},
 		{
 			name:       "linux: success",
 			shouldSkip: tpmSkip,
 			deviceTemplate: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_LINUX,
-				AssetTag: "linux-success",
+				AssetTag: "linux-success-ssh-challenge",
 			},
 			simulator: newTPMSimulator(tpmBehavior{
 				emptyEventLog: true,
+				sshSigner:     signer,
 			}),
 			wantDCDTPMPlatformAttestation: true,
 		},
@@ -117,7 +149,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 
 			initCerts := &devicepb.UserCertificates{
 				X509Der:          []byte("ignored"), // mTLS cert takes its place.
-				SshAuthorizedKey: []byte{1, 2, 3, 4, 6},
+				SshAuthorizedKey: sshAuthorizedKey,
 			}
 			gotCerts, err := authenticateSimulator(ctx, devices, test.simulator, enrolledDev, initCerts)
 			if err != nil {
@@ -132,23 +164,20 @@ func TestService_AuthenticateDevice(t *testing.T) {
 				t.Error("Got empty SshAuthorizedKey, want non-empty")
 			}
 
-			// Extract the wanted certs from fakeAugmentFunc.
-			certsProto, _ := fakeAugmentFunc(ctx, &authz.Context{}, &auth.AugmentUserCertificateOpts{
-				SSHAuthorizedKey: initCerts.SshAuthorizedKey,
-				DeviceExtensions: &auth.DeviceExtensions{
-					DeviceID:     enrolledDev.Id,
-					AssetTag:     enrolledDev.AssetTag,
-					CredentialID: enrolledDev.Credential.Id,
-				},
-			})
-			block, _ := pem.Decode(certsProto.TLS)
-			if block == nil {
-				t.Fatal("Failed to decode fakeAugmentFunc X.509 PEM")
-				return // Make staticcheck happy.
+			wantTLSCert := &fakeTLSCert{
+				deviceID:     enrolledDev.Id,
+				assetTag:     enrolledDev.AssetTag,
+				credentialID: enrolledDev.Credential.Id,
+			}
+			wantSSHCert := sshAuthorizedKey
+			if test.expectUnverifiedSSHKey {
+				wantSSHCert = append(wantSSHCert, []byte("unverified")...)
+			} else {
+				wantSSHCert = append(wantSSHCert, []byte("verified")...)
 			}
 			wantCerts := &devicepb.UserCertificates{
-				X509Der:          block.Bytes,
-				SshAuthorizedKey: certsProto.SSH,
+				X509Der:          wantTLSCert.Marshal(),
+				SshAuthorizedKey: wantSSHCert,
 			}
 
 			if diff := cmp.Diff(wantCerts, gotCerts, protocmp.Transform()); diff != "" {
@@ -195,6 +224,12 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
+	// Generate a self-signed SSH user cert to augment.
+	sshAuthorizedKey, signer, err := testenv.NewSelfSignedSSHCert()
+	require.NoError(t, err)
+	badSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+
 	const invalidPayloadMessage = "initial payload"
 	const deviceAuthnFailedMessage = "device authentication failed"
 
@@ -202,9 +237,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		name       string
 		shouldSkip string
 
-		noEnroll       bool
-		deviceTemplate *devicepb.Device
-		simulator      simulator
+		noEnroll         bool
+		deviceTemplate   *devicepb.Device
+		simulator        simulator
+		sshAuthorizedKey []byte
 
 		assertErr            func(error) bool
 		wantErr              string
@@ -341,6 +377,32 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			wantErr:              "verification failed",
 			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
+		{
+			name: "macOS: wrong key signs the SSH challenge",
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-wrong-ssh-signing-key",
+			},
+			simulator: newMacOSSimulator(macOSBehavior{
+				sshSigner: badSigner,
+			}),
+			sshAuthorizedKey:     sshAuthorizedKey,
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "SSH key verification failed: ed25519 verification failed",
+			wantAuditUserMessage: "SSH key verification failed",
+		},
+		{
+			name: "macOS: SSH signature without cert",
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-ssh-sig-no-cert",
+			},
+			simulator: newMacOSSimulator(macOSBehavior{
+				sshSigner: signer,
+			}),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "sshAuthorizedKey required",
+		},
 		// tpm specific errors.
 		{
 			name:       "tpm: incorrect platform attestation AK",
@@ -398,6 +460,34 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			wantErr:              "platform attestation verification failed",
 			wantAuditUserMessage: "event log verification",
 		},
+		{
+			name:       "tpm: wrong key signs the SSH challenge",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-wrong-ssh-signing-key",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				sshSigner: badSigner,
+			}),
+			sshAuthorizedKey:     sshAuthorizedKey,
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "SSH key verification failed: ed25519 verification failed",
+			wantAuditUserMessage: "SSH key verification failed",
+		},
+		{
+			name:       "tpm: SSH signature without cert",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-ssh-sig-no-cert",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				sshSigner: badSigner,
+			}),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "sshAuthorizedKey required",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -429,7 +519,11 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			}
 			emitter.Reset()
 
-			_, err = authenticateSimulator(ctx, devices, test.simulator, dev, nil /* initCerts */)
+			initCerts := &devicepb.UserCertificates{
+				X509Der:          []byte("ignored"), // mTLS cert takes its place.
+				SshAuthorizedKey: test.sshAuthorizedKey,
+			}
+			_, err = authenticateSimulator(ctx, devices, test.simulator, dev, initCerts)
 			if !test.assertErr(err) {
 				t.Errorf("AuthenticateDevice: assertErr failed, err=%v", err)
 			}
@@ -1047,27 +1141,50 @@ func fakeAugmentFunc(_ context.Context, authCtx *authz.Context, opts *auth.Augme
 		return nil, errors.New("opts.DeviceExtensions.CredentialID required")
 	}
 
-	sshCert := opts.SSHAuthorizedKey
-	if sshCert != nil {
-		sshCert = append(sshCert, 9)
+	// "Build" a fake SSH cert that tells us whether the SSH key satisfied the
+	// challenge.
+	// This is a roundabout way to make sure the server is verifying the
+	// challenge correctly and passing that information.
+	var augmentedSSHCert []byte
+	if len(opts.SSHAuthorizedKey) > 0 {
+		if opts.SSHKeySatisfiedChallenge {
+			augmentedSSHCert = append(opts.SSHAuthorizedKey, []byte("verified")...)
+		} else {
+			// The real implementation would return an error here if the SSH public
+			// key did not match the public key of the TLS certificate from the
+			// mTLS connection.
+			augmentedSSHCert = append(opts.SSHAuthorizedKey, []byte("unverified")...)
+		}
 	}
 
 	// "Build" a fake TLS cert that includes device extension data.
 	// This is a roundabout way to make sure the server is passing in the correct
 	// information.
 	ext := opts.DeviceExtensions
-	tlsCert := fmt.Sprintf(""+
+	augmentedTLSCert := &fakeTLSCert{
+		deviceID:     ext.DeviceID,
+		assetTag:     ext.AssetTag,
+		credentialID: ext.CredentialID,
+	}
+
+	return &clientpb.Certs{
+		SSH: augmentedSSHCert,
+		TLS: pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: augmentedTLSCert.Marshal(),
+		}),
+	}, nil
+}
+
+type fakeTLSCert struct {
+	deviceID, assetTag, credentialID string
+}
+
+func (c *fakeTLSCert) Marshal() []byte {
+	return []byte(fmt.Sprintf(""+
 		"<stand in for TLS cert:"+
 		"\n\tid=%v"+
 		"\n\tasset=%v"+
 		"\n\tcredential=%v>",
-		ext.DeviceID, ext.AssetTag, ext.CredentialID)
-
-	return &clientpb.Certs{
-		SSH: sshCert,
-		TLS: pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: []byte(tlsCert),
-		}),
-	}, nil
+		c.deviceID, c.assetTag, c.credentialID))
 }
