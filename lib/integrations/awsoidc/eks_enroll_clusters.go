@@ -312,6 +312,11 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", trace.BadParameter(`can't enroll EKS cluster %q - expected "ACTIVE" state, got %q.`, clusterName, eksCluster.Status)
 	}
 
+	// We can't discover private EKS clusters for cloud clients, since we know that auth server is running in our VPC.
+	if req.IsCloud && !eksCluster.ResourcesVpcConfig.EndpointPublicAccess {
+		return "", trace.AccessDenied(`can't enroll EKS cluster %q - no public access endpoint while auth is running in Teleport Cloud.`, clusterName)
+	}
+
 	principalArn, err := getAccessEntryPrincipalArn(ctx, clt.GetCallerIdentity)
 	if err != nil {
 		return "", trace.Wrap(err)
