@@ -379,6 +379,7 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 	resourceSvc, err := NewService(ServiceConfig{
 		Authorizer: authorizerFn(t, client),
 		Backend:    localResourceService,
+		Cache:      localResourceService,
 	})
 	require.NoError(t, err)
 
