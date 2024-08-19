@@ -150,9 +150,6 @@ async function initializeApp(): Promise<void> {
   // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
   // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
   // window before processing the listener for deep links.
-  //
-  // The setup must be done synchronously when starting the app, otherwise the listeners won't get
-  // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
   const rootClusterProxyHostAllowList = new Set<string>();
