@@ -90,14 +90,20 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	testEKSClusters := []eksTypes.Cluster{
 		{
-			Name:                 aws.String("EKS1"),
+			Name: aws.String("EKS1"),
+			ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+				EndpointPublicAccess: true,
+			},
 			Arn:                  aws.String(clustersBaseArn + "1"),
 			Tags:                 map[string]string{"label1": "value1"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
 		},
 		{
-			Name:                 aws.String("EKS2"),
+			Name: aws.String("EKS2"),
+			ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+				EndpointPublicAccess: true,
+			},
 			Arn:                  aws.String(clustersBaseArn + "2"),
 			Tags:                 map[string]string{"label2": "value2"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
@@ -227,6 +233,33 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll EKS cluster "EKS1" - expected "ACTIVE" state, got "PENDING".`)
+			},
+		},
+		{
+			name:         "private cluster in cloud is not enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name: aws.String("EKS3"),
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPrivateAccess: true,
+					},
+					Arn:                  aws.String(clustersBaseArn + "3"),
+					Tags:                 map[string]string{"label3": "value3"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+				},
+			},
+			request: EnrollEKSClustersRequest{
+				Region:       "us-east-1",
+				AgentVersion: "1.2.3",
+				IsCloud:      true,
+			},
+			requestClusterNames: []string{"EKS3"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.ErrorContains(t, response.Results[0].Error,
+					`can't enroll EKS cluster "EKS3" - no public access endpoint while auth is running in Teleport Cloud.`)
 			},
 		},
 		{
