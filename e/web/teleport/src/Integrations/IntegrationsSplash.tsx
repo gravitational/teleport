@@ -30,7 +30,7 @@ export function IntegrationsSplash() {
       </Flex>
       <Flex justifyContent="center" gap="2">
         <InternalLink to={cfg.oss.getIntegrationEnrollRoute()}>
-          <ButtonPrimary width="240px">Enroll new integration</ButtonPrimary>
+          <ButtonPrimary width="240px">Enroll New Integration</ButtonPrimary>
         </InternalLink>
         <ExternalLink
           href="https://goteleport.com/docs/access-controls/access-request-plugins/"
