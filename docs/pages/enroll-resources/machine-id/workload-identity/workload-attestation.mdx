@@ -42,7 +42,7 @@ available to be used when configuring rules for `tbot`'s Workload API service:
 
 | Field             | Description                                                                  |
 |-------------------|------------------------------------------------------------------------------|
-| `unix.attestated` | Indicates that the workload has been attested by the Unix Workload Attestor. |
+| `unix.attested` | Indicates that the workload has been attested by the Unix Workload Attestor. |
 | `unix.pid`        | The process ID of the attested workload.                                     |
 | `unix.uid`        | The effective user ID of the attested workload.                              |
 | `unix.gid`        | The effective primary group ID of the attested workload.                     |
@@ -62,7 +62,7 @@ available to be used when configuring rules for `tbot`'s Workload API service:
 
 | Field                        | Description                                                                        |
 |------------------------------|------------------------------------------------------------------------------------|
-| `kubernetes.attestated`      | Indicates that the workload has been attested by the Kubernetes Workload Attestor. |
+| `kubernetes.attested`      | Indicates that the workload has been attested by the Kubernetes Workload Attestor. |
 | `kubernetes.namespace`       | The namespace of the Kubernetes Pod.                                               |
 | `kubernetes.service_account` | The service account of the Kubernetes Pod.                                         |
 | `kubernetes.pod_name`        | The name of the Kubernetes Pod.                                                    |
