@@ -259,7 +259,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
-					`can't enroll EKS cluster "EKS3" - no public access endpoint while auth is running in Teleport Cloud.`)
+					`can't enroll "EKS3" because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`)
 			},
 		},
 		{
