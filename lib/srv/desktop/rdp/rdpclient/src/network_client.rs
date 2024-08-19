@@ -21,9 +21,9 @@ use std::pin::Pin;
 
 use ironrdp_connector::sspi::generator::NetworkRequest;
 use ironrdp_connector::sspi::network_client::NetworkProtocol;
-use ironrdp_connector::{custom_err, general_err, ConnectorResult};
+use ironrdp_connector::{general_err, ConnectorResult, reason_err};
 use ironrdp_tokio::AsyncNetworkClient;
-use sspi::{Error, ErrorKind};
+use log::error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use url::Url;
@@ -64,20 +64,26 @@ impl NetworkClient {
 
         let mut stream = TcpStream::connect(addr)
             .await
-            .map_err(|e| Error::new(ErrorKind::NoAuthenticatingAuthority, format!("{:?}", e)))
-            .map_err(|e| custom_err!("failed to connect to KDC over TCP", e))?;
+            .map_err(|e| {
+                error!("KDC connection failed: {:?}", e);
+                reason_err!("Network Level Authentication", "connection to Key Distribution Center failed")
+            })?;
 
         stream
             .write(data)
             .await
-            .map_err(|e| Error::new(ErrorKind::NoAuthenticatingAuthority, format!("{:?}", e)))
-            .map_err(|e| custom_err!("failed to send KDC request over TCP", e))?;
+            .map_err(|e| {
+                error!("KDC send failed: {:?}", e);
+                reason_err!("Network Level Authentication", "sending data to Key Distribution Center failed")
+            })?;
 
         let len = stream
             .read_u32()
             .await
-            .map_err(|e| Error::new(ErrorKind::NoAuthenticatingAuthority, format!("{:?}", e)))
-            .map_err(|e| custom_err!("failed to read KDC response length over TCP", e))?;
+            .map_err(|e| {
+                error!("KDC length read failed: {:?}", e);
+                reason_err!("Network Level Authentication", "reading data from Key Distribution Center failed")
+            })?;
 
         let mut buf = vec![0; len as usize + 4];
         buf[0..4].copy_from_slice(&(len.to_be_bytes()));
@@ -85,8 +91,10 @@ impl NetworkClient {
         stream
             .read_exact(&mut buf[4..])
             .await
-            .map_err(|e| Error::new(ErrorKind::NoAuthenticatingAuthority, format!("{:?}", e)))
-            .map_err(|e| custom_err!("failed to send KDC response over TCP", e))?;
+            .map_err(|e| {
+                error!("KDC read failed: {:?}", e);
+                reason_err!("Network Level Authentication", "reading data from Key Distribution Center failed")
+            })?;
 
         Ok(buf)
     }

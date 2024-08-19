@@ -118,7 +118,7 @@ impl Client {
         params: ConnectParams,
     ) -> ClientResult<Option<DisconnectReason>> {
         global::TOKIO_RT.block_on(async {
-            Self::connect(cgo_handle, params)
+            Self::connect(cgo_handle, params, false)
                 .await?
                 .register()?
                 .run_loops()
@@ -127,7 +127,11 @@ impl Client {
     }
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
-    async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
+    async fn connect(
+        cgo_handle: CgoHandle,
+        params: ConnectParams,
+        enable_credssp: bool,
+    ) -> ClientResult<Self> {
         START.call_once(|| {
             // we register provider explicitly to avoid panics when both ring and aws_lc
             // features of rustls are enabled, which happens often in dependencies like tokio-tls
@@ -157,7 +161,7 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config = create_config(&params, pin.clone());
+        let connector_config = create_config(&params, pin.clone(), enable_credssp);
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -166,8 +170,8 @@ impl Client {
         let mut rdpdr = Rdpdr::new(
             Box::new(TeleportRdpdrBackend::new(
                 client_handle.clone(),
-                params.cert_der,
-                params.key_der,
+                params.cert_der.clone(),
+                params.key_der.clone(),
                 pin,
                 cgo_handle,
                 params.allow_directory_sharing,
@@ -205,7 +209,17 @@ impl Client {
             )));
         }
 
-        let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
+        let should_upgrade = match ironrdp_tokio::connect_begin(&mut framed, &mut connector).await {
+            Ok(should_upgrade) => should_upgrade,
+            Err(e)
+                if !enable_credssp
+                    && e.to_string()
+                        .contains("CredSSP enhanced RDP security required by server") =>
+            {
+                return Box::pin(Self::connect(cgo_handle, params, true)).await
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         // Take the stream back out of the framed object for upgrading
         let initial_stream = framed.into_inner_no_leftover();
@@ -219,8 +233,9 @@ impl Client {
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
         let mut network_client = crate::network_client::NetworkClient::new();
-        let kerberos_config = params
-            .kdc_addr
+        let kerberos_config = enable_credssp
+            .then_some(params.kdc_addr.as_ref())
+            .flatten()
             .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
             .transpose()
             .map_err(ClientError::UrlError)?
@@ -232,7 +247,7 @@ impl Client {
             upgraded,
             &mut rdp_stream,
             connector,
-            params.computer_name.unwrap_or(server_addr).into(),
+            params.computer_name.clone().unwrap_or(server_addr).into(),
             server_public_key,
             Some(&mut network_client),
             kerberos_config,
@@ -1406,19 +1421,19 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(params: &ConnectParams, pin: String) -> Config {
+fn create_config(params: &ConnectParams, pin: String, enable_credssp: bool) -> Config {
+    // For now, NLA is opt-in via an environment variable.
+    // We'll make it the default behavior in a future release.
+    let enable_credssp = enable_credssp && params.ad && env::var("TELEPORT_ENABLE_RDP_NLA").unwrap_or_default() == "yes";
     Config {
         desktop_size: DesktopSize {
             width: params.screen_width,
             height: params.screen_height,
         },
         enable_tls: true,
-        // For now, NLA is opt-in via an environment variable.
-        // We'll make it the default behavior in a future release.
-        enable_credssp: params.ad
-            && env::var("TELEPORT_ENABLE_RDP_NLA").unwrap_or_default() == "yes",
+        enable_credssp,
         credentials: Credentials::SmartCard {
-            config: params.ad.then(|| {
+            config: enable_credssp.then(|| {
                 SmartCardIdentity {
                     certificate: params.cert_der.clone(),
                     reader_name: "Teleport".to_string(),
