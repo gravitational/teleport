@@ -194,7 +194,7 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 	// write the cert+private key to the output:
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           outputPath,
-		Key:                  keyRing,
+		KeyRing:              keyRing,
 		Format:               identityfile.FormatTLS,
 		OverwriteDestination: false,
 		Writer:               &identityfile.StandardConfigWriter{},

@@ -3002,15 +3002,6 @@ func TestCertificateFormat(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	// make sure we can parse the private and public key
-	_, err = ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	require.NoError(t, err)
-
 	// use admin client to create user and role
 	user, userRole, err := CreateUserAndRole(testSrv.Auth(), "user", []string{"user"}, nil)
 	require.NoError(t, err)
@@ -3055,7 +3046,8 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &authclient.PassCreds{
 					Password: pass,
 				},
-				PublicKey: pub,
+				SSHPublicKey: []byte(sshPubKey),
+				TLSPublicKey: []byte(tlsPubKey),
 			},
 			CompatibilityMode: ts.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
@@ -3387,15 +3379,14 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
 	_, err = testSrv.Auth().AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass: &authclient.PassCreds{
 				Password: pass,
 			},
-			PublicKey: pub,
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 	})
 	require.True(t, trace.IsAccessDenied(err))

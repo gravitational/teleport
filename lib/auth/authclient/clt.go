@@ -712,21 +712,36 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username st
 }
 
 // CreateGlobalNotification creates a global notification.
-func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+		GlobalNotification: gn,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
+		Notification: notification,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	// TODO(rudream): implement client methods for notifications
-	return trace.NotImplemented(notImplementedMessage)
+	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
+		Username:       username,
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
 }
 
 // DeleteAllGlobalNotifications not implemented: can only be called locally.
@@ -751,11 +766,6 @@ func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username
 
 // DeleteUserLastSeenNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteUserNotification not implemented: can only be called locally.
-func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1257,8 +1267,16 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
+
+	// PublicKey is a public key in ssh authorized_keys format.
+	// Soon to be deprecated in favor of SSHPublicKey, TLSPublicKey
+	PublicKey []byte `json:"public_key,omitempty"`
+
+	// SSHPublicKey is a public key in ssh authorized_keys format.
+	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
+	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+	TLSPublicKey []byte `json:"tls_public_key,omitempty"`
+
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
@@ -1327,8 +1345,17 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+
 	// AttestationStatement is an attestation statement associated with the given public key.
+	// Soon to be deprecated in favor of SSHAttestationStatement, TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1336,8 +1363,20 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
+	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 && len(a.PublicKey) == 0 {
+		return trace.BadParameter("missing parameter: at least one of 'ssh_public_key', 'tls_public_key', 'public_key' must be set")
+	}
+	if len(a.PublicKey) != 0 && len(a.SSHPublicKey) != 0 {
+		return trace.BadParameter("both 'public_key' and 'ssh_public_key' are set")
+	}
+	if len(a.PublicKey) != 0 && len(a.TLSPublicKey) != 0 {
+		return trace.BadParameter("both 'public_key' and 'tls_public_key' are set")
+	}
+	if a.AttestationStatement != nil && a.SSHAttestationStatement != nil {
+		return trace.BadParameter("both 'attestation_statement' and 'ssh_attestation_statement' are set")
+	}
+	if a.AttestationStatement != nil && a.TLSAttestationStatement != nil {
+		return trace.BadParameter("both 'attestation_statement' and 'tls_attestation_statement' are set")
 	}
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
@@ -1758,7 +1797,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 
 	// If the auth server is v16+, the client does not need to provide a pre-created app session.
 	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
 		return "", nil
 	}
 

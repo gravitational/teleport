@@ -179,12 +179,12 @@ func (s *ApplicationOutputService) render(
 	)
 	defer span.End()
 
-	key, err := NewClientKey(routedIdentity, hostCAs)
+	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, key, s.cfg.Destination); err != nil {
+	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -194,7 +194,7 @@ func (s *ApplicationOutputService) render(
 	}
 
 	if s.cfg.SpecificTLSExtensions {
-		if err := writeIdentityFileTLS(ctx, s.log, key, s.cfg.Destination); err != nil {
+		if err := writeIdentityFileTLS(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 			return trace.Wrap(err, "writing specific tls extension files")
 		}
 	}

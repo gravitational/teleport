@@ -713,6 +713,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 			SPIFFEFederationDelete: e,
 		}
 
+	case *PluginCreate:
+		out.Event = &OneOf_PluginCreate{
+			PluginCreate: e,
+		}
+	case *PluginUpdate:
+		out.Event = &OneOf_PluginUpdate{
+			PluginUpdate: e,
+		}
+	case *PluginDelete:
+		out.Event = &OneOf_PluginDelete{
+			PluginDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

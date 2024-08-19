@@ -168,7 +168,7 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	return trace.Wrap(c.tc.localAgent.AddKey(keyRing))
+	return trace.Wrap(c.tc.localAgent.AddKeyRing(keyRing))
 }
 
 func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*KeyRing, error) {
@@ -190,7 +190,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			certOptions = WithAllCerts
 		}
 
-		keyRing, err = c.tc.localAgent.GetKey(params.RouteToCluster, certOptions...)
+		keyRing, err = c.tc.localAgent.GetKeyRing(params.RouteToCluster, certOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -232,13 +232,19 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			Cert:       certs.TLS,
 		}
 	case proto.UserCertsRequest_Database:
-		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, keyRing)
+		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, privKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		keyRing.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
+		keyRing.DBTLSCredentials[params.RouteToDatabase.ServiceName] = TLSCredential{
+			Cert:       dbCert,
+			PrivateKey: privKey,
+		}
 	case proto.UserCertsRequest_Kubernetes:
-		keyRing.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+		keyRing.KubeTLSCredentials[params.KubernetesCluster] = TLSCredential{
+			PrivateKey: privKey,
+			Cert:       certs.TLS,
+		}
 	case proto.UserCertsRequest_WindowsDesktop:
 		keyRing.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
@@ -266,14 +272,14 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		return sshConfig, nil
 	}
 
-	key, err := c.tc.localAgent.GetKey(target.Cluster, WithAllCerts...)
+	keyRing, err := c.tc.localAgent.GetKeyRing(target.Cluster, WithAllCerts...)
 	if err != nil {
 		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
-	rootClusterName, err := key.RootClusterName()
+	rootClusterName, err := keyRing.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
@@ -303,14 +309,14 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	key, err = c.performMFACeremony(ctx,
+	keyRing, err = c.performMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(targetNode{addr: target.Addr}),
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
-		key,
+		keyRing,
 		c.tc.NewMFAPrompt(),
 	)
 	if err != nil {
@@ -318,7 +324,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.Debug("Issued single-use user certificate after an MFA check.")
-	am, err := key.AsAuthMethod()
+	am, err := keyRing.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
@@ -350,8 +356,17 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 	var sshPublicKey, tlsPublicKey []byte
 	var privateKey *keys.PrivateKey
 	switch params.usage() {
-	case proto.UserCertsRequest_App:
-		privateKey, err = keyRing.GenerateKey(ctx, c.tc, cryptosuites.UserTLS)
+	case proto.UserCertsRequest_App, proto.UserCertsRequest_Kubernetes:
+		privateKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(privateKey.Public())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	case proto.UserCertsRequest_Database:
+		privateKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserDatabase)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -434,7 +449,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	keyRing := params.ExistingCreds
 	if keyRing == nil {
 		var err error
-		keyRing, err = c.tc.localAgent.GetKey(params.RouteToCluster, WithAllCerts...)
+		keyRing, err = c.tc.localAgent.GetKeyRing(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
 			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -658,20 +673,26 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	case len(newCerts.TLS) > 0:
 		switch certsReq.Usage {
 		case proto.UserCertsRequest_Kubernetes:
-			if keyRing.KubeTLSCerts == nil {
-				keyRing.KubeTLSCerts = make(map[string][]byte)
+			if keyRing.KubeTLSCredentials == nil {
+				keyRing.KubeTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.KubeTLSCerts[certsReq.KubernetesCluster] = newCerts.TLS
+			keyRing.KubeTLSCredentials[certsReq.KubernetesCluster] = TLSCredential{
+				Cert:       newCerts.TLS,
+				PrivateKey: params.PrivateKey,
+			}
 
 		case proto.UserCertsRequest_Database:
-			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, keyRing)
+			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, params.PrivateKey)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			if keyRing.DBTLSCerts == nil {
-				keyRing.DBTLSCerts = make(map[string][]byte)
+			if keyRing.DBTLSCredentials == nil {
+				keyRing.DBTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.DBTLSCerts[certsReq.RouteToDatabase.ServiceName] = dbCert
+			keyRing.DBTLSCredentials[certsReq.RouteToDatabase.ServiceName] = TLSCredential{
+				Cert:       dbCert,
+				PrivateKey: params.PrivateKey,
+			}
 
 		case proto.UserCertsRequest_WindowsDesktop:
 			if keyRing.WindowsDesktopCerts == nil {

@@ -48,10 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// KeyIndex identifies a KeyRing in the store.
-// TODO(nklaassen): rename to KeyRingIndex because it identifies an entire
-// KeyRing in a KeyStore.
-type KeyIndex struct {
+// KeyRingIndex identifies a KeyRing in the store.
+type KeyRingIndex struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
 	ProxyHost string
 	// Username is the username that a key is associated with.
@@ -60,9 +58,9 @@ type KeyIndex struct {
 	ClusterName string
 }
 
-// Check verifies the KeyIndex is fully specified.
-func (idx KeyIndex) Check() error {
-	missingField := "key index field %s is not set"
+// Check verifies the KeyRingIndex is fully specified.
+func (idx KeyRingIndex) Check() error {
+	missingField := "keyring index field %s is not set"
 	if idx.ProxyHost == "" {
 		return trace.BadParameter(missingField, "ProxyHost")
 	}
@@ -75,19 +73,21 @@ func (idx KeyIndex) Check() error {
 	return nil
 }
 
-// Match compares this key index to the given matchKey index.
+// Match compares this KeyRingIndex to the given matchKeyRing index.
 // It will be considered a match if all non-zero elements of
-// the matchKey are matched by this key index.
-func (idx KeyIndex) Match(matchKey KeyIndex) bool {
-	return (matchKey.ProxyHost == "" || matchKey.ProxyHost == idx.ProxyHost) &&
-		(matchKey.ClusterName == "" || matchKey.ClusterName == idx.ClusterName) &&
-		(matchKey.Username == "" || matchKey.Username == idx.Username)
+// the matchKeyRing are matched by this KeyRingIndex.
+func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
+	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
+		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
+		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
 }
 
 // TLSCredential holds a signed TLS certificate and matching private key.
 type TLSCredential struct {
+	// PrivateKey is the private key of the credential.
 	PrivateKey *keys.PrivateKey
-	Cert       []byte
+	// Cert is a PEM-encoded signed X509 certificate.
+	Cert []byte
 }
 
 // TLSCertificate returns a valid [tls.Certificate] ready to be used in a TLS
@@ -99,7 +99,7 @@ func (c *TLSCredential) TLSCertificate() (tls.Certificate, error) {
 
 // KeyRing describes a set of client keys and certificates for a specific cluster.
 type KeyRing struct {
-	KeyIndex
+	KeyRingIndex
 
 	// PrivateKey used to represent the single cryptographic key associated with all
 	// certificates in the KeyRing. This is in the process of being deprecated
@@ -112,12 +112,12 @@ type KeyRing struct {
 	// TLSCert is a PEM encoded client TLS x509 certificate.
 	// It's used to authenticate to the Teleport APIs.
 	TLSCert []byte `json:"TLSCert,omitempty"`
-	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
+	// KubeTLSCredentials are TLS credentials for individual
 	// kubernetes clusters. Map key is a kubernetes cluster name.
-	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
-	// DBTLSCerts are PEM-encoded TLS certificates for database access.
+	KubeTLSCredentials map[string]TLSCredential
+	// DBTLSCredentials are TLS credentials for database access.
 	// Map key is the database service name.
-	DBTLSCerts map[string][]byte `json:"DBCerts,omitempty"`
+	DBTLSCredentials map[string]TLSCredential
 	// AppTLSCredetials are TLS credentials for application access.
 	// Map key is the application name.
 	AppTLSCredentials map[string]TLSCredential
@@ -137,12 +137,19 @@ func (k *KeyRing) Copy() *KeyRing {
 	return &copy
 }
 
-// GenerateKey returns a new private key with the appropriate algorithm for
-// [purpose]. If this KeyRing uses a PIV/hardware key, it will always return
-// that hardware key.
-func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
+// generateSubjectTLSKey returns a new private key with the appropriate algorithm for
+// [purpose], meant to be used as the subject key for a new user cert request.
+// If [k.PrivateKey] is a PIV/hardware key or an RSA key, it will be re-used.
+func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
 	if k.PrivateKey.IsHardware() {
-		// We always use the same hardware key.
+		// We always re-use the root TLS key if it is a hardware key.
+		return k.PrivateKey, nil
+	}
+	if _, isRSA := k.PrivateKey.Public().(*rsa.PublicKey); isRSA {
+		// We always re-use the root TLS key if it is RSA (it would be expensive
+		// to always generate new RSA keys). If [k.PrivateKey] is RSA we must be
+		// using the `legacy` signature algorithm suitei and the subject keys
+		// should be RSA as well.
 		return k.PrivateKey, nil
 	}
 
@@ -166,8 +173,8 @@ func (k *KeyRing) GenerateKey(ctx context.Context, tc *TeleportClient, purpose c
 	return priv, nil
 }
 
-// GenerateRSAKey generates a new unsigned key.
-func GenerateRSAKey() (*KeyRing, error) {
+// GenerateRSAKeyRing generates a new unsigned key ring.
+func GenerateRSAKeyRing() (*KeyRing, error) {
 	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -179,8 +186,8 @@ func GenerateRSAKey() (*KeyRing, error) {
 func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
 		PrivateKey:          priv,
-		KubeTLSCerts:        make(map[string][]byte),
-		DBTLSCerts:          make(map[string][]byte),
+		KubeTLSCredentials:  make(map[string]TLSCredential),
+		DBTLSCredentials:    make(map[string]TLSCredential),
 		AppTLSCredentials:   make(map[string]TLSCredential),
 		WindowsDesktopCerts: make(map[string][]byte),
 	}
@@ -210,7 +217,7 @@ func (k *KeyRing) RootClusterCAs() ([][]byte, error) {
 	return nil, trace.NotFound("failed to find TLS CA for %q root cluster", rootClusterName)
 }
 
-// TLSCAs returns all TLS CA certificates from this key
+// TLSCAs returns all TLS CA certificates from this KeyRing.
 func (k *KeyRing) TLSCAs() (result [][]byte) {
 	for _, ca := range k.TrustedCerts {
 		result = append(result, ca.TLSCertificates...)
@@ -223,12 +230,12 @@ func (k *KeyRing) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	cred, ok := k.KubeTLSCredentials[kubeClusterName]
 	if !ok {
 		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
 
-	tlsConfig, err := k.clientTLSConfig(cipherSuites, tlsCert, []string{rootCluster})
+	tlsConfig, err := k.clientTLSConfig(cipherSuites, cred, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,9 +244,9 @@ func (k *KeyRing) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName str
 }
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
-// keys/certs against SSH CAs in the Key.
+// keys/certs against SSH CAs in the KeyRing.
 //
-// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
+// If not CAs are present in the KeyRing, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
 func (k *KeyRing) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, error) {
@@ -250,7 +257,7 @@ func (k *KeyRing) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, err
 	return sshutils.HostKeyCallback(trustedHostKeys, true)
 }
 
-// authorizedHostKeys returns all authorized host keys from this key. If any host
+// authorizedHostKeys returns all authorized host keys from this KeyRing. If any host
 // names are provided, only matching host keys will be returned.
 func (k *KeyRing) authorizedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 	var hostKeys []ssh.PublicKey
@@ -277,11 +284,14 @@ func (k *KeyRing) TeleportClientTLSConfig(cipherSuites []uint16, clusters []stri
 	if len(k.TLSCert) == 0 {
 		return nil, trace.NotFound("TLS certificate not found")
 	}
-	return k.clientTLSConfig(cipherSuites, k.TLSCert, clusters)
+	return k.clientTLSConfig(cipherSuites, TLSCredential{
+		PrivateKey: k.PrivateKey,
+		Cert:       k.TLSCert,
+	}, clusters)
 }
 
-func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters []string) (*tls.Config, error) {
-	tlsCert, err := k.PrivateKey.TLSCertificate(tlsCertRaw)
+func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, cred TLSCredential, clusters []string) (*tls.Config, error) {
+	tlsCert, err := cred.TLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -324,7 +334,7 @@ func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
-// Key and HostKeyCallback matching SSH CAs in the Key.
+// KeyRing and HostKeyCallback matching SSH CAs in the KeyRing.
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
@@ -390,7 +400,7 @@ const (
 
 // teleportAgentKeyComment returns a teleport agent key comment
 // like "teleport:<proxyHost>:<userName>:<clusterName>".
-func teleportAgentKeyComment(k KeyIndex) string {
+func teleportAgentKeyComment(k KeyRingIndex) string {
 	return strings.Join([]string{
 		agentKeyCommentPrefix,
 		k.ProxyHost,
@@ -400,14 +410,14 @@ func teleportAgentKeyComment(k KeyIndex) string {
 }
 
 // parseTeleportAgentKeyComment parses an agent key comment into
-// its associated KeyIndex.
-func parseTeleportAgentKeyComment(comment string) (KeyIndex, bool) {
+// its associated KeyRingIndex.
+func parseTeleportAgentKeyComment(comment string) (KeyRingIndex, bool) {
 	parts := strings.Split(comment, agentKeyCommentSeparator)
 	if len(parts) != 4 || parts[0] != agentKeyCommentPrefix {
-		return KeyIndex{}, false
+		return KeyRingIndex{}, false
 	}
 
-	return KeyIndex{
+	return KeyRingIndex{
 		ProxyHost:   parts[1],
 		ClusterName: parts[2],
 		Username:    parts[3],
@@ -420,8 +430,8 @@ func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }
 
-// AsAgentKey converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
-// can be added to a local agent (keyring), nut non-standard keys cannot be added
+// AsAgentKey converts client.KeyRing struct to an agent.AddedKey. Any agent.AddedKey
+// can be added to a local agent (keyring), but non-standard keys cannot be added
 // to an SSH system agent through the ssh agent protocol. Check canAddToSystemAgent
 // before adding this key to an SSH system agent.
 func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
@@ -433,7 +443,7 @@ func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
 	return agent.AddedKey{
 		PrivateKey:       k.PrivateKey.Signer,
 		Certificate:      sshCert,
-		Comment:          teleportAgentKeyComment(k.KeyIndex),
+		Comment:          teleportAgentKeyComment(k.KeyRingIndex),
 		LifetimeSecs:     0,
 		ConfirmBeforeUse: false,
 	}, nil
@@ -462,21 +472,21 @@ func (k *KeyRing) TeleportTLSCertificate() (*x509.Certificate, error) {
 // KubeX509Cert returns the parsed x509 certificate for authentication against
 // a named kubernetes cluster.
 func (k *KeyRing) KubeX509Cert(kubeClusterName string) (*x509.Certificate, error) {
-	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	cred, ok := k.KubeTLSCredentials[kubeClusterName]
 	if !ok {
-		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+		return nil, trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
 	}
-	return tlsca.ParseCertificatePEM(tlsCert)
+	return tlsca.ParseCertificatePEM(cred.Cert)
 }
 
 // KubeTLSCert returns the tls.Certificate for authentication against a named
 // kubernetes cluster.
 func (k *KeyRing) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
-	certPem, ok := k.KubeTLSCerts[kubeClusterName]
+	cred, ok := k.KubeTLSCredentials[kubeClusterName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
+	tlsCert, err := cred.TLSCertificate()
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -485,21 +495,17 @@ func (k *KeyRing) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
 
 // DBTLSCert returns the tls.Certificate for authentication against a named database.
 func (k *KeyRing) DBTLSCert(dbName string) (tls.Certificate, error) {
-	certPem, ok := k.DBTLSCerts[dbName]
+	cred, ok := k.DBTLSCredentials[dbName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for database %q not found", dbName)
 	}
-	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return tlsCert, nil
+	return cred.TLSCertificate()
 }
 
 // DBTLSCertificates returns all parsed x509 database access certificates.
 func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
-	for _, bytes := range k.DBTLSCerts {
-		cert, err := tlsca.ParseCertificatePEM(bytes)
+	for _, cred := range k.DBTLSCredentials {
+		cert, err := tlsca.ParseCertificatePEM(cred.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
