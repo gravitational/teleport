@@ -129,5 +129,7 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 		}
 	}
 
+	// TODO: If part of status is set, ensure we set all relevant fields!
+
 	return nil
 }
