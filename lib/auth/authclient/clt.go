@@ -1267,8 +1267,16 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
+
+	// PublicKey is a public key in ssh authorized_keys format.
+	// Soon to be deprecated in favor of SSHPublicKey, TLSPublicKey
+	PublicKey []byte `json:"public_key,omitempty"`
+
+	// SSHPublicKey is a public key in ssh authorized_keys format.
+	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
+	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+	TLSPublicKey []byte `json:"tls_public_key,omitempty"`
+
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
@@ -1337,8 +1345,17 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+
 	// AttestationStatement is an attestation statement associated with the given public key.
+	// Soon to be deprecated in favor of SSHAttestationStatement, TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1346,8 +1363,20 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
+	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 && len(a.PublicKey) == 0 {
+		return trace.BadParameter("missing parameter: at least one of 'ssh_public_key', 'tls_public_key', 'public_key' must be set")
+	}
+	if len(a.PublicKey) != 0 && len(a.SSHPublicKey) != 0 {
+		return trace.BadParameter("both 'public_key' and 'ssh_public_key' are set")
+	}
+	if len(a.PublicKey) != 0 && len(a.TLSPublicKey) != 0 {
+		return trace.BadParameter("both 'public_key' and 'tls_public_key' are set")
+	}
+	if a.AttestationStatement != nil && a.SSHAttestationStatement != nil {
+		return trace.BadParameter("both 'attestation_statement' and 'ssh_attestation_statement' are set")
+	}
+	if a.AttestationStatement != nil && a.TLSAttestationStatement != nil {
+		return trace.BadParameter("both 'attestation_statement' and 'tls_attestation_statement' are set")
 	}
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
@@ -1768,7 +1797,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 
 	// If the auth server is v16+, the client does not need to provide a pre-created app session.
 	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
 		return "", nil
 	}
 

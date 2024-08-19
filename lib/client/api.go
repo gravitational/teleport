@@ -3724,7 +3724,10 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	keyRing.ProxyHost = tc.WebProxyHost()
 
 	if tc.KubernetesCluster != "" {
-		keyRing.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+		keyRing.KubeTLSCredentials[tc.KubernetesCluster] = TLSCredential{
+			Cert:       response.TLSCert,
+			PrivateKey: priv,
+		}
 	}
 	if tc.DatabaseService != "" {
 		keyRing.DBTLSCredentials[tc.DatabaseService] = TLSCredential{
@@ -4167,7 +4170,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// Verify server->client and client->server compatibility.
 	if tc.CheckVersions {
-		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
+		if !utils.MeetsMinVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
 WARNING
 Detected potentially incompatible client and server versions.
@@ -4179,9 +4182,25 @@ Future versions of tsh will fail when incompatible versions are detected.
 				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 
+		if !utils.MeetsMaxVersion(teleport.Version, pr.ServerVersion) {
+			serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(pr.ServerVersion)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			fmt.Fprintf(tc.Stderr, `
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is %v but you are using %v.
+Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+				serverVersionWithWildcards, teleport.Version, serverVersionWithWildcards)
+		}
+
 		// Recent `tsh mfa` changes require at least Teleport v15.
 		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
-		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
+		if !utils.MeetsMinVersion(pr.ServerVersion, minServerVersion) {
 			fmt.Fprintf(tc.Stderr, `
 WARNING
 Detected incompatible client and server versions.

@@ -34,7 +34,7 @@ import (
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
 	secretsreporter "github.com/gravitational/teleport/lib/secretsscanner/reporter"
-	secretsscanner "github.com/gravitational/teleport/lib/secretsscanner/scaner"
+	secretsscanner "github.com/gravitational/teleport/lib/secretsscanner/scanner"
 )
 
 type scanCommand struct {

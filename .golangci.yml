@@ -55,6 +55,8 @@ issues:
     - path: provider/provider.go # integrations/terraform
       linters: [staticcheck]
       text: "grpc.WithReturnConnectionError is deprecated"
+    - linters: [govet]
+      text: "non-constant format string in call to github.com/gravitational/trace."
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -194,6 +196,6 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.22'
+  go: '1.23'
   build-tags: []
   timeout: 15m

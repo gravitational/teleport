@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -43,14 +44,17 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -675,7 +679,7 @@ proxy_service:
 	}
 
 	for _, tt := range tests {
-		comment := fmt.Sprintf(tt.desc)
+		comment := tt.desc
 
 		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
@@ -4927,4 +4931,69 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.Equal(t, testCase.expectedGCPMatchers, cfg.Discovery.GCPMatchers)
 		})
 	}
+}
+
+// TestProxyUntrustedCert tests that configuring a Proxy Service with an HTTPS
+// cert signed by an untrusted cert authority is an error, and returns a helpful
+// error message.
+func TestProxyUntrustedCert(t *testing.T) {
+	t.Parallel()
+
+	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	// Generate a CA for the test that will not be trusted.
+	caCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		caPriv,
+		pkix.Name{
+			CommonName:   "CA",
+			Organization: []string{"teleport"},
+		}, nil, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromCertAndSigner(caCert, caPriv)
+	require.NoError(t, err)
+
+	// Generate a leaf cert signed by the untrusted CA.
+	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: leafPriv.Public(),
+		Subject:   pkix.Name{CommonName: "leaf"},
+		NotAfter:  time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	leafPrivPem, err := keys.MarshalPrivateKey(leafPriv)
+	require.NoError(t, err)
+
+	certDir := t.TempDir()
+	certPath := filepath.Join(certDir, "leaf.crt")
+	keyPath := filepath.Join(certDir, "leaf.key")
+	err = os.WriteFile(certPath, leafCert, 0600)
+	require.NoError(t, err)
+	err = os.WriteFile(keyPath, leafPrivPem, 0600)
+	require.NoError(t, err)
+
+	fc := &FileConfig{
+		Proxy: Proxy{
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  keyPath,
+					Certificate: certPath,
+				},
+			},
+		},
+	}
+	cfg := &servicecfg.Config{}
+
+	err = applyProxyConfig(fc, cfg)
+	require.Error(t, err)
+	require.ErrorContains(t, err, certPath)
+	require.ErrorContains(t, err, proxyUntrustedTLSCertErrMsg)
+
+	// We can't test that writing the CA cert to file and setting SSL_CERT_FILE
+	// would fix this error, because:
+	// - the system root certs are loaded exactly once and cached
+	// - it only works on linux
 }

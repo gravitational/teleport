@@ -200,13 +200,23 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 		muk.UserHandle = cc.Response.User.ID
 	}
 
+	var exts *wantypes.AuthenticationExtensionsClientOutputs
+	if muk.ReplyWithCredProps {
+		exts = &wantypes.AuthenticationExtensionsClientOutputs{
+			CredProps: &wantypes.CredentialPropertiesOutput{
+				RK: true,
+			},
+		}
+	}
+
 	return &wantypes.CredentialCreationResponse{
 		PublicKeyCredential: wantypes.PublicKeyCredential{
 			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
-			RawID: muk.KeyHandle,
+			RawID:      muk.KeyHandle,
+			Extensions: exts,
 		},
 		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
 			AuthenticatorResponse: wantypes.AuthenticatorResponse{

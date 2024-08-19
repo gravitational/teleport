@@ -126,6 +126,7 @@ type testPack struct {
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
 	databaseObjects         services.DatabaseObjects
+	spiffeFederations       *local.SPIFFEFederationService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -325,6 +326,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.spiffeFederations = spiffeFederationsSvc
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -387,6 +394,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -791,6 +799,7 @@ func TestCompletenessInit(t *testing.T) {
 			AccessMonitoringRules:   p.accessMonitoringRules,
 			CrownJewels:             p.crownJewels,
 			DatabaseObjects:         p.databaseObjects,
+			SPIFFEFederations:       p.spiffeFederations,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -868,6 +877,7 @@ func TestCompletenessReset(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -915,7 +925,7 @@ cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
 BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
 */
 func BenchmarkGetMaxNodes(b *testing.B) {
-	benchGetNodes(b, backend.DefaultRangeLimit)
+	benchGetNodes(b, 1_000_000)
 }
 
 func benchGetNodes(b *testing.B, nodeCount int) {
@@ -923,18 +933,32 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	require.NoError(b, err)
 	defer p.Close()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	createErr := make(chan error, 1)
+
+	go func() {
+		for i := 0; i < nodeCount; i++ {
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			if err != nil {
+				createErr <- err
+				return
+			}
+		}
+	}()
+
+	timeout := time.After(time.Second * 90)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-		_, err := p.presenceS.UpsertNode(ctx, server)
-		require.NoError(b, err)
-
 		select {
 		case event := <-p.eventsC:
 			require.Equal(b, EventProcessed, event.Type)
-		case <-time.After(200 * time.Millisecond):
-			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		case err := <-createErr:
+			b.Fatalf("failed to create node: %v", err)
+		case <-timeout:
+			b.Fatalf("timeout waiting for event, progress=%d", i)
 		}
 	}
 
@@ -1057,6 +1081,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1145,6 +1170,7 @@ func initStrategy(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -3220,6 +3246,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 	}
 
 	for name, cfg := range cases {
