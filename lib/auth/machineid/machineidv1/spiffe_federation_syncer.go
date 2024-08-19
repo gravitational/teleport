@@ -53,13 +53,40 @@ type SPIFFEFederationSyncerConfig struct {
 	Store   spiffeFederationStore
 	Logger  *slog.Logger
 	Clock   clockwork.Clock
+
+	// MinSyncInterval is the minimum interval between syncs. If an upstream trust domain specifies a refresh hint
+	// that is less than this value, this value will be used instead. This allows us to prevent a poorly configured
+	// upstream trust domain from causing excessive load on the local cluster.
+	MinSyncInterval time.Duration
+	// MaxSyncInterval is the maximum interval between syncs. If an upstream trust domain specifies a refresh hint
+	// that is greater than this value, this value will be used instead. This allows us to prevent a poorly configured
+	// upstream trust domain from causing excessive staleness in the local cluster.
+	MaxSyncInterval time.Duration
+	// DefaultSyncInterval is the interval between syncs that will be used if an upstream trust domain does not specify
+	// a refresh hint.
+	DefaultSyncInterval time.Duration
 }
 
 type SPIFFEFederationSyncer struct {
 	cfg SPIFFEFederationSyncerConfig
 }
 
+const (
+	minRefreshInterval     = time.Minute * 1
+	maxRefreshInterval     = time.Hour * 24
+	defaultRefreshInterval = time.Minute * 5
+)
+
 func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederationSyncer, error) {
+	if cfg.MinSyncInterval == 0 {
+		cfg.MinSyncInterval = minRefreshInterval
+	}
+	if cfg.MaxSyncInterval == 0 {
+		cfg.MaxSyncInterval = maxRefreshInterval
+	}
+	if cfg.DefaultSyncInterval == 0 {
+		cfg.DefaultSyncInterval = defaultRefreshInterval
+	}
 	return &SPIFFEFederationSyncer{
 		cfg: cfg,
 	}, nil
@@ -98,10 +125,6 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 	wg.Wait()
 	return nil
 }
-
-const minRefreshInterval = time.Minute * 1
-const maxRefreshInterval = time.Hour * 24
-const defaultRefreshInterval = time.Minute * 5
 
 func (s *SPIFFEFederationSyncer) refreshFederationLoop(
 	ctx context.Context,
@@ -174,7 +197,7 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	if !shouldSyncFederation(ctx, log, s.cfg.Clock, in) {
 		return out, nil
 	}
-	log.DebugContext(ctx, "SPIFFEFederation sync triggered")
+	log.InfoContext(ctx, "SPIFFEFederation sync triggered")
 
 	// Refresh...
 	if out.Status == nil {
@@ -182,6 +205,7 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	}
 
 	var bundle *spiffebundle.Bundle
+	var nextSyncIn time.Duration
 	switch {
 	case in.Spec.BundleSource.HttpsWeb != nil:
 		url := in.Spec.BundleSource.HttpsWeb.BundleEndpointUrl
@@ -195,7 +219,19 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 			return nil, trace.Wrap(err, "fetching bundle using https_web profile")
 		}
 
-		// TODO: Calculate the next sync time
+		// Calculate the duration before we should next sync, applying any sensible upper and lower bounds.
+		nextSyncIn = s.cfg.DefaultSyncInterval
+		if refreshHint, ok := bundle.RefreshHint(); ok {
+			if refreshHint < s.cfg.MinSyncInterval {
+				log.InfoContext(ctx, "Refresh hint is less than MinSyncInterval, using MinSyncInterval", "refresh_hint", refreshHint)
+				nextSyncIn = s.cfg.MinSyncInterval
+			} else if refreshHint > s.cfg.MaxSyncInterval {
+				log.InfoContext(ctx, "Refresh hint is greater than MaxSyncInterval, using MaxSyncInterval", "refresh_hint", refreshHint)
+				nextSyncIn = s.cfg.MaxSyncInterval
+			} else {
+				nextSyncIn = refreshHint
+			}
+		}
 	case in.Spec.BundleSource.Static != nil:
 		log.DebugContext(ctx, "Fetching bundle using spec.bundle_source.static.bundle")
 		bundle, err = spiffebundle.Parse(td, []byte(in.Spec.BundleSource.Static.Bundle))
@@ -213,6 +249,10 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	out.Status.CurrentBundle = string(bundleBytes)
 	out.Status.CurrentBundleSyncedAt = timestamppb.New(s.cfg.Clock.Now())
 	out.Status.CurrentBundleSyncedFrom = in.Spec.BundleSource
+	// For certain sources, we need to set a next sync time.
+	if nextSyncIn > 0 {
+		out.Status.NextSyncAt = timestamppb.New(s.cfg.Clock.Now().Add(nextSyncIn))
+	}
 
 	return out, nil
 }
