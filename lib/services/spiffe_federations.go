@@ -48,6 +48,11 @@ type SPIFFEFederations interface {
 	) (*machineidv1.SPIFFEFederation, error)
 	// DeleteSPIFFEFederation deletes a SPIFFE Federation by name.
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
+	// UpdateSPIFFEFederation updates a SPIFFE Federation. It will not act if the resource is not found
+	// or where the revision does not match.
+	UpdateSPIFFEFederation(
+		ctx context.Context, spiffeFederation *machineidv1.SPIFFEFederation,
+	) (*machineidv1.SPIFFEFederation, error)
 }
 
 // MarshalSPIFFEFederation marshals the SPIFFEFederation object into a JSON byte
