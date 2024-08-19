@@ -1577,9 +1577,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			Pass: &authclient.PassCreds{
 				Password: []byte(pass),
 			},
-			// TODO(nklaassen): support split SSH and TLS keys with device
-			// trust.
-			PublicKey: []byte(sshPubKey),
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL: 1 * time.Hour,
 	})
@@ -1607,7 +1606,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			name:    "device extensions",
 			x509PEM: authResp.TLSCert,
 			opts: &AugmentUserCertificateOpts{
-				SSHAuthorizedKey: authResp.Cert,
+				SSHAuthorizedKey:         authResp.Cert,
+				SSHKeySatisfiedChallenge: true,
 				DeviceExtensions: &DeviceExtensions{
 					DeviceID:     devID,
 					AssetTag:     devTag,
@@ -1742,11 +1742,13 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// authenticate authenticates the specified user, creating a new key pair, a
 	// new pair of certificates, and parsing all relevant responses.
 	authenticate := func(t *testing.T, user, pass string) (tlsRaw, sshRaw []byte, xCert *x509.Certificate, sshCert *ssh.Certificate, identity *tlsca.Identity) {
-		// Avoid using recycled keys here, otherwise the test may flake.
-		privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		require.NoError(t, err, "GenerateKey failed")
-		sPubKey, err := ssh.NewPublicKey(privKey.Public())
-		require.NoError(t, err, "NewPublicKey failed")
+		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, authServer)
+		require.NoError(t, err)
+
+		sshPublicKey, err := ssh.NewPublicKey(sshKey.Public())
+		require.NoError(t, err)
+		tlsPublicKeyPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
 
 		authResp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			AuthenticateUserRequest: authclient.AuthenticateUserRequest{
@@ -1754,9 +1756,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				Pass: &authclient.PassCreds{
 					Password: []byte(pass),
 				},
-				// TODO(nklaassen): support split SSH and TLS keys with device
-				// trust.
-				PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
+				SSHPublicKey: ssh.MarshalAuthorizedKey(sshPublicKey),
+				TLSPublicKey: tlsPublicKeyPEM,
 			},
 			TTL: 1 * time.Hour,
 		})
@@ -1821,7 +1822,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	aaCtx, err := ctxFromAuthorize(aCtx)
 	require.NoError(t, err, "ctxFromAuthorize failed")
 	augResp, err := authServer.AugmentContextUserCertificates(aCtx, aaCtx, &AugmentUserCertificateOpts{
-		SSHAuthorizedKey: sshRaw1,
+		SSHAuthorizedKey:         sshRaw1,
+		SSHKeySatisfiedChallenge: true,
 		DeviceExtensions: &DeviceExtensions{
 			DeviceID:     "device1",
 			AssetTag:     "tag1",
@@ -1850,6 +1852,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			AssetTag:     "devicetag1",
 			CredentialID: "credentialid1",
 		},
+		SSHKeySatisfiedChallenge: true,
 	}
 	optsFromBase := func(_ *testing.T) *AugmentUserCertificateOpts { return baseOpts }
 
@@ -1945,12 +1948,13 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			wantErr:  "x509 user mismatch",
 		},
 		{
-			name:     "x509/SSH public key mismatch",
+			name:     "SSH challenge not satisfied and x509/SSH public key mismatch",
 			x509Cert: xCert1,
 			identity: identity1,
 			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
 				cp := *baseOpts
 				cp.SSHAuthorizedKey = sshRaw11 // should be sshRaw1
+				cp.SSHKeySatisfiedChallenge = false
 				return &cp
 			},
 			wantErr: "public key mismatch",
