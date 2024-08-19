@@ -219,7 +219,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
-		testGroups = append(testGroups, types.TeleportServiceGroup)
+		testGroups = append(testGroups, types.TeleportDropGroup)
 		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, testGroups))
 
 		u, err := user.Lookup(testuser)
@@ -241,7 +241,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 		require.NoError(t, err)
 
-		testGroups = append(testGroups, types.TeleportServiceGroup)
+		testGroups = append(testGroups, types.TeleportDropGroup)
 		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, testGroups))
 
 		u, err := user.Lookup(testuser)
@@ -270,7 +270,7 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportServiceGroup}))
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportDropGroup}))
 
 		group, err := user.LookupGroupId(testGID)
 		require.NoError(t, err)
@@ -295,7 +295,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP})
 		require.NoError(t, err)
 		require.Nil(t, closer)
-		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, nil))
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}))
 
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
@@ -366,7 +366,7 @@ func TestRootHostUsers(t *testing.T) {
 
 		t.Cleanup(cleanupUsersAndGroups(
 			[]string{"teleport-user1", "teleport-user2", "teleport-user3", "teleport-user4"},
-			[]string{types.TeleportServiceGroup}))
+			[]string{types.TeleportDropGroup, types.TeleportKeepGroup}))
 
 		err = users.DeleteAllUsers()
 		require.NoError(t, err)
