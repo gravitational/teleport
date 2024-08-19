@@ -80,8 +80,8 @@ func NewServiceNowApp(ctx context.Context, conf *Config) (*App, error) {
 		return nil, trace.Wrap(err)
 	}
 	serviceNowApp.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
-		Client:              teleClient,
-		PluginType:          string(conf.PluginType),
+		Client:     teleClient,
+		PluginType: string(conf.PluginType),
 		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
 			return &common.Recipient{
 				Name: name,
@@ -120,20 +120,28 @@ func (a *App) run(ctx context.Context) error {
 	if err := a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
 
-	watcherJob, err := watcherjob.NewJob(
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.teleport,
 		watcherjob.Config{
-			Watch: types.Watch{Kinds: []types.WatchKind{
-				{Kind: types.KindAccessRequest},
-				{Kind: types.KindAccessMonitoringRule},
-			}},
+			Watch: types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
