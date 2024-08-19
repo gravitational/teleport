@@ -606,6 +606,8 @@ INTEGRATION_TEST_TIMEOUT ?= 10m
 test-go-integration: FLAGS ?= -race -shuffle on
 test-go-integration: SUBJECT ?= ./tests/integration/...
 test-go-integration:
-	$(CGOFLAG) go test --timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
+	@if [ -n "$(SUBJECT)" ]; then \
+		$(CGOFLAG) go test -timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+			| tee $(TEST_LOG_DIR)/unit.json \
+			| gotestsum --raw-command -- cat; \
+	fi
