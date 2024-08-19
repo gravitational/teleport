@@ -87,6 +87,8 @@ type SPIFFEFederationSyncerConfig struct {
 	// DefaultSyncInterval is the interval between syncs that will be used if an upstream trust domain does not specify
 	// a refresh hint.
 	DefaultSyncInterval time.Duration
+
+	SPIFFEFetchOptions []federation.FetchOption
 }
 
 // SPIFFEFederationSyncer is a syncer that manages the trust bundles of federated clusters.
@@ -370,7 +372,7 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 			"Fetching bundle using https_web profile",
 			"url", url,
 		)
-		bundle, err = federation.FetchBundle(ctx, td, url)
+		bundle, err = federation.FetchBundle(ctx, td, url, s.cfg.SPIFFEFetchOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching bundle using https_web profile")
 		}
@@ -403,11 +405,13 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 		return nil, trace.Wrap(err, "marshalling bundle")
 	}
 	out.Status.CurrentBundle = string(bundleBytes)
-	out.Status.CurrentBundleSyncedAt = timestamppb.New(s.cfg.Clock.Now())
 	out.Status.CurrentBundleSyncedFrom = current.Spec.BundleSource
+
+	syncedAt := s.cfg.Clock.Now().UTC()
+	out.Status.CurrentBundleSyncedAt = timestamppb.New(syncedAt)
 	// For certain sources, we need to set a next sync time.
 	if nextSyncIn > 0 {
-		out.Status.NextSyncAt = timestamppb.New(s.cfg.Clock.Now().Add(nextSyncIn))
+		out.Status.NextSyncAt = timestamppb.New(syncedAt.Add(nextSyncIn))
 	}
 
 	out, err = s.cfg.Store.UpdateSPIFFEFederation(ctx, out)
