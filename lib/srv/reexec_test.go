@@ -230,7 +230,7 @@ func testNetworkingCommand(t *testing.T, login string) {
 	ctx := context.Background()
 	srv := newMockServer(t)
 
-	scx := newExecServerContext(t, srv)
+	scx := newTestServerContext(t, srv, nil)
 	scx.ExecType = teleport.NetworkingSubCommand
 	if login != "" {
 		scx.Identity.Login = login
