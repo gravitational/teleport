@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -44,6 +45,8 @@ type testHostUserBackend struct {
 	userUID map[string]string
 	// userGID: user -> gid
 	userGID map[string]string
+
+	setUserGroupsCalls int
 }
 
 func newTestUserMgmt() *testHostUserBackend {
@@ -66,28 +69,40 @@ func (tm *testHostUserBackend) GetAllUsers() ([]string, error) {
 
 func (tm *testHostUserBackend) Lookup(username string) (*user.User, error) {
 	if _, ok := tm.users[username]; !ok {
-		return nil, nil
+		return nil, user.UnknownUserError(username)
 	}
 	return &user.User{
 		Username: username,
+		Uid:      tm.userUID[username],
+		Gid:      tm.userGID[username],
 	}, nil
 }
 
 func (tm *testHostUserBackend) LookupGroup(groupname string) (*user.Group, error) {
+	gid, ok := tm.groups[groupname]
+	if !ok {
+		return nil, user.UnknownGroupError(groupname)
+	}
 	return &user.Group{
-		Gid:  tm.groups[groupname],
+		Gid:  gid,
 		Name: groupname,
 	}, nil
 }
 
 func (tm *testHostUserBackend) LookupGroupByID(gid string) (*user.Group, error) {
-	return &user.Group{
-		Gid:  tm.groups[gid],
-		Name: gid,
-	}, nil
+	for groupName, groupGid := range tm.groups {
+		if groupGid == gid {
+			return &user.Group{
+				Gid:  gid,
+				Name: groupName,
+			}, nil
+		}
+	}
+	return nil, user.UnknownGroupIdError(gid)
 }
 
 func (tm *testHostUserBackend) SetUserGroups(name string, groups []string) error {
+	tm.setUserGroupsCalls++
 	if _, ok := tm.users[name]; !ok {
 		return trace.NotFound("User %q doesn't exist", name)
 	}
@@ -96,10 +111,12 @@ func (tm *testHostUserBackend) SetUserGroups(name string, groups []string) error
 }
 
 func (tm *testHostUserBackend) UserGIDs(u *user.User) ([]string, error) {
-	ids := make([]string, 0, len(tm.users[u.Username]))
+	ids := make([]string, 0, len(tm.users[u.Username])+1)
 	for _, id := range tm.users[u.Username] {
 		ids = append(ids, tm.groups[id])
 	}
+	// Include primary group.
+	ids = append(ids, u.Gid)
 	return ids, nil
 }
 
@@ -108,15 +125,27 @@ func (tm *testHostUserBackend) CreateGroup(group, gid string) error {
 	if ok {
 		return trace.AlreadyExists("Group %q, already exists", group)
 	}
-	tm.groups[group] = fmt.Sprint(len(tm.groups) + 1)
+	if gid == "" {
+		gid = fmt.Sprint(len(tm.groups) + 1)
+	}
+	tm.groups[group] = gid
 	return nil
 }
 
-func (tm *testHostUserBackend) CreateUser(user string, groups []string, uid, gid string) error {
+func (tm *testHostUserBackend) CreateUser(user string, groups []string, home, uid, gid string) error {
 	_, ok := tm.users[user]
 	if ok {
 		return trace.AlreadyExists("Group %q, already exists", user)
 	}
+
+	if uid == "" {
+		uid = fmt.Sprint(len(tm.users) + 1)
+	}
+	if gid == "" {
+		gid = fmt.Sprint(len(tm.groups) + 1)
+	}
+	// Ensure that the user has a primary group. It's OK if it already exists.
+	_ = tm.CreateGroup(user, gid)
 	tm.users[user] = groups
 	tm.userUID[user] = uid
 	tm.userGID[user] = gid
@@ -130,6 +159,10 @@ func (tm *testHostUserBackend) DeleteUser(user string) error {
 
 func (tm *testHostUserBackend) CreateHomeDirectory(user, uid, gid string) error {
 	return nil
+}
+
+func (tm *testHostUserBackend) GetDefaultHomeDirectory(user string) (string, error) {
+	return "", nil
 }
 
 // RemoveSudoersFile implements HostUsersBackend
@@ -176,36 +209,41 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 		storage: pres,
 	}
 
-	userinfo := &services.HostUsersInfo{
+	userinfo := services.HostUsersInfo{
 		Groups: []string{"hello", "sudo"},
 		Mode:   types.CreateHostUserMode_HOST_USER_MODE_DROP,
 	}
 	// create a user with some groups
 	closer, err := users.UpsertUser("bob", userinfo)
 	require.NoError(t, err)
-	require.NotNil(t, closer, "user closer was nil")
+	// NOTE (eriktate): assert.Nil and assert.NotNil will pass for nil interfaces where nilInterface != nil.
+	// assert.Equal and assert.NotEqual perform the same comparisons we would in non-test code and are safer
+	// for interface types.
+	//
+	// https://glucn.com/posts/2019-05-20-golang-an-interface-holding-a-nil-value-is-not-nil
+	require.NotEqual(t, nil, closer, "user closer was nil")
 
 	// temproary users must always include the teleport-service group
 	require.Equal(t, []string{
 		"hello", "sudo", types.TeleportServiceGroup,
 	}, backend.users["bob"])
 
-	// try creat the same user again
+	// try create the same user again
 	secondCloser, err := users.UpsertUser("bob", userinfo)
 	require.NoError(t, err)
-	require.NotNil(t, secondCloser)
+	require.NotEqual(t, nil, secondCloser)
 
 	// Close will remove the user if the user is in the teleport-system group
 	require.NoError(t, closer.Close())
 	require.NotContains(t, backend.users, "bob")
 
 	backend.CreateGroup("testgroup", "")
-	backend.CreateUser("simon", []string{}, "", "")
+	backend.CreateUser("simon", []string{}, "", "", "")
 
 	// try to create a temporary user for simon
 	closer, err = users.UpsertUser("simon", userinfo)
 	require.NoError(t, err)
-	require.Nil(t, closer)
+	require.NotEqual(t, nil, closer)
 }
 
 func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
@@ -223,12 +261,12 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		backend: backend,
 	}
 
-	closer, err := users.UpsertUser("bob", &services.HostUsersInfo{
+	closer, err := users.UpsertUser("bob", services.HostUsersInfo{
 		Groups: []string{"hello", "sudo"},
 		Mode:   types.CreateHostUserMode_HOST_USER_MODE_DROP,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, closer)
+	require.NotEqual(t, nil, closer)
 
 	require.Empty(t, backend.sudoers)
 	sudoers.WriteSudoers("bob", []string{"validsudoers"})
@@ -246,13 +284,13 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
-		backend.CreateUser("testuser", nil, "", "")
-		_, err := users.UpsertUser("testuser", &services.HostUsersInfo{
+		backend.CreateUser("testuser", nil, "", "", "")
+		_, err := users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
 		require.NoError(t, err)
 		backend.CreateGroup(types.TeleportServiceGroup, "")
-		_, err = users.UpsertUser("testuser", &services.HostUsersInfo{
+		_, err = users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
 		require.NoError(t, err)
@@ -291,9 +329,12 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 			mgmt.CreateGroup(group, "")
 		}
 		if slices.Contains(user.groups, types.TeleportServiceGroup) {
-			users.UpsertUser(user.user, &services.HostUsersInfo{Groups: user.groups})
+			users.UpsertUser(user.user, services.HostUsersInfo{
+				Groups: user.groups,
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+			})
 		} else {
-			mgmt.CreateUser(user.user, user.groups, "", "")
+			mgmt.CreateUser(user.user, user.groups, "", "", "")
 		}
 	}
 	require.NoError(t, users.DeleteAllUsers())
@@ -355,4 +396,90 @@ func TestIsUnknownGroupError(t *testing.T) {
 	} {
 		require.Equal(t, tc.isUnknownGroupError, isUnknownGroupError(tc.err, unknownGroupName))
 	}
+}
+
+func TestUpdateUserGroups(t *testing.T) {
+	t.Parallel()
+
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+	}
+
+	allGroups := []string{"foo", "bar", "baz", "quux"}
+	for _, group := range allGroups {
+		require.NoError(t, backend.CreateGroup(group, ""))
+	}
+
+	userinfo := services.HostUsersInfo{
+		Groups: allGroups[:2],
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+	}
+
+	// Create a user with some groups.
+	closer, err := users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+
+	// Update user with new groups.
+	userinfo.Groups = allGroups[2:]
+
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+
+	// Upsert again with same groups should not call SetUserGroups.
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+}
+
+func Test_DontDropExistingUser(t *testing.T) {
+	t.Parallel()
+
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+	}
+
+	allGroups := []string{"foo", "bar", "baz", "quux"}
+	for _, group := range allGroups {
+		require.NoError(t, backend.CreateGroup(group, ""))
+	}
+
+	userinfo := services.HostUsersInfo{
+		Groups: allGroups[:2],
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+	}
+
+	// Create a user with some groups.
+	closer, err := users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+
+	// Upserting an existing user in INSECURE_DROP mode shouldn't make them ephemeral
+	userinfo.Mode = types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
+	userinfo.Groups = allGroups[2:]
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.NotEqual(t, nil, closer)
+	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, userinfo.Groups, backend.users["alice"])
+	assert.NotContains(t, backend.users["alice"], types.TeleportServiceGroup)
 }
