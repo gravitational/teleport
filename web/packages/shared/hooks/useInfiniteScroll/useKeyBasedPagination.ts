@@ -217,9 +217,10 @@ type KeyBasedPagination<T> = {
    * disregards whether an error occurred previously. This option is intended for
    * explicit user actions. Do not call it from `useInfiniteScroll` to avoid
    * flooding the server with requests.
-   * @param options.clear - If true, works like `force` but also clears
-   * the state. Similarly, do not call it from `useInfiniteScroll` to avoid
-   * flooding the server with requests.
+   * @param options.clear - If true, cancels any pending request and clears
+   * the state (useful for fetching data from the beginning). Similarly to
+   * `force`, do not call it from `useInfiniteScroll` to avoid flooding
+   * the server with requests.
    */
   fetch(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   /** Aborts a pending request and clears the state. **/
