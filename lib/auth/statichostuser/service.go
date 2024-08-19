@@ -34,7 +34,16 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	// Backend is the backend used to store static host users.
 	Backend services.StaticHostUser
-	// TODO(atburke): add cache
+	// Cache is the cache used to store static host users.
+	Cache Cache
+}
+
+// Cache is a subset of the service interface for reading items from the cache.
+type Cache interface {
+	// ListStaticHostUsers lists static host users.
+	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
+	// GetStaticHostUser returns a static host user by name.
+	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
 }
 
 // Service implements the static host user RPC service.
@@ -43,6 +52,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.StaticHostUser
+	cache      Cache
 }
 
 // NewService creates a new static host user gRPC service.
@@ -52,11 +62,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache is required")
 	}
 
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
+		cache:      cfg.Cache,
 	}, nil
 }
 
@@ -73,8 +86,7 @@ func (s *Service) ListStaticHostUsers(ctx context.Context, req *userprovisioning
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(atburke): Switch to using the cache after static host users have been added to the cache.
-	users, nextToken, err := s.backend.ListStaticHostUsers(ctx, int(req.PageSize), req.PageToken)
+	users, nextToken, err := s.cache.ListStaticHostUsers(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,8 +112,7 @@ func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(atburke): Switch to using the cache after static host users have been added to the cache.
-	out, err := s.backend.GetStaticHostUser(ctx, req.Name)
+	out, err := s.cache.GetStaticHostUser(ctx, req.Name)
 	return out, trace.Wrap(err)
 }
 
