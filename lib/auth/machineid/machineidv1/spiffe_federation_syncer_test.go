@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"github.com/google/go-cmp/cmp"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -44,10 +45,6 @@ import (
 	"testing"
 	"time"
 )
-
-func TestSPIFFEFederationSyncer(t *testing.T) {
-	t.Fatalf("Test not implemented")
-}
 
 func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,42 +94,80 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	in := &machineidv1pb.SPIFFEFederation{
-		Kind:    types.KindSPIFFEFederation,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "example.com",
-		},
-		Spec: &machineidv1pb.SPIFFEFederationSpec{
-			BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-				HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
-					BundleEndpointUrl: testSrv.URL,
+	// TODO: Add test for static bundle, change and no change
+
+	t.Run("https-web", func(t *testing.T) {
+		in := &machineidv1pb.SPIFFEFederation{
+			Kind:    types.KindSPIFFEFederation,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "example.com",
+			},
+			Spec: &machineidv1pb.SPIFFEFederationSpec{
+				BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
+					HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+						BundleEndpointUrl: testSrv.URL,
+					},
 				},
 			},
-		},
-	}
-	created, err := store.CreateSPIFFEFederation(ctx, in)
-	require.NoError(t, err)
+		}
+		created, err := store.CreateSPIFFEFederation(ctx, in)
+		require.NoError(t, err)
 
-	// TODO: Add test for static bundle, change and no change
-	// TODO: Add test for already synced recently (e.g sync not necessary)
+		firstSync, err := syncer.syncFederation(ctx, "example.com")
+		require.NoError(t, err)
+		got, err := store.GetSPIFFEFederation(ctx, "example.com")
+		require.NoError(t, err)
+		// Require that the persisted resource equals the resource output by syncFederation
+		require.Empty(t, cmp.Diff(got, firstSync, protocmp.Transform()))
+		// Check that some update as occurred (as indicated by the revision)
+		require.NotEqual(t, created.Metadata.Revision, firstSync.Metadata.Revision)
+		// Check that the expected status fields have been set...
+		require.NotNil(t, firstSync.Status)
+		wantStatus := &machineidv1pb.SPIFFEFederationStatus{
+			CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
+			CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
+			NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
+			CurrentBundle:           string(marshaledBundle),
+		}
+		require.Empty(t, cmp.Diff(firstSync.Status, wantStatus, protocmp.Transform()))
 
-	out, err := syncer.syncFederation(ctx, "example.com")
-	require.NoError(t, err)
+		// Check that syncing again does nothing.
+		secondSync, err := syncer.syncFederation(ctx, "example.com")
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(secondSync, firstSync, protocmp.Transform()))
 
-	got, err := store.GetSPIFFEFederation(ctx, "example.com")
-	require.NoError(t, err)
-	// Require that the persisted resource equals the resource output by syncFederation
-	require.Empty(t, cmp.Diff(out, got, protocmp.Transform()))
-	// Check that some update as occurred (as indicated by the revision)
-	require.NotEqual(t, created.Metadata.Revision, got.Metadata.Revision)
-	// Check that the expected status fields have been set...
-	require.NotNil(t, got.Status)
-	wantStatus := &machineidv1pb.SPIFFEFederationStatus{
-		CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
-		CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
-		NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
-		CurrentBundle:           string(marshaledBundle),
-	}
-	require.Empty(t, cmp.Diff(got.Status, wantStatus, protocmp.Transform()))
+		// Advance the clock and check that the sync is triggered again.
+		clock.Advance(time.Minute * 15)
+		thirdSync, err := syncer.syncFederation(ctx, "example.com")
+		require.NoError(t, err)
+		require.NotEqual(t, firstSync.Metadata.Revision, thirdSync.Metadata.Revision)
+		wantStatus = &machineidv1pb.SPIFFEFederationStatus{
+			CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
+			CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
+			NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
+			CurrentBundle:           string(marshaledBundle),
+		}
+		require.Empty(t, cmp.Diff(thirdSync.Status, wantStatus, protocmp.Transform()))
+
+		// Check that syncing again does nothing.
+		fourthSync, err := syncer.syncFederation(ctx, "example.com")
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(fourthSync, thirdSync, protocmp.Transform()))
+
+		// Check that modifying the bundle source triggers a sync.
+		fourthSync.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = fmt.Sprintf("%s/modified", testSrv.URL)
+		updated, err := store.UpdateSPIFFEFederation(ctx, fourthSync)
+		require.NoError(t, err)
+		fifthSync, err := syncer.syncFederation(ctx, "example.com")
+		require.NoError(t, err)
+		require.NotEqual(t, updated.Metadata.Revision, fifthSync.Metadata.Revision)
+		wantStatus = &machineidv1pb.SPIFFEFederationStatus{
+			CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
+			CurrentBundleSyncedFrom: proto.Clone(updated).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
+			NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
+			CurrentBundle:           string(marshaledBundle),
+		}
+		require.Empty(t, cmp.Diff(fifthSync.Status, wantStatus, protocmp.Transform()))
+	})
 }
