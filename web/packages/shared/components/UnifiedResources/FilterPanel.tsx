@@ -161,7 +161,7 @@ export function FilterPanel({
             `}
             size="small"
           >
-            {<Refresh size={12} />}
+            <Refresh size={12} />
           </ButtonBorder>
         </HoverTooltip>
         {!hideViewModeOptions && (
