@@ -18,6 +18,9 @@ package config
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"errors"
@@ -47,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -4815,7 +4817,7 @@ func TestDiscoveryConfig(t *testing.T) {
 func TestProxyUntrustedCert(t *testing.T) {
 	t.Parallel()
 
-	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	caPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	// Generate a CA for the test that will not be trusted.
@@ -4831,7 +4833,7 @@ func TestProxyUntrustedCert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a leaf cert signed by the untrusted CA.
-	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	leafPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		PublicKey: leafPriv.Public(),
