@@ -123,20 +123,29 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	watcherJob, err := watcherjob.NewJob(
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.teleport,
 		watcherjob.Config{
-			Watch: types.Watch{Kinds: []types.WatchKind{
-				{Kind: types.KindAccessRequest},
-				{Kind: types.KindAccessMonitoringRule},
-			}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
