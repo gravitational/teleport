@@ -2885,7 +2885,7 @@ message AppSessionRequest {
 message AWSSessionMetadata {
   // AWSRoleSessionName is used to specify the username when assuming the AWS
   // IAM role.
-  string AWSRoleSessionName = 1 [(gogoproto.jsontag) = "aws_role_session_name,omitempty"];
+  string aws_role_session_name = 1 [(gogoproto.jsontag) = "aws_role_session_name,omitempty"];
 }
 
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.

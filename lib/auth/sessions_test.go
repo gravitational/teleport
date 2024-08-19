@@ -104,11 +104,20 @@ func Test_guessAWSRoleSessionName(t *testing.T) {
 		{
 			request: NewAppSessionRequest{
 				NewWebSessionRequest: NewWebSessionRequest{
+					User: "a.long.alias.to.the.original.user.raimundo.oliveira@abigcompany.com",
+				},
+				ClusterName: "teleport.abigcompany.com",
+			},
+			expected: "a.long.alias.to.the.original.user.raimundo.oliv-58103f7c0ddc29bd",
+		},
+		{
+			request: NewAppSessionRequest{
+				NewWebSessionRequest: NewWebSessionRequest{
 					User: "raimundo.oliveira@abigcompany.com",
 				},
 				ClusterName: "leaf.teleport.abigcompany.com",
 			},
-			expected: "remote-raimundo.oliveir-8fe1f87e599b043e6a0108338feee3f111e9c1e4",
+			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
 		},
 	} {
 		t.Run(fmt.Sprintf("%s@%s", tt.request.User, tt.request.ClusterName), func(t *testing.T) {

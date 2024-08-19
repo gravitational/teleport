@@ -507,19 +507,19 @@ func TestMaybeHashRoleSessionName(t *testing.T) {
 		},
 		{
 			name:     "role session name not hashed, exactly 64 characters",
-			role:     "Role1234567890123456789012345678901234567890",
-			expected: "Role1234567890123456789012345678901234567890",
+			role:     "Role123456789012345678901234567890123456789012345678901234567890",
+			expected: "Role123456789012345678901234567890123456789012345678901234567890",
 		},
 		{
 			name:     "role session name hashed, longer than 64 characters",
 			role:     "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.com",
-			expected: "remote-raimundo.oliveir-8fe1f87e599b043e6a0108338feee3f111e9c1e4",
+			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := MaybeHashRoleSessionName(tt.role)
 			require.Equal(t, tt.expected, actual)
-			require.LessOrEqual(t, len(actual), MaxRoleSessionName)
+			require.LessOrEqual(t, len(actual), MaxRoleSessionNameLength)
 		})
 	}
 }
