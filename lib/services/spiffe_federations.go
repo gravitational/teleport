@@ -129,7 +129,13 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 		}
 	}
 
-	// TODO: If part of status is set, ensure we set all relevant fields!
+	// Ensure that all key status fields are set if any are set. This is a safeguard against weird inconsistent states
+	// where some fields are set and others are not.
+	anyStatusFieldSet := s.Status != nil && (s.Status.CurrentBundle != "" || s.Status.CurrentBundleSyncedAt != nil || s.Status.CurrentBundleSyncedFrom != nil)
+	allStatusFieldsSet := s.Status != nil && s.Status.CurrentBundle != "" && s.Status.CurrentBundleSyncedAt != nil && s.Status.CurrentBundleSyncedFrom != nil
+	if anyStatusFieldSet && !allStatusFieldsSet {
+		return trace.BadParameter("status: all of ['current_bundle', 'current_bundle_synced_at', 'current_bundle_synced_from'] must be set if any are set")
+	}
 
 	return nil
 }
