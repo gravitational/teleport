@@ -263,6 +263,31 @@ func TestEnrollEKSClusters(t *testing.T) {
 			},
 		},
 		{
+			name:         "private cluster not in cloud is enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name: aws.String("EKS3"),
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: false,
+					},
+					Arn:                  aws.String(clustersBaseArn + "3"),
+					Tags:                 map[string]string{"label3": "value3"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+				},
+			},
+			request: EnrollEKSClustersRequest{
+				Region:       "us-east-1",
+				AgentVersion: "1.2.3",
+			},
+			requestClusterNames: []string{"EKS3"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.NoError(t, response.Results[0].Error)
+			},
+		},
+		{
 			name: "cluster with already present agent is not enrolled",
 			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
 				clt := baseClient(t, clusters)
