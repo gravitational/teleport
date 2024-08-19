@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Alert, Danger, Info, Warning, Success } from './Alert';
+export { Alert, Danger, Info, Warning, Success, Banner } from './Alert';

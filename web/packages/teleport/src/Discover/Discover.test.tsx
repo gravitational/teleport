@@ -262,7 +262,7 @@ test('update flow: renders single component based on resourceSpec', () => {
     kind: ResourceKind.ConnectMyComputer,
     event: null,
     icon: 'laptop',
-    keywords: '',
+    keywords: [],
     hasAccess: true,
   };
 
@@ -287,7 +287,7 @@ test('update flow: agentMeta is prepopulated based on agentMeta', () => {
     kind: ResourceKind.SamlApplication,
     event: null,
     icon: 'application',
-    keywords: '',
+    keywords: [],
     hasAccess: true,
   };
 

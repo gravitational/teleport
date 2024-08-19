@@ -943,9 +943,6 @@ func TestList(t *testing.T) {
 func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Helper()
 
-	currentUser, err := user.Current()
-	require.NoError(t, err)
-
 	sockDir := "test"
 	sockName := "agent.sock"
 
@@ -957,7 +954,7 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	})
 
 	// Start the SSH agent.
-	err = teleAgent.ListenUnixSocket(sockDir, sockName, currentUser)
+	err := teleAgent.ListenUnixSocket(sockDir, sockName, nil)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
@@ -1511,16 +1508,16 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	key, err := client.GenerateRSAKey()
+	keyRing, err := client.GenerateRSAKeyRing()
 	require.NoError(t, err)
-	key.ClusterName = clusterName
+	keyRing.ClusterName = clusterName
 
 	// generate user certs with a RouteToApp. note that unlike certs generated
 	// with `tsh app login`, this is intended to match Machine ID-type certs
 	// which are not usage restricted to apps only; this is required for tsh to
 	// make other auth API calls beyond just accessing the app.
 	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            key.PrivateKey.MarshalSSHPublicKey(),
+		Key:            keyRing.PrivateKey.MarshalSSHPublicKey(),
 		Username:       userName,
 		TTL:            time.Hour,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -1530,17 +1527,17 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	key.Cert = sshCert
-	key.TLSCert = tlsCert
+	keyRing.Cert = sshCert
+	keyRing.TLSCert = tlsCert
 
 	hostCAs, err := authServer.GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "identity")
 	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
 	})
 	require.NoError(t, err)

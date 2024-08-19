@@ -824,19 +824,39 @@ func TestVirtualPathNames(t *testing.T) {
 		{
 			name:   "database",
 			kind:   VirtualPathDatabase,
-			params: VirtualPathDatabaseParams("foo"),
+			params: VirtualPathDatabaseCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_DB_FOO",
 				"TSH_VIRTUAL_PATH_DB",
 			},
 		},
 		{
+			name:   "database key",
+			kind:   VirtualPathKey,
+			params: VirtualPathDatabaseKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_DB_FOO",
+				"TSH_VIRTUAL_PATH_KEY_DB",
+				"TSH_VIRTUAL_PATH_KEY",
+			},
+		},
+		{
 			name:   "app",
-			kind:   VirtualPathApp,
-			params: VirtualPathAppParams("foo"),
+			kind:   VirtualPathAppCert,
+			params: VirtualPathAppCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_APP_FOO",
 				"TSH_VIRTUAL_PATH_APP",
+			},
+		},
+		{
+			name:   "app key",
+			kind:   VirtualPathKey,
+			params: VirtualPathAppKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_APP_FOO",
+				"TSH_VIRTUAL_PATH_KEY_APP",
+				"TSH_VIRTUAL_PATH_KEY",
 			},
 		},
 		{
@@ -1083,7 +1103,7 @@ func TestRootClusterName(t *testing.T) {
 
 	rootCluster := ca.trustedCerts.ClusterName
 	leafCluster := "leaf-cluster"
-	key := ca.makeSignedKey(t, KeyIndex{
+	keyRing := ca.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: leafCluster,
 		Username:    "teleport-user",
@@ -1096,7 +1116,7 @@ func TestRootClusterName(t *testing.T) {
 		{
 			name: "static TLS",
 			modifyCfg: func(c *Config) {
-				tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
+				tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
 				require.NoError(t, err)
 				c.TLS = tlsConfig
 			},
@@ -1104,7 +1124,7 @@ func TestRootClusterName(t *testing.T) {
 			name: "key store",
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 		},
@@ -1131,18 +1151,18 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 	rootCA := newTestAuthority(t)
 
 	rootCluster := rootCA.trustedCerts.ClusterName
-	key := rootCA.makeSignedKey(t, KeyIndex{
+	keyRing := rootCA.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: rootCluster,
 		Username:    "teleport-user",
 	}, false)
 
-	tlsCertPoolNoCA, err := key.clientCertPool()
+	tlsCertPoolNoCA, err := keyRing.clientCertPool()
 	require.NoError(t, err)
-	tlsCertPoolRootCA, err := key.clientCertPool(rootCluster)
+	tlsCertPoolRootCA, err := keyRing.clientCertPool(rootCluster)
 	require.NoError(t, err)
 
-	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{rootCluster})
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -1163,7 +1183,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1172,7 +1192,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{rootCluster},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolRootCA,
@@ -1181,7 +1201,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{"leaf-1", "leaf-2"},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,

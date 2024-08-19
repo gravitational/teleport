@@ -77,95 +77,7 @@ You will create the following resources:
 |`AssumeRole`|IAM policy|Allows the Application Service to assume other roles in order to proxy user requests to AWS.|
 |`TeleportAWSAccess` (for EC2 deployments) |EC2 instance profile|Associates the `TeleportAWSAccess` role with your EC2 instance.|
 
-### Configure a role for Teleport users to request
-
-In this section, you will create a role that Teleport users can request access
-to when making requests to AWS APIs. The Teleport Application Service assumes
-this role when proxying requests:
-
-1. Obtain AWS credentials for the account where you will run the Teleport
-   Application Service and make them available to your terminal shell.
-
-1. Create a trust policy document, which authorizes an entity to assume the role
-   you want to protect access to. To do so, create a file called
-   `ro-access.json` with the following content, replacing <Var
-   name="AWS_ACCESS_ACCOUNT" /> with the ID of the AWS account where you will
-   run the Teleport Application Service:
-
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Principal": {
-           "AWS": "arn:aws:iam::<Var name="AWS_ACCESS_ACCOUNT" />:role/TeleportAWSAccess"
-         },
-         "Action": "sts:AssumeRole"
-       }
-     ]
-   }
-   ```
-
-   In the setup we show in this guide, the Teleport Application Service assumes
-   the `TeleportAWSAccess` role, then uses that role to assume the
-   `ExampleReadOnlyAccess` role. With the trust policy above, AWS authorizes
-   this operation. (We will create the `TeleportAWSAccess` role later in this
-   guide.)
-
-   <Details title="Cross-account access">
-
-   If you are configuring the Application Service to proxy access to IAM roles
-   in another AWS account, we recommend checking the external ID of the AWS
-   account where the Application Service runs. Add the external ID to the trust
-   policy as follows, assigning <Var name="EXTERNAL_ID" /> to the external ID:
-
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Principal": {
-           "AWS": "arn:aws:iam::<Var name="AWS_ACCESS_ACCOUNT" />:role/TeleportAWSAccess"
-         },
-         "Action": "sts:AssumeRole",
-         "Condition": { 
-           "StringEquals": { 
-             "sts:ExternalId": "<Var name="EXTERNAL_ID" />" 
-           } 
-         }
-       }
-     ]
-   }
-   ```
-
-   See the [AWS
-   documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
-   for details on external IDs.
-   </Details>
-
-1. Run the following commands to create the `ExampleReadOnlyAccess` role:
-
-   ```code
-   $ aws iam create-role --role-name "ExampleReadOnlyAccess" \
-   --assume-role-policy-document file://ro-access.json
-   ```
-
-1. Get the ARN of the AWS-managed `ReadOnlyAccess` policy so you can attach it
-   to your role:
-
-   ```code
-   $ ARN=$(aws iam list-policies --output text --query "Policies[?PolicyName=='ReadOnlyAccess'].Arn")
-   ```
-
-1. Attach the `ReadOnlyAccess` policy to the role:
-
-   ```code
-   $ aws iam attach-role-policy --role-name ExampleReadOnlyAccess --policy-arn $ARN
-   ```
-
-### Give the Teleport Application Service permissions to assume other roles
+### Create a role for the Teleport Application Service
 
 In this section, you will create an IAM role that allows the Teleport
 Application Service to assume other IAM roles in order to proxy user traffic to
@@ -243,9 +155,7 @@ AWS APIs.
    </TabItem>
    </Tabs>
 
-1. Create a role for the Teleport Application Service (this is the
-   `TeleportAWSAccess` role we authorized earlier to access the
-   `ExampleReadOnlyAccess` role):
+1. Create a role for the Teleport Application Service:
 
    ```code
    $ aws iam create-role --role-name "TeleportAWSAccess" \
@@ -278,6 +188,93 @@ AWS APIs.
    --policy-document file://teleport-assume-role.json | jq -r '.Policy.Arn')
    $ aws iam attach-role-policy --role-name TeleportAWSAccess \
    --policy-arn ${POLICY_ARN}
+   ```
+
+### Configure a role for Teleport users to request
+
+In this section, you will create a role that Teleport users can request access
+to when making requests to AWS APIs. The Teleport Application Service assumes
+this role when proxying requests:
+
+1. Obtain AWS credentials for the account where you will run the Teleport
+   Application Service and make them available to your terminal shell.
+
+1. Create a trust policy document, which authorizes an entity to assume the role
+   you want to protect access to. To do so, create a file called
+   `ro-access.json` with the following content, replacing <Var
+   name="AWS_ACCESS_ACCOUNT" /> with the ID of the AWS account where you will
+   run the Teleport Application Service:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "arn:aws:iam::<Var name="AWS_ACCESS_ACCOUNT" />:role/TeleportAWSAccess"
+         },
+         "Action": "sts:AssumeRole"
+       }
+     ]
+   }
+   ```
+
+   In the setup we show in this guide, the Teleport Application Service assumes
+   the `TeleportAWSAccess` role, then uses that role to assume the
+   `ExampleReadOnlyAccess` role. With the trust policy above, AWS authorizes
+   this operation.
+
+   <Details title="Cross-account access">
+
+   If you are configuring the Application Service to proxy access to IAM roles
+   in another AWS account, we recommend checking the external ID of the AWS
+   account where the Application Service runs. Add the external ID to the trust
+   policy as follows, assigning <Var name="EXTERNAL_ID" /> to the external ID:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "arn:aws:iam::<Var name="AWS_ACCESS_ACCOUNT" />:role/TeleportAWSAccess"
+         },
+         "Action": "sts:AssumeRole",
+         "Condition": { 
+           "StringEquals": { 
+             "sts:ExternalId": "<Var name="EXTERNAL_ID" />" 
+           } 
+         }
+       }
+     ]
+   }
+   ```
+
+   See the [AWS
+   documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
+   for details on external IDs.
+   </Details>
+
+1. Run the following commands to create the `ExampleReadOnlyAccess` role:
+
+   ```code
+   $ aws iam create-role --role-name "ExampleReadOnlyAccess" \
+   --assume-role-policy-document file://ro-access.json
+   ```
+
+1. Get the ARN of the AWS-managed `ReadOnlyAccess` policy so you can attach it
+   to your role:
+
+   ```code
+   $ ARN=$(aws iam list-policies --output text --query "Policies[?PolicyName=='ReadOnlyAccess'].Arn")
+   ```
+
+1. Attach the `ReadOnlyAccess` policy to the role:
+
+   ```code
+   $ aws iam attach-role-policy --role-name ExampleReadOnlyAccess --policy-arn $ARN
    ```
 
 ### Associate a role with the Teleport Application Service
@@ -798,7 +795,7 @@ user's permitted ARNs based on data from the IdP:
 ```
 
 See the [Teleport Access Controls
-Reference](../../../access-controls/reference.mdx#template-expressions-for-access-to-infrastructure-resources)
+Reference](../../../reference/access-controls/roles.mdx)
 for all of the variables and functions you can use in the `aws_role_arns` field.
 
 ### Register the AWS application dynamically

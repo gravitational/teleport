@@ -414,6 +414,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case IntegrationDeleteEvent:
 		e = &events.IntegrationDelete{}
 
+	case PluginCreateEvent:
+		e = &events.PluginCreate{}
+	case PluginUpdateEvent:
+		e = &events.PluginUpdate{}
+	case PluginDeleteEvent:
+		e = &events.PluginDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

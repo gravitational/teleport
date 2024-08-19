@@ -201,12 +201,12 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		return tls.Certificate{}, trace.Wrap(err, "getting cached root client")
 	}
 
-	key, err := appLogin(ctx, tc, clusterClient, rootClient.AuthClient, appCertParams)
+	keyRing, err := appLogin(ctx, tc, clusterClient, rootClient.AuthClient, appCertParams)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "logging in to app")
 	}
 
-	cert, err := key.AppTLSCert(app.GetName())
+	cert, err := keyRing.AppTLSCert(app.GetName())
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key")
 	}
