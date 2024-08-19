@@ -1,0 +1,39 @@
+import React from 'react';
+
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
+
+import { Button } from 'design/Button';
+
+interface DownloadButtonProps {
+  header: string[];
+  rows: string[][];
+  resultId: string;
+}
+
+const constructCSV = (header: string[], rows: string[][]) => {
+  const csv = [header.join(',')];
+  rows.forEach(row => csv.push(row.join(',')));
+  return csv.join('\n');
+};
+
+export default function DownloadButton({
+  header,
+  rows,
+  resultId,
+}: DownloadButtonProps) {
+  return (
+    <Button
+      size="medium"
+      disabled={!rows.length || !header.length}
+      onClick={() => {
+        saveOnDisk(
+          constructCSV(header, rows),
+          `result-${resultId}.csv`,
+          'text/csv'
+        );
+      }}
+    >
+      Download CSV
+    </Button>
+  );
+}

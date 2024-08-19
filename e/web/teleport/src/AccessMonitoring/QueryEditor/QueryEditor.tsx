@@ -9,10 +9,9 @@ import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
 import { Completion } from '@codemirror/autocomplete';
 import { useLocation } from 'react-router';
-
+import { Button, Flex } from 'design';
 import { useAttemptNext } from 'shared/hooks';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Flex } from 'design';
 import Indicator from 'design/Indicator';
 import { Theme } from 'design/theme/themes/types';
 
@@ -36,7 +35,8 @@ const CustomDialect = SQLDialect.define({
 const Query = styled.div<{ disabled?: boolean }>`
   background: ${p => p.theme.colors.levels.popout};
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  padding: ${p => p.theme.space[2]}px 0 ${p => p.theme.space[3]}px 0;
+  padding: ${p => p.theme.space[3]}px ${p => p.theme.space[2]}px
+    ${p => p.theme.space[3]}px ${p => p.theme.space[2]}px;
   margin-top: -1px;
   border-radius: 7px;
   position: relative;
@@ -56,21 +56,6 @@ const ExecuteContainer = styled.div`
   display: flex;
   align-items: center;
   gap: ${p => p.theme.space[3]}px;
-`;
-
-const ExecuteButton = styled.div<{ disabled?: boolean }>`
-  display: flex;
-  gap: ${p => p.theme.space[3]}px;
-  padding: 6px 12px;
-  font-size: 15px;
-  font-weight: bold;
-  border-radius: 7px;
-  background: ${p => p.theme.colors.buttons.primary.default};
-  color: white;
-  cursor: pointer;
-  user-select: none;
-  opacity: ${p => (p.disabled ? 0.5 : 1)};
-  pointer-events: ${p => (p.disabled ? 'none' : 'auto')};
 `;
 
 const Key = styled.div`
@@ -227,9 +212,9 @@ export function QueryEditor() {
               <Key>⌘</Key>+<Key>Enter</Key>
             </KeyShortcut>
 
-            <ExecuteButton onClick={handleRunQuery} disabled={!queryText}>
+            <Button onClick={handleRunQuery} disabled={!queryText}>
               Run Query
-            </ExecuteButton>
+            </Button>
           </ExecuteContainer>
         </Sidebar>
       </Query>
