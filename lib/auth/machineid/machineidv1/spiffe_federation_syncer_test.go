@@ -17,3 +17,35 @@
  */
 
 package machineidv1
+
+import (
+	"context"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"testing"
+)
+
+func TestSPIFFEFederationSyncer_Run(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	logger := utils.NewSlogLoggerForTests()
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	spiffeFederationStore, err := local.NewSPIFFEFederationService(backend)
+	require.NoError(t, err)
+	eventsSvc := local.NewEventsService(backend)
+
+	syncer, err := NewSPIFFEFederationSyncer(SPIFFEFederationSyncerConfig{
+		Backend:       backend,
+		Store:         spiffeFederationStore,
+		EventsWatcher: eventsSvc,
+		Clock:         clock,
+		Logger:        logger,
+	})
+}
