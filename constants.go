@@ -839,13 +839,10 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for local port forwarding.
-	LocalForwardSubCommand = "forwardv2"
-
-	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for remote port forwarding.
-	RemoteForwardSubCommand = "remoteforward"
+	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
+	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
+	// or x11 forwarding.
+	NetworkingSubCommand = "networking"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
@@ -946,4 +943,11 @@ const (
 	// DebugServiceSocketName represents the Unix domain socket name of the
 	// debug service.
 	DebugServiceSocketName = "debug.sock"
+)
+
+const (
+	// OktaAccessRoleContext is the context used to name Okta Access role created by Okta access list sync
+	OktaAccessRoleContext = "access-okta-acl-role"
+	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
+	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )

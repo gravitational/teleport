@@ -166,7 +166,7 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 			switch v.Type {
 			case "object":
 				fieldType = "object"
-				if v.Properties == nil || len(v.Properties) == 0 {
+				if len(v.Properties) == 0 {
 					break
 				}
 
