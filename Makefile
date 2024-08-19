@@ -885,7 +885,7 @@ endif
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
 test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
-test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot|^BenchmarkGetMaxNodes$$"
+test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
 test-go-bench: | $(TEST_LOG_DIR)
 	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
