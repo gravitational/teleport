@@ -27,13 +27,16 @@ import {
 import { ConfigService } from 'teleterm/services/config';
 import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
 
+import type { Document } from 'teleterm/ui/services/workspacesService';
 import {
   TabContextMenuEventChannel,
   TabContextMenuEventType,
   TabContextMenuOptions,
 } from '../types';
 
-type MainTabContextMenuOptions = Pick<TabContextMenuOptions, 'document'>;
+type MainTabContextMenuOptions = {
+  document: Document;
+};
 
 export function subscribeToTabContextMenuEvent(
   shells: Shell[],
