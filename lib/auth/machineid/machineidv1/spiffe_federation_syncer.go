@@ -145,6 +145,7 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 
 type spiffeFederationState struct {
 	eventsCh chan types.Event
+	stopCh   chan struct{}
 }
 
 // runWhileLocked is the core loop of the syncer that runs on a single auth
@@ -178,6 +179,7 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 
 		states[trustDomain] = spiffeFederationState{
 			eventsCh: make(chan types.Event),
+			stopCh:   make(chan struct{}),
 		}
 
 		wg.Add(1)
@@ -257,9 +259,11 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 		s.cfg.Logger.InfoContext(ctx, "Stopped managing syncing of SPIFFEFederation", "trust_domain", name)
 	}()
 
+	var lastSynced *machineidv1.SPIFFEFederation
 	for {
 		var nextRetry <-chan time.Time
-		lastSynced, err := s.syncFederation(ctx, name)
+		var err error
+		lastSynced, err = s.syncFederation(ctx, name)
 		if err != nil {
 			// TODO: Certain errors should make us stop syncing this federation. E.g NotFound?
 			s.cfg.Logger.ErrorContext(ctx, "Failed to sync federation", "error", err)
@@ -290,7 +294,13 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 				// If we've been deleted, we should stop syncing.
 				return
 			}
-			// Otherwise, let's trigger a sync.
+			// If we've just synced, we can expect a new event for that sync. We can safely ignore it to prevent
+			// an unnecessary sync.
+			if lastSynced != nil {
+				if evt.Resource.GetRevision() == lastSynced.GetMetadata().GetRevision() {
+					continue
+				}
+			}
 			// TODO: Ignore event if Revision for resource is the same as our last successful reconciliation (this is
 			// effectively an "echo" of our last update). It'll be a fail-safe for a reconciliation doom-loop...
 		}
@@ -302,19 +312,20 @@ func shouldSyncFederation(
 	log *slog.Logger,
 	clock clockwork.Clock,
 	in *machineidv1.SPIFFEFederation,
-) bool {
+) string {
 	if in.Status == nil {
 		log.DebugContext(ctx, "No status, will sync")
-		return true
+		return "no_status"
 	}
 	if in.Status.CurrentBundle == "" {
 		log.DebugContext(ctx, "No status.current_bundle, will sync")
-		return true
+		return "no_current_bundle"
 	}
 	if in.Status.CurrentBundleSyncedAt.AsTime().IsZero() {
 		log.DebugContext(ctx, "No status.current_bundle_synced_at, will sync")
-		return true
+		return "no_current_bundle_synced_at"
 	}
+	// Check if we've passed the next sync time.
 	nextSyncAt := in.Status.NextSyncAt.AsTime()
 	now := clock.Now()
 	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
@@ -324,9 +335,17 @@ func shouldSyncFederation(
 			"next_sync_at", nextSyncAt,
 			"now", now,
 		)
-		return true
+		return "next_sync_at_passed"
 	}
-	return false
+	// Check to see if the configured bundle source has changed
+	if in.Status.CurrentBundleSyncedFrom != nil {
+		if !proto.Equal(in.Spec.BundleSource, in.Status.CurrentBundleSyncedFrom) {
+			log.DebugContext(ctx, "status.current_bundle_synced_from has changed, will sync")
+			return "bundle_source_changed"
+		}
+	}
+
+	return ""
 }
 
 func (s *SPIFFEFederationSyncer) syncFederation(
@@ -336,11 +355,16 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	defer func() {
 		tracing.EndSpan(span, err)
 	}()
-	log := s.cfg.Logger.With("trust_domain", name)
+
 	current, err := s.cfg.Store.GetSPIFFEFederation(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get SPIFFE federation")
 	}
+
+	log := s.cfg.Logger.With(
+		"current_revision", current.GetMetadata().GetRevision(),
+		"trust_domain", current.GetMetadata().GetName(),
+	)
 
 	td, err := spiffeid.TrustDomainFromString(current.GetMetadata().GetName())
 	if err != nil {
@@ -349,10 +373,12 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	}
 
 	// Determine - should we refresh...
-	if !shouldSyncFederation(ctx, log, s.cfg.Clock, current) {
-		return out, nil
+	syncReason := shouldSyncFederation(ctx, log, s.cfg.Clock, current)
+	if syncReason == "" {
+		log.DebugContext(ctx, "No need to sync")
+		return current, nil
 	}
-	log.InfoContext(ctx, "SPIFFEFederation sync triggered")
+	log.InfoContext(ctx, "Sync starting", "reason", syncReason)
 
 	// Clone the persisted resource so we can compare to it.
 	out = proto.Clone(current).(*machineidv1.SPIFFEFederation)
@@ -418,6 +444,11 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	if err != nil {
 		return nil, trace.Wrap(err, "persisting updated SPIFFE federation")
 	}
+	log.InfoContext(
+		ctx,
+		"Sync finished",
+		"new_revision", out.Metadata.Revision,
+	)
 
 	return out, nil
 }
