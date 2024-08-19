@@ -67,6 +67,8 @@ type SPIFFEFederationSyncerConfig struct {
 	DefaultSyncInterval time.Duration
 }
 
+// SPIFFEFederationSyncer is a syncer that manages the trust bundles of federated clusters.
+// It runs on a single elected auth server.
 type SPIFFEFederationSyncer struct {
 	cfg SPIFFEFederationSyncerConfig
 }
@@ -77,7 +79,18 @@ const (
 	defaultRefreshInterval = time.Minute * 5
 )
 
+// NewSPIFFEFederationSyncer creates a new SPIFFEFederationSyncer.
 func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederationSyncer, error) {
+	switch {
+	case cfg.Backend == nil:
+		return nil, trace.BadParameter("backend: must be non-nil")
+	case cfg.Store == nil:
+		return nil, trace.BadParameter("store: must be non-nil")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("logger: must be non-nil")
+	case cfg.Clock == nil:
+		return nil, trace.BadParameter("clock: must be non-nil")
+	}
 	if cfg.MinSyncInterval == 0 {
 		cfg.MinSyncInterval = minRefreshInterval
 	}
