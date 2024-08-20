@@ -46,7 +46,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
@@ -1594,7 +1593,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 			UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint(),
 		}
 		if externalAuditStorage.IsUsed() {
-			config.Credentials = awscredentials.NewCredentials(externalAuditStorage.CredentialsProviderSDKV1())
+			config.CredentialsProvider = externalAuditStorage.CredentialsProvider()
 		}
 		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
