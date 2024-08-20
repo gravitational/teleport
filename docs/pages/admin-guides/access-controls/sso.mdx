@@ -209,7 +209,7 @@ $ tsh login --proxy=proxy.example.com --auth=github --bind-addr=localhost:1234 -
 ```
 
 For this to work the hostname or CIDR of the remote machine that will be used for
-the callback will need to be allowed  via`spec.client_redirect_settings`:
+the callback will need to be allowed via your auth connector's `client_redirect_settings`:
 
 ```code
 kind: oidc
