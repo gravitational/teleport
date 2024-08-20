@@ -100,6 +100,10 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *servicecfg.GCPKMSConfig, opts *
 	}, nil
 }
 
+func (a *gcpKMSKeyStore) name() string {
+	return storeGCP
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (g *gcpKMSKeyStore) keyTypeDescription() string {

@@ -44,6 +44,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -183,6 +184,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
 		{Kind: types.KindAccessGraphSettings},
+		{Kind: types.KindSPIFFEFederation},
+		{Kind: types.KindStaticHostUser},
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindClusterAutoUpdateConfig},
 	}
@@ -298,6 +301,7 @@ func ForNode(cfg Config) Config {
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindStaticHostUser},
 	}
 
 	cfg.QueueSize = defaults.NodeQueueSize
@@ -525,6 +529,8 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	spiffeFederationCache        spiffeFederationCacher
+	staticHostUsersCache         *local.StaticHostUserService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -699,6 +705,10 @@ type Config struct {
 	Notifications services.Notifications
 	// AccessMonitoringRules is the access monitoring rules service.
 	AccessMonitoringRules services.AccessMonitoringRules
+	// SPIFFEFederations is the SPIFFE federations service.
+	SPIFFEFederations SPIFFEFederationReader
+	// StaticHostUsers is the static host user service.
+	StaticHostUsers services.StaticHostUser
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -940,6 +950,18 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	spiffeFederationCache, err := local.NewSPIFFEFederationService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -981,6 +1003,8 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
+		spiffeFederationCache:        spiffeFederationCache,
+		staticHostUsersCache:         staticHostUserCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -2344,6 +2368,32 @@ func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewait
 	}
 	defer rg.Release()
 	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
+}
+
+// ListStaticHostUsers lists static host users.
+func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListStaticHostUsers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.staticHostUsers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListStaticHostUsers(ctx, pageSize, pageToken)
+}
+
+// GetStaticHostUser returns a static host user by name.
+func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticHostUser")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.staticHostUsers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetStaticHostUser(ctx, name)
 }
 
 // GetApplicationServers returns all registered application servers.

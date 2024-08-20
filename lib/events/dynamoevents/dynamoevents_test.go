@@ -597,7 +597,7 @@ func TestCustomEndpoint(t *testing.T) {
 	t.Setenv("AWS_SECRET_KEY", "alpaca")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 	srv := httptest.NewServer(mux)
@@ -610,5 +610,5 @@ func TestCustomEndpoint(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.Nil(t, b)
-	require.Contains(t, err.Error(), fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+	require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
 }

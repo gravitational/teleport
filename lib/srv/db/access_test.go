@@ -230,6 +230,35 @@ func TestAccessPostgres(t *testing.T) {
 			dbUser:        "alice",
 			err:           "access to db denied",
 		},
+		{
+			desc:         "empty username is not allowed",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{types.Wildcard},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "postgres",
+			dbUser:       "",
+			err:          "user name must not be empty",
+		},
+		{
+			desc:         "empty DB name is set to allowed user name",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"postgres"},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "",
+			dbUser:       "postgres",
+		},
+		{
+			desc:         "empty DB name is set to disallowed user name",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"non-existent"},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "",
+			dbUser:       "postgres",
+			err:          "access to db denied",
+		},
 	}
 
 	for _, test := range tests {
@@ -2619,7 +2648,7 @@ func TestAccessClickHouse(t *testing.T) {
 	for _, test := range tests {
 		for _, protocol := range []string{defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP} {
 			t.Run(protocol, func(t *testing.T) {
-				t.Run(fmt.Sprintf(test.desc), func(t *testing.T) {
+				t.Run(test.desc, func(t *testing.T) {
 					// Create user/role with the requested permissions.
 					testCtx.createUserAndRole(ctx, t, aliceUser, adminRole, test.allowDbUsers, []string{types.Wildcard})
 

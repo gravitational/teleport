@@ -36,6 +36,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -229,6 +230,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
+		case types.KindSPIFFEFederation:
+			parser = newSPIFFEFederationParser()
+		case types.KindStaticHostUser:
+			parser = newStaticHostUserParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2270,6 +2275,35 @@ func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newStaticHostUserParser() *staticHostUserParser {
+	return &staticHostUserParser{
+		baseParser: newBaseParser(backend.Key(staticHostUserPrefix)),
+	}
+}
+
+type staticHostUserParser struct {
+	baseParser
+}
+
+func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindStaticHostUser, types.V1, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
 	name, err := base(event.Item.Key, offset)
 	if err != nil {
@@ -2534,6 +2568,34 @@ func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, 
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(settings), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSPIFFEFederationParser() *spiffeFederationParser {
+	return &spiffeFederationParser{
+		baseParser: newBaseParser(backend.Key(spiffeFederationPrefix)),
+	}
+}
+
+type spiffeFederationParser struct {
+	baseParser
+}
+
+func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
+	case types.OpPut:
+		federation, err := services.UnmarshalSPIFFEFederation(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(federation), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

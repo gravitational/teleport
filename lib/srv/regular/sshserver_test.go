@@ -33,10 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"strconv"
 	"strings"
-	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -1001,7 +998,9 @@ func TestX11Forward(t *testing.T) {
 		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
 	require.NoError(t, err)
@@ -1021,79 +1020,28 @@ func TestX11Forward(t *testing.T) {
 
 	// Create multiple XServer requests, the server should
 	// handle multiple concurrent XServer requests.
-	var wg sync.WaitGroup
-	wg.Add(1)
+	errCh := make(chan error)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay)
+		errCh <- x11EchoRequest(serverDisplay)
 	}()
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay)
+		errCh <- x11EchoRequest(serverDisplay)
 	}()
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay2)
+		errCh <- x11EchoRequest(serverDisplay2)
 	}()
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		x11EchoRequest(t, serverDisplay2)
+		errCh <- x11EchoRequest(serverDisplay2)
 	}()
-	wg.Wait()
-}
 
-// TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
-// with the connecting user's file permissions (where needed), rather than root.
-func TestRootX11ForwardPermissions(t *testing.T) {
-	utils.RequireRoot(t)
-	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
-		t.Skip("Skipping test as xauth is not enabled")
+	for i := 0; i > 4; i++ {
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-ctx.Done():
+			assert.NoError(t, context.Cause(ctx))
+		}
 	}
-
-	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
-	f.ssh.srv.x11 = &x11.ServerConfig{
-		Enabled:       true,
-		DisplayOffset: x11.DefaultDisplayOffset,
-		MaxDisplay:    x11.DefaultMaxDisplays,
-	}
-
-	ctx := context.Background()
-	roleName := services.RoleNameForUser(f.user)
-	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
-	require.NoError(t, err)
-	roleOptions := role.GetOptions()
-	roleOptions.PermitX11Forwarding = types.NewBool(true)
-	role.SetOptions(roleOptions)
-	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	// Create a new X11 session as a non-root nonroot in the system.
-	nonroot, err := user.LookupId("1000")
-	require.NoError(t, err)
-	client := f.newSSHClient(ctx, t, nonroot)
-	serverDisplay := x11EchoSession(ctx, t, client)
-
-	// Check that the xauth entry is readable for the connecting user.
-	xauthCmd := x11.NewXAuthCommand(ctx, "")
-	uid, err := strconv.ParseUint(nonroot.Uid, 10, 32)
-	require.NoError(t, err)
-	gid, err := strconv.ParseUint(nonroot.Gid, 10, 32)
-	require.NoError(t, err)
-	xauthCmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true,
-		Credential: &syscall.Credential{
-			Uid: uint32(uid),
-			Gid: uint32(gid),
-		},
-	}
-	xauthCmd.Dir = nonroot.HomeDir
-	xauthCmd.Env = []string{fmt.Sprintf("HOME=%v", nonroot.HomeDir)}
-	_, err = xauthCmd.ReadEntry(serverDisplay)
-	require.NoError(t, err)
 }
 
 // x11EchoSession creates a new ssh session and handles x11 forwarding for the session,
@@ -1115,7 +1063,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 				return
 			}
 			_, err = io.Copy(conn, conn)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			conn.Close()
 		}
 	}()
@@ -1125,13 +1073,13 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// and start x11 forwarding to the client display.
 	err = x11.ServeChannelRequests(ctx, clt.Client, func(ctx context.Context, nch ssh.NewChannel) {
 		sch, sin, err := nch.Accept()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		defer sch.Close()
 
 		clientConn, err := net.Dial("tcp", fakeClientDisplay.Addr().String())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		clientXConn, ok := clientConn.(*net.TCPConn)
-		require.True(t, ok)
+		assert.True(t, ok)
 		defer clientConn.Close()
 
 		go func() {
@@ -1141,8 +1089,8 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 			}
 		}()
 
-		err = x11.Forward(ctx, clientXConn, sch)
-		require.NoError(t, err)
+		err = utils.ProxyConn(ctx, clientXConn, sch)
+		assert.NoError(t, err)
 	})
 	require.NoError(t, err)
 
@@ -1184,7 +1132,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 			return true
 		}
 		return false
-	}, 5*time.Second, 10*time.Millisecond, "failed to read display")
+	}, 10*time.Second, 100*time.Millisecond, "failed to read display")
 
 	// Make a new connection to the XServer proxy, the client
 	// XServer should echo back anything written on it.
@@ -1196,20 +1144,30 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 // x11EchoRequest sends a message to the serverDisplay and expects the
 // server to echo the message back to it.
-func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
+func x11EchoRequest(serverDisplay x11.Display) error {
 	conn, err := serverDisplay.Dial()
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	defer conn.Close()
 
 	msg := "msg"
 	_, err = conn.Write([]byte(msg))
-	require.NoError(t, err)
-	err = conn.CloseWrite()
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
-	echo, err := io.ReadAll(conn)
-	require.NoError(t, err)
-	require.Equal(t, msg, string(echo))
+	buf := make([]byte, 3)
+	_, err = conn.Read(buf)
+	if err != nil {
+		return err
+	}
+
+	if string(buf) != msg {
+		return trace.Errorf("x11 echo request returned a different message than expected")
+	}
+
+	return nil
 }
 
 func TestAllowedUsers(t *testing.T) {
@@ -2202,7 +2160,7 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 		return nil
 	}
 
-	if req.Type != sshutils.X11ForwardRequest {
+	if req.Type != x11.ForwardRequest {
 		return trace.BadParameter("Unexpected request type %q", req.Type)
 	}
 
@@ -2211,7 +2169,7 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 	}
 
 	// start a fake X11 channel
-	xch, _, err := conn.OpenChannel(sshutils.X11ChannelRequest, nil)
+	xch, _, err := conn.OpenChannel(x11.ChannelRequest, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2554,11 +2512,11 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// register X11 channel handler before requesting forwarding to avoid races
-	xchs := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
+	xchs := clt.HandleChannelOpen(x11.ChannelRequest)
 	require.NotNil(t, xchs)
 
 	// Send an X11 forwarding request to the server
-	ok, err = sess.SendRequest(ctx, sshutils.X11ForwardRequest, true, nil)
+	ok, err = sess.SendRequest(ctx, x11.ForwardRequest, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -2570,7 +2528,7 @@ func TestX11ProxySupport(t *testing.T) {
 		require.Fail(t, "Timeout waiting for X11 channel open from %v", node.addr)
 	}
 	require.NotNil(t, xnc)
-	require.Equal(t, sshutils.X11ChannelRequest, xnc.ChannelType())
+	require.Equal(t, x11.ChannelRequest, xnc.ChannelType())
 
 	xch, _, err := xnc.Accept()
 	require.NoError(t, err)

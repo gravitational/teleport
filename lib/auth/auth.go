@@ -347,6 +347,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.SPIFFEFederations == nil {
+		cfg.SPIFFEFederations, err = local.NewSPIFFEFederationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -395,6 +401,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.StaticHostUsers == nil {
+		cfg.StaticHostUsers, err = local.NewStaticHostUserService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -434,6 +447,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
+		SPIFFEFederations:         cfg.SPIFFEFederations,
+		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
 	as := Server{
@@ -630,6 +645,8 @@ type Services struct {
 	services.BotInstance
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
+	services.SPIFFEFederations
+	services.StaticHostUser
 	services.AutoUpdateService
 }
 
@@ -2388,9 +2405,15 @@ type DeviceExtensions tlsca.DeviceExtensions
 type AugmentUserCertificateOpts struct {
 	// SSHAuthorizedKey is an SSH certificate, in the authorized key format, to
 	// augment with opts.
-	// The SSH certificate must be issued for the current authenticated user and
-	// must match their TLS certificate.
+	// The SSH certificate must be issued for the current authenticated user,
+	// and either:
+	// - the public key must match their TLS certificate, or
+	// - SSHKeySatisfiedChallenge must be true.
 	SSHAuthorizedKey []byte
+	// SSHKeySatisfiedChallenge will be true if the user has already
+	// proven that they own the private key associated with SSHAuthorizedKey by
+	// satisfying a signature challenge.
+	SSHKeySatisfiedChallenge bool
 	// DeviceExtensions are the device-aware extensions to add to the certificates
 	// being augmented.
 	DeviceExtensions *DeviceExtensions
@@ -2430,6 +2453,7 @@ func (a *Server) AugmentContextUserCertificates(
 		x509Cert:         x509Cert,
 		x509Identity:     &identity,
 		sshAuthorizedKey: opts.SSHAuthorizedKey,
+		sshKeyVerified:   opts.SSHKeySatisfiedChallenge,
 		deviceExtensions: opts.DeviceExtensions,
 	})
 }
@@ -2505,12 +2529,18 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 		return trace.Wrap(err)
 	}
 
+	// We consider this SSH key to be verified because we take it directly from
+	// the web session. The user doesn't need to verify they own it because the
+	// don't: we own it.
+	const sshKeyVerified = true
+
 	// Augment certificates.
 	newCerts, err := a.augmentUserCertificates(ctx, augmentUserCertificatesOpts{
 		checker:          checker,
 		x509Cert:         x509Cert,
 		x509Identity:     x509Identity,
 		sshAuthorizedKey: session.GetPub(),
+		sshKeyVerified:   sshKeyVerified,
 		deviceExtensions: opts.DeviceExtensions,
 	})
 	if err != nil {
@@ -2529,6 +2559,11 @@ type augmentUserCertificatesOpts struct {
 	x509Cert         *x509.Certificate
 	x509Identity     *tlsca.Identity
 	sshAuthorizedKey []byte
+	// sshKeyVerified means that either the user has proven that they control
+	// the private key associated with sshAuthorizedKey (by signing a
+	// challenge), or it comes from a web session where we know that the cluster
+	// controls the key.
+	sshKeyVerified   bool
 	deviceExtensions *DeviceExtensions
 }
 
@@ -2609,8 +2644,8 @@ func (a *Server) augmentUserCertificates(
 			return nil, trace.BadParameter("identity and SSH user mismatch")
 		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(x509Identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
-		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
-			return nil, trace.BadParameter("x509 and SSH public key mismatch")
+		case !opts.sshKeyVerified && !apisshutils.KeysEqual(sshCert.Key, xPubKey):
+			return nil, trace.BadParameter("x509 and SSH public key mismatch and SSH challenge unsatisfied")
 		// Do not reissue if device extensions are already present.
 		case sshCert.Extensions[teleport.CertExtensionDeviceID] != "",
 			sshCert.Extensions[teleport.CertExtensionDeviceAssetTag] != "",
