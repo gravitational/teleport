@@ -200,9 +200,9 @@ export function useCreateDatabase() {
 
     if (overwriteDb) {
       try {
-        await ctx.databaseService.updateDatabase(clusterId, {
-          kind: 'overwrite-update',
-          dbOverwrite: db,
+        await ctx.databaseService.createDatabase(clusterId, {
+          ...db,
+          overwrite: true,
         });
         setCreatedDb(db);
       } catch (err) {
@@ -232,7 +232,6 @@ export function useCreateDatabase() {
     else if (requiresDbUpdate(db)) {
       try {
         await ctx.databaseService.updateDatabase(clusterId, {
-          kind: 'partial-update',
           ...db,
         });
         setCreatedDb(db);

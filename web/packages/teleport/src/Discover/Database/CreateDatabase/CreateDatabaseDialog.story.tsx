@@ -55,7 +55,11 @@ export const AllowSkipOnTimeout = () => (
 export const AllowOverwrite = () => (
   <CreateDatabaseDialog
     {...props}
-    attempt={{ status: 'failed', statusText: dbWithoutDbServerExistsErrorMsg }}
+    attempt={{
+      status: 'failed',
+      statusText: `A database with the name "some-name" ${dbWithoutDbServerExistsErrorMsg}. \
+          You can overwrite it, or use a different name and retry.`,
+    }}
   />
 );
 

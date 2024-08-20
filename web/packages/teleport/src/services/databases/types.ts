@@ -56,12 +56,12 @@ export type DatabasesResponse = {
   totalCount?: number;
 };
 
-export type UpdateDatabaseRequest =
-  | (Omit<Partial<CreateDatabaseRequest>, 'protocol'> & {
-      kind: 'partial-update';
-      caCert?: string;
-    })
-  | { kind: 'overwrite-update'; dbOverwrite: CreateDatabaseRequest };
+export type UpdateDatabaseRequest = Omit<
+  Partial<CreateDatabaseRequest>,
+  'protocol'
+> & {
+  caCert?: string;
+};
 
 export type CreateDatabaseRequest = {
   name: string;
@@ -71,6 +71,7 @@ export type CreateDatabaseRequest = {
   awsRds?: AwsRdsDatabase;
   awsRegion?: Regions;
   awsVpcId?: string;
+  overwrite?: boolean;
 };
 
 export type DatabaseIamPolicyResponse = {

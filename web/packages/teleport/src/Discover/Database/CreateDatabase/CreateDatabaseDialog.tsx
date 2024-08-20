@@ -63,7 +63,10 @@ export function CreateDatabaseDialog({
      * Most likely cause of timeout is when we found a matching db_service
      * but no db_server heartbeats. Most likely cause is because db_service
      * has been stopped but is not removed from teleport yet (there is some
-     * minutes delay on expiry)
+     * minutes delay on expiry).
+     *
+     * We allow the user to proceed to the next step to re-deploy (replace)
+     * the db_service that has been stopped.
      */
     if (attempt.statusText === timeoutErrorMsg) {
       content = <SuccessContent dbName={dbName} onClick={onTimeout} />;
