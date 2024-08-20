@@ -537,8 +537,11 @@ static_resources:
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
               common_tls_context:
+                # configure the certificate that the reverse proxy should present.
                 tls_certificate_sds_secret_configs:
-                  - name: "default" # This can be replaced with the desired SPIFFE ID.
+                  # `name` can be replaced with the desired SPIFFE ID if  multiple
+                  # SVIDs are available.
+                  - name: "default"
                     sds_config:
                       resource_api_version: V3
                       api_config_source:
@@ -552,8 +555,9 @@ static_resources:
                 # from the SDS source.
                 combined_validation_context:
                   default_validation_context:
+                    # You can use match_typed_subject_alt_names to configure
+                    # rules that only allow connections from specific SPIFFE IDs.
                     match_typed_subject_alt_names: []
-                  # obtain the trust bundle from SDS
                   validation_context_sds_secret_config:
                     name: "ALL" # This can also be replaced with the trust domain name
                     sds_config:
@@ -565,6 +569,7 @@ static_resources:
                           envoy_grpc:
                             cluster_name: tbot_agent
   clusters:
+    # my_service is the example service that Envoy will forward traffic to.
     - name: my_service
       type: strict_dns
       load_assignment:
@@ -585,6 +590,8 @@ static_resources:
               - endpoint:
                   address:
                     pipe:
+                      # Configure the path to the socket that `tbot` is
+                      # listening on.
                       path: /opt/machine-id/workload.sock
 ```
 
