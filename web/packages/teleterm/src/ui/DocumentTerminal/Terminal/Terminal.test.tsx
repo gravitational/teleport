@@ -108,10 +108,12 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
   await navigator.clipboard.writeText('--flag=test');
   await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
 
-  expect(openContextMenu).toHaveBeenCalledTimes(1);
-  expect(openContextMenu).toHaveBeenCalledWith(
-    expect.objectContaining({ defaultPrevented: true })
-  );
+  await waitFor(() => {
+    expect(openContextMenu).toHaveBeenCalledTimes(1);
+    expect(openContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPrevented: true })
+    );
+  });
 });
 
 function ConfiguredTerminal(props: {
