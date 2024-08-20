@@ -85,7 +85,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -198,7 +197,7 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
-type proxySettingsGetter interface {
+type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
@@ -261,7 +260,7 @@ type Config struct {
 	ClusterFeatures proto.Features
 
 	// ProxySettings allows fetching the current proxy settings.
-	ProxySettings proxySettingsGetter
+	ProxySettings ProxySettingsGetter
 
 	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
 	// a reverse tunnel agent to establish a connection.
@@ -1475,9 +1474,10 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 	response := &webclient.PingResponse{
-		Proxy:         *proxyConfig,
-		ServerVersion: teleport.Version,
-		ClusterName:   h.auth.clusterName,
+		Proxy:            *proxyConfig,
+		ServerVersion:    teleport.Version,
+		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
@@ -2270,18 +2270,6 @@ func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
 //
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	// samlSessionCookie will not be set for users who are not authenticated with SAML IdP.
-	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
-	if err == nil && samlSessionCookie != nil && samlSessionCookie.Value != "" {
-		// TODO(sshah): Websession is not updated with SAML session details after SAML auth so
-		// it begs to check for a nil value below and then set a session with session ID
-		// retrieved from samlSessionCookie. We can skip this step below once we have a
-		// mechanism to update Websession with SAML session value.
-		if ctx.cfg.Session.GetSAMLSession() == nil {
-			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
-		}
-	}
-
 	clt, err := ctx.GetClient()
 	if err != nil {
 		h.log.
@@ -2300,8 +2288,7 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 		}
 	}
 
-	err = h.logout(r.Context(), w, ctx)
-	if err != nil {
+	if err := h.logout(r.Context(), w, ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2339,8 +2326,6 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 func clearSessionCookies(w http.ResponseWriter) {
 	// Clear Web UI session cookie
 	websession.ClearCookie(w)
-	// Clear SAML IdP session cookie
-	samlidp.ClearCookie(w)
 }
 
 type renewSessionRequest struct {
@@ -3403,23 +3388,25 @@ func (h *Handler) siteNodeConnect(
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
-	keepAliveInterval := req.KeepAliveInterval
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.log.Debugf("Unable to get auth access point: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	keepAliveInterval := apidefaults.KeepAliveInterval()
+	if netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx); err != nil {
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+	} else {
+		dialTimeout = netConfig.GetSSHDialTimeout()
+		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	}
+
 	// Try to use the keep alive interval from the request.
 	// When it's not set or below a second, use the cluster's keep alive interval.
-	if keepAliveInterval < time.Second {
-		authAccessPoint, err := site.CachingAccessPoint()
-		if err != nil {
-			h.log.Debugf("Unable to get auth access point: %v", err)
-			return nil, trace.Wrap(err)
-		}
-
-		netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
-			return nil, trace.Wrap(err)
-		}
-
-		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if req.KeepAliveInterval >= time.Second {
+		keepAliveInterval = req.KeepAliveInterval
 	}
 
 	nw, err := site.NodeWatcher()
@@ -3445,6 +3432,7 @@ func (h *Handler) siteNodeConnect(
 		Tracker:            tracker,
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
+		SSHDialTimeout:     dialTimeout,
 		HostNameResolver: func(serverID string) (string, error) {
 			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
 				return n.GetName() == serverID

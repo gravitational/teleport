@@ -180,6 +180,10 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
 	cfg.SSH.DisableCreateHostUser = true
 
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
+
 	// Apply options
 	for _, fn := range options.ConfigFuncs {
 		fn(cfg)

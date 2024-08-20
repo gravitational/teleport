@@ -18,6 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -1807,6 +1808,13 @@ message ClusterNetworkingConfigSpecV2 {
 
   // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
   bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
+
+  // SSHDialTimeout is a custom dial timeout used when establishing
+  // SSH connections. If not set, the default timeout of 30s will be used.
+  int64 SSHDialTimeout = 13 [
+    (gogoproto.jsontag) = "ssh_dial_timeout,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -3659,6 +3667,14 @@ message WebauthnDevice {
   // If an RPID change does happen, this helps Teleport detect it and react
   // accordingly.
   string credential_rp_id = 8;
+  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-be
+  google.protobuf.BoolValue credential_backup_eligible = 9;
+  // Authenticator Backup State (BS) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-bs
+  google.protobuf.BoolValue credential_backed_up = 10;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.

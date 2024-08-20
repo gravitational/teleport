@@ -116,7 +116,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -487,7 +486,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
-		ProxySettings:                   &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   s.server.Auth(),
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(proxySessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -3054,6 +3057,38 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// make sure the connector we get back is "foo"
 	require.Equal(t, "foo", out.Auth.OIDC.Name)
+}
+
+func TestPingSSHDialTimeout(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	// hit the ping endpoint to get the ssh dial timeout
+	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	var out webclient.PingResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, apidefaults.DefaultIOTimeout, out.Proxy.SSH.DialTimeout)
+
+	// Update the timeout
+	cnc, err := s.server.Auth().GetClusterNetworkingConfig(s.ctx)
+	require.NoError(t, err)
+
+	cnc.SetSSHDialTimeout(time.Minute)
+	cnc, err = s.server.Auth().UpsertClusterNetworkingConfig(s.ctx, cnc)
+	require.NoError(t, err)
+
+	// hit the ping endpoint again to validate that updated values are returned
+	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
+
 }
 
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
@@ -8185,7 +8220,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   client,
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(sessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -8478,22 +8517,6 @@ func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
 	require.NoError(t, waitForOutput(term, "teleport"))
-}
-
-type mockProxySettings struct {
-	mockedGetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
-}
-
-func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
-	if mock.mockedGetProxySettings != nil {
-		return mock.mockedGetProxySettings(ctx)
-	}
-	return &webclient.ProxySettings{}, nil
-}
-
-// GetOpenAIAPIKey returns a dummy OpenAI API key.
-func (mock *mockProxySettings) GetOpenAIAPIKey() string {
-	return "test-key"
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -9329,74 +9352,6 @@ func TestLogout(t *testing.T) {
 	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
-}
-
-// TestSAMlSessionClearedOnLogout tests if SAML IdP session is cleared on logout.
-func TestSAMlSessionClearedOnLogout(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 2)
-
-	const user = "llama"
-	const samlSessionID = "saml_session_id"
-
-	// create logged in session
-	pack := env.proxies[0].authPack(t, user, nil /* roles */)
-
-	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
-	// by the SAML IdP and the code to do that is on teleport.e.
-	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   samlSessionID,
-		Username:    pack.user,
-		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
-	})
-	require.NoError(t, err)
-	// add SAML session session cookie to authenticated client pack.
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	setSAMLCookie := &http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    samlSessionID,
-		MaxAge:   int(time.Second) * 5,
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	}
-	jar.SetCookies(&env.proxies[0].webURL, append(pack.cookies, setSAMLCookie))
-	pack2 := env.proxies[0].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
-
-	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, user, samlSession.GetUser())
-	require.Equal(t, samlSessionID, samlSession.GetSAMLSession().ID)
-
-	// logout from web. The saml session needs to be deleted and the proxy should
-	// respond with SAML session cookie with empty value.
-	resp, err := pack2.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
-	require.NoError(t, err)
-	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
-	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
-}
-
-func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
-	samlCookieString := (&http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-	}).String()
-	for _, cookie := range cookies {
-		if cookie.String() == samlCookieString {
-			return true
-		}
-	}
-	return false
 }
 
 // initGRPCServer creates a gRPC server serving on the provided listener.
