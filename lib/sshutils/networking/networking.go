@@ -182,10 +182,21 @@ func (p *Process) Close() error {
 	p.conn.Close()
 	select {
 	case <-p.done:
-	case <-time.After(time.Second * 3):
-		slog.WarnContext(context.Background(), "Forcibly terminating networking subprocess.")
+		return nil
+	case <-time.After(5 * time.Second):
+		slog.WarnContext(context.Background(), "Killing networking subprocess.")
+
+		// Kill the process and wait for it to successfully terminate.
 		p.killed.Store(true)
 		p.cmd.Process.Kill()
+		select {
+		case <-p.done:
+		case <-time.After(5 * time.Second):
+			// Wait for the kill signal to result in the termination of process, otherwise tests
+			// that create a temporary user may fail to delete the user at the end of the test
+			// while the kill signal is propagating.
+			slog.WarnContext(context.Background(), "Networking subprocess still running after kill signal.")
+		}
 	}
 	return nil
 }
