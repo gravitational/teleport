@@ -384,10 +384,11 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 	}
-	
+
 	expires := tlsCert.NotAfter
 	if params.TTL != 0 && time.Now().Add(params.TTL).Before(expires) {
 		expires = time.Now().Add(params.TTL)
+	}
 
 	return privateKey, &proto.UserCertsRequest{
 		SSHPublicKey:          sshPublicKey,

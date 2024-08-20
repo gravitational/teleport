@@ -819,7 +819,7 @@ func TestGenerateUserCertsWithMinMFAVerification(t *testing.T) {
 	user2, err = srv.Auth().UpdateUser(ctx, user2)
 	require.NoError(t, err)
 
-	user2, err = srv.Auth().UpdateUser(ctx, user3)
+	user3, err = srv.Auth().UpdateUser(ctx, user3)
 	require.NoError(t, err)
 
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
