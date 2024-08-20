@@ -1,4 +1,4 @@
-.version: &version "15.4.12"
+.version: &version "15.4.12-fred.15-test3"
 
 apiVersion: v2
 name: teleport-plugin-email
