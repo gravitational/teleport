@@ -253,9 +253,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 				},
 			},
 			request: EnrollEKSClustersRequest{
-				Region:       "us-east-1",
-				AgentVersion: "1.2.3",
-				IsCloud:      true,
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IsCloud:             true,
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
 			},
 			requestClusterNames: []string{"EKS3"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
@@ -280,8 +282,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 				},
 			},
 			request: EnrollEKSClustersRequest{
-				Region:       "us-east-1",
-				AgentVersion: "1.2.3",
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
 			},
 			requestClusterNames: []string{"EKS3"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
