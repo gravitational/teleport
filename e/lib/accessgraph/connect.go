@@ -52,9 +52,14 @@ func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, getCr
 }
 
 func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	const maxMessageSize = 50 * 1024 * 1024 // 50MB
 	opts = append(opts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize),
+			grpc.MaxCallSendMsgSize(maxMessageSize),
+		),
 	)
 
 	conn, err := grpc.DialContext(ctx, addr, opts...)
