@@ -20,119 +20,125 @@ package local
 
 import (
 	"context"
+
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
+)
+
+const (
+	autoUpdateConfigPrefix         = "autoupdate_config"
+	autoUpdateConfigSingletonName  = "autoupdate-config"
+	autoUpdateVersionPrefix        = "autoupdate_version"
+	autoUpdateVersionSingletonName = "autoupdate-version"
 )
 
 // ClusterAutoUpdateService is responsible for managing autoupdate configuration and version management.
 type ClusterAutoUpdateService struct {
-	backend.Backend
+	config  *generic.ServiceWrapper[*autoupdate.ClusterAutoUpdateConfig]
+	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
 }
 
 // NewClusterAutoUpdateService returns a new AutoUpdateService.
-func NewClusterAutoUpdateService(backend backend.Backend) *ClusterAutoUpdateService {
-	return &ClusterAutoUpdateService{
-		Backend: backend,
+func NewClusterAutoUpdateService(backend backend.Backend) (*ClusterAutoUpdateService, error) {
+	config, err := generic.NewServiceWrapper(
+		backend,
+		types.KindClusterAutoUpdateConfig,
+		autoUpdateConfigPrefix,
+		services.MarshalProtoResource[*autoupdate.ClusterAutoUpdateConfig],
+		services.UnmarshalProtoResource[*autoupdate.ClusterAutoUpdateConfig],
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	version, err := generic.NewServiceWrapper(
+		backend,
+		types.KindAutoUpdateVersion,
+		autoUpdateVersionPrefix,
+		services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
+		services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ClusterAutoUpdateService{
+		config:  config,
+		version: version,
+	}, nil
 }
 
 // UpsertClusterAutoUpdateConfig sets cluster autoupdate configuration.
-func (s *ClusterAutoUpdateService) UpsertClusterAutoUpdateConfig(ctx context.Context, c types.ClusterAutoUpdateConfig) error {
-	rev := c.GetRevision()
-	value, err := services.MarshalClusterAutoUpdateConfig(c)
-	if err != nil {
-		return trace.Wrap(err)
+func (s *ClusterAutoUpdateService) UpsertClusterAutoUpdateConfig(
+	ctx context.Context,
+	c *autoupdate.ClusterAutoUpdateConfig,
+) (*autoupdate.ClusterAutoUpdateConfig, error) {
+	if err := validateClusterAutoUpdateConfig(c); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.Key(clusterAutoupdatePrefix, clusterAutoupdateConfigPrefix),
-		Value:    value,
-		Expires:  c.Expiry(),
-		Revision: rev,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	config, err := s.config.UpsertResource(ctx, c)
+	return config, trace.Wrap(err)
 }
 
 // GetClusterAutoUpdateConfig gets the autoupdate configuration from the backend.
-func (s *ClusterAutoUpdateService) GetClusterAutoUpdateConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAutoUpdateConfig, error) {
-	item, err := s.Get(ctx, backend.Key(clusterAutoupdatePrefix, clusterAutoupdateConfigPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("cluster autoupdate configuration not found")
-		}
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalClusterAutoUpdateConfig(item.Value,
-		services.AddOptions(opts, services.WithRevision(item.Revision))...)
+func (s *ClusterAutoUpdateService) GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
+	config, err := s.config.GetResource(ctx, autoUpdateConfigSingletonName)
+	return config, trace.Wrap(err)
 }
 
 // DeleteClusterAutoUpdateConfig deletes types.ClusterAutoUpdateConfig from the backend.
 func (s *ClusterAutoUpdateService) DeleteClusterAutoUpdateConfig(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterAutoupdatePrefix, clusterAutoupdateConfigPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("cluster autoupdate configuration not found")
-		}
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(s.config.DeleteResource(ctx, autoUpdateConfigSingletonName))
 }
 
 // UpsertAutoUpdateVersion sets cluster autoupdate version resource.
-func (s *ClusterAutoUpdateService) UpsertAutoUpdateVersion(ctx context.Context, c types.AutoUpdateVersion) error {
-	rev := c.GetRevision()
-	value, err := services.MarshalAutoUpdateVersion(c)
-	if err != nil {
-		return trace.Wrap(err)
+func (s *ClusterAutoUpdateService) UpsertAutoUpdateVersion(ctx context.Context, v *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error) {
+	if err := validateAutoUpdateVersion(v); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.Key(clusterAutoupdatePrefix, clusterAutoupdateVersionPrefix),
-		Value:    value,
-		Expires:  c.Expiry(),
-		Revision: rev,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	version, err := s.version.UpsertResource(ctx, v)
+	return version, trace.Wrap(err)
 }
 
 // GetAutoUpdateVersion gets the autoupdate version from the backend.
-func (s *ClusterAutoUpdateService) GetAutoUpdateVersion(ctx context.Context, opts ...services.MarshalOption) (types.AutoUpdateVersion, error) {
-	item, err := s.Get(ctx, backend.Key(clusterAutoupdatePrefix, clusterAutoupdateVersionPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("autoupdate version not found")
-		}
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalAutoUpdateVersion(item.Value,
-		services.AddOptions(opts, services.WithRevision(item.Revision))...)
+func (s *ClusterAutoUpdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+	version, err := s.version.GetResource(ctx, autoUpdateVersionSingletonName)
+	return version, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateVersion deletes types.AutoUpdateVersion from the backend.
 func (s *ClusterAutoUpdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterAutoupdatePrefix, clusterAutoupdateVersionPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("autoupdate version not found")
-		}
-		return trace.Wrap(err)
+	return trace.Wrap(s.config.DeleteResource(ctx, autoUpdateVersionSingletonName))
+}
+
+func validateClusterAutoUpdateConfig(config *autoupdate.ClusterAutoUpdateConfig) error {
+	if config.GetKind() != types.KindClusterAutoUpdateConfig {
+		return trace.BadParameter("kind must be %q", types.KindClusterAutoUpdateConfig)
 	}
+	if config.GetVersion() != types.V1 {
+		return trace.BadParameter("version must be %q", types.V1)
+	}
+	if config.GetMetadata().GetName() != autoUpdateConfigSingletonName {
+		return trace.BadParameter("name must be %q", autoUpdateConfigSingletonName)
+	}
+
 	return nil
 }
 
-const (
-	clusterAutoupdatePrefix        = "cluster_autoupdate"
-	clusterAutoupdateConfigPrefix  = "config"
-	clusterAutoupdateVersionPrefix = "version"
-)
+func validateAutoUpdateVersion(config *autoupdate.AutoUpdateVersion) error {
+	if config.GetKind() != types.KindAutoUpdateVersion {
+		return trace.BadParameter("kind must be %q", types.KindAutoUpdateVersion)
+	}
+	if config.GetVersion() != types.V1 {
+		return trace.BadParameter("version must be %q", types.V1)
+	}
+	if config.GetMetadata().GetName() != autoUpdateVersionSingletonName {
+		return trace.BadParameter("name must be %q", autoUpdateVersionSingletonName)
+	}
+
+	return nil
+}

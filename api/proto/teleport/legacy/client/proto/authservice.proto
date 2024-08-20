@@ -3514,12 +3514,6 @@ service AuthService {
   // GetClusterMaintenanceConfig gets the current maintenance window config singleton.
   rpc GetClusterMaintenanceConfig(google.protobuf.Empty) returns (types.ClusterMaintenanceConfigV1);
 
-  // GetClusterAutoUpdateConfig gets the current autoupdate config singleton.
-  rpc GetClusterAutoUpdateConfig(google.protobuf.Empty) returns (types.ClusterAutoUpdateConfigV1);
-
-  // GetAutoUpdateVersion gets the current autoupdate version singleton.
-  rpc GetAutoUpdateVersion(google.protobuf.Empty) returns (types.AutoUpdateVersionV1);
-
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
 

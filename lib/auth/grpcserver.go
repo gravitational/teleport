@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupd "github.com/gravitational/teleport/lib/auth/autoupdate/v1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -5049,36 +5051,6 @@ func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *empt
 	return &emptypb.Empty{}, nil
 }
 
-// GetClusterAutoUpdateConfig gets the current autoupdate config singleton.
-func (g *GRPCServer) GetClusterAutoUpdateConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterAutoUpdateConfigV1, error) {
-	config, err := g.AuthServer.GetClusterAutoUpdateConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, ok := config.(*types.ClusterAutoUpdateConfigV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected autoupdate config type %T", config)
-	}
-
-	return rsp, nil
-}
-
-// GetAutoUpdateVersion gets the current autoupdate version singleton.
-func (g *GRPCServer) GetAutoUpdateVersion(ctx context.Context, _ *emptypb.Empty) (*types.AutoUpdateVersionV1, error) {
-	version, err := g.AuthServer.GetAutoUpdateVersion(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, ok := version.(*types.AutoUpdateVersionV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected autoupdate version type %T", version)
-	}
-
-	return rsp, nil
-}
-
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
@@ -5432,6 +5404,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
 	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
+
+	autoUpdateStorage, err := local.NewClusterAutoUpdateService(cfg.AuthServer.bk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	autoUpdateServiceServer := autoupd.NewService(autoUpdateStorage, cfg.Authorizer)
+	autoupdate.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

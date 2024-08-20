@@ -101,7 +101,7 @@ type Config struct {
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
 	WindowsDesktops         services.WindowsDesktops
-	ClusterAutoUpdate       services.ClusterAutoUpdate
+	ClusterAutoUpdate       services.AutoUpdateService
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -166,7 +166,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
 		ClusterConfig:           cfg.ClusterConfig,
-		ClusterAutoUpdate:       cfg.ClusterAutoUpdate,
+		AutoUpdateService:       cfg.ClusterAutoUpdate,
 		CrownJewels:             cfg.CrownJewels,
 		DatabaseObjects:         cfg.DatabaseObjects,
 		DatabaseServices:        cfg.DatabaseServices,

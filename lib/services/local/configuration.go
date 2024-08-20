@@ -817,7 +817,6 @@ func (s *ClusterConfigurationService) DeleteAccessGraphSettings(ctx context.Cont
 
 const (
 	clusterConfigPrefix       = "cluster_configuration"
-	clusterAutoUpdatePrefix   = "cluster_autoupdate"
 	namePrefix                = "name"
 	staticTokensPrefix        = "static_tokens"
 	authPrefix                = "authentication"
@@ -831,6 +830,4 @@ const (
 	installerPrefix           = "installer"
 	maintenancePrefix         = "maintenance"
 	accessGraphSettingsPrefix = "access_graph_settings"
-	autoUpdateConfigPrefix    = "config"
-	autoUpdateVersionPrefix   = "version"
 )

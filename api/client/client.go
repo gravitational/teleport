@@ -65,6 +65,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -882,6 +883,11 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
+}
+
+// AutoUpdateServiceClient returns an unadorned client for the AutoUpdate service.
+func (c *Client) AutoUpdateServiceClient() autoupdate.AutoUpdateServiceClient {
+	return autoupdate.NewAutoUpdateServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -2845,8 +2851,8 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 }
 
 // GetClusterAutoUpdateConfig gets cluster autoupdate configuration.
-func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (types.ClusterAutoUpdateConfig, error) {
-	resp, err := c.grpc.GetClusterAutoUpdateConfig(ctx, &emptypb.Empty{})
+func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
+	resp, err := c.AutoUpdateServiceClient().GetClusterAutoUpdateConfig(ctx, &autoupdate.GetClusterAutoUpdateConfigRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2854,8 +2860,8 @@ func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (types.ClusterA
 }
 
 // GetAutoUpdateVersion gets cluster autoupdate version.
-func (c *Client) GetAutoUpdateVersion(ctx context.Context) (types.AutoUpdateVersion, error) {
-	resp, err := c.grpc.GetAutoUpdateVersion(ctx, &emptypb.Empty{})
+func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx, &autoupdate.GetAutoUpdateVersionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -158,8 +158,8 @@ type InitConfig struct {
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfiguration
 
-	// ClusterAutoUpdate is a services that holds cluster wide configuration.
-	ClusterAutoUpdate services.ClusterAutoUpdate
+	// AutoUpdateService is a service of autoupdate configuration and version.
+	AutoUpdateService services.AutoUpdateService
 
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions

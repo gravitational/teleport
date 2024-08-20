@@ -1459,14 +1459,14 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if !trace.IsNotFound(err) && err != nil {
 		return nil, trace.Wrap(err)
 	} else if !trace.IsNotFound(err) {
-		response.ToolsAutoUpdate = autoUpdateConfig.GetToolsAutoUpdate()
+		response.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetToolsAutoUpdate()
 	}
 
 	autoUpdateVersion, err := h.GetAccessPoint().GetAutoUpdateVersion(r.Context())
 	if !trace.IsNotFound(err) && err != nil {
 		return nil, trace.Wrap(err)
 	} else if !trace.IsNotFound(err) {
-		response.ToolsVersion = autoUpdateVersion.GetToolsVersion()
+		response.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
 	}
 
 	return response, nil
@@ -1494,7 +1494,6 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
-		ToolsVersion:  teleport.Version,
 		ClusterName:   h.auth.clusterName,
 	}
 

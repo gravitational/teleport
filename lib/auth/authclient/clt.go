@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -360,12 +361,12 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 }
 
 // UpsertClusterAutoUpdateConfig sets cluster autoupdate configuration.
-func (c *Client) UpsertClusterAutoUpdateConfig(ctx context.Context, config types.ClusterAutoUpdateConfig) error {
-	return trace.NotImplemented(notImplementedMessage)
+func (c *Client) UpsertClusterAutoUpdateConfig(ctx context.Context, config *autoupdate.ClusterAutoUpdateConfig) (*autoupdate.ClusterAutoUpdateConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // GetClusterAutoUpdateConfig gets the autoupdate configuration from the backend.
-func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAutoUpdateConfig, error) {
+func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
 	config, err := c.APIClient.GetClusterAutoUpdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -379,12 +380,12 @@ func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
 }
 
 // UpsertAutoUpdateVersion sets cluster autoupdate version.
-func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, config types.AutoUpdateVersion) error {
-	return trace.NotImplemented(notImplementedMessage)
+func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, config *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // GetAutoUpdateVersion gets the autoupdate version from the backend.
-func (c *Client) GetAutoUpdateVersion(ctx context.Context, opts ...services.MarshalOption) (types.AutoUpdateVersion, error) {
+func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
 	config, err := c.APIClient.GetAutoUpdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1504,7 +1505,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
-	services.ClusterAutoUpdate
+	services.AutoUpdateService
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1751,6 +1752,9 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
+
+	// AutoUpdateServiceClient returns a AutoUpdate service client.
+	AutoUpdateServiceClient() autoupdate.AutoUpdateServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
