@@ -89,10 +89,11 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 		lastSyncTime = msg.LastSyncTime.AsTime()
 	}
 	return discoveryconfig.Status{
-		State:               discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
-		ErrorMessage:        msg.ErrorMessage,
-		DiscoveredResources: msg.DiscoveredResources,
-		LastSyncTime:        lastSyncTime,
+		State:                     discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
+		ErrorMessage:              msg.ErrorMessage,
+		DiscoveredResources:       msg.DiscoveredResources,
+		LastSyncTime:              lastSyncTime,
+		AWSEC2InstancesDiscovered: msg.AwsEc2ResourcesDiscovered,
 	}
 }
 
@@ -141,9 +142,10 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 	}
 
 	return &discoveryconfigv1.DiscoveryConfigStatus{
-		State:               discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[status.State]),
-		ErrorMessage:        status.ErrorMessage,
-		DiscoveredResources: status.DiscoveredResources,
-		LastSyncTime:        lastSyncTime,
+		State:                     discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[status.State]),
+		ErrorMessage:              status.ErrorMessage,
+		DiscoveredResources:       status.DiscoveredResources,
+		LastSyncTime:              lastSyncTime,
+		AwsEc2ResourcesDiscovered: status.AWSEC2InstancesDiscovered,
 	}
 }

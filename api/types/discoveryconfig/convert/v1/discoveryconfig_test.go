@@ -76,5 +76,11 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 	discoveryConfig.Status.LastSyncTime = now
 	errMsg := "error message"
 	discoveryConfig.Status.ErrorMessage = &errMsg
+	discoveryConfig.Status.AWSEC2InstancesDiscovered = []*discoveryconfigv1.AWSResourcesDiscoveredSummary{{
+		Integration: "my-integration",
+		Found:       3,
+		Enrolled:    2,
+		Failed:      1,
+	}}
 	return discoveryConfig
 }
