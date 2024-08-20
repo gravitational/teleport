@@ -382,7 +382,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 
 	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
 
-	wasAdded, err := maybeAddAccessEntry(ctx, clusterName, principalArn, clt, ownershipTags)
+	wasAdded, err := maybeAddAccessEntry(ctx, log, clusterName, principalArn, clt, ownershipTags)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -464,7 +464,7 @@ func getAccessEntryPrincipalArn(ctx context.Context, identityGetter IdentityGett
 
 // maybeAddAccessEntry checks list of access entries for the EKS cluster and adds one for Teleport if it's missing.
 // If access entry was added by this function it will return true as a first value.
-func maybeAddAccessEntry(ctx context.Context, clusterName, roleArn string, clt EnrollEKSCLusterClient, ownershipTags tags.AWSTags) (bool, error) {
+func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, roleArn string, clt EnrollEKSCLusterClient, ownershipTags tags.AWSTags) (bool, error) {
 	entries, err := clt.ListAccessEntries(ctx, &eks.ListAccessEntriesInput{
 		ClusterName: aws.String(clusterName),
 	})
@@ -496,6 +496,11 @@ func maybeAddAccessEntry(ctx context.Context, clusterName, roleArn string, clt E
 		// Instead of failing with an error, the Access Entry is created anyway without tags.
 		// This resource is meant to be deleted right after the teleport agent is installed.
 		createAccessEntryReq.Tags = nil
+
+		log.WarnContext(ctx, "Failed to tag EKS Access Entry, please add eks:TagResource action in IAM Role. Continuing without tags.",
+			"principal", roleArn,
+			"cluster", clusterName,
+		)
 		_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
 	}
 	return err == nil, trace.Wrap(err)
