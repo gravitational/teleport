@@ -32,7 +32,14 @@ system for issuing these certificates.
 
 Teleport also offers other GitHub-related features, such as [GitHub IAM
 integration](https://github.com/gravitational/teleport.e/blob/master/rfd/0021e-github-iam-integration.md)
-and GitHub SSO, where this functionality can integrate nicely.
+and GitHub SSO, where this functionality can integrate nicely. Additionally,
+proxying GitHub SSH through Teleport provides features like per-session MFA,
+audit logging.
+
+Teleport today offers a similar GitHub integration using
+[`cert_extensions`](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/admin-guides/management/guides/ssh-key-extensions.mdx)
+in the role options. This proposed GitHub proxy is considered an upgrade to the
+existing feature and should replace it.
 
 ## Details
 
@@ -128,8 +135,30 @@ On the second day (as the `tsh` session expiress), when Bob tries to `git
 fetch` from the repo, the command prompts to login into Teleport. The command
 proceeds as usual once Teleport login is successful.
 
-If per-session MFA is enabled for Bob, `git` commands also prompt for MFA. The
-`git` command proceeds as usual once MFA challenge is succeeded.
+#### Alice wants to require Bob to use MFA for every `git` command.
+
+Alice, a system administrator, wants to ensure that every single git command
+executed by a Teleport user requires MFA, in case their on-disk Teleport
+certificates are compromised.
+
+Alice can enable per-session MFA in their Teleport role:
+```diff
+kind: role
+metadata:
+  name: github-my-org-access
+spec:
+  allow:
+    logins:
+    - {{external.github_usernames}}
+    node_labels:
+      "github-organization": "my-org"
+  options:
++   require_session_mfa: true
+version: v7
+```
+
+Now, when Bob (a Teleport user) runs `git` commands, the command also prompt
+for MFA. The `git` command proceeds as usual once MFA challenge is succeeded.
 
 #### Bob configures an existing Git repository
 
@@ -145,16 +174,27 @@ If one day Bob needs to revert Teleport settings in the Git repo:
 $ tsh git config --remove
 ```
 
-#### Charlie audits GitHub access
+#### Charlie wants to generate a report on GitHub access
 
-Charlie is an auditor and wants to check who has pushed commits to the GitHub
-organization.
+Charlie is an auditor and wants to generate a report that lists every user that
+has accessed the repos of their organization and their IP addresses on a
+monthly basis.
 
-Even though this can be checked on git commits in GitHub, Teleport also
-provides audit logs on fetch and push commands against GitHub. Charlie has the
-option to search events in Teleport Web UI, export the audit events to another
-system like Fluentd, or generate reports using [Access
-Monitoring](https://goteleport.com/docs/admin-guides/access-controls/access-monitoring).
+Charlie can use SQL queres to search GitHub events using [Access
+Monitoring](https://goteleport.com/docs/admin-guides/access-controls/access-monitoring):
+```sql
+SELECT
+    user,
+    remote_ip,
+    COUNT(*) AS event_count
+FROM
+    github_command,
+WHERE
+    date_format(event_time, '%Y-%m') = '2024-07'
+GROUP BY
+    user,
+    remote_ip
+```
 
 ### Implementation
 
@@ -328,11 +368,11 @@ spec](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-
 #### Recordings and events
 
 Regular SSH recordings for the GitHub proxy server will be disabled. "Git
-Fetch" and "Git Push" events will replace the "Command Executation" events:
+Command" events will replace the "Command Executation" events:
 ```protobuf
 
-// GitFetchCommand is emitted when a user performance a Git fetch command.
-message GitFetchCommand {
+// GitCommand is emitted when a user performance a Git fetch or push command.
+message GitCommand {
     // Metadata is a common event metadata
     Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
     // User is a common user event metadata
@@ -343,32 +383,15 @@ message GitFetchCommand {
     SessionMetadata `protobuf:"bytes,4,opt,name=Session,proto3,embedded=Session" json:""`
     // ServerMetadata is a common server metadata
     ServerMetadata `protobuf:"bytes,5,opt,name=Server,proto3,embedded=Server" json:""`
-    // CommandMetadata is a common command metadata
+    // CommandMetadata is a common command metadata. The command can be used to
+    determine a fetch vs a push.
     CommandMetadata `protobuf:"bytes,6,opt,name=Command,proto3,embedded=Command" json:""`
 
     // Path is the Git repo path, usually <org>/<repo>.
-    string Path = 7 [(gogoproto.jsontag) = "path"];
-}
+    string path = 7 [(gogoproto.jsontag) = "path"];
 
-// GitPushCommand is emitted when a user performance a Git push commancommand.
-message GitPushCommand {
-    // Metadata is a common event metadata
-    Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-    // User is a common user event metadata
-    UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
-    // ConnectionMetadata holds information about the connection
-    ConnectionMetadata `protobuf:"bytes,3,opt,name=Connection,proto3,embedded=Connection" json:""`
-    // SessionMetadata is a common event session metadata
-    SessionMetadata `protobuf:"bytes,4,opt,name=Session,proto3,embedded=Session" json:""`
-    // ServerMetadata is a common server metadata
-    ServerMetadata `protobuf:"bytes,5,opt,name=Server,proto3,embedded=Server" json:""`
-    // CommandMetadata is a common command metadata
-    CommandMetadata `protobuf:"bytes,6,opt,name=Command,proto3,embedded=Command" json:""`
-
-    // Path is the Git repo path, usually <org>/<repo>.
-    string Path = 7 [(gogoproto.jsontag) = "path"];
     // Actions defines details for a Git push.
-    repeated GitCommandAction Actions = 8 [(gogoproto.jsontag) = "commands,omitempty"];
+    repeated GitCommandAction actions = 8 [(gogoproto.jsontag) = "commands,omitempty"];
 }
 
 // GitCommandAction defines details for a Git push.
@@ -383,6 +406,11 @@ message GitCommandAction {
   string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
 }
 ```
+
+Web UI can summarize push details based on `CommandMetadata` and
+`GitCommandAction`.
+
+In addition, a new view `git_command` should be added to Access Monitoring.
 
 #### Other UX considerations
 
