@@ -116,6 +116,8 @@ function samlResponseToAgentMeta(resp: SamlIdpServiceProvider) {
       poolProviderName: resp.metadata.name,
     };
   }
+  samlMeta.samlGeneric.spec.entity_descriptor =
+    samlMeta.samlGeneric.spec.entity_descriptor.trim();
   return samlMeta;
 }
 

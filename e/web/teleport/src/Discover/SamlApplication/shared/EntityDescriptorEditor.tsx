@@ -58,7 +58,9 @@ export function EntityDescriptorEditor({
           readOnly={false}
           bg="levels.deep"
           data={[{ content: spConfig.entityDescriptor }]}
-          onChange={v => setSPConfig({ ...spConfig, entityDescriptor: v })}
+          onChange={v =>
+            setSPConfig({ ...spConfig, entityDescriptor: v.trim() })
+          }
         />
       </Flex>
     </LabelInput>
