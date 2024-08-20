@@ -4405,10 +4405,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		proxySettings := &proxySettings{
-			cfg:          cfg,
-			proxySSHAddr: proxySSHAddr,
-			accessPoint:  accessPoint,
+		proxySettings := &web.ProxySettings{
+			ServiceConfig: cfg,
+			ProxySSHAddr:  proxySSHAddr.String(),
+			AccessPoint:   accessPoint,
 		}
 
 		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
