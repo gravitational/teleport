@@ -114,10 +114,28 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	for _, label := range req.DatabaseAgentMatcherLabels {
 		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
 	}
-	// Add additional default labels.
-	databaseAgentMatcherLabels[types.DiscoveryLabelVPCID] = []string{req.VPCID}
-	databaseAgentMatcherLabels[types.DiscoveryLabelRegion] = []string{req.Region}
-	databaseAgentMatcherLabels[types.DiscoveryLabelAccountID] = []string{req.AccountID}
+
+	// DELETE in 19.0: delete only the outer if block (checking labels == 0).
+	// The outer block is required since older UI's will not
+	// send these values to the backend, but instead send custom labels (the UI
+	// will require at least one label before proceeding).
+	// Newer UI's will not send any labels, but instead send the required
+	// fields for default labels.
+	if len(req.DatabaseAgentMatcherLabels) == 0 {
+		if req.VPCID == "" {
+			return nil, trace.BadParameter("vpc ID is required")
+		}
+		if req.Region == "" {
+			return nil, trace.BadParameter("AWS region is required")
+		}
+		if req.AccountID == "" {
+			return nil, trace.BadParameter("AWS account ID is required")
+		}
+		// Add default labels.
+		databaseAgentMatcherLabels[types.DiscoveryLabelVPCID] = []string{req.VPCID}
+		databaseAgentMatcherLabels[types.DiscoveryLabelRegion] = []string{req.Region}
+		databaseAgentMatcherLabels[types.DiscoveryLabelAccountID] = []string{req.AccountID}
+	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
 	teleportConfigString, err := deployserviceconfig.GenerateTeleportConfigString(
