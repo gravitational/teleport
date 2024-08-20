@@ -153,6 +153,7 @@ func BuildScript(p OneOffScriptParams) (string, error) {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
+	p.TeleportVersion = "v16.1.4"
 
 	out := &bytes.Buffer{}
 	if err := oneOffBashScript.Execute(out, p); err != nil {

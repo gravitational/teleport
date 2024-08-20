@@ -31,6 +31,7 @@ import { Label } from 'teleport/types';
 */
 export function notificationContentFactory({
   subKind,
+  labels,
   ...notification
 }: NotificationType): NotificationContent {
   let notificationContent: NotificationContent;
@@ -56,6 +57,40 @@ export function notificationContentFactory({
         textContent: notification.textContent,
         type: 'warning',
         icon: Icons.Notification,
+      };
+      break;
+    }
+
+    case NotificationSubKind.AWSOIDCIntegrationHasTasksSubKind: {
+      const integration = getLabelValue(labels, 'integration');
+      const textContent = `Integration ${integration} requires attention.`;
+      notificationContent = {
+        kind: 'text',
+        title: notification.title,
+        textContent,
+        type: 'failure',
+        icon: Icons.PlugsConnected,
+      };
+      break;
+    }
+
+    case NotificationSubKind.AWSOIDCAutoDiscoverEC2FailedSubKind: {
+      const error = getLabelValue(labels, 'error');
+      const nextSteps = getLabelValue(labels, 'next-steps');
+      const instanceID = getLabelValue(labels, 'instance-id');
+      const instanceName = getLabelValue(labels, 'instance-name');
+      const region = getLabelValue(labels, 'aws-region');
+      const integration = getLabelValue(labels, 'integration');
+      const invocationURL = getLabelValue(labels, 'invocation-url');
+      const textContent = `region=${region} integration=${integration} id=${instanceID} (${instanceName}) invocation=${invocationURL}
+      error=${error}
+      nextSteps=${nextSteps}`;
+      notificationContent = {
+        kind: 'text',
+        title: notification.title,
+        textContent,
+        type: 'failure',
+        icon: Icons.PlugsConnected,
       };
       break;
     }

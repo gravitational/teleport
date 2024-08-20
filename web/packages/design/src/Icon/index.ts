@@ -155,6 +155,7 @@ export { PaperPlane } from './Icons/PaperPlane';
 export { Password } from './Icons/Password';
 export { Pencil } from './Icons/Pencil';
 export { Planet } from './Icons/Planet';
+export { PlugsConnected } from './Icons/PlugsConnected';
 export { Plus } from './Icons/Plus';
 export { PowerSwitch } from './Icons/PowerSwitch';
 export { Printer } from './Icons/Printer';

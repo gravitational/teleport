@@ -42,11 +42,23 @@ import (
 // SSMInstallerConfig represents configuration for an SSM install
 // script executor.
 type SSMInstallerConfig struct {
-	// Emitter is an events emitter.
-	Emitter apievents.Emitter
+	// ReportSSMInstallationResultFunc is a func that must be called after getting the result of running the Installer script in a single instance.
+	ReportSSMInstallationResultFunc func(context.Context, *SSMInstallationResult) error
 	// Logger is used to log messages.
 	// Optional. A logger is created if one not supplied.
 	Logger *slog.Logger
+}
+
+// SSMInstallationResult contains the result of trying to install teleport
+type SSMInstallationResult struct {
+	// SSMRunEvent is an Audit Event that will be emitted.
+	SSMRunEvent *apievents.SSMRun
+	// Integration is the name of the integration that was used for accessing AWS APIs.
+	// Is empty for Matchers that use ambient credentials.
+	Integration string
+	// InstanceName is the EC2 Instance Name (comes from the Tag "Name").
+	InstanceName string
+	FailureCode  string
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -71,12 +83,15 @@ type SSMRunRequest struct {
 	Region string
 	// AccountID is the AWS account being used to execute the SSM document.
 	AccountID string
+	// IntegrationName is the integration name when using integration credentials.
+	// Empty if using ambient credentials.
+	IntegrationName string
 }
 
 // CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.
 func (c *SSMInstallerConfig) checkAndSetDefaults() error {
-	if c.Emitter == nil {
-		return trace.BadParameter("missing audit event emitter")
+	if c.ReportSSMInstallationResultFunc == nil {
+		return trace.BadParameter("missing report installation result function")
 	}
 
 	if c.Logger == nil {
@@ -98,18 +113,13 @@ func NewSSMInstaller(cfg SSMInstallerConfig) (*SSMInstaller, error) {
 
 // Run executes the SSM document and then blocks until the command has completed.
 func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
-	ids := make([]string, 0, len(req.Instances))
-	for _, inst := range req.Instances {
-		ids = append(ids, inst.InstanceID)
-	}
-
 	params := make(map[string][]*string)
 	for k, v := range req.Params {
 		params[k] = []*string{aws.String(v)}
 	}
 
-	validInstances := ids
-	instancesState, err := si.describeSSMAgentState(ctx, req, ids)
+	validInstances := req.Instances
+	instancesState, err := si.describeSSMAgentState(ctx, req, req.Instances)
 	switch {
 	case trace.IsAccessDenied(err):
 		// describeSSMAgentState uses `ssm:DescribeInstanceInformation` to gather all the instances information.
@@ -124,7 +134,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		return trace.Wrap(err)
 
 	default:
-		if err := si.emitInvalidInstanceEvents(ctx, req, instancesState); err != nil {
+		if err := si.reportInvalidInstances(ctx, req, instancesState); err != nil {
 			si.Logger.ErrorContext(ctx,
 				"Failed to emit invalid instances",
 				"instances", instancesState,
@@ -133,9 +143,14 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		validInstances = instancesState.valid
 	}
 
+	instanceIDs := make([]string, 0, len(validInstances))
+	for _, inst := range validInstances {
+		instanceIDs = append(instanceIDs, inst.InstanceID)
+	}
+
 	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
-		InstanceIds:  aws.StringSlice(validInstances),
+		InstanceIds:  aws.StringSlice(instanceIDs),
 		Parameters:   params,
 	})
 	if err != nil {
@@ -154,7 +169,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		delete(params, ParamSSHDConfigPath)
 		output, err = req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 			DocumentName: aws.String(req.DocumentName),
-			InstanceIds:  aws.StringSlice(validInstances),
+			InstanceIds:  aws.StringSlice(instanceIDs),
 			Parameters:   params,
 		})
 		if err != nil {
@@ -167,52 +182,60 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	for _, inst := range validInstances {
 		inst := inst
 		g.Go(func() error {
-			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, &inst))
+			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, inst))
 		})
 	}
 	return trace.Wrap(g.Wait())
 }
 
-func invalidSSMInstanceEvent(accountID, region, instanceID, status string) apievents.SSMRun {
-	return apievents.SSMRun{
-		Metadata: apievents.Metadata{
-			Type: libevents.SSMRunEvent,
-			Code: libevents.SSMRunFailCode,
+func invalidSSMInstanceResult(req SSMRunRequest, instanceID, instanceName, status, failureCode string) *SSMInstallationResult {
+	return &SSMInstallationResult{
+		SSMRunEvent: &apievents.SSMRun{
+			Metadata: apievents.Metadata{
+				Type: libevents.SSMRunEvent,
+				Code: libevents.SSMRunFailCode,
+			},
+			CommandID:  "no-command",
+			AccountID:  req.AccountID,
+			Region:     req.Region,
+			ExitCode:   -1,
+			InstanceID: instanceID,
+			Status:     status,
 		},
-		CommandID:  "no-command",
-		AccountID:  accountID,
-		Region:     region,
-		ExitCode:   -1,
-		InstanceID: instanceID,
-		Status:     status,
+		Integration:  req.IntegrationName,
+		InstanceName: instanceName,
+		FailureCode:  failureCode,
 	}
 }
 
-func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
+func (si *SSMInstaller) reportInvalidInstances(ctx context.Context, req SSMRunRequest, instancesBySSMState *instancesBySSMState) error {
 	var errs []error
-	for _, instanceID := range instanceIDsState.missing {
-		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
+	for _, instance := range instancesBySSMState.missing {
+		event := invalidSSMInstanceResult(req, instance.InstanceID, instance.Name,
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
+			"ssmMissing",
 		)
-		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
+		if err := si.ReportSSMInstallationResultFunc(ctx, event); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
-	for _, instanceID := range instanceIDsState.connectionLost {
-		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
+	for _, instance := range instancesBySSMState.connectionLost {
+		event := invalidSSMInstanceResult(req, instance.InstanceID, instance.Name,
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
+			"ssmConnectionLost",
 		)
-		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
+		if err := si.ReportSSMInstallationResultFunc(ctx, event); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
-	for _, instanceID := range instanceIDsState.unsupportedOS {
-		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
+	for _, instance := range instancesBySSMState.unsupportedOS {
+		event := invalidSSMInstanceResult(req, instance.InstanceID, instance.Name,
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
+			"unsupportedOS",
 		)
-		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
+		if err := si.ReportSSMInstallationResultFunc(ctx, event); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -220,21 +243,30 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	return errors.Join(errs...)
 }
 
-// instanceIDsSSMState contains a list of EC2 Instance IDs for a given state.
-type instanceIDsSSMState struct {
-	valid          []string
-	missing        []string
-	connectionLost []string
-	unsupportedOS  []string
+// instancesBySSMState contains a map of instanceIDs and their name grouped by SSM State:
+// - valid: agent is online and ready to receive installation commands
+// - missing: agent is either not running or unable to connect to SSM (eg missing IAM Policy)
+// - connectionLost: agent registered a while ago, but it's now missing (instance is rebooting or lost connectivity)
+// - unsupportedOS: ssm agent is running but the host operating system is not supported
+type instancesBySSMState struct {
+	valid          []EC2Instance
+	missing        []EC2Instance
+	connectionLost []EC2Instance
+	unsupportedOS  []EC2Instance
 }
 
 // describeSSMAgentState returns the instanceIDsSSMState for all the instances.
-func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, allInstanceIDs []string) (*instanceIDsSSMState, error) {
-	ret := &instanceIDsSSMState{}
+func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, instances []EC2Instance) (*instancesBySSMState, error) {
+	ret := &instancesBySSMState{}
+
+	ids := make([]string, 0, len(instances))
+	for _, inst := range instances {
+		ids = append(ids, inst.InstanceID)
+	}
 
 	ssmInstancesInfo, err := req.SSM.DescribeInstanceInformationWithContext(ctx, &ssm.DescribeInstanceInformationInput{
 		Filters: []*ssm.InstanceInformationStringFilter{
-			{Key: aws.String(ssm.InstanceInformationFilterKeyInstanceIds), Values: aws.StringSlice(allInstanceIDs)},
+			{Key: aws.String(ssm.InstanceInformationFilterKeyInstanceIds), Values: aws.StringSlice(ids)},
 		},
 		MaxResults: aws.Int64(awsEC2APIChunkSize),
 	})
@@ -248,24 +280,23 @@ func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunReq
 		instanceStateByInstanceID[aws.StringValue(instanceState.InstanceId)] = instanceState
 	}
 
-	for _, instanceID := range allInstanceIDs {
-		instanceState, found := instanceStateByInstanceID[instanceID]
+	for _, instance := range instances {
+		instanceState, found := instanceStateByInstanceID[instance.InstanceID]
 		if !found {
-			ret.missing = append(ret.missing, instanceID)
+			ret.missing = append(ret.missing, instance)
 			continue
 		}
 
 		if aws.StringValue(instanceState.PingStatus) == ssm.PingStatusConnectionLost {
-			ret.connectionLost = append(ret.connectionLost, instanceID)
+			ret.connectionLost = append(ret.connectionLost, instance)
 			continue
 		}
 
 		if aws.StringValue(instanceState.PlatformType) != ssm.PlatformTypeLinux {
-			ret.unsupportedOS = append(ret.unsupportedOS, instanceID)
+			ret.unsupportedOS = append(ret.unsupportedOS, instance)
 			continue
 		}
-
-		ret.valid = append(ret.valid, instanceID)
+		ret.valid = append(ret.valid, instance)
 	}
 
 	return ret, nil
@@ -284,17 +315,17 @@ func skipAWSWaitErr(err error) error {
 	return trace.Wrap(err)
 }
 
-func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
+func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID *string, instance EC2Instance) error {
 	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
-		InstanceId: instanceID,
+		InstanceId: aws.String(instance.InstanceID),
 	})
 
 	if err := skipAWSWaitErr(err); err != nil {
 		return trace.Wrap(err)
 	}
 
-	invocationSteps, err := si.getInvocationSteps(ctx, req, commandID, instanceID)
+	invocationSteps, err := si.getInvocationSteps(ctx, req, commandID, aws.String(instance.InstanceID))
 	switch {
 	case trace.IsAccessDenied(err):
 		// getInvocationSteps uses `ssm:ListCommandInvocations` to gather all the executed steps.
@@ -312,19 +343,19 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	}
 
 	for i, step := range invocationSteps {
-		stepResultEvent, err := si.getCommandStepStatusEvent(ctx, step, req, commandID, instanceID)
+		stepResultEvent, err := si.getCommandStepStatusEvent(ctx, step, req, commandID, aws.String(instance.InstanceID), instance.Name)
 		if err != nil {
 			var invalidPluginNameErr *ssm.InvalidPluginName
 			if errors.As(err, &invalidPluginNameErr) {
 				// If using a custom SSM Document and the client does not have access to ssm:ListCommandInvocations
 				// the list of invocationSteps (ie plugin name) might be wrong.
 				// If that's the case, emit an event with the overall invocation result (ignoring specific steps' stdout and stderr).
-				invocationResultEvent, err := si.getCommandStepStatusEvent(ctx, "" /*no step*/, req, commandID, instanceID)
+				invocationResultEvent, err := si.getCommandStepStatusEvent(ctx, "" /*no step*/, req, commandID, aws.String(instance.InstanceID), instance.Name)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 
-				return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, invocationResultEvent))
+				return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, invocationResultEvent))
 			}
 
 			return trace.Wrap(err)
@@ -332,8 +363,8 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 
 		// Emit an event for the first failed step or for the latest step.
 		lastStep := i+1 == len(invocationSteps)
-		if stepResultEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
-			return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, stepResultEvent))
+		if stepResultEvent.SSMRunEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
+			return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, stepResultEvent))
 		}
 	}
 
@@ -370,7 +401,7 @@ func (si *SSMInstaller) getInvocationSteps(ctx context.Context, req SSMRunReques
 	return documentSteps, nil
 }
 
-func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step string, req SSMRunRequest, commandID, instanceID *string) (*apievents.SSMRun, error) {
+func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step string, req SSMRunRequest, commandID, instanceID *string, instanceName string) (*SSMInstallationResult, error) {
 	getCommandInvocationReq := &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: instanceID,
@@ -402,19 +433,24 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step stri
 		req.Region, aws.StringValue(commandID), aws.StringValue(instanceID),
 	)
 
-	return &apievents.SSMRun{
-		Metadata: apievents.Metadata{
-			Type: libevents.SSMRunEvent,
-			Code: eventCode,
+	return &SSMInstallationResult{
+		SSMRunEvent: &apievents.SSMRun{
+			Metadata: apievents.Metadata{
+				Type: libevents.SSMRunEvent,
+				Code: eventCode,
+			},
+			CommandID:      aws.StringValue(commandID),
+			InstanceID:     aws.StringValue(instanceID),
+			AccountID:      req.AccountID,
+			Region:         req.Region,
+			ExitCode:       exitCode,
+			Status:         status,
+			StandardOutput: aws.StringValue(stepResult.StandardOutputContent),
+			StandardError:  aws.StringValue(stepResult.StandardErrorContent),
+			InvocationURL:  invocationURL,
 		},
-		CommandID:      aws.StringValue(commandID),
-		InstanceID:     aws.StringValue(instanceID),
-		AccountID:      req.AccountID,
-		Region:         req.Region,
-		ExitCode:       exitCode,
-		Status:         status,
-		StandardOutput: aws.StringValue(stepResult.StandardOutputContent),
-		StandardError:  aws.StringValue(stepResult.StandardErrorContent),
-		InvocationURL:  invocationURL,
+		Integration:  req.IntegrationName,
+		InstanceName: instanceName,
+		FailureCode:  "failureCodeUnknownError",
 	}, nil
 }

@@ -20,15 +20,22 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	libevents "github.com/gravitational/teleport/lib/events"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
 
 // updateDiscoveryConfigStatus updates the DiscoveryConfig Status field with the current in-memory status.
@@ -175,4 +182,166 @@ func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existi
 	}
 
 	return existingStatus
+}
+
+// ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
+// It will emit an audit event with the result and update the DiscoveryConfig status
+func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *server.SSMInstallationResult) error {
+	if err := s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only notify user when something fails.
+	if result.SSMRunEvent.Metadata.Code == libevents.SSMRunSuccessCode {
+		return nil
+	}
+
+	region := result.SSMRunEvent.Region
+	instanceID := result.SSMRunEvent.InstanceID
+	resourceKey := ec2DiscoveredKey{
+		region:         region,
+		integration:    result.Integration,
+		enrollMode:     types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+		failureCode:    failureCodeUnknownError,
+		unhandledError: result.SSMRunEvent.Status,
+	}
+	resourceStatus := ec2DiscoveredStatus{
+		instanceName:     result.InstanceName,
+		ssmInvocationURL: result.SSMRunEvent.InvocationURL,
+		instanceID:       instanceID,
+	}
+
+	s.enqueueFailedEnrollment(resourceKey, resourceStatus)
+
+	return nil
+}
+
+// ec2DiscoveredKey uniquely identifies an ec2 instance and an enroll mode.
+type ec2DiscoveredKey struct {
+	region         string
+	integration    string
+	enrollMode     types.InstallParamEnrollMode
+	failureCode    string
+	unhandledError string
+}
+
+// ec2DiscoveredResourceStatus reports the result of auto-enrolling the ec2 instance into the cluster.
+type ec2DiscoveredStatus struct {
+	instanceID       string
+	instanceName     string
+	ssmInvocationURL string
+}
+
+const (
+	failureCodeUnsupportedOS          = "unsupportedOS"
+	failureCodeSSMAgentConnectionLost = "ssmConnectionLost"
+	failureCodeSSMAgentMissing        = "ssmMissing"
+	failureCodeUnknownError           = "unkownError"
+)
+
+var failureCodes = map[string]struct {
+	errorMessage string
+	nextSteps    string
+}{
+	failureCodeUnsupportedOS: {
+		errorMessage: "You can only auto-enroll linux instances.",
+		nextSteps:    "Ensure the matcher does not match this instance tags.",
+	},
+	failureCodeSSMAgentConnectionLost: {
+		errorMessage: "The SSM Agent is not responding.",
+		nextSteps:    "Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
+	},
+	failureCodeSSMAgentMissing: {
+		errorMessage: "EC2 Instance is not registered in SSM.",
+		nextSteps:    "Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
+	},
+	failureCodeUnknownError: {},
+}
+
+// enqueueFailedEnrollment adds a new
+func (s *Server) enqueueFailedEnrollment(k ec2DiscoveredKey, status ec2DiscoveredStatus) {
+	errorFields, ok := failureCodes[k.failureCode]
+
+	fmt.Println("FAILURE CODE", k.failureCode)
+	if !ok || errorFields.errorMessage == "" {
+		errorFields = struct {
+			errorMessage string
+			nextSteps    string
+		}{
+			errorMessage: k.unhandledError,
+			nextSteps:    "-",
+		}
+	}
+
+	labels := map[string]string{
+		types.NotificationTitleLabel: "Failed to auto enroll an EC2 instance",
+		"error":                      errorFields.errorMessage,
+		"next-steps":                 errorFields.nextSteps,
+		"instance-id":                status.instanceID,
+		"instance-name":              status.instanceName,
+		"aws-region":                 k.region,
+		"integration":                k.integration,
+	}
+	if status.ssmInvocationURL != "" {
+		labels["invocation-url"] = status.ssmInvocationURL
+	}
+
+	fmt.Println("LABELS", labels)
+
+	// Create notifications
+	_, err := s.AccessPoint.CreateGlobalNotification(s.ctx, &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+				ByPermissions: &notificationsv1.ByPermissions{
+					RoleConditions: []*types.RoleConditions{{Rules: []types.Rule{{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbList},
+					}}}},
+				},
+			},
+			Notification: &notificationsv1.Notification{
+				Spec: &notificationsv1.NotificationSpec{
+					Created: timestamppb.New(s.clock.Now()),
+				},
+				SubKind: types.NotificationAWSOIDCAutoDiscoverEC2FailedSubKind,
+				Metadata: &headerv1.Metadata{
+					Labels:  labels,
+					Expires: timestamppb.New(time.Now().Add(s.PollInterval)),
+				},
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).WithField("instance_id", status.instanceID).Info("Error notifying user about EC2 SSM installation failure.")
+	}
+
+	// Create notifications
+	_, err = s.AccessPoint.CreateGlobalNotification(s.ctx, &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+				ByPermissions: &notificationsv1.ByPermissions{
+					RoleConditions: []*types.RoleConditions{{Rules: []types.Rule{{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbList},
+					}}}},
+				},
+			},
+			Notification: &notificationsv1.Notification{
+				Spec: &notificationsv1.NotificationSpec{
+					Created: timestamppb.New(s.clock.Now()),
+				},
+				SubKind: types.NotificationAWSOIDCIntegrationHasTasksSubKind,
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{
+						types.NotificationTitleLabel: "Integration requires attention",
+						"integration":                k.integration,
+					},
+					Expires: timestamppb.New(time.Now().Add(s.PollInterval)),
+				},
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).WithField("instance_id", status.instanceID).Info("Error notifying user about EC2 SSM installation failure.")
+	}
 }

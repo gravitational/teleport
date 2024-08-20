@@ -465,7 +465,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	if s.ec2Installer == nil {
 		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: s.Emitter,
+			ReportSSMInstallationResultFunc: s.ReportEC2SSMInstallationResult,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -864,7 +864,20 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	for _, ec2Instance := range instances.Instances {
 		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
-			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
+			warningMsg := fmt.Sprintf("Error converting to Teleport EICE Node: %v", err)
+			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warn(warningMsg)
+			resourceKey := ec2DiscoveredKey{
+				region:         instances.Region,
+				integration:    instances.Integration,
+				enrollMode:     instances.EnrollMode,
+				failureCode:    failureCodeUnknownError,
+				unhandledError: err.Error(),
+			}
+			resourceStatus := ec2DiscoveredStatus{
+				instanceID:   ec2Instance.InstanceID,
+				instanceName: ec2Instance.Name,
+			}
+			s.enqueueFailedEnrollment(resourceKey, resourceStatus)
 			continue
 		}
 
@@ -902,7 +915,21 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
 			instanceID := eiceNode.GetAWSInstanceID()
-			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
+			warnMessage := fmt.Sprintf("Error upserting EC2 instance: %v", err)
+			s.Log.WithField("instance_id", instanceID).Warn(warnMessage)
+
+			resourceKey := ec2DiscoveredKey{
+				region:         instances.Region,
+				integration:    instances.Integration,
+				enrollMode:     instances.EnrollMode,
+				failureCode:    failureCodeUnknownError,
+				unhandledError: err.Error(),
+			}
+			resourceStatus := ec2DiscoveredStatus{
+				instanceID:   instanceID,
+				instanceName: eiceNode.GetName(),
+			}
+			s.enqueueFailedEnrollment(resourceKey, resourceStatus)
 		}
 	})
 	if err != nil {
@@ -932,6 +959,21 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		AccountID:    instances.AccountID,
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		for _, instance := range instances.Instances {
+			resourceKey := ec2DiscoveredKey{
+				region:         instances.Region,
+				integration:    instances.Integration,
+				enrollMode:     instances.EnrollMode,
+				failureCode:    failureCodeUnknownError,
+				unhandledError: err.Error(),
+			}
+			resourceStatus := ec2DiscoveredStatus{
+				instanceID:   instance.InstanceID,
+				instanceName: instance.Name,
+			}
+			s.enqueueFailedEnrollment(resourceKey, resourceStatus)
+		}
+
 		return trace.Wrap(err)
 	}
 	return nil

@@ -1064,6 +1064,11 @@ const (
 	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
 	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
+
+	// NotificationAWSOIDCIntegrationHasTasksSubKind is a notification subkind used to notify the user that the AWS OIDC integration requires attention.
+	NotificationAWSOIDCIntegrationHasTasksSubKind = "awsoidc-integration-tasks"
+	// NotificationAWSOIDCAutoDiscoverEC2FailedSubKind is a notification subkind used to notify users about failures to auto-enroll EC2 instances when using an AWS OIDC Integration.
+	NotificationAWSOIDCAutoDiscoverEC2FailedSubKind = "awsoidc-auto-discover-ec2-failed"
 )
 
 const (

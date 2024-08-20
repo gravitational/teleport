@@ -81,12 +81,12 @@ func (sm *mockSSMClient) WaitUntilCommandExecutedWithContext(aws.Context, *ssm.G
 	return nil
 }
 
-type mockEmitter struct {
-	events []events.AuditEvent
+type mockInstallationResults struct {
+	installations []*SSMInstallationResult
 }
 
-func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	me.events = append(me.events, event)
+func (me *mockInstallationResults) ReportInstallationResult(ctx context.Context, result *SSMInstallationResult) error {
+	me.installations = append(me.installations, result)
 	return nil
 }
 
@@ -94,16 +94,18 @@ func TestSSMInstaller(t *testing.T) {
 	document := "ssmdocument"
 
 	for _, tc := range []struct {
-		conf           SSMInstallerConfig
-		req            SSMRunRequest
-		expectedEvents []events.AuditEvent
-		name           string
+		req                   SSMRunRequest
+		expectedInstallations []*SSMInstallationResult
+		name                  string
 	}{
 		{
 			name: "ssm run was successful",
 			req: SSMRunRequest{
 				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
+					{
+						InstanceID: "instance-id-1",
+						Name:       "my-instance-name",
+					},
 				},
 				DocumentName: document,
 				Params:       map[string]string{"token": "abcdefg"},
@@ -124,14 +126,14 @@ func TestSSMInstaller(t *testing.T) {
 						},
 					},
 				},
-				Region:    "eu-central-1",
-				AccountID: "account-id",
+				Region:          "eu-central-1",
+				AccountID:       "account-id",
+				IntegrationName: "aws-integration",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
+			expectedInstallations: []*SSMInstallationResult{{
+				InstanceName: "my-instance-name",
+				Integration:  "aws-integration",
+				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunSuccessCode,
@@ -144,7 +146,7 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-			},
+			}},
 		},
 		{
 			name: "params include sshdConfigPath",
@@ -174,11 +176,8 @@ func TestSSMInstaller(t *testing.T) {
 				Region:    "eu-central-1",
 				AccountID: "account-id",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
+			expectedInstallations: []*SSMInstallationResult{{
+				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunSuccessCode,
@@ -191,14 +190,17 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-			},
+			}},
 		},
 		{
 			name: "ssm run failed in download content",
 			req: SSMRunRequest{
 				DocumentName: document,
 				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
+					{
+						InstanceID: "instance-id-1",
+						Name:       "my-instance",
+					},
 				},
 				Params: map[string]string{"token": "abcdefg"},
 				SSM: &mockSSMClient{
@@ -216,14 +218,14 @@ func TestSSMInstaller(t *testing.T) {
 						},
 					},
 				},
-				Region:    "eu-central-1",
-				AccountID: "account-id",
+				Region:          "eu-central-1",
+				AccountID:       "account-id",
+				IntegrationName: "aws-1",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
+			expectedInstallations: []*SSMInstallationResult{{
+				Integration:  "aws-1",
+				InstanceName: "my-instance",
+				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunFailCode,
@@ -238,7 +240,7 @@ func TestSSMInstaller(t *testing.T) {
 					StandardError:  "timeout error",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-			},
+			}},
 		},
 		{
 			name: "ssm run failed in run shell script",
@@ -272,11 +274,8 @@ func TestSSMInstaller(t *testing.T) {
 				Region:    "eu-central-1",
 				AccountID: "account-id",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
+			expectedInstallations: []*SSMInstallationResult{{
+				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunFailCode,
@@ -291,7 +290,7 @@ func TestSSMInstaller(t *testing.T) {
 					StandardError:  "timeout error",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-			},
+			}},
 		},
 		{
 			name: "detailed events if ssm:DescribeInstanceInformation is available",
@@ -343,58 +342,64 @@ func TestSSMInstaller(t *testing.T) {
 				Region:    "eu-central-1",
 				AccountID: "account-id",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunSuccessCode,
+			expectedInstallations: []*SSMInstallationResult{
+				{
+					SSMRunEvent: &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevent.SSMRunEvent,
+							Code: libevent.SSMRunSuccessCode,
+						},
+						CommandID:     "command-id-1",
+						InstanceID:    "instance-id-1",
+						AccountID:     "account-id",
+						Region:        "eu-central-1",
+						ExitCode:      0,
+						Status:        ssm.CommandStatusSuccess,
+						InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 					},
-					CommandID:     "command-id-1",
-					InstanceID:    "instance-id-1",
-					AccountID:     "account-id",
-					Region:        "eu-central-1",
-					ExitCode:      0,
-					Status:        ssm.CommandStatusSuccess,
-					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-				&events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunFailCode,
+				{
+					SSMRunEvent: &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevent.SSMRunEvent,
+							Code: libevent.SSMRunFailCode,
+						},
+						CommandID:  "no-command",
+						InstanceID: "instance-id-2",
+						AccountID:  "account-id",
+						Region:     "eu-central-1",
+						ExitCode:   -1,
+						Status:     "SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 					},
-					CommandID:  "no-command",
-					InstanceID: "instance-id-2",
-					AccountID:  "account-id",
-					Region:     "eu-central-1",
-					ExitCode:   -1,
-					Status:     "SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 				},
-				&events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunFailCode,
+				{
+
+					SSMRunEvent: &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevent.SSMRunEvent,
+							Code: libevent.SSMRunFailCode,
+						},
+						CommandID:  "no-command",
+						InstanceID: "instance-id-3",
+						AccountID:  "account-id",
+						Region:     "eu-central-1",
+						ExitCode:   -1,
+						Status:     "EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 					},
-					CommandID:  "no-command",
-					InstanceID: "instance-id-3",
-					AccountID:  "account-id",
-					Region:     "eu-central-1",
-					ExitCode:   -1,
-					Status:     "EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 				},
-				&events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunFailCode,
+				{
+					SSMRunEvent: &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevent.SSMRunEvent,
+							Code: libevent.SSMRunFailCode,
+						},
+						CommandID:  "no-command",
+						InstanceID: "instance-id-4",
+						AccountID:  "account-id",
+						Region:     "eu-central-1",
+						ExitCode:   -1,
+						Status:     "EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 					},
-					CommandID:  "no-command",
-					InstanceID: "instance-id-4",
-					AccountID:  "account-id",
-					Region:     "eu-central-1",
-					ExitCode:   -1,
-					Status:     "EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 				},
 			},
 		},
@@ -435,11 +440,8 @@ func TestSSMInstaller(t *testing.T) {
 				Region:    "eu-central-1",
 				AccountID: "account-id",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
+			expectedInstallations: []*SSMInstallationResult{{
+				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunSuccessCode,
@@ -453,7 +455,7 @@ func TestSSMInstaller(t *testing.T) {
 					StandardOutput: "custom output",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-			},
+			}},
 		},
 		{
 			name: "ssm with custom steps but without listing permissions only returns the overall result",
@@ -479,11 +481,8 @@ func TestSSMInstaller(t *testing.T) {
 				Region:    "eu-central-1",
 				AccountID: "account-id",
 			},
-			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
-			},
-			expectedEvents: []events.AuditEvent{
-				&events.SSMRun{
+			expectedInstallations: []*SSMInstallationResult{{
+				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunSuccessCode,
@@ -496,21 +495,23 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-			},
+			}},
 		},
 		// todo(amk): test that incomplete commands eventually return
 		// an event once completed
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			inst, err := NewSSMInstaller(tc.conf)
+			installationResultsCollector := &mockInstallationResults{}
+			inst, err := NewSSMInstaller(SSMInstallerConfig{
+				ReportSSMInstallationResultFunc: installationResultsCollector.ReportInstallationResult,
+			})
 			require.NoError(t, err)
 
 			err = inst.Run(ctx, tc.req)
 			require.NoError(t, err)
 
-			emitter := inst.Emitter.(*mockEmitter)
-			require.ElementsMatch(t, tc.expectedEvents, emitter.events)
+			require.ElementsMatch(t, tc.expectedInstallations, installationResultsCollector.installations)
 		})
 	}
 }
