@@ -41,6 +41,8 @@ type ResourceItem struct {
 	Description string `json:"description,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
+	// Labels is a set of labels
+	Labels map[string]string `json:"labels"`
 }
 
 // NewResourceItem creates UI objects for a resource.
@@ -60,8 +62,8 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 		Name:        name,
 		Description: description,
 		Content:     string(data[:]),
+		Labels:      resource.GetMetadata().Labels,
 	}, nil
-
 }
 
 // NewRoles creates resource item for each role.

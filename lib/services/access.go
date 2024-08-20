@@ -55,6 +55,8 @@ type Access interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// DeleteRole deletes role by name.
 	DeleteRole(ctx context.Context, name string) error
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
 
 	LockGetter
 	// UpsertLock upserts a lock.

@@ -1974,6 +1974,56 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	return role, err
 }
 
+// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+// The count of users with the role must exceed the minimum by 1 in order to be safe to remove, as the user being unassigned may be counted.
+func (c *Cache) VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.users)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	users, err := rg.reader.GetUsers(ctx, false)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if users, err = c.Config.Users.GetUsers(ctx, false); err != nil {
+			return false, trace.Wrap(err)
+		}
+	}
+
+	count := int64(0)
+	for _, user := range users {
+		// if the count exceeds the minimum by 1, it is safe to remove the role from an assigned member - return true
+		if count > min+1 {
+			return true, nil
+		}
+
+		if user.GetUserType() != types.UserTypeLocal {
+			// only count local users towards minimum requirement
+			continue
+		}
+
+		roles := user.GetRoles()
+		for _, i := range roles {
+			r, err := c.GetRole(ctx, i)
+			if err != nil {
+				return count > min+1, trace.Wrap(err)
+			}
+			if r == role {
+				count++
+			}
+		}
+	}
+
+	return count > min+1, trace.Wrap(err)
+}
+
 // GetNamespace returns namespace
 func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")

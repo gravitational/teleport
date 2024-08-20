@@ -168,6 +168,9 @@ type AuthorizerAccessPoint interface {
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+
 	// GetUser returns user by name.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 

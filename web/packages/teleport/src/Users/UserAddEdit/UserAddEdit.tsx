@@ -118,6 +118,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
                 }}
                 elevated={true}
               />
+              <Alert kind="info" children="This user has the owner role. Owners are always able to invite users and assign roles, even if they have other roles which prohibit these actions." />
               <TraitsEditor
                 attempt={attempt}
                 configuredTraits={configuredTraits}

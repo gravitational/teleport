@@ -672,6 +672,11 @@ const (
 	// resources.
 	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
 
+	// PresetOwnerRoleName is a name of a preset role that allows
+	// for XXX
+	// todo mberg
+	PresetOwnerRoleName = "owner"
+
 	// PresetTerraformProviderRoleName is a name of a default role that allows the Terraform provider
 	// to configure all its supported Teleport resources.
 	PresetTerraformProviderRoleName = "terraform-provider"

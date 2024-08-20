@@ -4370,6 +4370,11 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 	}, nil
 }
 
+func (a *ServerWithRoles) VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error) {
+	//TODO mberg implement me
+	panic("implement me")
+}
+
 func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
 	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
 		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",

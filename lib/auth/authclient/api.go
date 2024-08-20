@@ -139,6 +139,9 @@ type ReadNodeAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 
@@ -196,6 +199,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
@@ -364,6 +370,9 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 
@@ -458,6 +467,9 @@ type ReadKubernetesAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 
@@ -534,6 +546,9 @@ type ReadAppsAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
@@ -601,6 +616,9 @@ type ReadDatabaseAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
@@ -667,6 +685,9 @@ type ReadWindowsDesktopAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
@@ -991,6 +1012,9 @@ type Cache interface {
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
