@@ -196,6 +196,29 @@ GROUP BY
     remote_ip
 ```
 
+#### Alice wants to understand the available break glass options
+
+Alice, a system administrator, manages the Teleport cluster by checking
+Terrafrom scripts and values into various GitHub repos. CI/CD then picks the
+changes and apply to the Teleport cluster.
+
+A change to the Terraform script may break the Teleport cluster and the GitHub
+proxy will not be usable.
+
+Alice has selected the option to disallow personal access tokens and SSH keys
+at the organization level and does not want to allow it for security purpose.
+
+Alice still has a few options to access the organization repos when the GitHub
+proxy is unavailable:
+- Alice can still logs into GitHub through a browser and make chnages there if
+   necessary.
+- Alice can manually sign an user certificate according to [GitHub
+  spec](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-git-access-to-your-organizations-repositories/about-ssh-certificate-authorities#issuing-certificates).
+  The CA used to generate the user certificate could be a backup of Teleport's
+  CA that is exported to a 3rd party secret store. Or, Alice can generate a
+  self-signed CA on the spot and import it to the Organization settings
+  temporarily.
+
 ### Implementation
 
 #### Overview
