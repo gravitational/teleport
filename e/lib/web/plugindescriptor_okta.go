@@ -321,6 +321,14 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 }
 
 func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputsArgs) (oktaPluginInputs, error) {
+	const (
+		// minTokenLength is the minimum length an SCIM token should be.
+		minTokenLength = 32
+		// maxTokenLength is the maximum length accepted by bcrypt, an
+		// SCIM token can't be longer than this.
+		maxTokenLength = 72
+	)
+
 	if err := args.CheckAndSetDefaults(); err != nil {
 		return oktaPluginInputs{}, trace.Wrap(err)
 	}
@@ -336,6 +344,12 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		params.scimBearerToken = args.form.Get("scimToken")
 		if params.scimBearerToken == "" {
 			return oktaPluginInputs{}, trace.BadParameter("missing SCIM bearer token")
+		}
+		if len(params.scimBearerToken) < minTokenLength {
+			return oktaPluginInputs{}, trace.BadParameter("SCIM bearer token must be at least %d characters", minTokenLength)
+		}
+		if len(params.scimBearerToken) > maxTokenLength {
+			return oktaPluginInputs{}, trace.BadParameter("SCIM bearer token must be no longer than %d characters", maxTokenLength)
 		}
 
 		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(params.scimBearerToken), args.bcryptCost)

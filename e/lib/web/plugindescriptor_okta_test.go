@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ const (
 	oktaTestClusterName = "okta-test.teleport.com"
 	oktaAPIToken        = "001ABCdefGh_IJkLmnoPQRst23UVwxyz456"
 	oktaAppID           = "0oafxqCAJWWGELFTYASJ"
-	oktaSCIMToken       = "Ceci n'est pas un jeton"
+	oktaSCIMToken       = "Ce n'est pas un jeton, pas du tout"
 	oktaEveryoneGroupID = "00gb0c5lmzAl5GbZc5d7"
 )
 
@@ -669,6 +670,24 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 				"scimToken": {oktaSCIMToken},
 			},
 			expectedPattern: "malformed",
+		}, {
+			name: "scim-token-too-short",
+			form: url.Values{
+				"type":      {"okta"},
+				"orgURL":    {oktaTestOrg},
+				"apiToken":  {oktaAPIToken},
+				"scimToken": {"short"},
+			},
+			expectedPattern: "SCIM bearer token must be at least",
+		}, {
+			name: "scim-token-too-long",
+			form: url.Values{
+				"type":      {"okta"},
+				"orgURL":    {oktaTestOrg},
+				"apiToken":  {oktaAPIToken},
+				"scimToken": {strings.Repeat("A", 120)},
+			},
+			expectedPattern: "SCIM bearer token must be no longer than",
 		},
 	}
 
