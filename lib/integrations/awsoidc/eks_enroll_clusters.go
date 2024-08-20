@@ -66,7 +66,7 @@ const (
 	agentName                   = "teleport-kube-agent"
 	awsKubePrefix               = "k8s-aws-v1."
 	awsHeaderClusterName        = "x-k8s-aws-id"
-	awsHeaderExpires            = "X-Amz-Expires"
+	awsHeaderExpires            = "X-Amz-Expires" // Header required by AWS when creating presigned URL.
 	concurrentEKSEnrollingLimit = 5
 )
 
@@ -311,6 +311,7 @@ func presignCallerIdentityURL(ctx context.Context, stsClient *sts.Client, cluste
 	presignClient := sts.NewPresignClient(stsClient)
 
 	// This function adds required headers for accessing an EKS cluster to the presigned URL.
+	// Header "x-k8s-aws-id" specifies EKS cluster name and header "X-Amz-Expires" is just required for compatibility reasons.
 	addEKSHeaders := func(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (
 		out middleware.BuildOutput, metadata middleware.Metadata, err error,
 	) {
@@ -320,7 +321,9 @@ func presignCallerIdentityURL(ctx context.Context, stsClient *sts.Client, cluste
 		}
 
 		req.Header.Add(awsHeaderClusterName, clusterName)
+		// 60 is put for compatibility reasons, in reality it is ignored and real expiration time is 15 minutes.
 		req.Header.Add(awsHeaderExpires, "60")
+
 		return next.HandleBuild(ctx, in)
 	}
 
