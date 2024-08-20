@@ -414,7 +414,7 @@ func (m *Manager) NewSSHKeyPair(ctx context.Context) (*types.SSHKeyPair, error) 
 
 func (m *Manager) newSSHKeyPair(ctx context.Context) (*types.SSHKeyPair, error) {
 	// The default hash length for SSH signers is 512 bits.
-	sshKey, cryptoSigner, err := m.backendForNewKeys.generateRSA(ctx)
+	sshKey, cryptoSigner, err := m.backendForNewKeys.generateRSA(ctx, WithDigestAlgorithm(crypto.SHA512))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
