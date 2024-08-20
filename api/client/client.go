@@ -1602,6 +1602,8 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	resp, err := c.grpc.ListSAMLIdPSessions(
 		ctx,
@@ -1654,6 +1656,8 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   req.SessionID,
@@ -1680,6 +1684,8 @@ func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflake
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
@@ -1708,6 +1714,9 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
+// Deprecated: Do not use. As of v16, the Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
+// will be removed in v17.
 func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
 	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
@@ -1728,6 +1737,8 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
@@ -1740,6 +1751,8 @@ func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUse
 }
 
 // DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
 	req := &proto.DeleteUserSAMLIdPSessionsRequest{
 		Username: username,
