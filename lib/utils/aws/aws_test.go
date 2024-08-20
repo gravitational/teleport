@@ -487,3 +487,33 @@ func TestResourceARN(t *testing.T) {
 		})
 	}
 }
+
+func TestMaybeHashRoleSessionName(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		role     string
+		expected string
+	}{
+		{
+			name:     "role session name not hashed, less than 64 characters",
+			role:     "MyRole",
+			expected: "MyRole",
+		},
+		{
+			name:     "role session name not hashed, exactly 64 characters",
+			role:     "Role123456789012345678901234567890123456789012345678901234567890",
+			expected: "Role123456789012345678901234567890123456789012345678901234567890",
+		},
+		{
+			name:     "role session name hashed, longer than 64 characters",
+			role:     "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.com",
+			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := MaybeHashRoleSessionName(tt.role)
+			require.Equal(t, tt.expected, actual)
+			require.LessOrEqual(t, len(actual), MaxRoleSessionNameLength)
+		})
+	}
+}

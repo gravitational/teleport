@@ -66,7 +66,7 @@ func (g *credentialsGetter) Get(_ context.Context, request GetCredentialsRequest
 	logrus.Debugf("Creating STS session %q for %q.", request.SessionName, request.RoleARN)
 	return stscreds.NewCredentials(request.Provider, request.RoleARN,
 		func(cred *stscreds.AssumeRoleProvider) {
-			cred.RoleSessionName = request.SessionName
+			cred.RoleSessionName = MaybeHashRoleSessionName(request.SessionName)
 			cred.Expiry.SetExpiration(request.Expiry, 0)
 
 			if request.ExternalID != "" {
