@@ -20,6 +20,7 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -38,6 +39,12 @@ type IDTokenValidatorConfig struct {
 	// Clock is used by the validator when checking expiry and issuer times of
 	// tokens. If omitted, a real clock will be used.
 	Clock clockwork.Clock
+	// issuerHostnameOverride overrides the default Terraform Cloud issuer URL. Used only in
+	// tests.
+	issuerHostnameOverride string
+	// insecure configures the validator to use HTTP rather than HTTPS. This
+	// is not exported as this is only used in the test for now.
+	insecure bool
 }
 
 // IDTokenValidator validates a Spacelift issued ID Token.
@@ -58,13 +65,26 @@ func NewIDTokenValidator(
 	}
 }
 
+func (id *IDTokenValidator) issuerURL() string {
+	if id.issuerHostnameOverride == "" {
+		return IssuerURL
+	}
+
+	scheme := "https"
+	if id.insecure {
+		scheme = "http"
+	}
+
+	return fmt.Sprintf("%s://%s", scheme, id.issuerHostnameOverride)
+}
+
 // Validate validates a Terraform issued ID token.
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, audience string, token string,
 ) (*IDTokenClaims, error) {
 	p, err := oidc.NewProvider(
 		ctx,
-		IssuerURL,
+		id.issuerURL(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating oidc provider")

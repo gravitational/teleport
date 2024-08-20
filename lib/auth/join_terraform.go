@@ -56,8 +56,18 @@ func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.Regis
 		)
 	}
 
+	aud := token.Spec.Terraform.Audience
+	if aud == "" {
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		aud = clusterName.GetClusterName()
+	}
+
 	claims, err := a.terraformIDTokenValidator.Validate(
-		ctx, token.Spec.Terraform.Audience, req.IDToken,
+		ctx, aud, req.IDToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

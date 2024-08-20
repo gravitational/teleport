@@ -45,7 +45,7 @@ func (its *IDTokenSource) GetIDToken() (string, error) {
 	if tok == "" {
 		audienceName := "TFC_WORKLOAD_IDENTITY_AUDIENCE"
 		if its.audienceTag != "" {
-			audienceName = fmt.Sprintf("TFC_WORKLOAD_IDENTITY_AUDIENCE_%s", its.audienceTag)
+			audienceName = fmt.Sprintf("TFC_WORKLOAD_IDENTITY_AUDIENCE_%s", strings.ToUpper(its.audienceTag))
 		}
 
 		return "", trace.BadParameter(

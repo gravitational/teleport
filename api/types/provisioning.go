@@ -847,9 +847,16 @@ func (a *ProvisionTokenSpecV2Terraform) checkAndSetDefaults() error {
 		projectSet := allowRule.ProjectID != "" || allowRule.ProjectName != ""
 		workspaceSet := allowRule.WorkspaceID != "" || allowRule.WorkspaceName != ""
 
-		if !orgSet && !projectSet && !workspaceSet {
+		if !orgSet {
 			return trace.BadParameter(
-				"allow[%d]: at least one of ['organization_id', 'organization_name', 'project_id', 'project_name', 'workspace_id', 'workspace_name] must be set",
+				"allow[%d]: one of ['organization_id', 'organization_name'] must be set",
+				i,
+			)
+		}
+
+		if !projectSet && !workspaceSet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['project_id', 'project_name', 'workspace_id', 'workspace_name'] must be set",
 				i,
 			)
 		}
