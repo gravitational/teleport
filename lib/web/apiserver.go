@@ -197,7 +197,7 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
-type proxySettingsGetter interface {
+type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
@@ -260,7 +260,7 @@ type Config struct {
 	ClusterFeatures proto.Features
 
 	// ProxySettings allows fetching the current proxy settings.
-	ProxySettings proxySettingsGetter
+	ProxySettings ProxySettingsGetter
 
 	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
 	// a reverse tunnel agent to establish a connection.
@@ -3388,23 +3388,25 @@ func (h *Handler) siteNodeConnect(
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
-	keepAliveInterval := req.KeepAliveInterval
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.log.Debugf("Unable to get auth access point: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	keepAliveInterval := apidefaults.KeepAliveInterval()
+	if netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx); err != nil {
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+	} else {
+		dialTimeout = netConfig.GetSSHDialTimeout()
+		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	}
+
 	// Try to use the keep alive interval from the request.
 	// When it's not set or below a second, use the cluster's keep alive interval.
-	if keepAliveInterval < time.Second {
-		authAccessPoint, err := site.CachingAccessPoint()
-		if err != nil {
-			h.log.Debugf("Unable to get auth access point: %v", err)
-			return nil, trace.Wrap(err)
-		}
-
-		netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
-			return nil, trace.Wrap(err)
-		}
-
-		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if req.KeepAliveInterval >= time.Second {
+		keepAliveInterval = req.KeepAliveInterval
 	}
 
 	nw, err := site.NodeWatcher()
@@ -3430,6 +3432,7 @@ func (h *Handler) siteNodeConnect(
 		Tracker:            tracker,
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
+		SSHDialTimeout:     dialTimeout,
 		HostNameResolver: func(serverID string) (string, error) {
 			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
 				return n.GetName() == serverID
