@@ -103,6 +103,10 @@ func newPKCS11KeyStore(config *PKCS11Config, logger logrus.FieldLogger) (*pkcs11
 	}, nil
 }
 
+func (p *pkcs11KeyStore) name() string {
+	return storePKCS11
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (p *pkcs11KeyStore) keyTypeDescription() string {
