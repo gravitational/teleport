@@ -2844,6 +2844,24 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetClusterAutoUpdateConfig gets cluster autoupdate configuration.
+func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (types.ClusterAutoUpdateConfig, error) {
+	resp, err := c.grpc.GetClusterAutoUpdateConfig(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateVersion gets cluster autoupdate version.
+func (c *Client) GetAutoUpdateVersion(ctx context.Context) (types.AutoUpdateVersion, error) {
+	resp, err := c.grpc.GetAutoUpdateVersion(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})

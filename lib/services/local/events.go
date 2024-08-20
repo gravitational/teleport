@@ -94,6 +94,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
+		case types.KindClusterAutoUpdateConfig:
+			parser = newClusterAutoUpdateConfigParser()
+		case types.KindAutoUpdateVersion:
+			parser = newAutoUpdateVersionParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -693,6 +697,72 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return clusterName, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClusterAutoUpdateConfigParser() *clusterAutoUpdateConfigParser {
+	return &clusterAutoUpdateConfigParser{
+		baseParser: newBaseParser(backend.Key(clusterAutoUpdatePrefix, autoUpdateConfigPrefix)),
+	}
+}
+
+type clusterAutoUpdateConfigParser struct {
+	baseParser
+}
+
+func (p *clusterAutoUpdateConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindClusterAutoUpdateConfig, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameClusterAutoUpdateConfig)
+		return h, nil
+	case types.OpPut:
+		autoUpdateConfig, err := services.UnmarshalClusterAutoUpdateConfig(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return autoUpdateConfig, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateVersionParser() *autoUpdateVersionParser {
+	return &autoUpdateVersionParser{
+		baseParser: newBaseParser(backend.Key(clusterAutoUpdatePrefix, autoUpdateVersionPrefix)),
+	}
+}
+
+type autoUpdateVersionParser struct {
+	baseParser
+}
+
+func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateVersion, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateVersion)
+		return h, nil
+	case types.OpPut:
+		autoUpdateVersion, err := services.UnmarshalAutoUpdateVersion(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return autoUpdateVersion, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

@@ -506,7 +506,6 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		Kinds:               watch.Kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
-
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5048,6 +5047,36 @@ func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *empt
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// GetClusterAutoUpdateConfig gets the current autoupdate config singleton.
+func (g *GRPCServer) GetClusterAutoUpdateConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterAutoUpdateConfigV1, error) {
+	config, err := g.AuthServer.GetClusterAutoUpdateConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, ok := config.(*types.ClusterAutoUpdateConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected autoupdate config type %T", config)
+	}
+
+	return rsp, nil
+}
+
+// GetAutoUpdateVersion gets the current autoupdate version singleton.
+func (g *GRPCServer) GetAutoUpdateVersion(ctx context.Context, _ *emptypb.Empty) (*types.AutoUpdateVersionV1, error) {
+	version, err := g.AuthServer.GetAutoUpdateVersion(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, ok := version.(*types.AutoUpdateVersionV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected autoupdate version type %T", version)
+	}
+
+	return rsp, nil
 }
 
 // GetBackend returns the backend from the underlying auth server.

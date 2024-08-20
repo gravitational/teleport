@@ -199,6 +199,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.ClusterConfiguration = clusterConfig
 	}
+	if cfg.ClusterAutoUpdate == nil {
+		cfg.ClusterAutoUpdate = local.NewClusterAutoUpdateService(cfg.Backend)
+	}
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
@@ -398,6 +401,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:                    cfg.Access,
 		DynamicAccessExt:          cfg.DynamicAccessExt,
 		ClusterConfiguration:      cfg.ClusterConfiguration,
+		ClusterAutoUpdate:         cfg.ClusterAutoUpdate,
 		Restrictions:              cfg.Restrictions,
 		Apps:                      cfg.Apps,
 		Kubernetes:                cfg.Kubernetes,
@@ -623,6 +627,7 @@ type Services struct {
 	services.BotInstance
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
+	services.ClusterAutoUpdate
 }
 
 // GetWebSession returns existing web session described by req.

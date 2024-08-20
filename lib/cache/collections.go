@@ -250,6 +250,8 @@ type cacheCollections struct {
 	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
+	clusterAutoUpdates       collectionReader[clusterAutoupdateGetter]
+	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -742,6 +744,24 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.accessGraphSettings
+		case types.KindClusterAutoUpdateConfig:
+			if c.ClusterAutoUpdate == nil {
+				return nil, trace.BadParameter("missing parameter ClusterAutoUpdate")
+			}
+			collections.clusterAutoUpdates = &genericCollection[types.ClusterAutoUpdateConfig, clusterAutoupdateGetter, clusterAutoupdateExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.clusterAutoUpdates
+		case types.KindAutoUpdateVersion:
+			if c.ClusterAutoUpdate == nil {
+				return nil, trace.BadParameter("missing parameter ClusterAutoUpdate")
+			}
+			collections.autoUpdateVersions = &genericCollection[types.AutoUpdateVersion, autoUpdateVersionGetter, autoUpdateVersionExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateVersions
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1247,7 +1267,73 @@ type clusterNameGetter interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
-var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
+type clusterAutoupdateExecutor struct{}
+
+func (clusterAutoupdateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ClusterAutoUpdateConfig, error) {
+	config, err := cache.ClusterAutoUpdate.GetClusterAutoUpdateConfig(ctx)
+	return []types.ClusterAutoUpdateConfig{config}, trace.Wrap(err)
+}
+
+func (clusterAutoupdateExecutor) upsert(ctx context.Context, cache *Cache, resource types.ClusterAutoUpdateConfig) error {
+	return cache.clusterAutoUpdateCache.UpsertClusterAutoUpdateConfig(ctx, resource)
+}
+
+func (clusterAutoupdateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.clusterAutoUpdateCache.DeleteClusterAutoUpdateConfig(ctx)
+}
+
+func (clusterAutoupdateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.clusterAutoUpdateCache.DeleteClusterAutoUpdateConfig(ctx)
+}
+
+func (clusterAutoupdateExecutor) isSingleton() bool { return true }
+
+func (clusterAutoupdateExecutor) getReader(cache *Cache, cacheOK bool) clusterAutoupdateGetter {
+	if cacheOK {
+		return cache.clusterAutoUpdateCache
+	}
+	return cache.Config.ClusterAutoUpdate
+}
+
+type clusterAutoupdateGetter interface {
+	GetClusterAutoUpdateConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAutoUpdateConfig, error)
+}
+
+var _ executor[types.ClusterAutoUpdateConfig, clusterAutoupdateGetter] = clusterAutoupdateExecutor{}
+
+type autoUpdateVersionExecutor struct{}
+
+func (autoUpdateVersionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AutoUpdateVersion, error) {
+	version, err := cache.ClusterAutoUpdate.GetAutoUpdateVersion(ctx)
+	return []types.AutoUpdateVersion{version}, trace.Wrap(err)
+}
+
+func (autoUpdateVersionExecutor) upsert(ctx context.Context, cache *Cache, resource types.AutoUpdateVersion) error {
+	return cache.clusterAutoUpdateCache.UpsertAutoUpdateVersion(ctx, resource)
+}
+
+func (autoUpdateVersionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.clusterAutoUpdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoUpdateVersionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.clusterAutoUpdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoUpdateVersionExecutor) isSingleton() bool { return true }
+
+func (autoUpdateVersionExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateVersionGetter {
+	if cacheOK {
+		return cache.clusterAutoUpdateCache
+	}
+	return cache.Config.ClusterAutoUpdate
+}
+
+type autoUpdateVersionGetter interface {
+	GetAutoUpdateVersion(ctx context.Context, opts ...services.MarshalOption) (types.AutoUpdateVersion, error)
+}
+
+var _ executor[types.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpdateVersionExecutor{}
 
 type userExecutor struct{}
 

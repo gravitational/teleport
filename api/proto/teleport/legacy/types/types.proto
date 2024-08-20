@@ -6624,6 +6624,52 @@ message AgentUpgradeWindow {
   repeated string Weekdays = 2 [(gogoproto.jsontag) = "weekdays,omitempty"];
 }
 
+// ClusterAutoupdateConfigV1 is a config singleton used to configure cluster
+// autoupdate settings.
+message ClusterAutoUpdateConfigV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  ClusterAutoUpdateConfigSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+  // Nonce is used to protect against concurrent modification of the maintenance
+  // window. Clients should treat nonces as opaque.
+  uint64 Nonce = 3 [(gogoproto.jsontag) = "nonce,omitempty"];
+}
+
+// ClusterAutoupdateConfigSpecV1 encodes the parameters of the autoupdate config object.
+message ClusterAutoUpdateConfigSpecV1 {
+  // ToolsAutoUpdate encodes the feature flag to enable/disable tools autoupdates.
+  bool ToolsAutoUpdate = 1 [(gogoproto.jsontag) = "tools_auto_update,omitempty"];
+}
+
+// AutoupdateVersionV1 is a resource singleton with version required for
+// tools autoupdate.
+message AutoUpdateVersionV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  AutoupdateVersionSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+  // Nonce is used to protect against concurrent modification of the maintenance
+  // window. Clients should treat nonces as opaque.
+  uint64 Nonce = 3 [(gogoproto.jsontag) = "nonce,omitempty"];
+}
+
+// AutoupdateVersionSpecV1 encodes the parameters of the autoupdate versions.
+message AutoupdateVersionSpecV1 {
+  // ToolsVersion is the semantic version required for tools autoupdates.
+  string ToolsVersion = 1 [(gogoproto.jsontag) = "tools_version,omitempty"];
+}
+
 // ScheduledAgentUpgradeWindow is a derived value representing a single
 // upgrade window. Upgraders deal with discrete start/end times, so we use the
 // agent upgrade window configuration object to generate a sequence of specific

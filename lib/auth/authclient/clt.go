@@ -359,6 +359,44 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
+// UpsertClusterAutoUpdateConfig sets cluster autoupdate configuration.
+func (c *Client) UpsertClusterAutoUpdateConfig(ctx context.Context, config types.ClusterAutoUpdateConfig) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetClusterAutoUpdateConfig gets the autoupdate configuration from the backend.
+func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAutoUpdateConfig, error) {
+	config, err := c.APIClient.GetClusterAutoUpdateConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return config, nil
+}
+
+// DeleteAutoUpdateVersion deletes types.AutoUpdateVersion from the backend.
+func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertAutoUpdateVersion sets cluster autoupdate version.
+func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, config types.AutoUpdateVersion) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetAutoUpdateVersion gets the autoupdate version from the backend.
+func (c *Client) GetAutoUpdateVersion(ctx context.Context, opts ...services.MarshalOption) (types.AutoUpdateVersion, error) {
+	config, err := c.APIClient.GetAutoUpdateVersion(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return config, nil
+}
+
+// DeleteClusterAutoUpdateConfig deletes types.ClusterAutoUpdateConfig from the backend.
+func (c *Client) DeleteClusterAutoUpdateConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1466,6 +1504,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
+	services.ClusterAutoUpdate
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
