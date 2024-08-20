@@ -25,11 +25,13 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"io"
 	"log/slog"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 
@@ -39,8 +41,53 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+)
+
+const (
+	keystoreSubsystem = "keystore"
+
+	labelKeyType = "key_type"
+	keyTypeTLS   = "tls"
+	keyTypeSSH   = "ssh"
+	keyTypeJWT   = "jwt"
+
+	labelStoreType = "store_type"
+	storePKCS11    = "pkcs11"
+	storeGCP       = "gcp_kms"
+	storeAWS       = "aws_kms"
+	storeSoftware  = "software"
+
+	labelCryptoAlgorithm = "key_algorithm"
+)
+
+var (
+	signCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: keystoreSubsystem,
+		Name:      "sign_requests_total",
+		Help:      "Total number of sign requests",
+	}, []string{labelKeyType, labelStoreType})
+	signErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: keystoreSubsystem,
+		Name:      "sign_requests_error",
+		Help:      "Total number of sign request errors",
+	}, []string{labelKeyType, labelStoreType})
+	createCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: keystoreSubsystem,
+		Name:      "key_create_requests_total",
+		Help:      "Total number of key create requests",
+	}, []string{labelKeyType, labelStoreType, labelCryptoAlgorithm})
+	createErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: keystoreSubsystem,
+		Name:      "key_create_requests_error",
+		Help:      "Total number of key create request errors",
+	}, []string{labelKeyType, labelStoreType, labelCryptoAlgorithm})
 )
 
 // Manager provides an interface to interact with teleport CA private keys,
@@ -101,6 +148,9 @@ type backend interface {
 	// keyTypeDescription returns a human-readable description of the types of
 	// keys this backend uses.
 	keyTypeDescription() string
+
+	// name returns the name of the backend.
+	name() string
 }
 
 // Options holds keystore options.
@@ -141,6 +191,14 @@ func (opts *Options) CheckAndSetDefaults() error {
 
 // NewManager returns a new keystore Manager
 func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Options) (*Manager, error) {
+	if err := metrics.RegisterPrometheusCollectors(
+		signCounter,
+		signErrorCounter,
+		createCounter,
+		createErrorCounter,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,6 +241,22 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	}, nil
 }
 
+type cryptoCountSigner struct {
+	crypto.Signer
+	keyType string
+	store   string
+}
+
+func (s *cryptoCountSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+	signCounter.WithLabelValues(s.keyType, s.store).Inc()
+	sig, err := s.Signer.Sign(rand, digest, opts)
+	if err != nil {
+		signErrorCounter.WithLabelValues(s.keyType, s.store).Inc()
+		return nil, trace.Wrap(err)
+	}
+	return sig, nil
+}
+
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and
 // returns an [ssh.Signer].
 func (m *Manager) GetSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
@@ -215,6 +289,7 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeSSH, store: backend.name()}
 			sshSigner, err := ssh.NewSignerFromSigner(signer)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -263,6 +338,9 @@ func (s rsaSHA512Signer) Algorithms() []string {
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
 	cert, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	return cert, signer, trace.Wrap(err)
 }
 
@@ -270,6 +348,9 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
 	cert, signer, err := m.getTLSCertAndSigner(ctx, ca.GetAdditionalTrustedKeys())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	return cert, signer, trace.Wrap(err)
 }
 
@@ -291,6 +372,7 @@ func (m *Manager) getTLSCertAndSigner(ctx context.Context, keySet types.CAKeySet
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+			signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}
 			return keyPair.Cert, signer, nil
 		}
 	}
@@ -326,7 +408,10 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 				return nil, trace.Wrap(err)
 			}
 			signer, err := backend.getSigner(ctx, keyPair.PrivateKey, pub)
-			return signer, trace.Wrap(err)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &cryptoCountSigner{Signer: signer, keyType: keyTypeJWT, store: backend.name()}, trace.Wrap(err)
 		}
 	}
 	return nil, trace.NotFound("no usable JWT key pairs found")
@@ -338,6 +423,16 @@ func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	createCounter.WithLabelValues(keyTypeSSH, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newSSHKeyPair(ctx, alg)
+	if err != nil {
+		createErrorCounter.WithLabelValues(keyTypeSSH, m.backendForNewKeys.name(), alg.String()).Inc()
+		return nil, trace.Wrap(err)
+	}
+	return key, nil
+}
+
+func (m *Manager) newSSHKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.SSHKeyPair, error) {
 	// The default hash length for SSH signers is 512 bits.
 	sshKey, cryptoSigner, err := m.backendForNewKeys.generateKey(ctx, alg, withRSADigestAlgorithm(crypto.SHA512))
 	if err != nil {
@@ -361,12 +456,22 @@ func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	createCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newTLSKeyPair(ctx, clusterName, alg)
+	if err != nil {
+		createErrorCounter.WithLabelValues(keyTypeTLS, m.backendForNewKeys.name(), alg.String()).Inc()
+		return nil, trace.Wrap(err)
+	}
+	return key, nil
+}
+
+func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cryptosuites.Algorithm) (*types.TLSKeyPair, error) {
 	tlsKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		signer,
+		&cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: m.backendForNewKeys.name()},
 		pkix.Name{
 			CommonName:   clusterName,
 			Organization: []string{clusterName},
@@ -388,6 +493,16 @@ func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	createCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newJWTKeyPair(ctx, alg)
+	if err != nil {
+		createErrorCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name(), alg.String()).Inc()
+		return nil, trace.Wrap(err)
+	}
+	return key, nil
+}
+
+func (m *Manager) newJWTKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.JWTKeyPair, error) {
 	jwtKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)

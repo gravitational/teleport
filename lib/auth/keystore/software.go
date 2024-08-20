@@ -46,6 +46,10 @@ func newSoftwareKeyStore(config *softwareConfig) *softwareKeyStore {
 	}
 }
 
+func (p *softwareKeyStore) name() string {
+	return storeSoftware
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (s *softwareKeyStore) keyTypeDescription() string {

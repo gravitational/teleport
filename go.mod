@@ -152,6 +152,7 @@ require (
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
+	github.com/parquet-go/parquet-go v0.23.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.6
@@ -164,7 +165,6 @@ require (
 	github.com/russellhaering/goxmldsig v1.4.0
 	github.com/schollz/progressbar/v3 v3.14.6
 	github.com/scim2/filter-parser/v2 v2.2.0
-	github.com/segmentio/parquet-go v0.0.0-20230712180008-5d42db8f0d47
 	github.com/shirou/gopsutil/v4 v4.24.7
 	github.com/sigstore/cosign/v2 v2.3.0
 	github.com/sigstore/sigstore v1.8.7
