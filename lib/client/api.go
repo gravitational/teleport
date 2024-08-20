@@ -1391,7 +1391,7 @@ type targetNode struct {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetResourcesClient, options SSHOptions) ([]targetNode, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListUnifiedResourcesClient, options SSHOptions) ([]targetNode, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
@@ -1410,16 +1410,28 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetReso
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
 	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
-		nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
+		nodes, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		retval := make([]targetNode, 0, len(nodes))
 		for _, resource := range nodes {
+			server, ok := resource.ResourceWithLabels.(types.Server)
+			if !ok {
+				continue
+			}
+
 			// always dial nodes by UUID
 			retval = append(retval, targetNode{
-				hostname: resource.GetHostname(),
+				hostname: server.GetHostname(),
 				addr:     fmt.Sprintf("%s:0", resource.GetName()),
 			})
 		}
