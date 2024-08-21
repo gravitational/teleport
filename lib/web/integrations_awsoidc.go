@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -479,15 +480,9 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
-	agentVersion := teleport.Version
-	if h.ClusterFeatures.GetAutomaticUpgrades() {
-		upgradesVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		agentVersion = strings.TrimPrefix(upgradesVersion, "v")
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.ClusterFeatures, h.cfg.AutomaticUpgradesChannels)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
