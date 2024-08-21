@@ -434,12 +434,6 @@ func (p earliest) Swap(i, j int) {
 // Separator is used as a separator between key parts
 const Separator = '/'
 
-// Key joins parts into path separated by Separator,
-// makes sure path always starts with Separator ("/")
-func Key(parts ...string) []byte {
-	return NewKey(parts...)
-}
-
 // NewKey joins parts into path separated by Separator,
 // makes sure path always starts with Separator ("/")
 func NewKey(parts ...string) []byte {
