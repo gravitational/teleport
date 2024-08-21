@@ -1844,6 +1844,11 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	case KindIdentityCenterAccount:
+		if rct == Allow {
+			return LabelMatchers{Labels{"*": []string{"*"}}, ""}, nil
+		}
+		return LabelMatchers{}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }

@@ -237,6 +237,7 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
+					types.NewRule(types.KindIdentityCenterAccount, RO()),
 				},
 			},
 		},

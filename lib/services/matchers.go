@@ -185,6 +185,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		default:
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
+	case types.KindIdentityCenterAccount:
+		specResource = resource
 	default:
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
@@ -221,25 +223,38 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"resource_kind": resource.GetKind(),
+		"resource":      resource.GetName(),
+	})
+
 	if !types.MatchKinds(resource, filter.Kinds) {
+		log.WithField("filter_kinds", filter.Kinds).Debug("Discarded due to kind filter")
 		return false, nil
 	}
 
 	if !types.MatchLabels(resource, filter.Labels) {
+		log.WithFields(logrus.Fields{
+			"filter_labels":   filter.Labels,
+			"resource_labels": resource.GetAllLabels(),
+		}).Debug("Discarded due to label filter")
 		return false, nil
 	}
 
 	if len(filter.SearchKeywords) > 0 && !resource.MatchSearch(filter.SearchKeywords) {
+		log.WithField("keywords", filter.SearchKeywords).Debug("Discarded due to keyword filter")
 		return false, nil
 	}
 
 	if filter.PredicateExpression != nil {
 		match, err := filter.PredicateExpression.Evaluate(resource)
 		if err != nil {
+			log.WithField("error", err).Error("Discarded due to predicate filter error")
 			return false, trace.Wrap(err)
 		}
 
 		if !match {
+			log.Debug("Discarded due to failed predicate match")
 			return false, nil
 		}
 	}
