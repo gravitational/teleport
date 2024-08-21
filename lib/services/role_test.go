@@ -2428,7 +2428,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							RequireMFAType:          types.RequireMFAType_OFF,
-							MFAVerificationInterval: types.Duration(5 * time.Minute),
+							MFAVerificationInterval: 5 * time.Minute,
 						},
 					},
 				},
@@ -2443,7 +2443,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 				{Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
 						RequireMFAType:          types.RequireMFAType_SESSION,
-						MFAVerificationInterval: types.Duration(5 * time.Minute),
+						MFAVerificationInterval: 5 * time.Minute,
 					},
 				},
 				},
@@ -2459,7 +2459,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							RequireMFAType:          types.RequireMFAType_SESSION,
-							MFAVerificationInterval: types.Duration(5 * time.Minute),
+							MFAVerificationInterval: 5 * time.Minute,
 						},
 					},
 				},
@@ -2467,7 +2467,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							RequireMFAType:          types.RequireMFAType_SESSION,
-							MFAVerificationInterval: types.Duration(2 * time.Minute),
+							MFAVerificationInterval: 2 * time.Minute,
 						},
 					},
 				},
@@ -2483,7 +2483,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							RequireMFAType:          types.RequireMFAType_OFF,
-							MFAVerificationInterval: types.Duration(5 * time.Minute),
+							MFAVerificationInterval: 5 * time.Minute,
 						},
 					},
 				},

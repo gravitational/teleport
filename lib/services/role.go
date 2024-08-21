@@ -1265,7 +1265,7 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 // for this role set if the role forces MFA tap, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustMFAVerificationInterval(ttl time.Duration, enforce bool) time.Duration {
 	for _, role := range set {
-		mfaVerificationInterval := role.GetOptions().MFAVerificationInterval.Value()
+		mfaVerificationInterval := role.GetOptions().MFAVerificationInterval
 		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF && !enforce {
 			continue
 		}
