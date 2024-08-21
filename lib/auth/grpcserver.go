@@ -2416,7 +2416,7 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy process or the min mfa verification interval.
+		// time is bounded by the lifetime of the local proxy process or the mfa verification interval.
 		return
 	}
 

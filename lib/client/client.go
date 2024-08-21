@@ -142,7 +142,7 @@ type ReissueParams struct {
 	RequesterName proto.UserCertsRequest_Requester
 	// TTL defines the maximum time-to-live for user certificates.
 	// This variable sets the upper limit on the duration for which a certificate
-	// remains valid. It's bounded by the `max_session_ttl` or `min_mfa_verification_interval`
+	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
 }

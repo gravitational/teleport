@@ -2406,7 +2406,7 @@ func TestCheckRuleAccess(t *testing.T) {
 	}
 }
 
-func TestMinMFAVerificationInterval(t *testing.T) {
+func TestMFAVerificationInterval(t *testing.T) {
 	testCases := []struct {
 		name        string
 		roles       []types.RoleV6
@@ -2427,8 +2427,8 @@ func TestMinMFAVerificationInterval(t *testing.T) {
 				{
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
-							RequireMFAType:             types.RequireMFAType_OFF,
-							MinMFAVerificationInterval: types.Duration(5 * time.Minute),
+							RequireMFAType:          types.RequireMFAType_OFF,
+							MFAVerificationInterval: types.Duration(5 * time.Minute),
 						},
 					},
 				},
@@ -2438,12 +2438,12 @@ func TestMinMFAVerificationInterval(t *testing.T) {
 			expectedTTL: 10 * time.Minute,
 		},
 		{
-			name: "Single role with MFA requirement, TTL adjusted to min MFA verification interval",
+			name: "Single role with MFA requirement, TTL adjusted to MFA verification interval",
 			roles: []types.RoleV6{
 				{Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						RequireMFAType:             types.RequireMFAType_SESSION,
-						MinMFAVerificationInterval: types.Duration(5 * time.Minute),
+						RequireMFAType:          types.RequireMFAType_SESSION,
+						MFAVerificationInterval: types.Duration(5 * time.Minute),
 					},
 				},
 				},
@@ -2458,16 +2458,16 @@ func TestMinMFAVerificationInterval(t *testing.T) {
 				{
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
-							RequireMFAType:             types.RequireMFAType_SESSION,
-							MinMFAVerificationInterval: types.Duration(5 * time.Minute),
+							RequireMFAType:          types.RequireMFAType_SESSION,
+							MFAVerificationInterval: types.Duration(5 * time.Minute),
 						},
 					},
 				},
 				{
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
-							RequireMFAType:             types.RequireMFAType_SESSION,
-							MinMFAVerificationInterval: types.Duration(2 * time.Minute),
+							RequireMFAType:          types.RequireMFAType_SESSION,
+							MFAVerificationInterval: types.Duration(2 * time.Minute),
 						},
 					},
 				},
@@ -2482,8 +2482,8 @@ func TestMinMFAVerificationInterval(t *testing.T) {
 				{
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
-							RequireMFAType:             types.RequireMFAType_OFF,
-							MinMFAVerificationInterval: types.Duration(5 * time.Minute),
+							RequireMFAType:          types.RequireMFAType_OFF,
+							MFAVerificationInterval: types.Duration(5 * time.Minute),
 						},
 					},
 				},
@@ -2501,7 +2501,7 @@ func TestMinMFAVerificationInterval(t *testing.T) {
 				set = append(set, &tc.roles[i])
 			}
 
-			result := set.AdjustMinMFAVerificationInterval(tc.inputTTL, tc.enforce)
+			result := set.AdjustMFAVerificationInterval(tc.inputTTL, tc.enforce)
 			require.Equal(t, tc.expectedTTL, result)
 		})
 	}

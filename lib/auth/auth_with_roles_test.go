@@ -752,7 +752,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	}
 }
 
-func TestGenerateUserCertsWithMinMFAVerification(t *testing.T) {
+func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 	t.Parallel()
 
 	const minVerificationDuration = 35 * time.Minute
@@ -795,7 +795,7 @@ func TestGenerateUserCertsWithMinMFAVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	role2Opts := role2.GetOptions()
-	role2Opts.MinMFAVerificationInterval = types.NewDuration(minVerificationDuration)
+	role2Opts.MFAVerificationInterval = types.NewDuration(minVerificationDuration)
 	role2Opts.RequireMFAType = types.RequireMFAType_SESSION
 	role2.SetOptions(role2Opts)
 
@@ -807,7 +807,7 @@ func TestGenerateUserCertsWithMinMFAVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	role3Opts := role3.GetOptions()
-	role3Opts.MinMFAVerificationInterval = types.NewDuration(minVerificationDuration)
+	role3Opts.MFAVerificationInterval = types.NewDuration(minVerificationDuration)
 	role3.SetOptions(role3Opts)
 
 	_, err = srv.Auth().UpsertRole(ctx, role3)
@@ -837,21 +837,21 @@ func TestGenerateUserCertsWithMinMFAVerification(t *testing.T) {
 		requester         proto.UserCertsRequest_Requester
 	}{
 		{
-			desc:       "Roles don't have min_mfa_verification_interval set",
+			desc:       "Roles don't have mfa_verification_interval set",
 			user:       user1,
 			expiration: authClock.Now().Add(defaultDuration),
 			usage:      proto.UserCertsRequest_Kubernetes,
 			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 		},
 		{
-			desc:       "Roles have min_mfa_verification_interval set, but MFA is not required",
+			desc:       "Roles have mfa_verification_interval set, but MFA is not required",
 			user:       user3,
 			expiration: authClock.Now().Add(defaultDuration),
 			usage:      proto.UserCertsRequest_Kubernetes,
 			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 		},
 		{
-			desc:              "Roles have min_mfa_verification_interval set, MFA required only on cluster level",
+			desc:              "Roles have mfa_verification_interval set, MFA required only on cluster level",
 			user:              user3,
 			expiration:        authClock.Now().Add(minVerificationDuration),
 			usage:             proto.UserCertsRequest_Kubernetes,
@@ -859,28 +859,28 @@ func TestGenerateUserCertsWithMinMFAVerification(t *testing.T) {
 			clusterRequireMFA: true,
 		},
 		{
-			desc:       "Kube proxy, roles have min_mfa_verification_interval set, cert expiration adjusted",
+			desc:       "Kube proxy, roles have mfa_verification_interval set, cert expiration adjusted",
 			user:       user2,
 			expiration: authClock.Now().Add(minVerificationDuration),
 			usage:      proto.UserCertsRequest_Kubernetes,
 			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
 		{
-			desc:       "Headless kube proxy, roles have min_mfa_verification_interval set, cert expiration adjusted",
+			desc:       "Headless kube proxy, roles have mfa_verification_interval set, cert expiration adjusted",
 			user:       user2,
 			expiration: authClock.Now().Add(minVerificationDuration),
 			usage:      proto.UserCertsRequest_Kubernetes,
 			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 		},
 		{
-			desc:       "DB Proxy, roles have min_mfa_verification_interval set, cert expiration adjusted",
+			desc:       "DB Proxy, roles have mfa_verification_interval set, cert expiration adjusted",
 			user:       user2,
 			expiration: authClock.Now().Add(minVerificationDuration),
 			usage:      proto.UserCertsRequest_Database,
 			requester:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 		},
 		{
-			desc:       "App proxy, roles have min_mfa_verification_interval set, cert expiration adjusted",
+			desc:       "App proxy, roles have mfa_verification_interval set, cert expiration adjusted",
 			user:       user2,
 			expiration: authClock.Now().Add(minVerificationDuration),
 			usage:      proto.UserCertsRequest_App,
