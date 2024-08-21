@@ -27,16 +27,30 @@ import {
 import { ConfigService } from 'teleterm/services/config';
 import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
 
-import type { Document } from 'teleterm/ui/services/workspacesService';
 import {
   TabContextMenuEventChannel,
   TabContextMenuEventType,
   TabContextMenuOptions,
 } from '../types';
 
+import type { Document } from 'teleterm/ui/services/workspacesService';
+
 type MainTabContextMenuOptions = {
   document: Document;
 };
+
+type TabContextMenuEvent =
+  | {
+      event: TabContextMenuEventType.ReopenPtyInShell;
+      item: Shell;
+    }
+  | {
+      event:
+        | TabContextMenuEventType.Close
+        | TabContextMenuEventType.CloseOthers
+        | TabContextMenuEventType.CloseToRight
+        | TabContextMenuEventType.DuplicatePty;
+    };
 
 export function subscribeToTabContextMenuEvent(
   shells: Shell[],
@@ -45,7 +59,7 @@ export function subscribeToTabContextMenuEvent(
   ipcMain.handle(
     TabContextMenuEventChannel,
     (event, options: MainTabContextMenuOptions) => {
-      return new Promise(resolve => {
+      return new Promise<TabContextMenuEvent>(resolve => {
         let preventAutoPromiseResolveOnMenuClose = false;
 
         function getCommonTemplate(): MenuItemConstructorOptions[] {
@@ -187,15 +201,17 @@ export async function openTabContextMenu(
   const mainOptions: MainTabContextMenuOptions = {
     document: options.document,
   };
-  const response = await ipcRenderer.invoke(
+  const response = (await ipcRenderer.invoke(
     TabContextMenuEventChannel,
     mainOptions
-  );
+  )) as TabContextMenuEvent | undefined;
+  // Undefined when the menu gets closed without clicking on any action.
   if (!response) {
     return;
   }
+  const { event } = response;
 
-  switch (response.event) {
+  switch (event) {
     case TabContextMenuEventType.Close:
       return options.onClose();
     case TabContextMenuEventType.CloseOthers:
@@ -206,5 +222,7 @@ export async function openTabContextMenu(
       return options.onDuplicatePty();
     case TabContextMenuEventType.ReopenPtyInShell:
       return options.onReopenPtyInShell(response.item);
+    default:
+      event satisfies never;
   }
 }
