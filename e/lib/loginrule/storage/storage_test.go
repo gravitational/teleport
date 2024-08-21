@@ -181,7 +181,7 @@ func TestGetLoginRule(t *testing.T) {
 	}
 	for name, corruptedRule := range corruptedRules {
 		_, err := p.mem.Create(ctx, backend.Item{
-			Key:   backend.Key("login_rules", name),
+			Key:   backend.NewKey("login_rules", name),
 			Value: []byte(corruptedRule),
 		})
 		require.NoError(t, err)

@@ -249,7 +249,7 @@ func (r *UsageReporter) getAuthConnectorCount(ctx context.Context) (int, error) 
 // lock already exists. The lock will expire over time.
 func (r *UsageReporter) acquireReportingLock(ctx context.Context, ttl time.Duration) error {
 	item := backend.Item{
-		Key:     backend.Key(cloudPrefix, lockPrefix),
+		Key:     backend.NewKey(cloudPrefix, lockPrefix),
 		Value:   []byte{1},
 		Expires: r.BackendGetter.Clock().Now().UTC().Add(ttl),
 	}

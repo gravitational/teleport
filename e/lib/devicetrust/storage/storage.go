@@ -2181,33 +2181,33 @@ func tpmPlatformAttestationFromStored(stored *tpmPlatformAttestation) *devicepb.
 }
 
 func deviceKeyStart() []byte {
-	return backend.Key(devicetrust.DevicesIDPrefix...)
+	return backend.NewKey(devicetrust.DevicesIDPrefix...)
 }
 
 func deviceKey(deviceID string) []byte {
-	return backend.Key(append(devicetrust.DevicesIDPrefix, deviceID)...)
+	return backend.NewKey(append(devicetrust.DevicesIDPrefix, deviceID)...)
 }
 
 func deviceTokenKey(deviceID string) []byte {
-	return backend.Key("devices", "enroll_token", deviceID)
+	return backend.NewKey("devices", "enroll_token", deviceID)
 }
 
 func deviceWebAuthenticationAttemptKey(attemptID string) []byte {
-	return backend.Key("devices", "web_authn_attempt", attemptID)
+	return backend.NewKey("devices", "web_authn_attempt", attemptID)
 }
 
 func devicesByAssetTagKey(assetTag string) []byte {
-	return backend.Key("devices", "byTag", assetTag)
+	return backend.NewKey("devices", "byTag", assetTag)
 }
 
 func devicesByUserKey(user string) []byte {
-	return backend.Key("devices", "by_user", user)
+	return backend.NewKey("devices", "by_user", user)
 }
 
 func collectedDataKey(deviceID, cdID string) []byte {
-	return backend.Key("devices", "collected_data", deviceID, cdID)
+	return backend.NewKey("devices", "collected_data", deviceID, cdID)
 }
 
 func collectedDataKeyStart(deviceID string) []byte {
-	return backend.Key("devices", "collected_data", deviceID)
+	return backend.NewKey("devices", "collected_data", deviceID)
 }

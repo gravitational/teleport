@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var featuresBackendKey = backend.Key("cloud", "features")
+var featuresBackendKey = backend.NewKey("cloud", "features")
 
 // GetCloudFeatures performs a gRPC call to Cloud's tenant service to query entitlements
 func GetCloudFeatures(ctx context.Context, cloudClient cloud.Client) (*modules.Features, error) {

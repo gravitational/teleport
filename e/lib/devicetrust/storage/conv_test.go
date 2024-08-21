@@ -82,7 +82,7 @@ func TestDeviceFromBackendItem(t *testing.T) {
 	}
 
 	// Get the device from the backend.
-	key := backend.Key(append(devicetrust.DevicesIDPrefix, resource1Dev.Id)...)
+	key := backend.NewKey(append(devicetrust.DevicesIDPrefix, resource1Dev.Id)...)
 	item, err := env.mem.Get(ctx, key)
 	if err != nil {
 		t.Fatalf("backend.Get failed: %v", err)

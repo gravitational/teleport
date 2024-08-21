@@ -209,5 +209,5 @@ func ruleNameFromKey(key []byte) string {
 }
 
 func loginRuleKey(name string) []byte {
-	return backend.Key("login_rules", name)
+	return backend.NewKey("login_rules", name)
 }

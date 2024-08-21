@@ -1543,7 +1543,7 @@ func TestS_GetDeviceIDsByOSTag(t *testing.T) {
 	// Simulate a bad asset tag mapping by deleting the device directly from
 	// storage.
 	// No normal storage.S interaction will get us into this state.
-	if err := env.mem.Delete(ctx, backend.Key("devices", "id", dev2.Id)); err != nil {
+	if err := env.mem.Delete(ctx, backend.NewKey("devices", "id", dev2.Id)); err != nil {
 		t.Fatalf("Direct deletion of %q failed: %v", dev2.AssetTag, err)
 	}
 
