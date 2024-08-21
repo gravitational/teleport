@@ -44,7 +44,7 @@ func TestClone(t *testing.T) {
 
 	for i := 0; i < itemCount; i++ {
 		item := backend.Item{
-			Key:   backend.Key(fmt.Sprintf("key-%05d", i)),
+			Key:   backend.NewKey(fmt.Sprintf("key-%05d", i)),
 			Value: []byte(fmt.Sprintf("value-%d", i)),
 		}
 		_, err := src.Put(ctx, item)
@@ -55,7 +55,7 @@ func TestClone(t *testing.T) {
 	err = backend.Clone(ctx, src, dst, 10, false)
 	require.NoError(t, err)
 
-	start := backend.Key("")
+	start := backend.NewKey("")
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 
@@ -80,7 +80,7 @@ func TestCloneForce(t *testing.T) {
 
 	for i := 0; i < itemCount; i++ {
 		item := backend.Item{
-			Key:   backend.Key(fmt.Sprintf("key-%05d", i)),
+			Key:   backend.NewKey(fmt.Sprintf("key-%05d", i)),
 			Value: []byte(fmt.Sprintf("value-%d", i)),
 		}
 		_, err := src.Put(ctx, item)
@@ -97,7 +97,7 @@ func TestCloneForce(t *testing.T) {
 	err = backend.Clone(ctx, src, dst, 10, true)
 	require.NoError(t, err)
 
-	start := backend.Key("")
+	start := backend.NewKey("")
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 

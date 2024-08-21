@@ -41,8 +41,8 @@ const (
 )
 
 var (
-	draftExternalAuditStorageBackendKey   = backend.Key(externalAuditStoragePrefix, externalAuditStorageDraftName)
-	clusterExternalAuditStorageBackendKey = backend.Key(externalAuditStoragePrefix, externalAuditStorageClusterName)
+	draftExternalAuditStorageBackendKey   = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageDraftName)
+	clusterExternalAuditStorageBackendKey = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageClusterName)
 )
 
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.

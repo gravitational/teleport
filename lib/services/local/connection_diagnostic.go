@@ -54,7 +54,7 @@ func (s *ConnectionDiagnosticService) CreateConnectionDiagnostic(ctx context.Con
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Key:     backend.NewKey(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:   value,
 		Expires: connectionDiagnostic.Expiry(),
 		ID:      connectionDiagnostic.GetResourceID(),
@@ -75,7 +75,7 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Key:      backend.NewKey(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:    value,
 		Expires:  connectionDiagnostic.Expiry(),
 		ID:       connectionDiagnostic.GetResourceID(),
@@ -89,7 +89,7 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 // AppendDiagnosticTrace adds a Trace into the ConnectionDiagnostics.
 // It does a CompareAndSwap to ensure atomicity.
 func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
-	existing, err := s.Get(ctx, backend.Key(connectionDiagnosticPrefix, name))
+	existing, err := s.Get(ctx, backend.NewKey(connectionDiagnosticPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("connection diagnostic %q doesn't exist", name)
@@ -111,7 +111,7 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 	}
 
 	newItem := backend.Item{
-		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Key:      backend.NewKey(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:    value,
 		Expires:  connectionDiagnostic.Expiry(),
 		ID:       connectionDiagnostic.GetResourceID(),
@@ -130,7 +130,7 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 //
 // If not found, a `trace.NotFound` error is returned
 func (s *ConnectionDiagnosticService) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
-	item, err := s.Get(ctx, backend.Key(connectionDiagnosticPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(connectionDiagnosticPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("connection diagnostic %q doesn't exist", name)

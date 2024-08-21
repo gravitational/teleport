@@ -442,7 +442,13 @@ const Separator = '/'
 
 // Key joins parts into path separated by Separator,
 // makes sure path always starts with Separator ("/")
-func Key(parts ...string) []byte {
+func Key1(parts ...string) []byte {
+	return NewKey(parts...)
+}
+
+// NewKey joins parts into path separated by Separator,
+// makes sure path always starts with Separator ("/")
+func NewKey(parts ...string) []byte {
 	return internalKey("", parts...)
 }
 
@@ -451,7 +457,7 @@ func Key(parts ...string) []byte {
 // math child paths and not other paths that have the resulting path
 // as a prefix.
 func ExactKey(parts ...string) []byte {
-	return append(Key(parts...), Separator)
+	return append(NewKey(parts...), Separator)
 }
 
 func internalKey(internalPrefix string, parts ...string) []byte {
