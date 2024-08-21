@@ -143,6 +143,8 @@ export function subscribeToTabContextMenuEvent(
                 // resolved (popup.callback).
                 // Here we need to prevent this behavior to wait for the file
                 // to be selected.
+                // A more universal way of handling this problem:
+                // https://github.com/gravitational/teleport/pull/45152#discussion_r1723314524
                 preventAutoPromiseResolveOnMenuClose = true;
                 const { filePaths, canceled } = await dialog.showOpenDialog({
                   properties: ['openFile'],
