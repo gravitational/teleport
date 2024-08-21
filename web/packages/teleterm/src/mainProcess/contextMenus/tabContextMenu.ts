@@ -98,88 +98,89 @@ export function subscribeToTabContextMenuEvent(
 
         function getShellTemplate(): MenuItemConstructorOptions[] {
           const doc = options.document;
-          if (
+          const canChangeShell =
             doc.kind === 'doc.terminal_shell' ||
-            doc.kind === 'doc.gateway_kube'
-          ) {
-            const activeShellId = doc.shellId;
-            const defaultShellId = configService.get('terminal.shell').value;
-            const customShellPath = configService.get(
-              'terminal.customShell'
-            ).value;
-            const customShell =
-              customShellPath && makeCustomShellFromPath(customShellPath);
-            const shellsWithCustom = [...shells, customShell].filter(Boolean);
-            const isMoreThanOneShell = shellsWithCustom.length > 1;
-            return [
-              {
-                type: 'separator',
-              },
-              ...shellsWithCustom.map(shell => ({
-                label: shell.friendlyName,
-                id: shell.id,
-                type: 'radio' as const,
-                visible: isMoreThanOneShell,
-                checked: shell.id === activeShellId,
-                click: () => {
-                  // Do nothing when the shell doesn't change.
-                  if (shell.id === activeShellId) {
-                    return;
-                  }
-                  resolve({
-                    event: TabContextMenuEventType.ReopenPtyInShell,
-                    item: shell,
-                  });
-                },
-              })),
-              {
-                label: customShell
-                  ? `Change Custom Shell (${customShell.friendlyName})…`
-                  : 'Select Custom Shell…',
-                click: async () => {
-                  // By default, when the popup menu is closed, the promise is
-                  // resolved (popup.callback).
-                  // Here we need to prevent this behavior to wait for the file
-                  // to be selected.
-                  preventAutoPromiseResolveOnMenuClose = true;
-                  const { filePaths, canceled } = await dialog.showOpenDialog({
-                    properties: ['openFile'],
-                    defaultPath: customShell.binPath,
-                  });
-                  if (canceled) {
-                    resolve(undefined);
-                    return;
-                  }
-                  const file = filePaths[0];
-                  configService.set('terminal.customShell', file);
-                  resolve({
-                    event: TabContextMenuEventType.ReopenPtyInShell,
-                    item: makeCustomShellFromPath(file),
-                  });
-                },
-              },
-              {
-                label: 'Default Shell',
-                visible: isMoreThanOneShell,
-                type: 'submenu',
-                sublabel:
-                  shellsWithCustom.find(s => defaultShellId === s.id)
-                    ?.friendlyName || defaultShellId,
-                submenu: [
-                  ...shellsWithCustom.map(shell => ({
-                    label: shell.friendlyName,
-                    id: shell.id,
-                    checked: shell.id === defaultShellId,
-                    type: 'radio' as const,
-                    click: () => {
-                      configService.set('terminal.shell', shell.id);
-                      resolve(undefined);
-                    },
-                  })),
-                ],
-              },
-            ];
+            doc.kind === 'doc.gateway_kube';
+          if (!canChangeShell) {
+            return;
           }
+          const activeShellId = doc.shellId;
+          const defaultShellId = configService.get('terminal.shell').value;
+          const customShellPath = configService.get(
+            'terminal.customShell'
+          ).value;
+          const customShell =
+            customShellPath && makeCustomShellFromPath(customShellPath);
+          const shellsWithCustom = [...shells, customShell].filter(Boolean);
+          const isMoreThanOneShell = shellsWithCustom.length > 1;
+          return [
+            {
+              type: 'separator',
+            },
+            ...shellsWithCustom.map(shell => ({
+              label: shell.friendlyName,
+              id: shell.id,
+              type: 'radio' as const,
+              visible: isMoreThanOneShell,
+              checked: shell.id === activeShellId,
+              click: () => {
+                // Do nothing when the shell doesn't change.
+                if (shell.id === activeShellId) {
+                  return;
+                }
+                resolve({
+                  event: TabContextMenuEventType.ReopenPtyInShell,
+                  item: shell,
+                });
+              },
+            })),
+            {
+              label: customShell
+                ? `Change Custom Shell (${customShell.friendlyName})…`
+                : 'Select Custom Shell…',
+              click: async () => {
+                // By default, when the popup menu is closed, the promise is
+                // resolved (popup.callback).
+                // Here we need to prevent this behavior to wait for the file
+                // to be selected.
+                preventAutoPromiseResolveOnMenuClose = true;
+                const { filePaths, canceled } = await dialog.showOpenDialog({
+                  properties: ['openFile'],
+                  defaultPath: customShell.binPath,
+                });
+                if (canceled) {
+                  resolve(undefined);
+                  return;
+                }
+                const file = filePaths[0];
+                configService.set('terminal.customShell', file);
+                resolve({
+                  event: TabContextMenuEventType.ReopenPtyInShell,
+                  item: makeCustomShellFromPath(file),
+                });
+              },
+            },
+            {
+              label: 'Default Shell',
+              visible: isMoreThanOneShell,
+              type: 'submenu',
+              sublabel:
+                shellsWithCustom.find(s => defaultShellId === s.id)
+                  ?.friendlyName || defaultShellId,
+              submenu: [
+                ...shellsWithCustom.map(shell => ({
+                  label: shell.friendlyName,
+                  id: shell.id,
+                  checked: shell.id === defaultShellId,
+                  type: 'radio' as const,
+                  click: () => {
+                    configService.set('terminal.shell', shell.id);
+                    resolve(undefined);
+                  },
+                })),
+              ],
+            },
+          ];
         }
 
         Menu.buildFromTemplate(
