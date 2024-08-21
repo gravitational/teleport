@@ -130,6 +130,7 @@ type testPack struct {
 	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
+	autoUpdateService       services.AutoUpdateService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -358,6 +359,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.staticHostUsers = staticHostUserService
 
+	p.autoUpdateService, err = local.NewClusterAutoUpdateService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -408,6 +414,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		AutoUpdateService:       p.autoUpdateService,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)

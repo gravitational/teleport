@@ -324,6 +324,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			AppSession:              svces.Identity,
 			Apps:                    svces.Apps,
 			ClusterConfig:           svces.ClusterConfiguration,
+			AutoUpdateService:       svces.AutoUpdateService,
 			CrownJewels:             svces.CrownJewels,
 			DatabaseObjects:         svces.DatabaseObjects,
 			DatabaseServices:        svces.DatabaseServices,

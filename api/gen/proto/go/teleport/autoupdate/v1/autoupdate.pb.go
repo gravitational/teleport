@@ -123,7 +123,7 @@ type ClusterAutoUpdateConfigSpec struct {
 	unknownFields protoimpl.UnknownFields
 
 	// ToolsAutoUpdate encodes the feature flag to enable/disable tools autoupdates.
-	ToolsAutoUpdate bool `protobuf:"varint,1,opt,name=tools_auto_update,json=toolsAutoUpdate,proto3" json:"tools_auto_update,omitempty"`
+	ToolsAutoUpdate string `protobuf:"bytes,1,opt,name=tools_auto_update,json=toolsAutoUpdate,proto3" json:"tools_auto_update,omitempty"`
 }
 
 func (x *ClusterAutoUpdateConfigSpec) Reset() {
@@ -158,11 +158,11 @@ func (*ClusterAutoUpdateConfigSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ClusterAutoUpdateConfigSpec) GetToolsAutoUpdate() bool {
+func (x *ClusterAutoUpdateConfigSpec) GetToolsAutoUpdate() string {
 	if x != nil {
 		return x.ToolsAutoUpdate
 	}
-	return false
+	return ""
 }
 
 // AutoupdateVersionV1 is a resource singleton with version required for
@@ -176,7 +176,7 @@ type AutoUpdateVersion struct {
 	SubKind  string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version  string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Metadata *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Spec     *AutoupdateVersionSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec     *AutoUpdateVersionSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 }
 
 func (x *AutoUpdateVersion) Reset() {
@@ -239,7 +239,7 @@ func (x *AutoUpdateVersion) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *AutoUpdateVersion) GetSpec() *AutoupdateVersionSpec {
+func (x *AutoUpdateVersion) GetSpec() *AutoUpdateVersionSpec {
 	if x != nil {
 		return x.Spec
 	}
@@ -247,7 +247,7 @@ func (x *AutoUpdateVersion) GetSpec() *AutoupdateVersionSpec {
 }
 
 // AutoupdateVersionSpecV1 encodes the parameters of the autoupdate versions.
-type AutoupdateVersionSpec struct {
+type AutoUpdateVersionSpec struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -256,8 +256,8 @@ type AutoupdateVersionSpec struct {
 	ToolsVersion string `protobuf:"bytes,1,opt,name=tools_version,json=toolsVersion,proto3" json:"tools_version,omitempty"`
 }
 
-func (x *AutoupdateVersionSpec) Reset() {
-	*x = AutoupdateVersionSpec{}
+func (x *AutoUpdateVersionSpec) Reset() {
+	*x = AutoUpdateVersionSpec{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_teleport_autoupdate_v1_autoupdate_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -265,13 +265,13 @@ func (x *AutoupdateVersionSpec) Reset() {
 	}
 }
 
-func (x *AutoupdateVersionSpec) String() string {
+func (x *AutoUpdateVersionSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AutoupdateVersionSpec) ProtoMessage() {}
+func (*AutoUpdateVersionSpec) ProtoMessage() {}
 
-func (x *AutoupdateVersionSpec) ProtoReflect() protoreflect.Message {
+func (x *AutoUpdateVersionSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_autoupdate_v1_autoupdate_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -283,12 +283,12 @@ func (x *AutoupdateVersionSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoupdateVersionSpec.ProtoReflect.Descriptor instead.
-func (*AutoupdateVersionSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use AutoUpdateVersionSpec.ProtoReflect.Descriptor instead.
+func (*AutoUpdateVersionSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *AutoupdateVersionSpec) GetToolsVersion() string {
+func (x *AutoUpdateVersionSpec) GetToolsVersion() string {
 	if x != nil {
 		return x.ToolsVersion
 	}
@@ -322,7 +322,7 @@ var file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = []byte{
 	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x41, 0x75, 0x74, 0x6f, 0x55, 0x70, 0x64, 0x61, 0x74,
 	0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x70, 0x65, 0x63, 0x12, 0x2a, 0x0a, 0x11, 0x74,
 	0x6f, 0x6f, 0x6c, 0x73, 0x5f, 0x61, 0x75, 0x74, 0x6f, 0x5f, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0f, 0x74, 0x6f, 0x6f, 0x6c, 0x73, 0x41, 0x75, 0x74,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0f, 0x74, 0x6f, 0x6f, 0x6c, 0x73, 0x41, 0x75, 0x74,
 	0x6f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x22, 0xd9, 0x01, 0x0a, 0x11, 0x41, 0x75, 0x74, 0x6f,
 	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x12, 0x0a,
 	0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6b, 0x69, 0x6e,
@@ -335,9 +335,9 @@ var file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = []byte{
 	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61,
 	0x12, 0x41, 0x0a, 0x04, 0x73, 0x70, 0x65, 0x63, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2d,
 	0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x61, 0x75, 0x74, 0x6f, 0x75, 0x70,
-	0x64, 0x61, 0x74, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x75, 0x74, 0x6f, 0x75, 0x70, 0x64, 0x61,
+	0x64, 0x61, 0x74, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x75, 0x74, 0x6f, 0x55, 0x70, 0x64, 0x61,
 	0x74, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x53, 0x70, 0x65, 0x63, 0x52, 0x04, 0x73,
-	0x70, 0x65, 0x63, 0x22, 0x3c, 0x0a, 0x15, 0x41, 0x75, 0x74, 0x6f, 0x75, 0x70, 0x64, 0x61, 0x74,
+	0x70, 0x65, 0x63, 0x22, 0x3c, 0x0a, 0x15, 0x41, 0x75, 0x74, 0x6f, 0x55, 0x70, 0x64, 0x61, 0x74,
 	0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x53, 0x70, 0x65, 0x63, 0x12, 0x23, 0x0a, 0x0d,
 	0x74, 0x6f, 0x6f, 0x6c, 0x73, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x0c, 0x74, 0x6f, 0x6f, 0x6c, 0x73, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f,
@@ -367,14 +367,14 @@ var file_teleport_autoupdate_v1_autoupdate_proto_goTypes = []any{
 	(*ClusterAutoUpdateConfig)(nil),     // 0: teleport.autoupdate.v1.ClusterAutoUpdateConfig
 	(*ClusterAutoUpdateConfigSpec)(nil), // 1: teleport.autoupdate.v1.ClusterAutoUpdateConfigSpec
 	(*AutoUpdateVersion)(nil),           // 2: teleport.autoupdate.v1.AutoUpdateVersion
-	(*AutoupdateVersionSpec)(nil),       // 3: teleport.autoupdate.v1.AutoupdateVersionSpec
+	(*AutoUpdateVersionSpec)(nil),       // 3: teleport.autoupdate.v1.AutoUpdateVersionSpec
 	(*v1.Metadata)(nil),                 // 4: teleport.header.v1.Metadata
 }
 var file_teleport_autoupdate_v1_autoupdate_proto_depIdxs = []int32{
 	4, // 0: teleport.autoupdate.v1.ClusterAutoUpdateConfig.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.autoupdate.v1.ClusterAutoUpdateConfig.spec:type_name -> teleport.autoupdate.v1.ClusterAutoUpdateConfigSpec
 	4, // 2: teleport.autoupdate.v1.AutoUpdateVersion.metadata:type_name -> teleport.header.v1.Metadata
-	3, // 3: teleport.autoupdate.v1.AutoUpdateVersion.spec:type_name -> teleport.autoupdate.v1.AutoupdateVersionSpec
+	3, // 3: teleport.autoupdate.v1.AutoUpdateVersion.spec:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpec
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
@@ -425,7 +425,7 @@ func file_teleport_autoupdate_v1_autoupdate_proto_init() {
 			}
 		}
 		file_teleport_autoupdate_v1_autoupdate_proto_msgTypes[3].Exporter = func(v any, i int) any {
-			switch v := v.(*AutoupdateVersionSpec); i {
+			switch v := v.(*AutoUpdateVersionSpec); i {
 			case 0:
 				return &v.state
 			case 1:

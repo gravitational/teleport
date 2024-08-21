@@ -300,7 +300,7 @@ type PingResponse struct {
 	// ToolsVersion defines the version of {tsh, tctl} for client auto-upgrade.
 	ToolsVersion string `json:"tools_version"`
 	// ToolsAutoUpdate enables client autoupdate feature.
-	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	ToolsAutoUpdate string `json:"tools_auto_update"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 

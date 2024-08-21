@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
 

@@ -34,7 +34,7 @@ message ClusterAutoUpdateConfig {
 // ClusterAutoupdateConfigSpecV1 encodes the parameters of the autoupdate config object.
 message ClusterAutoUpdateConfigSpec {
   // ToolsAutoUpdate encodes the feature flag to enable/disable tools autoupdates.
-  bool tools_auto_update = 1;
+  string tools_auto_update = 1;
 }
 
 // AutoupdateVersionV1 is a resource singleton with version required for
@@ -45,11 +45,11 @@ message AutoUpdateVersion {
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
 
-  AutoupdateVersionSpec spec = 5;
+  AutoUpdateVersionSpec spec = 5;
 }
 
 // AutoupdateVersionSpecV1 encodes the parameters of the autoupdate versions.
-message AutoupdateVersionSpec {
+message AutoUpdateVersionSpec {
   // ToolsVersion is the semantic version required for tools autoupdates.
   string tools_version = 1;
 }
