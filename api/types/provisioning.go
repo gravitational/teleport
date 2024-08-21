@@ -838,9 +838,7 @@ func (a *ProvisionTokenSpecV2Terraform) checkAndSetDefaults() error {
 		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodTerraform)
 	}
 
-	if a.Audience == "" {
-		return trace.BadParameter("audience: should match the audience specified in TFC's TFC_WORKLOAD_IDENTITY_AUDIENCE variable")
-	}
+	// Note: an empty audience will fall back to the cluster name.
 
 	for i, allowRule := range a.Allow {
 		orgSet := allowRule.OrganizationID != "" || allowRule.OrganizationName != ""
