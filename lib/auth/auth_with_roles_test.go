@@ -3795,7 +3795,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("with fake pagination", func(t *testing.T) {
-		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer} {
+		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer} {
 			var results []*types.EnrichedResource
 			var start string
 
@@ -3819,16 +3819,16 @@ func TestListResources_WithLogins(t *testing.T) {
 				case types.Server, types.WindowsDesktop, types.AppServer:
 					require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 						return strings.Compare(a, b) < 0
-					})))
+					})), "mismatch on expected logins list for resource %T", resource.ResourceWithLabels)
 				default:
-					require.Empty(t, resource.Logins)
+					require.Empty(t, resource.Logins, "expected resource %T to get empty list of logins but got %s", resource.ResourceWithLabels, resource.Logins)
 				}
 			}
 		}
 	})
 
 	t.Run("without fake pagination", func(t *testing.T) {
-		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer} {
+		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer} {
 			var results []*types.EnrichedResource
 			var start string
 
@@ -3851,9 +3851,9 @@ func TestListResources_WithLogins(t *testing.T) {
 				case types.Server, types.WindowsDesktop, types.AppServer:
 					require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 						return strings.Compare(a, b) < 0
-					})))
+					})), "mismatch on expected logins list for resource %T", resource.ResourceWithLabels)
 				default:
-					require.Empty(t, resource.Logins)
+					require.Empty(t, resource.Logins, "expected resource %T to get empty list of logins but got %s", resource.ResourceWithLabels, resource.Logins)
 				}
 			}
 		}
@@ -4801,7 +4801,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 	var results []*proto.PaginatedResource
 	var start string
-	for len(results) != 15 {
+	for {
 		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Limit:         5,
 			IncludeLogins: true,
@@ -4812,18 +4812,25 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		results = append(results, resp.Resources...)
 		start = resp.NextKey
+		if start == "" {
+			break
+		}
 	}
+	// Note: this number should be updated in case we add more resources to the
+	// setup loop.
+	require.Len(t, results, 20)
 
 	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {
-		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil || resource.GetAppServer() != nil {
+		isAWSConsoleApp := resource.GetAppServer() != nil && resource.GetAppServer().GetApp().IsAWSConsole()
+		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil || isAWSConsoleApp {
 			require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 				return strings.Compare(a, b) < 0
-			})))
+			})), "mismatch on expected logins list for resource %T", resource.Resource)
 			continue
 		}
 
-		require.Empty(t, resource.Logins)
+		require.Empty(t, resource.Logins, "expected resource %T to get empty list of logins but got %s", resource.Resource, resource.Logins)
 	}
 }
 
