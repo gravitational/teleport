@@ -292,7 +292,7 @@ export const StyledSelect = styled.div<StyledSelectProps>`
     }
   }
 
-  .react-select__input {
+  .react-select__input-container {
     color: ${props => props.theme.colors.text.main};
   }
 
