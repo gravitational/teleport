@@ -28,6 +28,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -2505,6 +2506,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
+		Backend:       b,
+		Store:         authServer.Services.SPIFFEFederations,
+		EventsWatcher: authServer.Services.Events,
+		Clock:         process.Clock,
+		Logger: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "spiffe_federation_syncer"),
+		),
+	})
+	if err != nil {
+		return trace.Wrap(err, "initializing SPIFFEFederation Syncer")
+	}
+	process.RegisterFunc("auth.spiffe_federation_syncer", func() error {
+		return trace.Wrap(spiffeFedSyncer.Run(process.GracefulExitContext()), "running SPIFFEFederation Syncer")
+	})
 
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
