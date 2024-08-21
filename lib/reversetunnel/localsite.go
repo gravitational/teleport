@@ -641,7 +641,15 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 
 	// If no tunnel connection was found, dial to the target host.
 	dialer := proxyutils.DialerFromEnvironment(params.To.String())
-	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultIOTimeout)
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
+		s.log.WithError(err).Warn("Failed to get cluster networking config - using default dial timeout")
+	} else {
+		dialTimeout = cnc.GetSSHDialTimeout()
+	}
+
+	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), dialTimeout)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)

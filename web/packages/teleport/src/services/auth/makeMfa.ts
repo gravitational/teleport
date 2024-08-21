@@ -92,6 +92,7 @@ export function makeWebauthnCreationResponse(res) {
     type: res.type,
     extensions: {
       appid: Boolean(clientExtentions?.appid),
+      credProps: clientExtentions?.credProps,
     },
     rawId: bufferToBase64url(res.rawId),
     response: {

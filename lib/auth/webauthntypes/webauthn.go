@@ -377,7 +377,14 @@ type Credential protocol.Credential
 // [protocol.AuthenticationExtensionsClientOutputs], materialized here to keep a
 // stable JSON marshal/unmarshal representation.
 type AuthenticationExtensionsClientOutputs struct {
-	AppID bool `json:"appid,omitempty"`
+	AppID     bool                        `json:"appid,omitempty"`
+	CredProps *CredentialPropertiesOutput `json:"credProps,omitempty"`
+}
+
+// CredentialPropertiesOutput is the output of the credProps extension.
+// https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension.
+type CredentialPropertiesOutput struct {
+	RK bool `json:"rk,omitempty"`
 }
 
 // SessionData is a clone of [webauthn.SessionData], materialized here to keep a

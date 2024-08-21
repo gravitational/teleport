@@ -36,6 +36,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -224,6 +225,7 @@ type cacheCollections struct {
 	crownJewels              collectionReader[crownjewelsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
+	staticHostUsers          collectionReader[staticHostUserGetter]
 	kubeServers              collectionReader[kubeServerGetter]
 	locks                    collectionReader[services.LockGetter]
 	namespaces               collectionReader[namespaceGetter]
@@ -254,6 +256,7 @@ type cacheCollections struct {
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
+	identityCenterAccounts   collectionReader[identityCenterAccountGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -713,6 +716,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.kubeWaitingContainers
+		case types.KindStaticHostUser:
+			if c.StaticHostUsers == nil {
+				return nil, trace.BadParameter("missing parameter StaticHostUsers")
+			}
+			collections.staticHostUsers = &genericCollection[*userprovisioningpb.StaticHostUser, staticHostUserGetter, staticHostUserExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.staticHostUsers
 		case types.KindNotification:
 			if c.Notifications == nil {
 				return nil, trace.BadParameter("missing parameter Notifications")
@@ -764,6 +776,17 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.provisioningStates
+
+		case types.KindIdentityCenterAccount:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.identityCenterAccounts = &genericCollection[services.IdentityCenterAccount, identityCenterAccountGetter, identityCenterAccountExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.identityCenterAccounts
+
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2335,6 +2358,65 @@ type kubernetesWaitingContainerGetter interface {
 }
 
 var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
+
+type staticHostUserExecutor struct{}
+
+func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioningpb.StaticHostUser, error) {
+	var (
+		startKey string
+		allUsers []*userprovisioningpb.StaticHostUser
+	)
+	for {
+		users, nextKey, err := cache.StaticHostUsers.ListStaticHostUsers(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allUsers = append(allUsers, users...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+	return allUsers, nil
+}
+
+func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioningpb.StaticHostUser) error {
+	_, err := cache.staticHostUsersCache.UpsertStaticHostUser(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (staticHostUserExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.staticHostUsersCache.DeleteAllStaticHostUsers(ctx))
+}
+
+func (staticHostUserExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	var hostUser *userprovisioningpb.StaticHostUser
+	r, ok := resource.(types.Resource153Unwrapper)
+	if ok {
+		hostUser, ok = r.Unwrap().(*userprovisioningpb.StaticHostUser)
+		if ok {
+			err := cache.staticHostUsersCache.DeleteStaticHostUser(ctx, hostUser.Metadata.Name)
+			return trace.Wrap(err)
+		}
+	}
+	return trace.BadParameter("unknown StaticHostUser type, expected %T, got %T", hostUser, resource)
+}
+
+func (staticHostUserExecutor) isSingleton() bool { return false }
+
+func (staticHostUserExecutor) getReader(cache *Cache, cacheOK bool) staticHostUserGetter {
+	if cacheOK {
+		return cache.staticHostUsersCache
+	}
+	return cache.Config.StaticHostUsers
+}
+
+type staticHostUserGetter interface {
+	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
+	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+}
 
 type crownJewelsExecutor struct{}
 

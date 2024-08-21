@@ -42,11 +42,11 @@ Password hashes are generated using [bcrypt](https://pkg.go.dev/golang.org/x/cry
 Each deployment is using at-rest encryption using AWS DynamoDB and S3 at-rest encryption
 for customer data including session recordings and user records.
 
-### Can I get a list of IP addresses to configure a firewall?
+### Can I get a list of IP addresses that my infrastructure will need to allow connections to?
 
-See the [Public IP Address Allowlist](../ips.mdx) for the list of IP addresses.
+See the [Public IP Address Allowlist](../ips.mdx) for the list of IP addresses used for inbound connections to Teleport Enterprise Cloud.
 
-### Can I configure an allowlist of inbound IP addresses to Teleport Enterprise Cloud?
+### Can I configure a list of IP addresses which are allowed to connect to Teleport Enterprise Cloud?
 
 We do not have plans to offer support for inbound connection IP allowlists.
 
@@ -141,7 +141,7 @@ described in [Teleport Upcoming Releases](../upcoming-releases.mdx).
 - Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport cloud accounts
   during your scheduled maintenance window.
 - The Teleport Auth Service and Proxy Service will not be automatically upgraded to the next
-   major version with Teleport Agents on older major versions. 
+   major version with Teleport Agents on older major versions.
 - Teleport Agents are only updated automatically if you enroll them in automatic updates.
 
 If you have Teleport Agents connected to a managed Teleport Enterprise cluster
@@ -163,7 +163,7 @@ issues to your resources. For example, if your control plane is currently runnin
 running Teleport 14, we will not be able to upgrade your control plane to Teleport 16 until all Teleport Agents are
 running Teleport 15.
 
-You can check the status of your Teleport Agent versions from the `tctl inventory ls` command. `Auth` and `Proxy` 
+You can check the status of your Teleport Agent versions from the `tctl inventory ls` command. `Auth` and `Proxy`
 services are those managed by Teleport. See [How can I find version information on
 connected agents?](#how-can-i-find-version-information-on-connected-agents) for further detail.
 
@@ -200,7 +200,7 @@ Updates](../upgrading/automatic-agent-updates.mdx) guide.
 
 ### How can I find version information on connected agents?
 
-You can check the status of your agents' version from the `tctl inventory ls` command. `Auth` and `Proxy` 
+You can check the status of your agents' version from the `tctl inventory ls` command. `Auth` and `Proxy`
 services are those managed by Teleport.
 
 ```bash
@@ -268,7 +268,7 @@ certificate or use a custom domain name.
 
 ### Where does Teleport Enterprise Cloud run?
 
-Teleport Cloud runs on Amazon Web Services (AWS). We run proxies in a variety 
+Teleport Cloud runs on Amazon Web Services (AWS). We run proxies in a variety
 of regions all over the world, and allow customers to [select the region](architecture/teleport-cloud-architecture.mdx) where the data is stored.
 
 ### Are you using AWS-managed encryption keys, or CMKs via KMS?
