@@ -331,6 +331,7 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 					"trust_domain", name,
 					"error", err,
 				)
+				return
 			}
 			retry.Inc()
 			log.ErrorContext(
@@ -350,10 +351,9 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 				// Ensure the timer after /after/ the next sync time.
 				timeUntil = timeUntil + time.Second
 				nextSync.Reset(timeUntil)
+				log.InfoContext(ctx, "Will try to sync again at", "next_sync_at", nextSyncAt)
 			}
 		}
-
-		// TODO: Retry on failure w/ backoff, be ready to accept a new update...
 	}
 }
 
@@ -425,7 +425,7 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 	// Determine - should we refresh...
 	syncReason := shouldSyncFederation(ctx, log, s.cfg.Clock, current)
 	if syncReason == "" {
-		log.DebugContext(ctx, "No need to sync")
+		log.DebugContext(ctx, "Skipping sync as is not required")
 		return current, nil
 	}
 	log.InfoContext(ctx, "Sync starting", "reason", syncReason)
