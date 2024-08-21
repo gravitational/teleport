@@ -22,7 +22,7 @@ import { Text, Flex } from 'design';
 import { ToolTipInfo } from './ToolTip';
 
 export default {
-  title: 'Shared/ToolTip/Info',
+  title: 'Shared/ToolTip',
 };
 
 export const ShortContent = () => (
@@ -59,5 +59,23 @@ export const WithMutedIconColor = () => (
       Hover the icon
     </span>
     <ToolTipInfo muteIconColor>"some popover content"</ToolTipInfo>
+  </>
+);
+
+export const WithKindWarning = () => (
+  <>
+    <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+      Hover the icon
+    </span>
+    <ToolTipInfo kind="warning">"some popover content"</ToolTipInfo>
+  </>
+);
+
+export const WithKindError = () => (
+  <>
+    <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+      Hover the icon
+    </span>
+    <ToolTipInfo kind="error">"some popover content"</ToolTipInfo>
   </>
 );
