@@ -21,6 +21,7 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"slices"
 	"strings"
 
