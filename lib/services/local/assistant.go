@@ -77,7 +77,7 @@ func (s *AssistService) CreateAssistantConversation(ctx context.Context,
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(assistantConversationPrefix, req.Username, conversationID),
+		Key:   backend.NewKey(assistantConversationPrefix, req.Username, conversationID),
 		Value: value,
 	}
 
@@ -91,7 +91,7 @@ func (s *AssistService) CreateAssistantConversation(ctx context.Context,
 
 // getConversation returns a conversation from the backend.
 func (s *AssistService) getConversation(ctx context.Context, username, conversationID string) (*Conversation, error) {
-	item, err := s.Get(ctx, backend.Key(assistantConversationPrefix, username, conversationID))
+	item, err := s.Get(ctx, backend.NewKey(assistantConversationPrefix, username, conversationID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,7 +120,7 @@ func (s *AssistService) DeleteAssistantConversation(ctx context.Context, req *as
 	}
 
 	// Delete the conversation.
-	if err := s.Delete(ctx, backend.Key(assistantConversationPrefix, req.Username, req.ConversationId)); err != nil {
+	if err := s.Delete(ctx, backend.NewKey(assistantConversationPrefix, req.Username, req.ConversationId)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -163,7 +163,7 @@ func (s *AssistService) UpdateAssistantConversationInfo(ctx context.Context, req
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(assistantConversationPrefix, request.GetUsername(), request.GetConversationId()),
+		Key:   backend.NewKey(assistantConversationPrefix, request.GetUsername(), request.GetConversationId()),
 		Value: payload,
 	}
 
@@ -253,7 +253,7 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 	}
 
 	// Check if the conversation exists.
-	conversationKey := backend.Key(assistantConversationPrefix, req.Username, req.ConversationId)
+	conversationKey := backend.NewKey(assistantConversationPrefix, req.Username, req.ConversationId)
 	if _, err := s.Get(ctx, conversationKey); err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("conversation %q not found", req.ConversationId)
@@ -270,7 +270,7 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 	messageID := uuid.New().String()
 
 	item := backend.Item{
-		Key:   backend.Key(assistantMessagePrefix, req.Username, req.ConversationId, messageID),
+		Key:   backend.NewKey(assistantMessagePrefix, req.Username, req.ConversationId, messageID),
 		Value: value,
 	}
 

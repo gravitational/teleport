@@ -57,7 +57,7 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
 func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	item, err := s.Get(ctx, backend.Key(kubernetesPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(kubernetesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("kubernetes cluster %q doesn't exist", name)
@@ -82,7 +82,7 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(kubernetesPrefix, cluster.GetName()),
+		Key:     backend.NewKey(kubernetesPrefix, cluster.GetName()),
 		Value:   value,
 		Expires: cluster.Expiry(),
 		ID:      cluster.GetResourceID(),
@@ -109,7 +109,7 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(kubernetesPrefix, cluster.GetName()),
+		Key:      backend.NewKey(kubernetesPrefix, cluster.GetName()),
 		Value:    value,
 		Expires:  cluster.Expiry(),
 		ID:       cluster.GetResourceID(),
@@ -127,7 +127,7 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
 func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(kubernetesPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(kubernetesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("kubernetes cluster %q doesn't exist", name)

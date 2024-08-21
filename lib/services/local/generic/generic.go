@@ -176,7 +176,7 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 // ListResourcesReturnNextResource returns a paginated list of resources. The next resource is returned, which allows consumers to construct
 // the next pagination key as appropriate.
 func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) ([]T, *T, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -373,7 +373,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 
 // MakeKey will make a key for the service given a name.
 func (s *Service[T]) MakeKey(name string) []byte {
-	return backend.Key(s.backendPrefix, name)
+	return backend.NewKey(s.backendPrefix, name)
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.

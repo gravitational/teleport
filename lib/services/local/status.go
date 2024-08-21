@@ -99,7 +99,7 @@ func (s *StatusService) getAllClusterAlerts(ctx context.Context) ([]types.Cluste
 }
 
 func (s *StatusService) getClusterAlert(ctx context.Context, alertID string) (types.ClusterAlert, error) {
-	key := backend.Key(clusterAlertPrefix, alertID)
+	key := backend.NewKey(clusterAlertPrefix, alertID)
 	item, err := s.Backend.Get(ctx, key)
 	if err != nil {
 		return types.ClusterAlert{}, trace.Wrap(err)
@@ -133,7 +133,7 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 	}
 
 	_, err = s.Backend.Put(ctx, backend.Item{
-		Key:      backend.Key(clusterAlertPrefix, alert.Metadata.Name),
+		Key:      backend.NewKey(clusterAlertPrefix, alert.Metadata.Name),
 		Value:    val,
 		Expires:  alert.Metadata.Expiry(),
 		Revision: rev,
@@ -142,7 +142,7 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 }
 
 func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) error {
-	err := s.Backend.Delete(ctx, backend.Key(clusterAlertPrefix, alertID))
+	err := s.Backend.Delete(ctx, backend.NewKey(clusterAlertPrefix, alertID))
 	if trace.IsNotFound(err) {
 		return trace.NotFound("cluster alert %q not found", alertID)
 	}
@@ -161,7 +161,7 @@ func (s *StatusService) CreateAlertAck(ctx context.Context, ack types.AlertAckno
 	}
 
 	_, err = s.Backend.Create(ctx, backend.Item{
-		Key:     backend.Key(alertAckPrefix, ack.AlertID),
+		Key:     backend.NewKey(alertAckPrefix, ack.AlertID),
 		Value:   val,
 		Expires: ack.Expires,
 	})
@@ -202,7 +202,7 @@ func (s *StatusService) ClearAlertAcks(ctx context.Context, req proto.ClearAlert
 		return trace.Wrap(s.Backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 	}
 
-	err := s.Backend.Delete(ctx, backend.Key(alertAckPrefix, req.AlertID))
+	err := s.Backend.Delete(ctx, backend.NewKey(alertAckPrefix, req.AlertID))
 	if trace.IsNotFound(err) {
 		return nil
 	}

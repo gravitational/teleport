@@ -326,7 +326,7 @@ func TestLayoutUpdate(t *testing.T) {
 	// Insert the outdated preferences directly into the backend
 	// to simulate a previous version of the preferences.
 	_, err = identity.Put(ctx, backend.Item{
-		Key:   backend.Key("user_preferences", "test"),
+		Key:   backend.NewKey("user_preferences", "test"),
 		Value: val,
 	})
 	require.NoError(t, err)

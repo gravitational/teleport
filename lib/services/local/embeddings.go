@@ -44,7 +44,7 @@ const (
 
 // GetEmbedding looks up a single embedding by its name in the backend.
 func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID string) (*embedding.Embedding, error) {
-	result, err := e.Get(ctx, backend.Key(embeddingsPrefix, kind, resourceID))
+	result, err := e.Get(ctx, backend.NewKey(embeddingsPrefix, kind, resourceID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,5 +108,5 @@ func NewEmbeddingsService(b backend.Backend) *EmbeddingsService {
 
 // embeddingItemKey builds the backend item key for a given ai.Embedding.
 func embeddingItemKey(embedding *embedding.Embedding) []byte {
-	return backend.Key(embeddingsPrefix, embedding.GetName())
+	return backend.NewKey(embeddingsPrefix, embedding.GetName())
 }

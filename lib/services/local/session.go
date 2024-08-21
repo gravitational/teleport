@@ -57,7 +57,7 @@ func (s *IdentityService) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 }
 
 func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (types.WebSession, error) {
-	item, err := s.Get(ctx, backend.Key(keyParts...))
+	item, err := s.Get(ctx, backend.NewKey(keyParts...))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,7 +104,7 @@ func (s *IdentityService) ListSAMLIdPSessions(ctx context.Context, pageSize int,
 
 // listSessions gets a paginated list of sessions.
 func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageToken, user string, keyPrefix ...string) ([]types.WebSession, string, error) {
-	rangeStart := backend.Key(append(keyPrefix, pageToken)...)
+	rangeStart := backend.NewKey(append(keyPrefix, pageToken)...)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
 
 	// Adjust page size, so it can't be too large.
@@ -190,7 +190,7 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(append(keyPrefix, session.GetName())...),
+		Key:      backend.NewKey(append(keyPrefix, session.GetName())...),
 		Value:    value,
 		Expires:  session.GetExpiryTime(),
 		Revision: rev,
@@ -204,7 +204,7 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 
 // DeleteAppSession removes an application web session.
 func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.NewKey(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -212,7 +212,7 @@ func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.Delete
 
 // DeleteSnowflakeSession removes a Snowflake web session.
 func (s *IdentityService) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(snowflakePrefix, sessionsPrefix, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.NewKey(snowflakePrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -221,7 +221,7 @@ func (s *IdentityService) DeleteSnowflakeSession(ctx context.Context, req types.
 // DeleteSAMLIdPSession removes a SAML IdP session.
 // TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(samlIdPPrefix, sessionsPrefix, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.NewKey(samlIdPPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -503,9 +503,9 @@ type webTokens struct {
 }
 
 func webSessionKey(sessionID string) (key []byte) {
-	return backend.Key(webPrefix, sessionsPrefix, sessionID)
+	return backend.NewKey(webPrefix, sessionsPrefix, sessionID)
 }
 
 func webTokenKey(token string) (key []byte) {
-	return backend.Key(webPrefix, tokensPrefix, token)
+	return backend.NewKey(webPrefix, tokensPrefix, token)
 }
