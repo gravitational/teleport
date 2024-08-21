@@ -497,6 +497,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+	// TODO(nklaassen): support split SSH and TLS keys for headless auth.
 	ha.PublicKey = req.PublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
@@ -534,6 +535,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	if approvedHeadlessAuthn.User != req.Username {
 		return nil, trace.AccessDenied("headless authentication user mismatch")
 	}
+	// TODO(nklaassen): support split SSH and TLS keys for headless auth.
 	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 		return nil, trace.AccessDenied("headless authentication public key mismatch")
 	}
@@ -697,18 +699,25 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.PublicKey
-	publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sshPublicKey := req.SSHPublicKey
+	tlsPublicKey := req.TLSPublicKey
+	sshPublicKeyAttestationStatement := req.SSHAttestationStatement
+	tlsPublicKeyAttestationStatement := req.TLSAttestationStatement
+	if req.PublicKey != nil {
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		sshPublicKey = req.PublicKey
+		publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(publicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sshPublicKeyAttestationStatement = req.AttestationStatement
+		tlsPublicKeyAttestationStatement = req.AttestationStatement
 	}
-	tlsPublicKey, err := keys.MarshalPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := req.AttestationStatement
-	tlsPublicKeyAttestationStatement := req.AttestationStatement
 
 	certReq := certRequest{
 		user:                             user,
@@ -731,6 +740,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// TODO(nklaassen): support split keys for headless auth.
 		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 			return nil, trace.AccessDenied("headless authentication public key mismatch")
 		}

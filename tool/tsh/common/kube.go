@@ -631,22 +631,23 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 2 different files from the disk:
-	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
-	// - $TSH_HOME/keys/$PROXY/$USER
+	// it removes all transversals, it still has to read 2 different files from
+	// the disk and acquire a read lock on the key file:
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
 	//
 	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
 	// cf.GetProfile call above.
-	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
+	if keyPEM, certPEM, err := client.LoadKeysToKubeFromStore(
 		profile,
 		cf.HomePath,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
-		crt, _ := tlsca.ParseCertificatePEM(kubeCert)
+		crt, _ := tlsca.ParseCertificatePEM(certPEM)
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
-			return c.writeByteResponse(cf.Stdout(), kubeCert, privKey, crt.NotAfter)
+			return c.writeByteResponse(cf.Stdout(), certPEM, keyPEM, crt.NotAfter)
 		}
 	}
 
@@ -803,14 +804,19 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
+	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
+	if !ok {
+		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
+	}
+
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
 	// hardware private keys for kube credentials (if possible)
-	keyPEM, err := keyRing.PrivateKey.SoftwarePrivateKeyPEM()
+	keyPEM, err := cred.PrivateKey.SoftwarePrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.writeResponse(output, keyRing.KubeTLSCerts[kubeClusterName], keyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, cred.Cert, keyPEM, expiry))
 }
 
 // writeByteResponse writes the exec credential response to the output stream.

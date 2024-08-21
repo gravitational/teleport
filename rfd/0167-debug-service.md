@@ -249,5 +249,5 @@ Here's an example of what the configuration could look like:
 ```
 debug_service:
   users: [root]
-  groups: [adminstrators]
+  groups: [administrators]
 ```
