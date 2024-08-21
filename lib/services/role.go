@@ -1261,6 +1261,21 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	return ttl
 }
 
+// AdjustMFAVerificationInterval will reduce the requested ttl to the lowest mfa verification interval
+// for this role set if the role forces MFA tap, otherwise it returns ttl unchanged
+func (set RoleSet) AdjustMFAVerificationInterval(ttl time.Duration, enforce bool) time.Duration {
+	for _, role := range set {
+		mfaVerificationInterval := role.GetOptions().MFAVerificationInterval
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF && !enforce {
+			continue
+		}
+		if mfaVerificationInterval != 0 && ttl > mfaVerificationInterval {
+			ttl = mfaVerificationInterval
+		}
+	}
+	return ttl
+}
+
 // MaxConnections returns the maximum number of concurrent ssh connections
 // allowed.  If MaxConnections is zero then no maximum was defined
 // and the number of concurrent connections is unconstrained.
