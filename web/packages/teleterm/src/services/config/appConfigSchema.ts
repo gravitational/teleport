@@ -43,6 +43,10 @@ export const CONFIG_MODIFIABLE_FROM_RENDERER: (keyof AppConfig)[] = [
 export const createAppConfigSchema = (settings: RuntimeSettings) => {
   const defaultKeymap = getDefaultKeymap(settings.platform);
   const defaultTerminalFont = getDefaultTerminalFont(settings.platform);
+  const availableShellIdsWithCustom = [
+    ...settings.availableShells.map(({ id }) => id),
+    CUSTOM_SHELL_ID,
+  ];
 
   const shortcutSchema = createKeyboardShortcutSchema(settings.platform);
 
@@ -83,11 +87,11 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       )
       .refine(
         configuredShell =>
-          settings.availableShells.some(
-            shell => shell.id === configuredShell || CUSTOM_SHELL_ID
+          availableShellIdsWithCustom.some(
+            shellId => shellId === configuredShell
           ),
         configuredShell => ({
-          message: `Cannot find the shell "${configuredShell}". Available options are: [${settings.availableShells.map(({ id }) => id).join(', ')}]. Using platform default (${settings.defaultOsShellId}).`,
+          message: `Cannot find the shell "${configuredShell}". Available options are: [${availableShellIdsWithCustom.join(', ')}]. Using platform default.`,
         })
       ),
     'terminal.customShell': z
