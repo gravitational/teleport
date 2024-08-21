@@ -75,7 +75,7 @@ func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:      backend.Key(tokensPrefix, p.GetName()),
+		Key:      backend.NewKey(tokensPrefix, p.GetName()),
 		Value:    data,
 		Expires:  p.Expiry(),
 		ID:       p.GetResourceID(),
@@ -86,7 +86,7 @@ func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item
 
 // DeleteAllTokens deletes all provisioning tokens
 func (s *ProvisioningService) DeleteAllTokens() error {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.NewKey(tokensPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -95,7 +95,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 	if token == "" {
 		return nil, trace.BadParameter("missing parameter token")
 	}
-	item, err := s.Get(ctx, backend.Key(tokensPrefix, token))
+	item, err := s.Get(ctx, backend.NewKey(tokensPrefix, token))
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
 	} else if err != nil {
@@ -110,7 +110,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 	if token == "" {
 		return trace.BadParameter("missing parameter token")
 	}
-	err := s.Delete(ctx, backend.Key(tokensPrefix, token))
+	err := s.Delete(ctx, backend.NewKey(tokensPrefix, token))
 	if trace.IsNotFound(err) {
 		return trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
 	}

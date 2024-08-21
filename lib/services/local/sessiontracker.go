@@ -46,7 +46,7 @@ func NewSessionTrackerService(bk backend.Backend) (services.SessionTrackerServic
 }
 
 func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionPrefix, sessionID))
+	sessionJSON, err := s.bk.Get(ctx, backend.NewKey(sessionPrefix, sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,7 +62,7 @@ func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (typ
 // UpdatePresence updates the presence status of a user in a session.
 func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	for i := 0; i < casRetryLimit; i++ {
-		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, sessionID))
+		sessionItem, err := s.bk.Get(ctx, backend.NewKey(sessionPrefix, sessionID))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -82,7 +82,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 		}
 
 		item := backend.Item{
-			Key:      backend.Key(sessionPrefix, sessionID),
+			Key:      backend.NewKey(sessionPrefix, sessionID),
 			Value:    sessionJSON,
 			Expires:  session.Expiry(),
 			Revision: sessionItem.Revision,
@@ -186,7 +186,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, tracker types
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(sessionPrefix, tracker.GetSessionID()),
+		Key:     backend.NewKey(sessionPrefix, tracker.GetSessionID()),
 		Value:   json,
 		Expires: tracker.Expiry(),
 	}
@@ -201,7 +201,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, tracker types
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
 	for i := 0; i < casRetryLimit; i++ {
-		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, req.SessionID))
+		sessionItem, err := s.bk.Get(ctx, backend.NewKey(sessionPrefix, req.SessionID))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -261,7 +261,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 		}
 
 		item := backend.Item{
-			Key:      backend.Key(sessionPrefix, req.SessionID),
+			Key:      backend.NewKey(sessionPrefix, req.SessionID),
 			Value:    sessionJSON,
 			Expires:  expiry,
 			Revision: sessionItem.Revision,
@@ -284,5 +284,5 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (s *sessionTracker) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionPrefix, sessionID)))
+	return trace.Wrap(s.bk.Delete(ctx, backend.NewKey(sessionPrefix, sessionID)))
 }

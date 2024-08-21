@@ -58,7 +58,7 @@ func (s *CA) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) er
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:     backend.NewKey(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
 		Value:   value,
 		Expires: ca.Expiry(),
 	}
@@ -95,7 +95,7 @@ func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) er
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:      backend.NewKey(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
 		Value:    value,
 		Expires:  ca.Expiry(),
 		ID:       ca.GetResourceID(),
@@ -117,7 +117,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	key := backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName())
+	key := backend.NewKey(authoritiesPrefix, string(new.GetType()), new.GetName())
 
 	actualItem, err := s.Get(context.TODO(), key)
 	if err != nil {
@@ -161,13 +161,13 @@ func (s *CA) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
 	}
 	// when removing a types.CertAuthority also remove any deactivated
 	// types.CertAuthority as well if they exist.
-	err := s.Delete(ctx, backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	err := s.Delete(ctx, backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
-	err = s.Delete(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	err = s.Delete(ctx, backend.NewKey(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -177,7 +177,7 @@ func (s *CA) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
 // the normal list.
 func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
-	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(context.TODO(), backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.BadParameter("can not activate cert authority %q which has not been deactivated", id.DomainName)
@@ -196,7 +196,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	err = s.Delete(context.TODO(), backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -226,7 +226,7 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
+		Key:      backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
 		Value:    value,
 		Expires:  certAuthority.Expiry(),
 		ID:       certAuthority.GetResourceID(),
@@ -247,7 +247,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(ctx, backend.NewKey(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,9 +307,9 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 
 // UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
 func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
-	key := backend.Key(authoritiesPrefix, string(types.UserCA), name)
+	key := backend.NewKey(authoritiesPrefix, string(types.UserCA), name)
 	if !activated {
-		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
+		key = backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
 	}
 
 	actualItem, err := s.Get(ctx, key)

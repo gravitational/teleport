@@ -249,7 +249,7 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 }
 
 func pluginDataKey(kind string, name string) []byte {
-	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
+	return backend.NewKey(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
 const (

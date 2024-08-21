@@ -47,7 +47,7 @@ func NewAccessService(backend backend.Backend) *AccessService {
 
 // DeleteAllRoles deletes all roles
 func (s *AccessService) DeleteAllRoles() error {
-	startKey := backend.Key(rolesPrefix)
+	startKey := backend.NewKey(rolesPrefix)
 	endKey := backend.RangeEnd(startKey)
 	return s.DeleteRange(context.TODO(), startKey, endKey)
 }
@@ -98,7 +98,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 	startKey := backend.ExactKey(rolesPrefix)
 	if req.StartKey != "" {
-		startKey = backend.Key(rolesPrefix, req.StartKey, paramsPrefix)
+		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
 	}
 
 	endKey := backend.RangeEnd(backend.ExactKey(rolesPrefix))
@@ -165,7 +165,7 @@ func (s *AccessService) CreateRole(ctx context.Context, role types.Role) error {
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:     backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: role.Expiry(),
 	}
@@ -191,7 +191,7 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
 		ID:       role.GetResourceID(),
@@ -210,7 +210,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("role %v is not found", name)
@@ -226,7 +226,7 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	err := s.Delete(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)
@@ -240,7 +240,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	if name == "" {
 		return nil, trace.BadParameter("missing lock name")
 	}
-	item, err := s.Get(ctx, backend.Key(locksPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("lock %q is not found", name)
@@ -291,7 +291,7 @@ func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Key:      backend.NewKey(locksPrefix, lock.GetName()),
 		Value:    value,
 		Expires:  lock.Expiry(),
 		ID:       lock.GetResourceID(),
@@ -309,7 +309,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing lock name")
 	}
-	err := s.Delete(ctx, backend.Key(locksPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("lock %q is not found", name)
@@ -350,7 +350,7 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Key:      backend.NewKey(locksPrefix, lock.GetName()),
 				Value:    value,
 				Expires:  lock.Expiry(),
 				ID:       lock.GetResourceID(),
