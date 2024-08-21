@@ -19,6 +19,8 @@ package aws
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/textproto"
@@ -66,6 +68,11 @@ const (
 	AmzJSON1_0 = "application/x-amz-json-1.0"
 	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
 	AmzJSON1_1 = "application/x-amz-json-1.1"
+
+	// MaxRoleSessionNameLength is the maximum length of the role session name
+	// used by the AssumeRole call.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	MaxRoleSessionNameLength = 64
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -478,4 +485,31 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
 	}.String()
+}
+
+// MaybeHashRoleSessionName truncates the role session name and adds a hash
+// when the original role session name is greater than AWS character limit
+// (64).
+func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
+	if len(roleSessionName) <= MaxRoleSessionNameLength {
+		return roleSessionName
+	}
+
+	const hashLen = 16
+	hash := sha1.New()
+	hash.Write([]byte(roleSessionName))
+	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
+
+	// "1" for the delimiter.
+	keepPrefixIndex := MaxRoleSessionNameLength - len(hex) - 1
+
+	// Sanity check. This should never happen since hash length and
+	// MaxRoleSessionNameLength are both constant.
+	if keepPrefixIndex < 0 {
+		keepPrefixIndex = 0
+	}
+
+	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
+	logrus.Debugf("AWS role session name %q is too long. Using a hash %q instead.", roleSessionName, ret)
+	return ret
 }
