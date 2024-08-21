@@ -21,6 +21,7 @@ package machineidv1
 import (
 	"context"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"log/slog"
 	"sync"
 	"time"
@@ -144,8 +145,9 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 }
 
 type spiffeFederationState struct {
+	// eventsCh is an unbuffered channel for passing events to a specific
+	// SPIFFEFederations syncer.
 	eventsCh chan types.Event
-	stopCh   chan struct{}
 }
 
 // runWhileLocked is the core loop of the syncer that runs on a single auth
@@ -179,7 +181,6 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 
 		states[trustDomain] = spiffeFederationState{
 			eventsCh: make(chan types.Event),
-			stopCh:   make(chan struct{}),
 		}
 
 		wg.Add(1)
@@ -254,56 +255,105 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 	name string,
 	eventsCh <-chan types.Event,
 ) {
-	s.cfg.Logger.InfoContext(ctx, "Starting to manage syncing of SPIFFEFederation", "trust_domain", name)
+	log := s.cfg.Logger.With("trust_domain", name)
+	log.InfoContext(ctx, "Starting to manage syncing of SPIFFEFederation", "trust_domain", name)
 	defer func() {
-		s.cfg.Logger.InfoContext(ctx, "Stopped managing syncing of SPIFFEFederation", "trust_domain", name)
+		log.InfoContext(ctx, "Stopped managing syncing of SPIFFEFederation", "trust_domain", name)
 	}()
 
-	var lastSynced *machineidv1.SPIFFEFederation
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  time.Second,
+		Step:   time.Second,
+		Max:    time.Second * 10,
+		Clock:  s.cfg.Clock,
+		Jitter: retryutils.NewSeventhJitter(),
+	})
+	if err != nil {
+		log.ErrorContext(
+			ctx,
+			"Failed to create retry strategy, federation syncer will not run",
+			"error", err,
+		)
+		return
+	}
+
+	var synced *machineidv1.SPIFFEFederation
+	nextSync := s.cfg.Clock.NewTimer(time.Minute)
+	nextSync.Stop()
+	defer nextSync.Stop()
+	firstRun := make(chan struct{})
+	firstRun <- struct{}{}
 	for {
+		// Default behaviour of retry is to return a closed channel if duration
+		// is zero, but it makes more sense here to have a channel that will
+		// block forever.
 		var nextRetry <-chan time.Time
-		var err error
-		lastSynced, err = s.syncFederation(ctx, name)
 		if err != nil {
-			// TODO: Certain errors should make us stop syncing this federation. E.g NotFound?
-			s.cfg.Logger.ErrorContext(ctx, "Failed to sync federation", "error", err)
-			return
+			nextRetry = retry.After()
 		}
-
-		var nextSync <-chan time.Time
-		if nextSyncAt := lastSynced.GetStatus().GetNextSyncAt().AsTime(); !nextSyncAt.IsZero() {
-			timeUntil := nextSyncAt.Sub(s.cfg.Clock.Now())
-			timer := time.NewTimer(timeUntil)
-			defer timer.Stop() // TODO: This probably isn't right, we should clean up immediately if sync is triggered
-			// for another reason.
-			nextSync = timer.C
-		}
-
-		// TODO: Listen to updates from the backend and trigger sync.
-		// TODO: Ignore event if Revision for resource is the same as our last successful reconciliation (this is
-		// effectively an "echo" of our last update). It'll be a fail-safe for a reconciliation loop...
-		// TODO: Retry on failure w/ backoff, be ready to accept a new update...
-
 		select {
-		case <-ctx.Done():
-			return
-		case <-nextSync:
+		case <-firstRun:
+			// On the first run, we should sync immediately.
+			log.DebugContext(ctx, "First run, trying sync immediately")
+		case <-nextSync.Chan():
+			log.DebugContext(ctx, "Next sync time has passed, trying sync")
 		case <-nextRetry:
+			log.InfoContext(ctx, "Wait for backoff complete, retrying sync")
 		case evt := <-eventsCh:
 			if evt.Type == types.OpDelete {
+				log.DebugContext(ctx, "Resource has been deleted, stopping sync loop")
 				// If we've been deleted, we should stop syncing.
 				return
 			}
-			// If we've just synced, we can expect a new event for that sync. We can safely ignore it to prevent
-			// an unnecessary sync.
-			if lastSynced != nil {
-				if evt.Resource.GetRevision() == lastSynced.GetMetadata().GetRevision() {
+			// If we've just synced, we can effectively expect an "echo" of our
+			// last update. We can ignore this event safely.
+			if synced != nil {
+				if evt.Resource.GetRevision() == synced.GetMetadata().GetRevision() {
 					continue
 				}
+				log.DebugContext(ctx, "Resource has been updated, trying sync immediately")
 			}
-			// TODO: Ignore event if Revision for resource is the same as our last successful reconciliation (this is
-			// effectively an "echo" of our last update). It'll be a fail-safe for a reconciliation doom-loop...
+			// Note, we explicitly don't use the resource within the event.
+			// Instead, we will fetch the latest upon starting the sync. This
+			// avoids completing multiple syncs if multiple changes are queued.
+		case <-ctx.Done():
+			return
 		}
+
+		synced, err = s.syncFederation(ctx, name)
+		if err != nil {
+			// If the resource has been deleted, there's no point retrying.
+			// We should stop syncing.
+			if trace.IsNotFound(err) {
+				log.ErrorContext(
+					ctx,
+					"Resource has been deleted, stopping sync",
+					"trust_domain", name,
+					"error", err,
+				)
+			}
+			retry.Inc()
+			log.ErrorContext(
+				ctx,
+				"Failed to sync federation, will retry after backoff",
+				"error", err,
+				"backoff", retry.Duration(),
+			)
+		} else {
+			retry.Reset()
+		}
+
+		nextSync.Stop()
+		if synced != nil {
+			if nextSyncAt := synced.GetStatus().GetNextSyncAt().AsTime(); !nextSyncAt.IsZero() {
+				timeUntil := nextSyncAt.Sub(s.cfg.Clock.Now())
+				// Ensure the timer after /after/ the next sync time.
+				timeUntil = timeUntil + time.Second
+				nextSync.Reset(timeUntil)
+			}
+		}
+
+		// TODO: Retry on failure w/ backoff, be ready to accept a new update...
 	}
 }
 
