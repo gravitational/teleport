@@ -127,7 +127,7 @@ validate the bot instance's **generation counter**.
 The generation counter is stored as part of the [Bot Instance](#bot-instances)
 in the database and within the certificate. This counter is incremented each
 time this bot instance renews its certificate. When a bot attempts to renew, the
-Auth Server ensures that the value within the certificate and in the database
+Auth Service ensures that the value within the certificate and in the database
 match. If they do not match, then the bot user is automatically locked. This
 means that if certificates are stolen, and attempted to be renewed whilst the
 bot is still running, the next renewal will render them useless.
@@ -153,7 +153,7 @@ a cluster, a Bot Instance is generated and its UUID is embedded in the returned
 client identity.
 
 When that bot later renews or reauthenticates, it authenticates to the Teleport
-Auth Server using its previous client certificate, and the Bot Instance ID is
+Auth Service using its previous client certificate, and the Bot Instance ID is
 extracted from that identity. A record of the authentication event is stored on
 the Teleport Auth Service, along with an identity generation counter. The
 generation counter is tracked for all join types (ephemeral and dynamic),
