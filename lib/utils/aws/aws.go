@@ -22,7 +22,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/textproto"
 	"sort"
@@ -34,6 +33,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -254,7 +254,7 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	for _, roleARN := range arns {
 		parsed, err := ParseRoleARN(roleARN)
 		if err != nil {
-			slog.WarnContext(context.Background(), "Skipping invalid AWS role ARN.", "error", err)
+			logrus.Warnf("skipping invalid AWS role ARN: %v", err)
 			continue
 		}
 		if accountID != "" && parsed.AccountID != accountID {
@@ -510,6 +510,6 @@ func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
 	}
 
 	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
-	slog.DebugContext(context.Background(), "AWS role session name is too long. Using a hash instead.", "hashed", ret, "original", roleSessionName)
+	logrus.Debugf("AWS role session name %q is too long. Using a hash %q instead.", roleSessionName, ret)
 	return ret
 }
