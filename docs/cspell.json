@@ -760,6 +760,7 @@
     "readall",
     "readyz",
     "realmd",
+    "reauthenticates",
     "reauthentication",
     "recents",
     "reco",
@@ -1045,6 +1046,10 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "flagWords": [
+    "hte"
+  ],
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }
