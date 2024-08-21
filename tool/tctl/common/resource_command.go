@@ -206,6 +206,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 	Examples:
 	$ tctl rm connector/github
 	$ tctl rm cluster/main`).SetValue(&rc.ref)
+	rc.deleteCmd.Flag("force", "If the resource does not exist do not display a diagnostic message to reflect an error.").Short('f').BoolVar(&rc.force)
 
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources.")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
@@ -234,6 +235,10 @@ func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client *authc
 		// tctl rm
 	case rc.deleteCmd.FullCommand():
 		err = rc.Delete(ctx, client)
+		// ignore errors if force is set
+		if rc.force {
+			err = nil
+		}
 		// tctl update
 	case rc.updateCmd.FullCommand():
 		err = rc.UpdateFields(ctx, client)
