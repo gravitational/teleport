@@ -795,7 +795,7 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	role2Opts := role2.GetOptions()
-	role2Opts.MFAVerificationInterval = types.NewDuration(minVerificationDuration)
+	role2Opts.MFAVerificationInterval = minVerificationDuration
 	role2Opts.RequireMFAType = types.RequireMFAType_SESSION
 	role2.SetOptions(role2Opts)
 
@@ -807,7 +807,7 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	role3Opts := role3.GetOptions()
-	role3Opts.MFAVerificationInterval = types.NewDuration(minVerificationDuration)
+	role3Opts.MFAVerificationInterval = minVerificationDuration
 	role3.SetOptions(role3Opts)
 
 	_, err = srv.Auth().UpsertRole(ctx, role3)
