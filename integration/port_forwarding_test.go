@@ -75,18 +75,21 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 	}
 }
 
-func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
-	invalidOSLogin := uuid.NewString()[:12]
-	notFound := false
+func generateLocalUsername(t *testing.T) string {
+	login := uuid.NewString()[:12]
 	for i := 0; i < 10; i++ {
-		if _, err := user.Lookup(invalidOSLogin); err == nil {
-			invalidOSLogin = uuid.NewString()[:12]
+		if _, err := user.Lookup(login); err == nil {
+			login = uuid.NewString()[:12]
 			continue
 		}
-		notFound = true
-		break
+		return login
 	}
-	require.True(t, notFound, "unable to locate invalid os user")
+	require.Fail(t, "unable to locate invalid os user")
+	return ""
+}
+
+func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
+	invalidOSLogin := generateLocalUsername(t)
 
 	// Providing our own logins to Teleport so we can verify that a user
 	// that exists within Teleport but does not exist on the local node
