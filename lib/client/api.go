@@ -3288,20 +3288,20 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := tc.SSHLogin(ctx, sshLoginFunc)
+	keyRing, err := tc.SSHLogin(ctx, sshLoginFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Use proxy identity if set in key response.
-	if key.Username != "" {
-		tc.Username = key.Username
+	if keyRing.Username != "" {
+		tc.Username = keyRing.Username
 		if tc.localAgent != nil {
-			tc.localAgent.username = key.Username
+			tc.localAgent.username = keyRing.Username
 		}
 	}
 
-	return key, nil
+	return keyRing, nil
 }
 
 // LoginWeb logs the user in via the Teleport web api the same way that the web UI does.
