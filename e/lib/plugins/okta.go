@@ -51,6 +51,11 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("api token is empty")
 	}
 
+	scimEnabled, err := isOktaSCIMEnabled(deps)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
+	}
+
 	// TODO: Propagate license changes to Okta hosted plugin runtime.
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
@@ -64,6 +69,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				Token:                oktaAPIToken,
 				PluginName:           plugin.GetName(),
 				AppGroupSyncDisabled: shouldDisabledAppGroupSync(oktaAPITokenCred),
+				SCIMEnabled:          scimEnabled,
 			},
 		)
 		// wait for the calling context to finish before doing anything else.
@@ -81,6 +87,21 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		deps.log.Info("Okta plugin has stopped")
 		return nil
 	}, nil
+}
+
+func isOktaSCIMEnabled(deps instanceDependencies) (bool, error) {
+	// Having a SCIM bearer token set implies that SCIM is enabled for this
+	// plugin instance.
+
+	enabled := true
+	if _, err := okta.SelectSCIMToken(deps.staticCredentials); err != nil {
+		if !trace.IsNotFound(err) {
+			return false, trace.Wrap(err, "querying for SCIM credentials")
+		}
+		deps.log.Info("No SCIM credential supplied. SCIM disabled.")
+		enabled = false
+	}
+	return enabled, nil
 }
 
 // shouldDisabledAppGroupSync check if app user sync should be disabled.

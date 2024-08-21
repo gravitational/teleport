@@ -102,6 +102,9 @@ type accessListSyncConfig struct {
 
 	// StopChannel is the stop channel.
 	StopChannel chan struct{}
+
+	// ServiceStatus is the sink for detailed status information
+	ServiceStatus serviceStatusUpdater
 }
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
@@ -163,6 +166,10 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 
 	if a.StopChannel == nil {
 		return trace.BadParameter("missing stop channel")
+	}
+
+	if a.ServiceStatus == nil {
+		return trace.BadParameter("missing service status")
 	}
 
 	return nil
@@ -235,6 +242,8 @@ type accessListSync struct {
 	synchronizerSuccess *atomic.Bool
 	synchronizingMu     *sync.RWMutex
 	stopCh              chan struct{}
+
+	serviceStatus serviceStatusUpdater
 }
 
 // newAccessListSync will create a new access list synchronizer.
@@ -269,6 +278,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 		synchronizerSuccess: cfg.SynchronizerSuccess,
 		synchronizingMu:     cfg.SynchronizingMu,
 		stopCh:              cfg.StopChannel,
+		serviceStatus:       cfg.ServiceStatus,
 	}
 
 	// Create the reconcilers we need.
@@ -375,7 +385,14 @@ func (a *accessListSync) startSync(ctx context.Context) {
 		// Block if we're actively synchronizing.
 		if a.synchronizerSuccess.Load() {
 			a.log.Info("Synchronizing access lists from Okta.")
-			if err := a.importOktaNativeAssignmentsAsAccessLists(ctx); err != nil {
+			err := a.importOktaNativeAssignmentsAsAccessLists(ctx)
+
+			a.serviceStatus.UpdateAccessListSync(ctx, a.clock.Now(),
+				int(a.appsImported.Load()),
+				int(a.groupsImported.Load()),
+				err)
+
+			if err != nil {
 				a.log.WithError(err).Error("error importing Okta native assignments")
 			}
 			if err := a.addRolesToOktaRequester(ctx); err != nil {

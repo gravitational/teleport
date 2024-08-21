@@ -140,7 +140,11 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 	s.synchronizingMu.Lock()
 	defer s.synchronizingMu.Unlock()
 
-	if err := s.synchronize(ctx); err != nil {
+	err := s.synchronize(ctx)
+
+	s.serviceStatus.UpdateAppGroupSync(ctx, s.clock.Now(), s.apps.Len(), s.groups.Len(), err)
+
+	if err != nil {
 		s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
 		s.emitSyncError(ctx, err)
 	} else {
@@ -616,11 +620,9 @@ func (s *Service) syncUsers(ctx context.Context) error {
 
 	s.log.Infof("Reconciling %d Okta and %d Teleport Accounts",
 		len(oktaUsers), len(teleportUsers))
-	err = s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
-	if err != nil {
-		return trace.Wrap(err, "reconciling teleport users")
-	}
-	return nil
+	stats, err := s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
+	s.serviceStatus.UpdateUserSync(ctx, s.clock.Now(), stats.total(), err)
+	return trace.Wrap(err, "reconciling teleport users")
 }
 
 func (s *Service) calcUserTraits(ctx context.Context, connector types.SAMLConnector, user types.User) error {

@@ -13,7 +13,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -29,10 +28,10 @@ var _ OktaClient = (*wrappedClient)(nil)
 // higher-level operations and for interacting with an Okta server
 // over using the basic SDK client (e.g. result pagination)
 type wrappedClient struct {
-	log              *logrus.Entry
-	client           Client
-	oktaOrgURL       string
-	pluginStatusSink common.StatusSink
+	log        *logrus.Entry
+	client     Client
+	oktaOrgURL string
+	updateCode StatusCodeUpdater
 }
 
 // getCurrentUser fetches the Okta profile of the user represented by the API token.
@@ -463,7 +462,9 @@ func (w *wrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
 
 	switch oktaErr.ErrorCode {
 	case oktaErrCodeAuthenticationException, oktaErrCodeInvalidSessionException, oktaErrCodeInvalidTokenProvidedException:
-		reportPluginStatus(ctx, w.log, w.pluginStatusSink, types.PluginStatusCode_UNAUTHORIZED)
+		if w.updateCode != nil {
+			w.updateCode(ctx, types.PluginStatusCode_UNAUTHORIZED)
+		}
 		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
 	case oktaErrCodeAccessDeniedException:
 		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)

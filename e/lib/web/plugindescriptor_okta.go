@@ -301,7 +301,6 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 		Endpoint:   orgURL.String(),
 		Token:      oktaAPIToken,
 		Log:        log,
-		StatusSink: nil,
 	})
 	if err != nil {
 		return oktaPluginInputs{}, trace.Wrap(err, "constructing Okta client")

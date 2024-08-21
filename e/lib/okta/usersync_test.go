@@ -240,35 +240,41 @@ func TestReconcileUsers(t *testing.T) {
 
 		// And a Teleport access point rigged to expect a request to create the
 		// `scooby` user
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		fixture.accessPoint.On("CreateUser", someContext, scooby).
 			Return(scooby, nil)
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 1, 0, 0, 2)).
+			Run(expectedUserSyncEvent{t: t, created: 1, total: 2}.validate).
 			Return(nil)
 
 		fixture.accessPoint.On("GetLocks", someContext, true, mock.Anything).
 			Return([]types.Lock{}, nil).
 			Once()
 
-		// When I reconcile the users...
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		// WHEN I reconcile the users...
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
-		// Expect that the operation succeeds
+		// EXPECT that the operation succeeds
 		require.NoError(t, err)
 
-		// and that our mock "CreateUser" method was hit with the correct user
+		// ALSO EXPECT that the creation is reflected in the collected stats
+		require.Equal(t, 1, stats.created)
+		require.Zero(t, stats.deleted)
+		require.Zero(t, stats.modified)
+		require.Equal(t, 2, stats.total())
+
+		// ALSO EXPECT and that our mock "CreateUser" method was hit with the correct user
 		fixture.AssertExpectations(t)
 	})
 
 	t.Run("duplicate username is not an error", func(t *testing.T) {
-		// Given a Teleport cluster with an arbitrary set of users...
+		// GIVEN a Teleport cluster with an arbitrary set of users...
 		teleportUsers := map[string]types.User{}
 
-		// AND an Okta organization with a user that shares the username of the
-		// non-okta user
+		// ALSO GIVEN an Okta organization with a user that shares the username
+		// of the non-okta user
 		shaggy := mkOktaUser(t, "shaggy", "SHAGGY")
 		scooby := mkOktaUser(t, "scooby", "SCOOBY")
 		oktaUsers := map[string]types.User{
@@ -276,13 +282,13 @@ func TestReconcileUsers(t *testing.T) {
 			"scooby": scooby,
 		}
 
-		// And a Teleport access point rigged to expect a request to create the
-		// user "scooby", and reject it with "already exists"
-		uut, fixture := newTestReconciler(t)
+		// ALSO GIVEN a Teleport access point rigged to expect a request to
+		// create the user "scooby", and reject it with "already exists"
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		fixture.accessPoint.On("CreateUser", someContext, scooby).
 			Return(nil, trace.AlreadyExists("we've already got one"))
-		// And also rigged to expect a request to create user "velma" and report
-		// success
+		// ...and also rigged to expect a request to create user "velma" and
+		// report success
 		fixture.accessPoint.On("CreateUser", someContext, shaggy).
 			Return(shaggy, nil)
 
@@ -292,23 +298,30 @@ func TestReconcileUsers(t *testing.T) {
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 1, 0, 0, 1)).
+			Run(expectedUserSyncEvent{t: t, created: 1, total: 1}.validate).
 			Return(nil)
 
-		// When I reconcile the users...
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		// WHEN I reconcile the users...
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
-		// Expect that the operation succeeds and that our mock "CreateUser"
+		// EXPECT that the operation succeeds and that our mock "CreateUser"
 		// methods were hit with the correct users. Put together, this means
 		// that the AlreadyExists error was handled internally by `reconcileUsers`.
 		require.NoError(t, err)
 		fixture.AssertExpectations(t)
+
+		// ALSO EXPECT that the (single) creation is reflected in the collected
+		// stats
+		require.Equal(t, 1, stats.created)
+		require.Zero(t, stats.deleted)
+		require.Zero(t, stats.modified)
+		require.Equal(t, 1, stats.total())
 	})
 
 	t.Run("modified user is updated", func(t *testing.T) {
 		// Given an Okta organization and Teleport cluster with the same users
 		// but one has been changed in Okta...
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 
 		shaggy := mkOktaUser(t, "shaggy", "SHAGGY")
 		oktaScooby := mkOktaUser(t, "scooby", "SCOOBY")
@@ -339,22 +352,28 @@ func TestReconcileUsers(t *testing.T) {
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 0, 1, 0, 2)).
+			Run(expectedUserSyncEvent{t: t, modified: 1, total: 2}.validate).
 			Return(nil)
 
-		// when I try to reconcile the users...
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		// WHEN I try to reconcile the users...
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
-		// Expect that the operation succeeds and our mock "UpdateUser" and
+		// EXPECT that the operation succeeds and our mock "UpdateUser" and
 		// "GetLocks" methods were hit with the correct user
 		require.NoError(t, err)
 		fixture.AssertExpectations(t)
+
+		// ALSO EXPECT that the update is recorded in the returned stats values
+		require.Zero(t, stats.created)
+		require.Zero(t, stats.deleted)
+		require.Equal(t, 1, stats.modified)
+		require.Equal(t, 2, stats.total())
 	})
 
 	t.Run("obsolete user is deleted", func(t *testing.T) {
 		// Given an Okta organization and a Teleport cluster, where
 		// Teleport has one more user than Okta...
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		shaggy := mkOktaUser(t, "shaggy", "SHAGGY")
 		scooby := mkOktaUser(t, "scooby", "SCOOBY")
 		scrappy := mkOktaUser(t, "scrappy", "SCRAPPY")
@@ -376,27 +395,33 @@ func TestReconcileUsers(t *testing.T) {
 			Return(nil).
 			Once()
 		fixture.accessPoint.On("UpsertLock", someContext, mock.Anything).
-			Run(validateDeletionLock(t, 1, scrappy.GetName(), uut.cfg.clock)).
+			Run(validateDeletionLock(t, 1, scrappy.GetName(), reconcilerUnderTest.cfg.clock)).
 			Return(nil)
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 0, 0, 1, 2)).
+			Run(expectedUserSyncEvent{t: t, deleted: 1, total: 2}.validate).
 			Return(nil)
 
 		// When I attempt to reconcile the users
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
 		// Expect that the operation succeeds and our mocked delete operation
 		// was hit with the correct user.
 		require.NoError(t, err)
 		fixture.AssertExpectations(t)
+
+		// ALSO EXPECT that the delete is recorded in the returned stats values
+		require.Zero(t, stats.created)
+		require.Equal(t, 1, stats.deleted)
+		require.Zero(t, stats.modified)
+		require.Equal(t, 2, stats.total())
 	})
 
 	t.Run("changed logins are deleted and recreated", func(t *testing.T) {
 		// Given an Teleport cluster and an Okta organization where one of the
 		// Okta users has changed their username....
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		shaggy := mkOktaUser(t, "shaggy", "SHAGGY")
 		oldScooby := mkOktaUser(t, "scooby", "SCOOBY")
 		newScooby := mkOktaUser(t, "5kөөß¥", "SCOOBY")
@@ -422,7 +447,7 @@ func TestReconcileUsers(t *testing.T) {
 			Return(nil).
 			Once()
 		fixture.accessPoint.On("UpsertLock", someContext, mock.Anything).
-			Run(validateDeletionLock(t, 1, oldScooby.GetName(), uut.cfg.clock)).
+			Run(validateDeletionLock(t, 1, oldScooby.GetName(), reconcilerUnderTest.cfg.clock)).
 			Return(nil)
 		fixture.accessPoint.On("CreateUser", someContext, newScooby).
 			Return(newScooby, nil).
@@ -432,21 +457,28 @@ func TestReconcileUsers(t *testing.T) {
 			Once()
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 1, 0, 1, 3)).
+			Run(expectedUserSyncEvent{t: t, created: 1, deleted: 1, total: 3}.validate).
 			Return(nil)
 
 		// When I attempt to reconcile the users...
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
 		// Expect that the operation succeeds and our mocked operations
 		// were hit with the correct users.
 		require.NoError(t, err)
 		fixture.AssertExpectations(t)
+
+		// ALSO EXPECT that the delete+create pair is recorded in the returned
+		// stats values
+		require.Equal(t, 1, stats.created)
+		require.Equal(t, 1, stats.deleted)
+		require.Zero(t, stats.modified)
+		require.Equal(t, 3, stats.total())
 	})
 
 	t.Run("unchanged users are left alone", func(t *testing.T) {
 		// Given an Okta organization with the same users...
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		shaggy := mkOktaUser(t, "shaggy", "SHAGGY")
 		scooby := mkOktaUser(t, "scooby", "SCOOBY")
 		velma := mkOktaUser(t, "velma", "VELMA")
@@ -465,15 +497,22 @@ func TestReconcileUsers(t *testing.T) {
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 0, 0, 0, 3)).
+			Run(expectedUserSyncEvent{t: t, total: 3}.validate).
 			Return(nil)
 
-		// When I attempt to reconcile the users
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		// WHEN I attempt to reconcile the users
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
-		// Expect that the operation succeeds and no methods are called on the
+		// EXPECT that the operation succeeds and no methods are called on the
 		// access point
 		require.NoError(t, err)
+
+		// ALSO EXPECT that the no changes are recorded in the returned stats
+		// values
+		require.Zero(t, stats.created)
+		require.Zero(t, stats.deleted)
+		require.Zero(t, stats.modified)
+		require.Equal(t, 3, stats.total())
 	})
 
 	t.Run("lockable users are locked", func(t *testing.T) {
@@ -492,13 +531,13 @@ func TestReconcileUsers(t *testing.T) {
 
 				// AND a user service that expects to update and lock the user
 				// of interest and ONLY the user of interest
-				uut, fixture := newTestReconciler(t)
+				reconcilerUnderTest, fixture := newTestReconciler(t)
 				fixture.accessPoint.On("UpdateUser", someContext, oktaScooby).
 					Return(oktaScooby, nil).
 					Once()
 
 				fixture.accessPoint.On("UpsertLock", someContext, mock.Anything).
-					Run(validateSuspensionLock(t, 1, oktaScooby.GetName(), uut.cfg.clock)).
+					Run(validateSuspensionLock(t, 1, oktaScooby.GetName(), reconcilerUnderTest.cfg.clock)).
 					Return(nil)
 
 				// And we expect a sync event wll be emitted
@@ -506,9 +545,9 @@ func TestReconcileUsers(t *testing.T) {
 					Return(nil)
 
 				// when I try to reconcile the users...
-				err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+				_, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
-				// Expect that the operation succeeds and our all of our mock
+				// expect that the operation succeeds and our all of our mock
 				// methods have been hit with the correct user
 				require.NoError(t, err)
 				fixture.AssertExpectations(t)
@@ -533,7 +572,7 @@ func TestReconcileUsers(t *testing.T) {
 
 		// AND a user service that expects to update and lock the user
 		// of interest and ONLY the user of interest
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		fixture.accessPoint.On("UpdateUser", someContext, oktaScooby).
 			Return(oktaScooby, nil).
 			Once()
@@ -544,7 +583,7 @@ func TestReconcileUsers(t *testing.T) {
 
 		// When I try to reconcile the users, expect that the mock AccessPoint
 		// won't panic due to unexpected calls to lock manipulation methods...
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		_, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
 		// Also expect that the operation succeeds, and our our expected mock
 		// has been hit with the correct user.
@@ -566,7 +605,7 @@ func TestReconcileUsers(t *testing.T) {
 				// Given an Okta organization and Teleport cluster with the
 				// same user, but that user has been deactivated in Teleport and
 				// re-activated in Okta.
-				uut, fixture := newTestReconciler(t)
+				reconcilerUnderTest, fixture := newTestReconciler(t)
 
 				teleportScooby := mkOktaUser(t, "scooby", "SCOOBY")
 				setStaticLabel(teleportScooby, eteleport.OktaUserStatusLabel, "SUSPENDED")
@@ -602,7 +641,7 @@ func TestReconcileUsers(t *testing.T) {
 					Return(nil)
 
 				// when I try to reconcile the users...
-				err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+				_, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
 				// Expect that the operation succeeds and our mock "UpdateUser"
 				// method was hit with the correct user
@@ -637,7 +676,7 @@ func TestReconcileUsers(t *testing.T) {
 		// Also given a teleport AccessPoint that rigged to expect an
 		// update on user "scooby" and return the above user set of locks when
 		// asked
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		fixture.accessPoint.On("UpdateUser", someContext, oktaScooby).
 			Return(oktaScooby, nil).
 			Once()
@@ -661,7 +700,7 @@ func TestReconcileUsers(t *testing.T) {
 
 		// When I reconcile the users, expect that the mock access point doesn't
 		// panic due to unexpected calls to "DeleteLock"
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		_, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
 		// Expect that the operation succeeds
 		require.NoError(t, err)
@@ -672,7 +711,7 @@ func TestReconcileUsers(t *testing.T) {
 		fixture.AssertExpectations(t)
 	})
 
-	t.Run("failing lock deletion does not prevent other deletions", func(t *testing.T) {
+	t.Run("failing lock deletion does not prevent other lock deletions", func(t *testing.T) {
 		// Given a Teleport cluster with a locked user, and that user has
 		// multiple locks
 		teleportScooby := mkOktaUser(t, "scooby", "SCOOBY")
@@ -692,7 +731,7 @@ func TestReconcileUsers(t *testing.T) {
 
 		// Also given a teleport AccessPoint that rigged to expect an update on
 		// user "scooby"
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		fixture.accessPoint.On("UpdateUser", someContext, oktaScooby).
 			Return(oktaScooby, nil).
 			Once()
@@ -717,7 +756,7 @@ func TestReconcileUsers(t *testing.T) {
 			Return(nil)
 
 		// when I try to reconcile the users...
-		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
+		_, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
 		// Expect that the operation fails due to the lock deletion failure
 		// method was hit with the correct user
@@ -745,13 +784,13 @@ func TestReconcileUsers(t *testing.T) {
 
 		// And a Teleport access point rigged to expect a request to create the
 		// `scooby` user
-		uut, fixture := newTestReconciler(t)
+		reconcilerUnderTest, fixture := newTestReconciler(t)
 		fixture.accessPoint.On("CreateUser", someContext, mock.Anything).
 			Return(scooby, nil)
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
-			Run(validateUserSyncEvent(t, 2, 0, 0, 2)).
+			Run(expectedUserSyncEvent{t: t, created: 2, total: 2}.validate).
 			Return(nil)
 
 		fixture.accessPoint.On("GetLocks", someContext, true, mock.Anything).
@@ -762,7 +801,7 @@ func TestReconcileUsers(t *testing.T) {
 			Return(nil)
 
 		// When I reconcile the users...
-		err := uut.reconcileUsers(ctx, oktaUsers, map[string]types.User{})
+		_, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, map[string]types.User{})
 
 		// Expect that the operation succeeds
 		require.NoError(t, err)
@@ -772,22 +811,40 @@ func TestReconcileUsers(t *testing.T) {
 	})
 }
 
-func validateUserSyncEvent(t *testing.T, created, modified, deleted, total int32) func(mock.Arguments) {
-	return func(args mock.Arguments) {
-		syncEvent, ok := getResultAs[apievents.AuditEvent](args, 1).(*apievents.OktaUserSync)
-		require.True(t, ok, "Expecting OktaUserSync event")
+// expectedUserSyncEvent describes the expected values in a user sync event.
+// Designed to be a succinct way of stating the expected stats values carried by
+// the event without making them be an opaque sequence of numbers at the call
+// site.
+//
+// Example usage:
+//
+//	  mockEventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
+//			Run(expectedUserSyncEvent{t: t, created: 1, total: 3}.validate).
+//			Return(nil)
+type expectedUserSyncEvent struct {
+	t        *testing.T
+	created  int32
+	modified int32
+	deleted  int32
+	total    int32
+}
 
-		require.Equal(t, t.Name(), syncEvent.GetClusterName())
-		require.Equal(t, events.OktaUserSyncSuccessCode, syncEvent.Code)
-		require.Equal(t, events.OktaUserSyncEvent, syncEvent.GetType())
-		require.Equal(t, testOrgURL, syncEvent.OrgUrl)
-		require.True(t, syncEvent.Status.Success)
+// validate asserts the correctness of the stats in an OktaUserSync event.
+// Expected to be used as a testify Mock `Run()` callback
+func (expected expectedUserSyncEvent) validate(args mock.Arguments) {
+	syncEvent, ok := getResultAs[apievents.AuditEvent](args, 1).(*apievents.OktaUserSync)
+	require.True(expected.t, ok, "Expecting OktaUserSync event")
 
-		require.Equal(t, created, syncEvent.NumUsersCreated, "Created")
-		require.Equal(t, modified, syncEvent.NumUsersModified, "Modified")
-		require.Equal(t, deleted, syncEvent.NumUsersDeleted, "Deleted")
-		require.Equal(t, total, syncEvent.NumUsersTotal, "Total")
-	}
+	require.Equal(expected.t, expected.t.Name(), syncEvent.GetClusterName())
+	require.Equal(expected.t, events.OktaUserSyncSuccessCode, syncEvent.Code)
+	require.Equal(expected.t, events.OktaUserSyncEvent, syncEvent.GetType())
+	require.Equal(expected.t, testOrgURL, syncEvent.OrgUrl)
+	require.True(expected.t, syncEvent.Status.Success)
+
+	require.Equal(expected.t, expected.created, syncEvent.NumUsersCreated, "Created")
+	require.Equal(expected.t, expected.modified, syncEvent.NumUsersModified, "Modified")
+	require.Equal(expected.t, expected.deleted, syncEvent.NumUsersDeleted, "Deleted")
+	require.Equal(expected.t, expected.total, syncEvent.NumUsersTotal, "Total")
 }
 
 func validateDeletionLock(t *testing.T, argIndex int, target string, clock clockwork.Clock) func(mock.Arguments) {
@@ -800,7 +857,7 @@ func validateSuspensionLock(t *testing.T, argIndex int, target string, clock clo
 	return validateLockArg(t, argIndex, target, expiry, LockReasonSuspended)
 }
 
-func validateLockArg(t *testing.T, argIndex int, target string, expiry time.Time, reason string) func(mock.Arguments) {
+func validateLockArg(t *testing.T, argIndex int, target string, _ time.Time, reason string) func(mock.Arguments) {
 	return func(args mock.Arguments) {
 		lock := args.Get(argIndex).(types.Lock)
 		require.NotEmpty(t, lock.GetName())

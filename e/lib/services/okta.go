@@ -45,6 +45,7 @@ type oktaSettings struct {
 	groupFilters          []string
 	oktaAppID             string
 	appGroupSyncDisabled  bool
+	scimEnabled           bool
 }
 
 func (s *oktaSettings) orgURLBase64() string {
@@ -94,6 +95,9 @@ type OktaPluginPrams struct {
 	PluginName string
 	// AppGroupSyncDisabled allows to disable app group sync.
 	AppGroupSyncDisabled bool
+	// SCIMEnabled indicates that SCIM sync is enabled for this plugin
+	// instance.
+	SCIMEnabled bool
 }
 
 // InitOktaPlugin will initialize and start the Okta service for plugin use. This will not
@@ -125,6 +129,7 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 				appFilters:            settings.SyncSettings.AppFilters,
 				groupFilters:          settings.SyncSettings.GroupFilters,
 				oktaAppID:             settings.SyncSettings.AppId,
+				scimEnabled:           params.SCIMEnabled,
 			},
 			pluginLogComponent(params.PluginName), components...)
 	})
@@ -244,6 +249,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		AccessListSyncAppFilters:   settings.appFilters,
 		AccessListSyncGroupFilters: settings.groupFilters,
 		OktaSAMLAppID:              settings.oktaAppID,
+		SCIMEnabled:                settings.scimEnabled,
 	})
 	if err != nil {
 		return trace.Wrap(err)

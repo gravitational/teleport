@@ -153,6 +153,9 @@ type Config struct {
 
 	// DisableAppGroupSync allows to disable Okta application and group sync.
 	DisableAppGroupSync bool
+
+	// SCIMEnabled indicates that SCIM support is enabled for this instance
+	SCIMEnabled bool
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -429,8 +432,6 @@ type Service struct {
 	shutdownCalled atomic.Bool
 	closeCalled    atomic.Bool
 
-	pluginStatusSink common.StatusSink
-
 	// synchronizerSuccess will be set to true if the synchronizer has completed at least
 	// once successfully.
 	synchronizerSuccess atomic.Bool
@@ -464,6 +465,10 @@ type Service struct {
 	// disableOktaAppGroupSync allows to disable Okta application and group sync.
 	// when only SCIM or user sync integration is needed.
 	disableOktaAppGroupSync bool
+
+	// serviceStatus holds the serviceStatus information for the service and
+	// broadcasts changes as necessary.
+	serviceStatus serviceStatus
 }
 
 // rateLimitingHTTPTransport will only perform HTTP requests after waiting the
@@ -487,6 +492,9 @@ func (r *rateLimitingHTTPTransport) CloseIdleConnections() {
 	r.delegate.CloseIdleConnections()
 }
 
+// StatusCodeUpdater is a function that can update a hosted plugin status code.
+type StatusCodeUpdater func(context.Context, types.PluginStatusCode)
+
 // ClientConfig holds the various parameters for creating an Okta client.
 type ClientConfig struct {
 	// HTTPClient is an optional HTTP client that can be used to override the
@@ -502,9 +510,9 @@ type ClientConfig struct {
 	// Log receives any log info
 	Log *logrus.Entry
 
-	// StatusSink receives status update information from the OktaClient.
-	// May be nil, in which case status updates will be dropped.
-	StatusSink common.StatusSink
+	// UpdateStatusCode is a function that will report a new status code for the
+	// entire integration.
+	UpdateStatusCode StatusCodeUpdater
 }
 
 // Check validates the state of the ClientConfig, returning a non-nil error
@@ -583,10 +591,10 @@ func NewClient(ctx context.Context, cfg ClientConfig) (OktaClient, error) {
 	}
 
 	return &wrappedClient{
-		log:              cfg.Log,
-		client:           client,
-		oktaOrgURL:       cfg.Endpoint,
-		pluginStatusSink: cfg.StatusSink,
+		log:        cfg.Log,
+		client:     client,
+		oktaOrgURL: cfg.Endpoint,
+		updateCode: cfg.UpdateStatusCode,
 	}, nil
 }
 
@@ -606,38 +614,10 @@ func New(ctx context.Context, config Config) (*Service, error) {
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator oktaClientFn) (*Service, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
-		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
+		reportPluginStatus(ctx, config.Log, config.PluginStatusSink,
+			types.PluginStatusCode_OTHER_ERROR,
+			nil /* no details available yet */)
 		return nil, trace.Wrap(err)
-	}
-
-	client, err := creator(ctx, ClientConfig{
-		Endpoint:   config.OktaAPIEndpoint,
-		Token:      config.OktaAPIToken,
-		Log:        config.Log,
-		StatusSink: config.PluginStatusSink,
-	})
-	if err != nil {
-		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
-		return nil, trace.Wrap(err)
-	}
-
-	orgURL := strings.TrimSuffix(client.orgURL(), "/")
-
-	var reconciler *userReconciler
-	if config.UserSyncEnabled {
-		config.Log.Info("User sync is enabled. Configuring reconciler.")
-		reconciler, err = newUserReconciler(userReconcilerConfig{
-			clusterName: config.ClusterName,
-			teleportAP:  config.AccessPoint,
-			log:         config.Log,
-			userOrgURL:  config.OktaAPIEndpoint,
-			emitter:     config.Emitter,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		config.Log.Info("User synchronization is disabled.")
 	}
 
 	s := &Service{
@@ -653,9 +633,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		proxyGetter:             config.ProxyGetter,
 		accessPoint:             config.AccessPoint,
 		onHeartbeat:             config.OnHeartbeat,
-		client:                  client,
 		emitter:                 config.Emitter,
-		orgURL:                  orgURL,
 		rateLimiter:             rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
 		hash:                    crypto.SHA256,
 		heartbeats:              map[string]*srv.Heartbeat{},
@@ -666,17 +644,70 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		timeBetweenSyncs:        config.TimeBetweenSyncs,
 		syncStoppedCh:           make(chan struct{}, 1),
 		stopCh:                  make(chan struct{}, 1),
-		pluginStatusSink:        config.PluginStatusSink,
-		userReconciler:          reconciler,
 		ssoConnectorID:          config.SSOConnectorID,
 		oktaSAMLAppID:           config.OktaSAMLAppID,
 		disableOktaAppGroupSync: config.DisableAppGroupSync,
+		serviceStatus: serviceStatus{
+			sink: config.PluginStatusSink,
+			code: types.PluginStatusCode_UNKNOWN,
+			log:  config.Log,
+			details: &types.PluginOktaStatusV1{
+				AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
+					Enabled: !config.DisableAppGroupSync,
+				},
+				UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
+					Enabled: config.UserSyncEnabled,
+				},
+				ScimDetails: &types.PluginOktaStatusDetailsSCIM{
+					Enabled: config.SCIMEnabled,
+				},
+				AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
+					Enabled: config.AccessListSyncEnabled,
+				},
+			},
+		},
 	}
 	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
 
+	if config.UserSyncEnabled {
+		config.Log.
+			WithField("okta_org_url", config.OktaAPIEndpoint).
+			Info("User sync is enabled. Configuring reconciler.")
+
+		var err error
+		s.userReconciler, err = newUserReconciler(userReconcilerConfig{
+			clusterName: config.ClusterName,
+			teleportAP:  config.AccessPoint,
+			log:         config.Log,
+			userOrgURL:  config.OktaAPIEndpoint,
+			emitter:     config.Emitter,
+		})
+		if err != nil {
+			s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		config.Log.Info("User synchronization is disabled.")
+	}
+
+	client, err := creator(ctx, ClientConfig{
+		Endpoint:         config.OktaAPIEndpoint,
+		Token:            config.OktaAPIToken,
+		Log:              config.Log,
+		UpdateStatusCode: s.serviceStatus.SetCode,
+	})
+	if err != nil {
+		s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
+		return nil, trace.Wrap(err)
+	}
+
+	// Assign the client to the service.
+	s.client = client
+	s.orgURL = strings.TrimSuffix(client.orgURL(), "/")
+
 	clusterName, err := s.accessPoint.GetClusterName()
 	if err != nil {
-		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
+		s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
 		return nil, trace.Wrap(err)
 	}
 
@@ -687,25 +718,26 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	if config.AccessListSyncEnabled {
 		config.Log.Info("Access list synchronization is enabled. Configuring synchronizer.")
 		alSync, err := newAccessListSync(accessListSyncConfig{
-			Log:          s.log,
-			Clock:        s.clock,
-			ClusterName:  s.clusterName,
-			Client:       s.client,
-			Emitter:      config.Emitter,
-			Access:       config.Access,
-			AccessLists:  config.AccessLists,
-			OrgURL:       s.orgURL,
-			Owners:       config.DefaultOwners,
-			AppsGetter:   s.apps.Clone,
-			GroupsGetter: s.groups.Clone,
-			AppFilters:   config.accessListSyncAppFilters,
-			GroupFilters: config.accessListSyncGroupFilters,
-
+			Log:                 s.log,
+			Clock:               s.clock,
+			ClusterName:         s.clusterName,
+			Client:              s.client,
+			Emitter:             config.Emitter,
+			Access:              config.Access,
+			AccessLists:         config.AccessLists,
+			OrgURL:              s.orgURL,
+			Owners:              config.DefaultOwners,
+			AppsGetter:          s.apps.Clone,
+			GroupsGetter:        s.groups.Clone,
+			AppFilters:          config.accessListSyncAppFilters,
+			GroupFilters:        config.accessListSyncGroupFilters,
+			ServiceStatus:       &s.serviceStatus,
 			SynchronizerSuccess: &s.synchronizerSuccess,
 			SynchronizingMu:     &s.synchronizingMu,
 			StopChannel:         s.stopCh,
 		})
 		if err != nil {
+			s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
 			return nil, trace.Wrap(err)
 		}
 		s.accessListSync = alSync
@@ -713,7 +745,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		config.Log.Info("Access list synchronization is disabled.")
 	}
 
-	reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_RUNNING)
+	s.serviceStatus.SetCode(ctx, types.PluginStatusCode_RUNNING)
 
 	return s, nil
 }
@@ -800,20 +832,6 @@ func (s *Service) Close(ctx context.Context) error {
 	}
 
 	return trace.NewAggregate(errs...)
-}
-
-// reportPluginStatus will report the plugin status to the given status sink if it exists.
-func reportPluginStatus(ctx context.Context, log *logrus.Entry, pluginStatusSink common.StatusSink, code types.PluginStatusCode) {
-	if pluginStatusSink == nil {
-		return
-	}
-
-	err := pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
-		Code: code,
-	})
-	if err != nil {
-		log.Errorf("Error emitting plugin status: %v", err)
-	}
 }
 
 // SelectSCIMToken searches the supplied list of credentials for a SCIM bearer

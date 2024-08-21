@@ -205,10 +205,6 @@ func (cfg *userReconcilerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Okta org url")
 	}
 
-	if cfg.emitter == nil {
-		return trace.BadParameter("missing event emitter")
-	}
-
 	if cfg.log == nil {
 		cfg.log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
@@ -226,6 +222,11 @@ type userSyncStats struct {
 	created      int
 	modified     int
 	deleted      int
+}
+
+// total returns the computed, post-sync total
+func (stats *userSyncStats) total() int {
+	return stats.preSyncTotal + stats.created - stats.deleted
 }
 
 // userReconciler reconciles Teleport users with an upstream Okta organization,
@@ -409,7 +410,7 @@ func (r *userReconciler) createSyncEvent(reconcilerErr error) *apievents.OktaUse
 	event.NumUsersCreated = int32(r.stats.created)
 	event.NumUsersDeleted = int32(r.stats.deleted)
 	event.NumUsersModified = int32(r.stats.modified)
-	event.NumUsersTotal = int32(r.stats.preSyncTotal + r.stats.created - r.stats.deleted)
+	event.NumUsersTotal = int32(r.stats.total())
 
 	return event
 }
@@ -425,7 +426,7 @@ func PreserveUserMetadata(dst, src types.User) {
 // updates teleport users to match; creating, updating and deleting teleport
 // users as needed. Reconciliation is strictly one-way; no attempts are made
 // to update the upstream Okta organization.
-func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleportUsers map[string]types.User) error {
+func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleportUsers map[string]types.User) (*userSyncStats, error) {
 	// Stash the supplied resource maps where the inner reconciler will be able
 	// to find them
 	r.oktaUsers = oktaUsers
@@ -465,7 +466,7 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 		r.cfg.log.WithError(reconcileErr).Warn("Unable to emit audit event")
 	}
 
-	return trace.Wrap(reconcileErr)
+	return r.stats, trace.Wrap(reconcileErr)
 }
 
 // LockParams holds the parameters required for creating an Okta-managed lock on

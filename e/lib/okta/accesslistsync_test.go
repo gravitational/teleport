@@ -150,6 +150,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		SynchronizerSuccess: &atomic.Bool{},
 		SynchronizingMu:     &sync.RWMutex{},
 		StopChannel:         stopCh,
+		ServiceStatus:       nullStatusUpdate{},
 	})
 	require.NoError(t, err)
 
