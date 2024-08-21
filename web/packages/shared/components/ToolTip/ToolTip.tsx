@@ -28,7 +28,7 @@ export const ToolTipInfo: React.FC<
     muteIconColor?: boolean;
     sticky?: boolean;
     maxWidth?: number;
-    kind?: 'info' | 'warning';
+    kind?: 'info' | 'warning' | 'error';
   }>
 > = ({
   children,
@@ -79,6 +79,9 @@ export const ToolTipInfo: React.FC<
         {kind === 'warning' && (
           <WarningIcon $muteIconColor={muteIconColor} size="medium" />
         )}
+        {kind === 'error' && (
+          <ErrorIcon $muteIconColor={muteIconColor} size="medium" />
+        )}
       </span>
       <Popover
         modalCss={() =>
@@ -123,4 +126,13 @@ const WarningIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
     p.$muteIconColor
       ? p.theme.colors.text.disabled
       : p.theme.colors.warning.main};
+`;
+
+const ErrorIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
+  height: 18px;
+  width: 18px;
+  color: ${p =>
+    p.$muteIconColor
+      ? p.theme.colors.text.disabled
+      : p.theme.colors.interactive.solid.danger.default.background};
 `;
