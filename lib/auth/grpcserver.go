@@ -4186,6 +4186,9 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 
 // ListUnifiedResources retrieves a paginated list of unified resources.
 func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+	fmt.Println(">>>> Entering GRPCServer.ListUnifiedResources()")
+	defer fmt.Println("<<<< Exiting GRPCServer.ListUnifiedResources()")
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

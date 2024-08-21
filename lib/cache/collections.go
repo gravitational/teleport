@@ -254,6 +254,7 @@ type cacheCollections struct {
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
+	identityCenterAccounts   collectionReader[identityCenterAccountGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -764,6 +765,17 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.provisioningStates
+
+		case types.KindIdentityCenterAccount:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.identityCenterAccounts = &genericCollection[services.IdentityCenterAccount, identityCenterAccountGetter, identityCenterAccountExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.identityCenterAccounts
+
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}

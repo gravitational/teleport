@@ -25,6 +25,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -93,6 +94,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *machineidv1.SPIFFEFederation:
 			out.Resource = &proto.Event_SPIFFEFederation{
 				SPIFFEFederation: r,
+			}
+		case *provisioningv1.PrincipalState:
+			out.Resource = &proto.Event_PrincipalState{
+				PrincipalState: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)

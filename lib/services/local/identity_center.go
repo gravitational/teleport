@@ -136,53 +136,64 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 	return svc, nil
 }
 
-func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context, page pagination.PageRequestToken) ([]*identitycenterv1.Account, pagination.NextPageToken, error) {
-	resp, nextPage, err := svc.accounts.ListResources(ctx, identityCenterPageSize, string(page))
+func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context, page pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+	accounts, nextPage, err := svc.accounts.ListResources(ctx, identityCenterPageSize, string(page))
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing identity center assignment records")
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+
+	result := make([]services.IdentityCenterAccount, len(accounts))
+	for i, acct := range accounts {
+		result[i] = services.IdentityCenterAccount{Account: acct}
+	}
+
+	return result, pagination.NextPageToken(nextPage), nil
 }
 
-func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Context, acct *identitycenterv1.Account) (*identitycenterv1.Account, error) {
+func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Context, acct *identitycenterv1.Account) (services.IdentityCenterAccount, error) {
 	created, err := svc.accounts.CreateResource(ctx, acct)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating identity center account")
+		return services.IdentityCenterAccount{}, trace.Wrap(err, "creating identity center account")
 	}
-	return created, nil
+	return services.IdentityCenterAccount{Account: created}, nil
 }
 
-func (svc *IdentityCenterService) GetIdentityCenterAccount(ctx context.Context, name services.IdentityCenterAccountID) (*identitycenterv1.Account, error) {
+func (svc *IdentityCenterService) GetIdentityCenterAccount(ctx context.Context, name services.IdentityCenterAccountID) (services.IdentityCenterAccount, error) {
 	acct, err := svc.accounts.GetResource(ctx, string(name))
 	if err != nil {
-		return nil, trace.Wrap(err, "fetching identity center account")
+		return services.IdentityCenterAccount{}, trace.Wrap(err, "fetching identity center account")
 	}
-	return acct, nil
+	return services.IdentityCenterAccount{Account: acct}, nil
 }
 
-func (svc *IdentityCenterService) UpdateIdentityCenterAccount(ctx context.Context, asmt *identitycenterv1.Account) (*identitycenterv1.Account, error) {
+func (svc *IdentityCenterService) UpdateIdentityCenterAccount(ctx context.Context, acct *identitycenterv1.Account) (services.IdentityCenterAccount, error) {
 	var updatedAccount *identitycenterv1.Account
 	var err error
 
 	switch svc.mode {
 	case IdentityCenterServiceModeStrict:
-		updatedAccount, err = svc.accounts.ConditionalUpdateResource(ctx, asmt)
+		updatedAccount, err = svc.accounts.ConditionalUpdateResource(ctx, acct)
 
 	case IdentityCenterServiceModeRelaxed:
-		updatedAccount, err = svc.accounts.UpdateResource(ctx, asmt)
+		updatedAccount, err = svc.accounts.UpdateResource(ctx, acct)
 
 	default:
-		return nil, trace.BadParameter("invalid service mode: %v", svc.mode)
+		return services.IdentityCenterAccount{}, trace.BadParameter("invalid service mode: %v", svc.mode)
 	}
 
 	if err != nil {
-		return nil, trace.Wrap(err, "updating identity center account record")
+		return services.IdentityCenterAccount{}, trace.Wrap(err, "updating identity center account record")
 	}
-	return updatedAccount, nil
+
+	return services.IdentityCenterAccount{Account: updatedAccount}, nil
 }
 
 func (svc *IdentityCenterService) DeleteIdentityCenterAccount(ctx context.Context, name services.IdentityCenterAccountID) error {
 	return trace.Wrap(svc.accounts.DeleteResource(ctx, string(name)))
+}
+
+func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Context) error {
+	return trace.Wrap(svc.accounts.DeleteAllResources(ctx))
 }
 
 func (svc *IdentityCenterService) ListPrincipalAssignments(ctx context.Context, page pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {

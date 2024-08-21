@@ -184,6 +184,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindProvisioningState},
+		{Kind: types.KindIdentityCenterAccount},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -523,6 +524,7 @@ type Cache struct {
 	accessMontoringRuleCache     services.AccessMonitoringRules
 	spiffeFederationCache        spiffeFederationCacher
 	provisioningStatesCache      services.ProvisioningStates
+	identityCenterCache          services.IdentityCenter
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -744,6 +746,8 @@ type Config struct {
 	EnableRelativeExpiry bool
 
 	ProvisioningStates services.ProvisioningStates
+
+	IdentityCenter services.IdentityCenter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -876,6 +880,16 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	identityCenterCache, err := local.NewIdentityCenterService(
+		local.IdentityCenterServiceConfig{
+			Backend: config.Backend,
+			Mode:    local.IdentityCenterServiceModeRelaxed,
+		})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		cancel()
@@ -990,6 +1004,7 @@ func New(config Config) (*Cache, error) {
 		kubeWaitingContsCache:        kubeWaitingContsCache,
 		spiffeFederationCache:        spiffeFederationCache,
 		provisioningStatesCache:      provisioningStatesCache,
+		identityCenterCache:          identityCenterCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),

@@ -2,19 +2,69 @@ package services
 
 import (
 	"context"
+	"maps"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/lib/utils/pagination"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// IdentityCenterAccount wraps a raw identity center record in a new type to
+// allow it to implement some custom interfaces. Account is a reference type
+// that wraps a pointer to the underlying account record. Copies of an
+// IdentityCenterAccount will point to the same record.
+type IdentityCenterAccount struct {
+	*identitycenterv1.Account
+}
+
+// CloneResource creates a deep copy of the underlying account resource
+func (a IdentityCenterAccount) CloneResource() IdentityCenterAccount {
+	var expiry *timestamppb.Timestamp
+	if a.Metadata.Expires != nil {
+		expiry = &timestamppb.Timestamp{
+			Seconds: a.Metadata.Expires.Seconds,
+			Nanos:   a.Metadata.Expires.Nanos,
+		}
+	}
+
+	return IdentityCenterAccount{
+		Account: &identitycenterv1.Account{
+			Kind:    a.Kind,
+			SubKind: a.SubKind,
+			Version: a.Version,
+			Metadata: &headerv1.Metadata{
+				Name:        a.Metadata.Name,
+				Namespace:   a.Metadata.Namespace,
+				Description: a.Metadata.Description,
+				Labels:      maps.Clone(a.Metadata.Labels),
+				Expires:     expiry,
+				Revision:    a.Metadata.Revision,
+			},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:          a.Spec.Id,
+				Arn:         a.Spec.Arn,
+				Name:        a.Spec.Name,
+				Description: a.Spec.Description,
+			},
+		},
+	}
+}
 
 type IdentityCenterAccountID string
 
+type IdentityCenterAccountGetter interface {
+	ListIdentityCenterAccounts(context.Context, pagination.PageRequestToken) ([]IdentityCenterAccount, pagination.NextPageToken, error)
+}
+
 type IdentityCenterAccounts interface {
-	ListIdentityCenterAccounts(context.Context, pagination.PageRequestToken) ([]*identitycenterv1.Account, pagination.NextPageToken, error)
-	CreateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
-	GetIdentityCenterAccount(context.Context, IdentityCenterAccountID) (*identitycenterv1.Account, error)
-	UpdateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
+	IdentityCenterAccountGetter
+
+	CreateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (IdentityCenterAccount, error)
+	GetIdentityCenterAccount(context.Context, IdentityCenterAccountID) (IdentityCenterAccount, error)
+	UpdateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (IdentityCenterAccount, error)
 	DeleteIdentityCenterAccount(context.Context, IdentityCenterAccountID) error
+	DeleteAllIdentityCenterAccounts(context.Context) error
 }
 
 // MarshalIdentityCenterAccount marshals the account object into a JSON byte array.

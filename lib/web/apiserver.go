@@ -2759,6 +2759,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindWindowsDesktop,
 			types.KindKubernetesCluster,
 			types.KindSAMLIdPServiceProvider,
+			types.KindIdentityCenterAccount,
 		}
 	}
 
@@ -3005,6 +3006,10 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.KubeServer:
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
+
+		case types.Resource153Unwrapper:
+			h.logger.Error("Found Resource153Unwrapper")
+
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)
 		}
@@ -4576,8 +4581,6 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 		log := h.logger.With(
 			"method", r.Method,
 			"url_path", r.URL.Path)
-		log.Debug("Enterting authentication middleware")
-		defer log.Debug("Leaving authentication middleware")
 
 		sctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
