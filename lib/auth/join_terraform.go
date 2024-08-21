@@ -22,11 +22,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/terraform"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type terraformIDTokenValidator interface {

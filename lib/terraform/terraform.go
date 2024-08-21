@@ -30,26 +30,26 @@ type IDTokenClaims struct {
 	// Sub provides some information about the Spacelift run that generated this
 	// token.
 	// organization:<org name>:project:<project name>:workspace:<workspace name>:run_phase:<phase>
-	Sub              string `json:"sub"`
+	Sub string `json:"sub"`
 
 	// OrganizationID is the ID of the HCP Terraform organization
-	OrganizationID   string `json:"terraform_organization_id"`
+	OrganizationID string `json:"terraform_organization_id"`
 	// OrganizationName is the human-readable name of the HCP Terraform organization
 	OrganizationName string `json:"terraform_organization_name"`
 	// ProjectID is the ID of the HCP Terraform project
-	ProjectID        string `json:"terraform_project_id"`
+	ProjectID string `json:"terraform_project_id"`
 	// ProjectName is the human-readable name of the HCP Terraform project
-	ProjectName      string `json:"terraform_project_name"`
+	ProjectName string `json:"terraform_project_name"`
 	// WorkspaceID is the ID of the HCP Terraform project
-	WorkspaceID      string `json:"terraform_workspace_id"`
+	WorkspaceID string `json:"terraform_workspace_id"`
 	// WorkspaceName is the human-readable name of the HCP Terraform workspace
-	WorkspaceName    string `json:"terraform_workspace_name"`
+	WorkspaceName string `json:"terraform_workspace_name"`
 	// FullWorkspace is the full path to the workspace, e.g. `organization:<name>:project:<name>:workspace:<name>`
-	FullWorkspace    string `json:"terraform_full_workspace"`
+	FullWorkspace string `json:"terraform_full_workspace"`
 	// RunID is the ID of the run the token was generated for.
-	RunID            string `json:"terraform_run_id"`
+	RunID string `json:"terraform_run_id"`
 	// RunPhase is the phase of the run the token was issued for, e.g. `plan` or `apply`
-	RunPhase         string `json:"terraform_run_phase"`
+	RunPhase string `json:"terraform_run_phase"`
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into
