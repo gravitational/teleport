@@ -3668,6 +3668,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 
 // TestCheckAccessToRegisteredResource_AccessDenied tests that access denied error
 // is ignored.
+// TODO(kiosion): DELETE in 18.0
 func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3710,6 +3711,7 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	require.False(t, resp.HasResource)
 }
 
+// TODO(kiosion): DELETE in 18.0
 func TestCheckAccessToRegisteredResource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
