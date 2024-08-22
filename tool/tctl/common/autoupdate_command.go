@@ -65,7 +65,7 @@ func (c *AutoupdateCommand) Initialize(app *kingpin.Application, config *service
 	autoupdateCmd := app.Command("autoupdate", "Teleport autoupdate commands.")
 
 	c.updateCmd = autoupdateCmd.Command("update", "Edit autoupdate configuration.")
-	c.updateCmd.Flag("set-tools-auto-update", `Enable or disable tools autoupdate in cluster.`).EnumVar(&c.toolsAutoupdate, "on", "off")
+	c.updateCmd.Flag("set-tools-autoupdate", `Enable or disable tools autoupdate in cluster.`).EnumVar(&c.toolsAutoupdate, "on", "off")
 	c.updateCmd.Flag("set-tools-version", `Defines client tools version required to be force updated.`).StringVar(&c.toolsAutoupdateVersion)
 
 	c.getCmd = autoupdateCmd.Command("get", "Receive tools autoupdate version.")
@@ -155,23 +155,16 @@ func (c *AutoupdateCommand) Get(ctx context.Context, client *authclient.Client) 
 func (c *AutoupdateCommand) Watch(ctx context.Context, client *authclient.Client) error {
 	current := teleport.SemVersion
 	ticker := interval.New(interval.Config{
-		Duration:      time.Minute,
-		FirstDuration: time.Second,
+		Duration: time.Minute,
 	})
+	defer ticker.Stop()
 
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.Next():
-			response, err := c.get(ctx, client)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if response.ToolsVersion == "" {
-				continue
-			}
-
+		response, err := c.get(ctx, client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if response.ToolsVersion != "" {
 			semVersion, err := semver.NewVersion(response.ToolsVersion)
 			if err != nil {
 				return trace.Wrap(err)
@@ -182,6 +175,12 @@ func (c *AutoupdateCommand) Watch(ctx context.Context, client *authclient.Client
 				}
 				current = semVersion
 			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.Next():
 		}
 	}
 }
