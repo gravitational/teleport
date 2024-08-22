@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Box, ButtonBorder, Flex, H3, LabelInput, Text } from 'design';
+import { Box, Flex, H3, LabelInput, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ToolTipInfo } from 'shared/components/ToolTip';
-
 import {
   ActionButtons,
   Header,
@@ -10,19 +9,15 @@ import {
   StyledBox,
 } from 'teleport/Discover/Shared';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-import cfg from 'teleport/config';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
 import { useAttemptNext } from 'shared/hooks';
-
 import { P } from 'design/Text/Text';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
+import { ButtonDownloadMetadataFile } from 'e-teleport/Discover/SamlApplication/shared/ButtonDownloadMetadataFile';
 
-const idpMetadataUrl = cfg.baseUrl + '/enterprise/saml-idp/metadata';
+import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 
 export function Container() {
   const { prevStep, nextStep, isUpdateFlow } = useDiscover();
@@ -82,22 +77,22 @@ export function DownloadMetadata({ prevStep, nextStep }: Props) {
 
 export function ConfigureServiceProvider({
   samlIdPMetadata,
-}: ConfigureSPProps) {
+}: {
+  samlIdPMetadata: SAMLIdPMetadataResponse;
+}) {
   return (
     <StyledBox mb={4}>
-      <H3 mb={2}>Teleport IdP Metadata</H3>
-
-      <Flex alignItems="baseline" gap={4} mb={4}>
-        <P>
-          Use the Teleport IdP metadata values shown below to configure service
-          provider. You may also download the metadata file if you need more
-          control over configuration or if the service provider requires to
-          upload the metadata file.
-        </P>
-        <ButtonBorder width="300px" as="a" href={idpMetadataUrl} size="medium">
-          Download IdP Metadata
-        </ButtonBorder>
+      <Flex alignItems="center" justifyContent="space-between" mb={3}>
+        <H3>Teleport SAML IdP Metadata</H3>
+        <ButtonDownloadMetadataFile />
       </Flex>
+
+      <P mb={4}>
+        Your service provider requires the following Teleport SAML IdP metadata
+        values to trust Teleport as an SAML identity provider. You can copy and
+        paste these values or download the metadata file and upload it to your
+        service provider.
+      </P>
 
       <Box mb={4}>
         <LabelInput>
@@ -155,8 +150,4 @@ export function ConfigureServiceProvider({
 type Props = {
   nextStep: () => void;
   prevStep: () => void;
-};
-
-type ConfigureSPProps = {
-  samlIdPMetadata: SAMLIdPMetadataResponse;
 };

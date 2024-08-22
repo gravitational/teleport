@@ -30,6 +30,21 @@ export class IdpService {
     return api.get(cfg.api.samlIdPMetadataValuesPath);
   }
 
+  /**
+   * getMetadataXml uses native fetch function to fetch an XML file.
+   * Native fetch function is used because the api.get function expects
+   * response to be a JSON data.
+   * @returns {string} A string containing SAML IdP entity descriptor (XML file).
+   */
+  async getMetadataXml(): Promise<string> {
+    const resp = await api.fetch(cfg.api.samlIdPMetadataFilePath);
+    if (resp.status !== 200) {
+      throw new Error('invalid response');
+    }
+    const metadata = await resp.text();
+    return metadata;
+  }
+
   upsertRequest(
     spRequest: CreateSamlIdpServiceProviderRequest,
     isUpdateFlow: boolean

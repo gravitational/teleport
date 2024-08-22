@@ -101,7 +101,7 @@ describe('Configure GCP workforce pool', () => {
       ).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Teleport IdP Metadata')).toBeInTheDocument();
+    expect(screen.getByText('Teleport SAML IdP Metadata')).toBeInTheDocument();
   });
 });
 

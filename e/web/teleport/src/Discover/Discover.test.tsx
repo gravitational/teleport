@@ -50,7 +50,7 @@ test('displays all resources by default', () => {
   const samlGenericEl = screen.getByText('SAML Application (Generic)');
   expect(samlGenericEl).toBeInTheDocument();
   fireEvent.click(samlGenericEl);
-  expect(screen.getByText(`Teleport IdP Metadata`)).toBeInTheDocument();
+  expect(screen.getByText(`Teleport SAML IdP Metadata`)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Back/i }));
 
   const samlGcpWorkforceEl = screen.getByText('Workforce Identity Federation');
